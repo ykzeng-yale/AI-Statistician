@@ -1285,6 +1285,90 @@ def test_signature_probe_does_not_queue_proof_body_with_environment_errors(
     assert probe_row["signature_typecheck_reached_proof_body"] is False
 
 
+def test_signature_probe_routes_missing_candidate_as_materialization_request(
+    tmp_path: Path,
+) -> None:
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": (
+                    "source_theorem_formal_environment_work_order:needs_candidate"
+                ),
+                "question_id": "split_conformal",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "diagnostics": [
+                    "placeholder symbols require reviewed Lean definitions",
+                ],
+                "missing_formal_symbols": [
+                    "coverage_event",
+                    "good_rank_event",
+                    "C_n",
+                ],
+                "typeclass_blockers": [],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge_missing_candidate",
+        queue_jsonl=queue_jsonl,
+        question_id="split_conformal",
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; raise SystemExit(99)",
+        ),
+    )
+
+    assert manifest["n_signature_probe_rows"] == 1
+    assert manifest["n_signature_probes_reached_proof_body"] == 0
+    assert manifest["n_proof_body_work_orders"] == 0
+    assert manifest["n_proof_body_execution_queue_rows"] == 0
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_row = probe_manifest["rows"][0]
+    assert probe_row["failure_classification"] == (
+        "source_theorem_candidate_materialization_required"
+    )
+    assert probe_row["signature_probe_status"] == (
+        "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+    )
+    assert probe_row["local_lean_checked"] is False
+    assert probe_row["candidate_materialization_required"] is True
+    assert "candidate_artifact_path missing" in probe_row["diagnostics"]
+    assert any(
+        "candidate_materialization_required" in diagnostic
+        for diagnostic in probe_row["diagnostics"]
+    )
+
+    learning_row = json.loads(
+        Path(str(manifest["runtime_learning_rows_jsonl"])).read_text(encoding="utf-8")
+    )
+    assert learning_row["candidate_materialization_required"] is True
+    assert learning_row["candidate_materialization_statuses"] == [
+        "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+    ]
+    assert learning_row["input_summary"]["candidate_materialization_required"] is True
+    assert learning_row["input_summary"]["candidate_materialization_statuses"] == [
+        "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+    ]
+    assert "exact source-theorem Lean candidate artifact" in learning_row[
+        "candidate_materialization_contract"
+    ]
+
+
 def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
     tmp_path: Path,
 ) -> None:

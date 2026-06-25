@@ -203,3 +203,19 @@ for unknown identifier `Finset.univ.filter`. This is the intended design shape:
 the LLM may propose proof objects, but runtime validators and Lean diagnostics
 convert unresolved resources into typed retrieval/prover work without claiming
 proof.
+
+The next live sequence showed a separate integration boundary. The
+formal-environment bridge received work orders for missing primitives such as
+`coverage_event`, `good_rank_event`, and `C_n`, but no exact source-theorem
+candidate artifact existed for signature probing. Treating that as a generic
+`candidate_artifact_path missing` failure was too vague: it did not tell
+Formalizer/ProofEngineer that the next obligation is to materialize an exact
+Lean candidate before Lean signature probes or proof-body execution can run. The
+bridge now emits typed non-proof statuses:
+`source_theorem_candidate_materialization_required` and
+`SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT` for absent candidates, or
+`source_theorem_candidate_artifact_missing` when the path points nowhere. The
+runtime learning export carries the same materialization contract. This is an
+evidence-boundary contract, not a conformal theorem heuristic: it prevents
+proof-body work from being queued until the LLM/prover stack has produced a
+concrete candidate artifact that local Lean/AXLE can inspect.

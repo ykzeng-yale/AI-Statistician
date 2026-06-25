@@ -36,6 +36,20 @@ BOUNDARY = (
     "can promote any repaired artifact to proof evidence."
 )
 SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS = "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
+CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE = (
+    "source_theorem_candidate_materialization_required"
+)
+CANDIDATE_ARTIFACT_MISSING_FAILURE = "source_theorem_candidate_artifact_missing"
+SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT = (
+    "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+)
+SIGNATURE_PROBE_BLOCKED_CANDIDATE_ARTIFACT_NOT_FOUND = (
+    "SIGNATURE_PROBE_BLOCKED_CANDIDATE_ARTIFACT_NOT_FOUND"
+)
+CANDIDATE_MATERIALIZATION_CONTRACT = (
+    "Formalizer/ProofEngineer must materialize an exact source-theorem Lean "
+    "candidate artifact before signature probes or proof-body execution can run."
+)
 SIGNATURE_PROBE_BOUNDARY = (
     "Source-theorem formal-environment signature probes are local Lean typecheck "
     "diagnostics for repaired candidate environments. They may show that missing "
@@ -107,6 +121,8 @@ class SourceTheoremFormalEnvironmentSignatureProbeRow:
     boundary: str
     ok: bool
     errors: tuple[str, ...] = ()
+    candidate_materialization_required: bool = False
+    candidate_materialization_contract: str = ""
 
 
 def resolve_source_theorem_formal_environment_queue_path(
@@ -796,12 +812,36 @@ def _signature_probe_row(
     )[:20]
     probe_artifact_path = artifacts_dir / f"{_safe_file_stem(target_theorem_name or probe_id)}_signature_probe.lean"
     source = ""
+    candidate_materialization_required = False
+    candidate_materialization_contract = ""
+    candidate_precondition_failure = ""
+    candidate_precondition_status = ""
     if not repair_packet_id:
         errors.append("repair_packet_id missing")
     if not candidate_raw:
-        errors.append("candidate_artifact_path missing")
+        candidate_materialization_required = True
+        candidate_materialization_contract = CANDIDATE_MATERIALIZATION_CONTRACT
+        candidate_precondition_failure = CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE
+        candidate_precondition_status = SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT
+        errors.extend(
+            _candidate_materialization_diagnostics(
+                packet,
+                reason="candidate_artifact_path missing",
+            )
+        )
     elif not candidate_path.exists():
-        errors.append(f"candidate artifact missing: {candidate_path}")
+        candidate_materialization_required = True
+        candidate_materialization_contract = CANDIDATE_MATERIALIZATION_CONTRACT
+        candidate_precondition_failure = CANDIDATE_ARTIFACT_MISSING_FAILURE
+        candidate_precondition_status = (
+            SIGNATURE_PROBE_BLOCKED_CANDIDATE_ARTIFACT_NOT_FOUND
+        )
+        errors.extend(
+            _candidate_materialization_diagnostics(
+                packet,
+                reason=f"candidate artifact missing: {candidate_path}",
+            )
+        )
     else:
         try:
             source = candidate_path.read_text(encoding="utf-8")
@@ -814,7 +854,12 @@ def _signature_probe_row(
     compiled = False
     returncode = -1
     diagnostics: tuple[str, ...] = ()
-    if not lean_command:
+    status = ""
+    if candidate_precondition_failure:
+        diagnostics = tuple(errors)
+        failure = candidate_precondition_failure
+        status = candidate_precondition_status
+    elif not lean_command:
         errors.append("lean executable not found")
         diagnostics = ("lean executable not found",)
         failure = "local_lean_unavailable"
@@ -834,15 +879,16 @@ def _signature_probe_row(
         diagnostics,
         packet=packet,
     )
-    status = (
-        "SIGNATURE_PROBE_COMPILED_NOT_PROOF"
-        if compiled
-        else (
-            "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
-            if reached_proof_body
-            else "SIGNATURE_PROBE_LOCAL_LEAN_FAILED"
+    if not status:
+        status = (
+            "SIGNATURE_PROBE_COMPILED_NOT_PROOF"
+            if compiled
+            else (
+                "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
+                if reached_proof_body
+                else "SIGNATURE_PROBE_LOCAL_LEAN_FAILED"
+            )
         )
-    )
     ok = not errors and checked and reached_proof_body
     return SourceTheoremFormalEnvironmentSignatureProbeRow(
         schema_version=1,
@@ -867,7 +913,34 @@ def _signature_probe_row(
         boundary=SIGNATURE_PROBE_BOUNDARY,
         ok=ok,
         errors=tuple(errors),
+        candidate_materialization_required=candidate_materialization_required,
+        candidate_materialization_contract=candidate_materialization_contract,
     )
+
+
+def _candidate_materialization_diagnostics(
+    packet: Mapping[str, Any],
+    *,
+    reason: str,
+) -> list[str]:
+    diagnostics = [
+        reason,
+        f"candidate_materialization_required: {CANDIDATE_MATERIALIZATION_CONTRACT}",
+    ]
+    target = str(packet.get("target_theorem_name", "") or "")
+    if target:
+        diagnostics.append(f"target_theorem_name={target}")
+    missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
+    if missing_symbols:
+        diagnostics.append("missing_formal_symbols=" + ", ".join(missing_symbols))
+    diagnostics.append(
+        f"proof_evidence_status={SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS}"
+    )
+    diagnostics.append(
+        "boundary=signature probe/proof-body routing is blocked until an exact "
+        "candidate artifact exists"
+    )
+    return diagnostics
 
 
 def _signature_probe_source(source: str, packet: Mapping[str, Any]) -> str:
@@ -2174,6 +2247,32 @@ def _export_runtime_learning_rows(
                 if isinstance(row, Mapping)
             ],
         )
+        candidate_materialization_required = any(
+            bool(row.get("candidate_materialization_required", False))
+            or str(row.get("failure_classification", "") or "")
+            in {
+                CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE,
+                CANDIDATE_ARTIFACT_MISSING_FAILURE,
+            }
+            for row in signature_probe_rows
+            if isinstance(row, Mapping)
+        )
+        candidate_materialization_statuses = list(
+            dict.fromkeys(
+                str(row.get("signature_probe_status", "") or "")
+                for row in signature_probe_rows
+                if isinstance(row, Mapping)
+                and (
+                    bool(row.get("candidate_materialization_required", False))
+                    or str(row.get("failure_classification", "") or "")
+                    in {
+                        CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE,
+                        CANDIDATE_ARTIFACT_MISSING_FAILURE,
+                    }
+                )
+                and str(row.get("signature_probe_status", "") or "")
+            )
+        )
         rows.append(
             {
                 "schema_version": 1,
@@ -2210,6 +2309,17 @@ def _export_runtime_learning_rows(
                         packet.get("lean_signature_probe_plan", {}) or {}
                     ),
                     "signature_probe_rows": signature_probe_rows,
+                    "candidate_materialization_required": (
+                        candidate_materialization_required
+                    ),
+                    "candidate_materialization_statuses": (
+                        candidate_materialization_statuses
+                    ),
+                    "candidate_materialization_contract": (
+                        CANDIDATE_MATERIALIZATION_CONTRACT
+                        if candidate_materialization_required
+                        else ""
+                    ),
                     "signature_probe_manifest": str(
                         signature_probe_result.get("signature_probe_manifest_path", "")
                         if signature_probe_result
@@ -2253,6 +2363,17 @@ def _export_runtime_learning_rows(
                 ),
                 "source_work_order_id": str(packet.get("source_work_order_id", "") or ""),
                 "repair_packet_id": str(packet.get("repair_packet_id", "") or ""),
+                "candidate_materialization_required": (
+                    candidate_materialization_required
+                ),
+                "candidate_materialization_statuses": (
+                    candidate_materialization_statuses
+                ),
+                "candidate_materialization_contract": (
+                    CANDIDATE_MATERIALIZATION_CONTRACT
+                    if candidate_materialization_required
+                    else ""
+                ),
                 "missing_formal_symbols": list(packet.get("missing_formal_symbols", []) or []),
                 "typeclass_blockers": list(packet.get("typeclass_blockers", []) or []),
                 "target_behavior": (

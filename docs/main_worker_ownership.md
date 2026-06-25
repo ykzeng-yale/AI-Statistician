@@ -348,6 +348,28 @@ ready (`40/49` in CLI output), and no source theorem promotion work order was
 emitted. The focused carry-forward tests and guarded suite pass, with the final
 guarded run at `304 passed in 149.99s`.
 
+The next live ProofEngineer/Critic sequence exposed a formal-environment bridge
+contract rather than a theorem-specific repair. The resume at
+`runs/main_worker_live_runtime_resume_formal_blocker_request_next_repair_probe/research_agent_runtime_manifest.json`
+advanced the live scorecard to `42/49`, with 5 failed-then-passed Formalizer
+Lean repair sequences and 9 compiled diagnostic candidates, but the exact
+source-to-bridge candidate still failed semantic/source anchoring and the
+source-theorem formal-environment signature probes reported only
+`candidate_artifact_path missing`. The Critic follow-up at
+`runs/main_worker_live_runtime_resume_critic_after_formal_env_probe/research_agent_runtime_manifest.json`
+routed that as a formal-environment repair gap plus typed blocker requests.
+The next ProofEngineer turn at
+`runs/main_worker_live_runtime_resume_formal_env_repair_consumption_probe/research_agent_runtime_manifest.json`
+carried 7 requests, including new `Equiv.Perm` and `Finset.univ.filter`
+unknown-identifier blockers, while source-to-bridge premise checking improved
+from missing semantic-anchor references to `premise_derivation_candidate_wrong_declaration`.
+No source theorem proof, source-theorem promotion seed, or proof-body executor
+row was produced. The bridge now classifies missing exact source-theorem
+candidate artifacts as `source_theorem_candidate_materialization_required` and
+keeps that contract in runtime learning rows so Formalizer/ProofEngineer must
+materialize an exact Lean candidate before signature probing or proof-body
+execution can run.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
