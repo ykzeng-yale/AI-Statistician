@@ -27,7 +27,7 @@ used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-06-24 Anthropic Models overview and Model
+as CLI-created agents. As of the 2026-06-25 Anthropic Models overview and Model
 IDs/versioning source check, the pinned default Claude API IDs are Haiku
 `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
 `claude-opus-4-8`. The policy also records official API aliases by tier, but
