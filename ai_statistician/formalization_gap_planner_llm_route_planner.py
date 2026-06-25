@@ -4041,6 +4041,9 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "n_formal_attempt_queue_errors": _formal_attempt_queue_error_count(
                     row_errors
                 ),
+                "n_target_prover_tool_scope_errors": (
+                    _target_prover_tool_scope_error_count(row_errors)
+                ),
                 "n_agentic_proof_strategy_plan_obligation_errors": (
                     _agentic_strategy_plan_obligation_error_count(row_errors)
                 ),
@@ -4233,6 +4236,14 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         ),
         "n_formal_attempt_queue_errors": sum(
             int(row["n_formal_attempt_queue_errors"] or 0) for row in rows
+        ),
+        "n_payloads_with_target_prover_tool_scope_errors": sum(
+            1
+            for row in rows
+            if int(row["n_target_prover_tool_scope_errors"] or 0)
+        ),
+        "n_target_prover_tool_scope_errors": sum(
+            int(row["n_target_prover_tool_scope_errors"] or 0) for row in rows
         ),
         "n_payloads_with_agentic_proof_strategy_plan_obligation_errors": sum(
             1
@@ -8265,6 +8276,14 @@ def validate_llm_route_planner_response_payload_validation_manifest(
     formal_attempt_queue_errors = sum(
         int(row.get("n_formal_attempt_queue_errors", 0) or 0) for row in rows
     )
+    payload_rows_with_target_tool_scope_errors = tuple(
+        row
+        for row in rows
+        if int(row.get("n_target_prover_tool_scope_errors", 0) or 0)
+    )
+    target_tool_scope_errors = sum(
+        int(row.get("n_target_prover_tool_scope_errors", 0) or 0) for row in rows
+    )
     payload_rows_with_agentic_strategy_errors = tuple(
         row
         for row in rows
@@ -8505,6 +8524,21 @@ def validate_llm_route_planner_response_payload_validation_manifest(
             "n_formal_attempt_queue_errors sum"
         )
     if int(
+        manifest.get("n_payloads_with_target_prover_tool_scope_errors", 0)
+        or 0
+    ) != len(payload_rows_with_target_tool_scope_errors):
+        errors.append(
+            "n_payloads_with_target_prover_tool_scope_errors must match rows "
+            "with target-prover tool-scope errors"
+        )
+    if int(
+        manifest.get("n_target_prover_tool_scope_errors", 0) or 0
+    ) != target_tool_scope_errors:
+        errors.append(
+            "n_target_prover_tool_scope_errors must match row "
+            "n_target_prover_tool_scope_errors sum"
+        )
+    if int(
         manifest.get(
             "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
             0,
@@ -8607,6 +8641,7 @@ def validate_llm_route_planner_response_payload_validation_row(
         "request_context_agentic_proof_strategy_plan_ready_count",
         "payload_formal_attempt_queue_item_count",
         "n_formal_attempt_queue_errors",
+        "n_target_prover_tool_scope_errors",
         "n_agentic_proof_strategy_plan_obligation_errors",
         "n_schema_errors",
         "n_request_context_errors",
@@ -8627,6 +8662,7 @@ def validate_llm_route_planner_response_payload_validation_row(
     n_schema_errors = count_values["n_schema_errors"]
     n_request_context_errors = count_values["n_request_context_errors"]
     n_formal_attempt_queue_errors = count_values["n_formal_attempt_queue_errors"]
+    n_target_tool_scope_errors = count_values["n_target_prover_tool_scope_errors"]
     n_agentic_strategy_errors = count_values[
         "n_agentic_proof_strategy_plan_obligation_errors"
     ]
@@ -8642,6 +8678,13 @@ def validate_llm_route_planner_response_payload_validation_row(
         errors.append(
             "n_formal_attempt_queue_errors must match errors containing "
             "formal_attempt_queue"
+        )
+    if n_target_tool_scope_errors != _target_prover_tool_scope_error_count(
+        reported_errors
+    ):
+        errors.append(
+            "n_target_prover_tool_scope_errors must match errors containing "
+            "target-specific tool/resource"
         )
     if n_agentic_strategy_errors != _agentic_strategy_plan_obligation_error_count(
         reported_errors
@@ -8794,6 +8837,15 @@ def validate_llm_route_planner_response_payload_validation_row(
 
 def _formal_attempt_queue_error_count(errors: Iterable[object]) -> int:
     return sum(1 for error in errors if "formal_attempt_queue" in str(error))
+
+
+def _target_prover_tool_scope_error_count(errors: Iterable[object]) -> int:
+    return sum(
+        1
+        for error in errors
+        if "uses target-specific tool/resource incompatible with request"
+        in str(error)
+    )
 
 
 def _agentic_strategy_plan_obligation_error_count(
@@ -15043,6 +15095,7 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "payload_formal_attempt_queue_present",
             "payload_formal_attempt_queue_item_count",
             "n_formal_attempt_queue_errors",
+            "n_target_prover_tool_scope_errors",
             "n_agentic_proof_strategy_plan_obligation_errors",
             "n_schema_errors",
             "n_request_context_errors",
@@ -15125,6 +15178,7 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "payload_formal_attempt_queue_present": {"type": "boolean"},
             "payload_formal_attempt_queue_item_count": nonnegative_integer,
             "n_formal_attempt_queue_errors": nonnegative_integer,
+            "n_target_prover_tool_scope_errors": nonnegative_integer,
             "n_agentic_proof_strategy_plan_obligation_errors": (
                 nonnegative_integer
             ),
@@ -15192,6 +15246,8 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_payload_formal_attempt_queue_items",
             "n_payloads_with_formal_attempt_queue_errors",
             "n_formal_attempt_queue_errors",
+            "n_payloads_with_target_prover_tool_scope_errors",
+            "n_target_prover_tool_scope_errors",
             "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
             "n_agentic_proof_strategy_plan_obligation_errors",
             "n_payloads_with_declared_target_prover_family",
@@ -15317,6 +15373,8 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_payload_formal_attempt_queue_items": {"type": "integer"},
             "n_payloads_with_formal_attempt_queue_errors": {"type": "integer"},
             "n_formal_attempt_queue_errors": {"type": "integer"},
+            "n_payloads_with_target_prover_tool_scope_errors": {"type": "integer"},
+            "n_target_prover_tool_scope_errors": {"type": "integer"},
             "n_payloads_with_agentic_proof_strategy_plan_obligation_errors": {
                 "type": "integer"
             },

@@ -14203,6 +14203,8 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_payload_formal_attempt_queue_items"] == 2
     assert payload["n_payloads_with_formal_attempt_queue_errors"] == 0
     assert payload["n_formal_attempt_queue_errors"] == 0
+    assert payload["n_payloads_with_target_prover_tool_scope_errors"] == 0
+    assert payload["n_target_prover_tool_scope_errors"] == 0
     assert payload["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
@@ -14247,6 +14249,7 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["payload_formal_attempt_queue_present"] is True
     assert row["payload_formal_attempt_queue_item_count"] == 2
     assert row["n_formal_attempt_queue_errors"] == 0
+    assert row["n_target_prover_tool_scope_errors"] == 0
     assert row["n_agentic_proof_strategy_plan_obligation_errors"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
@@ -14256,6 +14259,10 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row_schema["properties"]["target_prover_family_consistent"][
         "type"
     ] == "boolean"
+    assert (
+        row_schema["properties"]["n_target_prover_tool_scope_errors"]["minimum"]
+        == 0
+    )
     assert row_schema["properties"][
         "request_context_route_adoption_precondition_present"
     ]["type"] == "boolean"
@@ -14339,6 +14346,16 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "formal_attempt_queue"
         in validate_llm_route_planner_response_payload_validation_row(
             drifted_queue_error_row,
+            row_schema,
+        )
+    )
+    drifted_tool_scope_count_row = deepcopy(row)
+    drifted_tool_scope_count_row["n_target_prover_tool_scope_errors"] = 1
+    assert (
+        "n_target_prover_tool_scope_errors must match errors containing "
+        "target-specific tool/resource"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_tool_scope_count_row,
             row_schema,
         )
     )
@@ -14430,6 +14447,28 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "n_agentic_proof_strategy_plan_obligation_errors sum"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_agentic_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_tool_scope_payload_manifest = deepcopy(payload)
+    drifted_tool_scope_payload_manifest[
+        "n_payloads_with_target_prover_tool_scope_errors"
+    ] = 1
+    assert (
+        "n_payloads_with_target_prover_tool_scope_errors must match rows "
+        "with target-prover tool-scope errors"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_tool_scope_payload_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_tool_scope_manifest = deepcopy(payload)
+    drifted_tool_scope_manifest["n_target_prover_tool_scope_errors"] = 1
+    assert (
+        "n_target_prover_tool_scope_errors must match row "
+        "n_target_prover_tool_scope_errors sum"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_tool_scope_manifest,
             manifest_schema,
         )
     )
@@ -21164,6 +21203,97 @@ def test_llm_route_planner_rejects_target_specific_lean_tools_for_rocq_target() 
     assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
     assert "lean_lsp_mcp targets lean4" in error_text
     assert "target_prover_family rocq" in error_text
+
+
+def test_response_payload_validation_counts_target_specific_tool_scope_errors() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_response_validation_counts_tool_scope"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "bad_response.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+    )
+    request = prompt_payload["request_packets"][0]
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "lean_search",
+            "owner": "leansearch",
+            "query": "rank_uniformity Lean declaration search",
+            "reason": "This incorrectly dispatches a Lean-specific search for Rocq.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt the rank_uniformity bridge lemma in Lean",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": bad_response,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads"] == 1
+    assert validation_payload["n_payloads_with_target_prover_tool_scope_errors"] == 1
+    assert validation_payload["n_target_prover_tool_scope_errors"] >= 4
+    row = validation_payload["rows"][0]
+    assert row["request_context_target_prover_key"] == "rocq"
+    assert row["n_target_prover_tool_scope_errors"] >= 4
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0] uses target-specific tool/resource" in error_text
+    assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
+    assert "formal_attempt_queue[0] uses target-specific tool/resource" in error_text
+    assert "target_prover_family rocq" in error_text
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
 
 
 def test_llm_route_planner_rejects_lean_search_kind_for_rocq_target_without_owner() -> None:
