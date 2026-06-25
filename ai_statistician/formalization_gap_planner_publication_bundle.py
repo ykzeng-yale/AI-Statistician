@@ -2761,6 +2761,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "total_provider_cache_creation_input_tokens",
             "total_provider_cache_read_input_tokens",
             "total_provider_total_tokens",
+            "total_provider_estimated_input_cost_micro_usd",
+            "total_provider_estimated_output_cost_micro_usd",
+            "total_provider_estimated_base_input_output_cost_micro_usd",
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost",
+            "n_provider_usage_rows_with_estimated_base_cost",
             "n_generated_responses_model_tier_escalated",
             "n_generated_responses_haiku_to_sonnet_escalated",
             "n_repair_attempt_ledger_model_tier_escalations",
@@ -3127,6 +3132,17 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "total_provider_cache_creation_input_tokens": nonnegative_integer,
             "total_provider_cache_read_input_tokens": nonnegative_integer,
             "total_provider_total_tokens": nonnegative_integer,
+            "total_provider_estimated_input_cost_micro_usd": nonnegative_integer,
+            "total_provider_estimated_output_cost_micro_usd": nonnegative_integer,
+            "total_provider_estimated_base_input_output_cost_micro_usd": (
+                nonnegative_integer
+            ),
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost": (
+                nonnegative_integer
+            ),
+            "n_provider_usage_rows_with_estimated_base_cost": (
+                nonnegative_integer
+            ),
             "n_generated_responses_model_tier_escalated": nonnegative_integer,
             "n_generated_responses_haiku_to_sonnet_escalated": (
                 nonnegative_integer
@@ -5616,6 +5632,11 @@ def _empty_provider_usage_bucket() -> dict[str, int]:
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens": 0,
         "total_tokens": 0,
+        "estimated_input_cost_micro_usd": 0,
+        "estimated_output_cost_micro_usd": 0,
+        "estimated_base_input_output_cost_micro_usd": 0,
+        "estimated_cache_tokens_excluded_from_base_cost": 0,
+        "n_rows_with_estimated_base_cost": 0,
     }
 
 
@@ -5649,6 +5670,40 @@ def _provider_usage_bucket_from_summary(
         "total_tokens": _int_or_zero(
             usage.get("total_tokens", summary.get("total_provider_total_tokens"))
         ),
+        "estimated_input_cost_micro_usd": _int_or_zero(
+            usage.get(
+                "estimated_input_cost_micro_usd",
+                summary.get("total_provider_estimated_input_cost_micro_usd"),
+            )
+        ),
+        "estimated_output_cost_micro_usd": _int_or_zero(
+            usage.get(
+                "estimated_output_cost_micro_usd",
+                summary.get("total_provider_estimated_output_cost_micro_usd"),
+            )
+        ),
+        "estimated_base_input_output_cost_micro_usd": _int_or_zero(
+            usage.get(
+                "estimated_base_input_output_cost_micro_usd",
+                summary.get(
+                    "total_provider_estimated_base_input_output_cost_micro_usd"
+                ),
+            )
+        ),
+        "estimated_cache_tokens_excluded_from_base_cost": _int_or_zero(
+            usage.get(
+                "estimated_cache_tokens_excluded_from_base_cost",
+                summary.get(
+                    "total_provider_estimated_cache_tokens_excluded_from_base_cost"
+                ),
+            )
+        ),
+        "n_rows_with_estimated_base_cost": _int_or_zero(
+            usage.get(
+                "n_rows_with_estimated_base_cost",
+                summary.get("n_provider_usage_rows_with_estimated_base_cost"),
+            )
+        ),
     }
 
 
@@ -5663,6 +5718,11 @@ def _add_provider_usage_bucket(
         "cache_creation_input_tokens",
         "cache_read_input_tokens",
         "total_tokens",
+        "estimated_input_cost_micro_usd",
+        "estimated_output_cost_micro_usd",
+        "estimated_base_input_output_cost_micro_usd",
+        "estimated_cache_tokens_excluded_from_base_cost",
+        "n_rows_with_estimated_base_cost",
     ):
         target[key] = _int_or_zero(target.get(key)) + _int_or_zero(source.get(key))
 
@@ -6914,6 +6974,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "total_provider_cache_creation_input_tokens": 0,
         "total_provider_cache_read_input_tokens": 0,
         "total_provider_total_tokens": 0,
+        "total_provider_estimated_input_cost_micro_usd": 0,
+        "total_provider_estimated_output_cost_micro_usd": 0,
+        "total_provider_estimated_base_input_output_cost_micro_usd": 0,
+        "total_provider_estimated_cache_tokens_excluded_from_base_cost": 0,
+        "n_provider_usage_rows_with_estimated_base_cost": 0,
         "n_generated_responses_model_tier_escalated": 0,
         "n_generated_responses_haiku_to_sonnet_escalated": 0,
         "n_repair_attempt_ledger_model_tier_escalations": 0,
@@ -8255,6 +8320,56 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 "total_provider_total_tokens",
                 _dict_value(payload, "provider_usage_summary").get(
                     "total_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_estimated_input_cost_micro_usd": int(
+            payload.get(
+                "total_provider_estimated_input_cost_micro_usd",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "estimated_input_cost_micro_usd",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_estimated_output_cost_micro_usd": int(
+            payload.get(
+                "total_provider_estimated_output_cost_micro_usd",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "estimated_output_cost_micro_usd",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_estimated_base_input_output_cost_micro_usd": int(
+            payload.get(
+                "total_provider_estimated_base_input_output_cost_micro_usd",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "estimated_base_input_output_cost_micro_usd",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_estimated_cache_tokens_excluded_from_base_cost": int(
+            payload.get(
+                "total_provider_estimated_cache_tokens_excluded_from_base_cost",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "estimated_cache_tokens_excluded_from_base_cost",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "n_provider_usage_rows_with_estimated_base_cost": int(
+            payload.get(
+                "n_provider_usage_rows_with_estimated_base_cost",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "n_rows_with_estimated_base_cost",
                     0,
                 ),
             )

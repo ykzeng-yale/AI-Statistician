@@ -36,6 +36,11 @@ DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER = {
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
+CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK = {
+    "haiku": {"input": 1, "output": 5},
+    "sonnet": {"input": 3, "output": 15},
+    "opus": {"input": 5, "output": 25},
+}
 AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "ArchitectCoordinator": "sonnet",
     "TheoryDeveloper": "sonnet",
@@ -86,6 +91,9 @@ ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
     "model_ids_and_versioning_url": ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     "verified_latest_cost_tier_api_ids": dict(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER),
     "verified_api_aliases_by_tier": dict(DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER),
+    "verified_base_pricing_per_mtok_by_tier": dict(
+        CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK
+    ),
     "verified_outside_cost_tier_models": dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS),
     "claims": [
         (
@@ -96,6 +104,10 @@ ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
         (
             "Claude Fable 5 and Claude Mythos 5 are tracked separately from "
             "the Opus/Sonnet/Haiku cost-aware tier contract."
+        ),
+        (
+            "The latest Opus/Sonnet/Haiku comparison lists base input/output "
+            "pricing per MTok as Opus 5/25, Sonnet 3/15, and Haiku 1/5."
         ),
         (
             "Claude 4.6+ dateless model IDs are pinned snapshots, not "
@@ -112,6 +124,13 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+    "base_pricing_per_mtok_by_tier": CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK,
+    "base_pricing_policy": (
+        "Pricing is the source-checked Claude API base input/output price per "
+        "million tokens. Prompt caching, batch discounts, priority tier, beta "
+        "output tiers, and cloud-platform variants require separate billing "
+        "logic and are not included in base planner estimates."
+    ),
     "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
         "AI Statistician resolves runtime calls to the Claude API IDs in "

@@ -447,6 +447,16 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
             "opus": "claude-opus-4-8",
         }
     )
+    assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+        "base_pricing_per_mtok_by_tier"
+    ] == {
+        "haiku": {"input": 1, "output": 5},
+        "sonnet": {"input": 3, "output": 15},
+        "opus": {"input": 5, "output": 25},
+    }
+    assert "Prompt caching" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+        "base_pricing_policy"
+    ]
     assert "runtime calls" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
         "runtime_model_id_policy"
     ]
@@ -475,6 +485,13 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
+    }
+    assert ANTHROPIC_MODEL_SOURCE_EVIDENCE[
+        "verified_base_pricing_per_mtok_by_tier"
+    ] == {
+        "haiku": {"input": 1, "output": 5},
+        "sonnet": {"input": 3, "output": 15},
+        "opus": {"input": 5, "output": 25},
     }
     assert "pinned snapshots" in " ".join(
         str(claim) for claim in ANTHROPIC_MODEL_SOURCE_EVIDENCE["claims"]

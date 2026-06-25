@@ -311,6 +311,15 @@ def _patch_llm_route_planner_provider_usage_manifest(
         + cache_creation_input_tokens
         + cache_read_input_tokens
     )
+    pricing = {
+        "haiku": {"input": 1, "output": 5},
+        "sonnet": {"input": 3, "output": 15},
+        "opus": {"input": 5, "output": 25},
+    }.get(model_tier, {"input": 0, "output": 0})
+    estimated_input_cost = input_tokens * int(pricing["input"])
+    estimated_output_cost = output_tokens * int(pricing["output"])
+    estimated_base_cost = estimated_input_cost + estimated_output_cost
+    cache_tokens_excluded = cache_creation_input_tokens + cache_read_input_tokens
     bucket = {
         "n_rows": 1,
         "input_tokens": input_tokens,
@@ -318,6 +327,11 @@ def _patch_llm_route_planner_provider_usage_manifest(
         "cache_creation_input_tokens": cache_creation_input_tokens,
         "cache_read_input_tokens": cache_read_input_tokens,
         "total_tokens": total_tokens,
+        "estimated_input_cost_micro_usd": estimated_input_cost,
+        "estimated_output_cost_micro_usd": estimated_output_cost,
+        "estimated_base_input_output_cost_micro_usd": estimated_base_cost,
+        "estimated_cache_tokens_excluded_from_base_cost": cache_tokens_excluded,
+        "n_rows_with_estimated_base_cost": int(estimated_base_cost > 0),
     }
     manifest.update(
         {
@@ -339,6 +353,17 @@ def _patch_llm_route_planner_provider_usage_manifest(
             ),
             "total_provider_cache_read_input_tokens": cache_read_input_tokens,
             "total_provider_total_tokens": total_tokens,
+            "total_provider_estimated_input_cost_micro_usd": estimated_input_cost,
+            "total_provider_estimated_output_cost_micro_usd": estimated_output_cost,
+            "total_provider_estimated_base_input_output_cost_micro_usd": (
+                estimated_base_cost
+            ),
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost": (
+                cache_tokens_excluded
+            ),
+            "n_provider_usage_rows_with_estimated_base_cost": int(
+                estimated_base_cost > 0
+            ),
             "n_model_tier_decision_ledger_rows": ledger_rows,
             "n_model_tier_decision_ledger_rows_with_escalation": ledger_escalations,
             "n_model_tier_decision_ledger_provider_failure_rows": (
@@ -3317,15 +3342,50 @@ def test_publication_bundle_combines_primary_feedback_provider_usage() -> None:
     assert combined_usage["cache_creation_input_tokens"] == 5
     assert combined_usage["cache_read_input_tokens"] == 7
     assert combined_usage["total_tokens"] == 387
+    assert combined_usage["estimated_input_cost_micro_usd"] == 700
+    assert combined_usage["estimated_output_cost_micro_usd"] == 875
+    assert combined_usage["estimated_base_input_output_cost_micro_usd"] == 1575
+    assert combined_usage["estimated_cache_tokens_excluded_from_base_cost"] == 12
+    assert combined_usage["n_rows_with_estimated_base_cost"] == 2
     assert combined_usage["by_provider"]["anthropic"]["n_rows"] == 2
     assert combined_usage["by_provider"]["anthropic"]["total_tokens"] == 387
+    assert (
+        combined_usage["by_provider"]["anthropic"][
+            "estimated_base_input_output_cost_micro_usd"
+        ]
+        == 1575
+    )
     assert combined_usage["by_model_tier"]["haiku"]["total_tokens"] == 137
+    assert (
+        combined_usage["by_model_tier"]["haiku"][
+            "estimated_base_input_output_cost_micro_usd"
+        ]
+        == 225
+    )
     assert combined_usage["by_model_tier"]["sonnet"]["total_tokens"] == 250
+    assert (
+        combined_usage["by_model_tier"]["sonnet"][
+            "estimated_base_input_output_cost_micro_usd"
+        ]
+        == 1350
+    )
     assert (
         combined_usage["by_model"]["claude-haiku-4-5-20251001"]["input_tokens"]
         == 100
     )
     assert combined_usage["by_model"]["claude-sonnet-4-6"]["input_tokens"] == 200
+    assert (
+        payload["llm_route_planner_summary"][
+            "total_provider_estimated_base_input_output_cost_micro_usd"
+        ]
+        == 225
+    )
+    assert (
+        payload["feedback_llm_route_planner_summary"][
+            "total_provider_estimated_base_input_output_cost_micro_usd"
+        ]
+        == 1350
+    )
     assert combined_usage["n_model_tier_decision_ledger_rows"] == 3
     assert combined_usage["n_model_tier_decision_ledger_rows_with_escalation"] == 1
     assert combined_usage["n_model_tier_decision_ledger_provider_failure_rows"] == 1

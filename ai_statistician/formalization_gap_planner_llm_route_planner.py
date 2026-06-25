@@ -74,6 +74,7 @@ from .formalization_gap_planner_target_intake import (
 )
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK,
     GeneratorBackend,
     GeneratorRequest,
     StaticJSONGeneratorBackend,
@@ -81,6 +82,7 @@ from .model_backend import (
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     build_live_generator_backend,
     claude_model_freshness_warnings,
+    claude_model_tier_for_model,
     claude_model_tier_mismatch,
     default_generator_model,
 )
@@ -3271,6 +3273,29 @@ def export_formalization_gap_planner_llm_route_planner(
         "total_provider_total_tokens": int(
             provider_usage_summary.get("total_tokens", 0) or 0
         ),
+        "total_provider_estimated_input_cost_micro_usd": int(
+            provider_usage_summary.get("estimated_input_cost_micro_usd", 0) or 0
+        ),
+        "total_provider_estimated_output_cost_micro_usd": int(
+            provider_usage_summary.get("estimated_output_cost_micro_usd", 0) or 0
+        ),
+        "total_provider_estimated_base_input_output_cost_micro_usd": int(
+            provider_usage_summary.get(
+                "estimated_base_input_output_cost_micro_usd",
+                0,
+            )
+            or 0
+        ),
+        "total_provider_estimated_cache_tokens_excluded_from_base_cost": int(
+            provider_usage_summary.get(
+                "estimated_cache_tokens_excluded_from_base_cost",
+                0,
+            )
+            or 0
+        ),
+        "n_provider_usage_rows_with_estimated_base_cost": int(
+            provider_usage_summary.get("n_rows_with_estimated_base_cost", 0) or 0
+        ),
         "n_rows_with_model_tier_escalation": sum(
             1
             for row in rows
@@ -4978,6 +5003,15 @@ def llm_route_planner_provider_usage_row_json_schema() -> dict[str, object]:
             "cache_creation_input_tokens",
             "cache_read_input_tokens",
             "total_tokens",
+            "cost_estimation_status",
+            "cost_estimation_model_tier",
+            "pricing_per_mtok",
+            "estimated_input_cost_micro_usd",
+            "estimated_output_cost_micro_usd",
+            "estimated_base_input_output_cost_micro_usd",
+            "estimated_cache_tokens_excluded_from_base_cost",
+            "n_rows_with_estimated_base_cost",
+            "cost_estimation_boundary",
             "proof_evidence_status",
             "proof_evidence_boundary",
         ],
@@ -5002,6 +5036,15 @@ def llm_route_planner_provider_usage_row_json_schema() -> dict[str, object]:
             "cache_creation_input_tokens": nonnegative_integer,
             "cache_read_input_tokens": nonnegative_integer,
             "total_tokens": nonnegative_integer,
+            "cost_estimation_status": {"type": "string"},
+            "cost_estimation_model_tier": {"type": "string"},
+            "pricing_per_mtok": {"type": "object"},
+            "estimated_input_cost_micro_usd": nonnegative_integer,
+            "estimated_output_cost_micro_usd": nonnegative_integer,
+            "estimated_base_input_output_cost_micro_usd": nonnegative_integer,
+            "estimated_cache_tokens_excluded_from_base_cost": nonnegative_integer,
+            "n_rows_with_estimated_base_cost": nonnegative_integer,
+            "cost_estimation_boundary": {"type": "string", "minLength": 1},
             "proof_evidence_status": {
                 "type": "string",
                 "const": PROOF_EVIDENCE_STATUS,
@@ -5213,6 +5256,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "total_provider_cache_creation_input_tokens",
             "total_provider_cache_read_input_tokens",
             "total_provider_total_tokens",
+            "total_provider_estimated_input_cost_micro_usd",
+            "total_provider_estimated_output_cost_micro_usd",
+            "total_provider_estimated_base_input_output_cost_micro_usd",
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost",
+            "n_provider_usage_rows_with_estimated_base_cost",
             "n_response_contract_ok",
             "n_accepted_route_plans",
             "n_accepted_with_formal_attempt_queue",
@@ -5732,6 +5780,17 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "total_provider_cache_creation_input_tokens": nonnegative_integer,
             "total_provider_cache_read_input_tokens": nonnegative_integer,
             "total_provider_total_tokens": nonnegative_integer,
+            "total_provider_estimated_input_cost_micro_usd": nonnegative_integer,
+            "total_provider_estimated_output_cost_micro_usd": nonnegative_integer,
+            "total_provider_estimated_base_input_output_cost_micro_usd": (
+                nonnegative_integer
+            ),
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost": (
+                nonnegative_integer
+            ),
+            "n_provider_usage_rows_with_estimated_base_cost": (
+                nonnegative_integer
+            ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
             "n_rows_with_generation_errors": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -8039,6 +8098,41 @@ def validate_llm_route_planner_manifest(
         (
             "total_provider_total_tokens",
             expected_provider_usage_summary.get("total_tokens", 0),
+        ),
+        (
+            "total_provider_estimated_input_cost_micro_usd",
+            expected_provider_usage_summary.get(
+                "estimated_input_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "total_provider_estimated_output_cost_micro_usd",
+            expected_provider_usage_summary.get(
+                "estimated_output_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "total_provider_estimated_base_input_output_cost_micro_usd",
+            expected_provider_usage_summary.get(
+                "estimated_base_input_output_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "total_provider_estimated_cache_tokens_excluded_from_base_cost",
+            expected_provider_usage_summary.get(
+                "estimated_cache_tokens_excluded_from_base_cost",
+                0,
+            ),
+        ),
+        (
+            "n_provider_usage_rows_with_estimated_base_cost",
+            expected_provider_usage_summary.get(
+                "n_rows_with_estimated_base_cost",
+                0,
+            ),
         ),
     )
     for field_name, expected_value in provider_usage_count_checks:
@@ -17313,6 +17407,12 @@ def _provider_usage_rows(
         provider_name = str(row.get("provider_name", "") or "")
         model = str(row.get("model", "") or "")
         model_tier = str(row.get("model_tier", "") or "")
+        cost_fields = _provider_usage_base_cost_fields(
+            provider_name=provider_name,
+            model=model,
+            model_tier=model_tier,
+            usage=usage,
+        )
         usage_rows.append(
             {
                 "usage_row_id": (
@@ -17350,6 +17450,7 @@ def _provider_usage_rows(
                 ],
                 "cache_read_input_tokens": usage["cache_read_input_tokens"],
                 "total_tokens": usage["total_tokens"],
+                **cost_fields,
                 "proof_evidence_status": PROOF_EVIDENCE_STATUS,
                 "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
             }
@@ -17391,6 +17492,77 @@ def _provider_usage_from_metadata(
     if not any(parsed.values()):
         return {}
     return parsed
+
+
+def _provider_usage_base_cost_fields(
+    *,
+    provider_name: str,
+    model: str,
+    model_tier: str,
+    usage: Mapping[str, int],
+) -> dict[str, object]:
+    tier = str(model_tier or "").strip().lower() or claude_model_tier_for_model(model)
+    cache_tokens = _nonnegative_int(
+        usage.get("cache_creation_input_tokens", 0)
+    ) + _nonnegative_int(usage.get("cache_read_input_tokens", 0))
+    if str(provider_name or "").strip().lower() != "anthropic":
+        return _empty_provider_usage_cost_fields(
+            status="unsupported_provider",
+            tier=tier,
+            cache_tokens=cache_tokens,
+        )
+    pricing = CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK.get(tier, {})
+    if not pricing:
+        return _empty_provider_usage_cost_fields(
+            status="unknown_claude_tier",
+            tier=tier,
+            cache_tokens=cache_tokens,
+        )
+    input_rate = _nonnegative_int(pricing.get("input", 0))
+    output_rate = _nonnegative_int(pricing.get("output", 0))
+    input_cost = _nonnegative_int(usage.get("input_tokens", 0)) * input_rate
+    output_cost = _nonnegative_int(usage.get("output_tokens", 0)) * output_rate
+    return {
+        "cost_estimation_status": "estimated_base_input_output",
+        "cost_estimation_model_tier": tier,
+        "pricing_per_mtok": {"input": input_rate, "output": output_rate},
+        "estimated_input_cost_micro_usd": input_cost,
+        "estimated_output_cost_micro_usd": output_cost,
+        "estimated_base_input_output_cost_micro_usd": input_cost + output_cost,
+        "estimated_cache_tokens_excluded_from_base_cost": cache_tokens,
+        "n_rows_with_estimated_base_cost": 1,
+        "cost_estimation_boundary": _provider_usage_base_cost_boundary(),
+    }
+
+
+def _empty_provider_usage_cost_fields(
+    *,
+    status: str,
+    tier: str,
+    cache_tokens: int,
+) -> dict[str, object]:
+    return {
+        "cost_estimation_status": status,
+        "cost_estimation_model_tier": tier,
+        "pricing_per_mtok": {},
+        "estimated_input_cost_micro_usd": 0,
+        "estimated_output_cost_micro_usd": 0,
+        "estimated_base_input_output_cost_micro_usd": 0,
+        "estimated_cache_tokens_excluded_from_base_cost": cache_tokens,
+        "n_rows_with_estimated_base_cost": 0,
+        "cost_estimation_boundary": _provider_usage_base_cost_boundary(),
+    }
+
+
+def _provider_usage_base_cost_boundary() -> str:
+    return (
+        "Estimated provider cost uses source-checked Claude API base "
+        "input/output pricing per MTok and actual provider usage tokens. It "
+        "excludes prompt-caching prices, batch discounts, priority tier, beta "
+        "output tiers, cloud-platform variants, taxes, and account-specific "
+        "billing terms. It is cost metadata, not a provider invoice, "
+        "mathematical evidence, or theorem proof evidence."
+    )
 
 
 def _provider_usage_summary(
@@ -17448,6 +17620,11 @@ def _empty_provider_usage_bucket() -> dict[str, int]:
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens": 0,
         "total_tokens": 0,
+        "estimated_input_cost_micro_usd": 0,
+        "estimated_output_cost_micro_usd": 0,
+        "estimated_base_input_output_cost_micro_usd": 0,
+        "estimated_cache_tokens_excluded_from_base_cost": 0,
+        "n_rows_with_estimated_base_cost": 0,
     }
 
 
@@ -17462,6 +17639,11 @@ def _add_provider_usage_to_bucket(
         "cache_creation_input_tokens",
         "cache_read_input_tokens",
         "total_tokens",
+        "estimated_input_cost_micro_usd",
+        "estimated_output_cost_micro_usd",
+        "estimated_base_input_output_cost_micro_usd",
+        "estimated_cache_tokens_excluded_from_base_cost",
+        "n_rows_with_estimated_base_cost",
     ):
         bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 

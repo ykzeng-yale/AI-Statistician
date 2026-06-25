@@ -12296,6 +12296,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_rows_with_provider_usage" in manifest_schema["required"]
     assert "total_provider_input_tokens" in manifest_schema["required"]
     assert "total_provider_output_tokens" in manifest_schema["required"]
+    assert "total_provider_estimated_input_cost_micro_usd" in manifest_schema["required"]
+    assert "total_provider_estimated_output_cost_micro_usd" in manifest_schema["required"]
+    assert (
+        "total_provider_estimated_base_input_output_cost_micro_usd"
+        in manifest_schema["required"]
+    )
+    assert (
+        "total_provider_estimated_cache_tokens_excluded_from_base_cost"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_provider_usage_rows_with_estimated_base_cost"
+        in manifest_schema["required"]
+    )
     prompt_token_budget_fields = (
         "max_tokens",
         "temperature",
@@ -12368,6 +12382,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "usage_row_id" in usage_schema["required"]
     assert "provider_usage" in usage_schema["required"]
     assert "total_tokens" in usage_schema["required"]
+    assert "estimated_base_input_output_cost_micro_usd" in usage_schema["required"]
+    assert "cost_estimation_boundary" in usage_schema["required"]
     assert (
         manifest_schema["properties"]["provider_usage_row_schema"]["properties"][
             "$id"
@@ -12654,6 +12670,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "total_provider_input_tokens must match provider_usage_summary"
         in validate_llm_route_planner_manifest(
             drifted_provider_usage_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_provider_cost_manifest = deepcopy(payload)
+    drifted_provider_cost_manifest[
+        "total_provider_estimated_base_input_output_cost_micro_usd"
+    ] = 1
+    assert (
+        "total_provider_estimated_base_input_output_cost_micro_usd must match provider_usage_summary"
+        in validate_llm_route_planner_manifest(
+            drifted_provider_cost_manifest,
             manifest_schema,
         )
     )
@@ -18626,10 +18653,18 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["total_provider_output_tokens"] == 45
     assert payload["total_provider_cache_read_input_tokens"] == 7
     assert payload["total_provider_total_tokens"] == 175
+    assert payload["total_provider_estimated_input_cost_micro_usd"] == 369
+    assert payload["total_provider_estimated_output_cost_micro_usd"] == 675
+    assert payload["total_provider_estimated_base_input_output_cost_micro_usd"] == 1044
+    assert payload["total_provider_estimated_cache_tokens_excluded_from_base_cost"] == 7
+    assert payload["n_provider_usage_rows_with_estimated_base_cost"] == 1
     assert payload["provider_usage_summary"]["row_count"] == 1
     assert payload["provider_usage_summary"]["by_model_tier"]["sonnet"][
         "input_tokens"
     ] == 123
+    assert payload["provider_usage_summary"]["by_model_tier"]["sonnet"][
+        "estimated_base_input_output_cost_micro_usd"
+    ] == 1044
     assert payload["provider_usage_summary"]["by_provider"]["anthropic"][
         "output_tokens"
     ] == 45
@@ -18640,6 +18675,13 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert usage_row["output_tokens"] == 45
     assert usage_row["cache_read_input_tokens"] == 7
     assert usage_row["total_tokens"] == 175
+    assert usage_row["cost_estimation_status"] == "estimated_base_input_output"
+    assert usage_row["pricing_per_mtok"] == {"input": 3, "output": 15}
+    assert usage_row["estimated_input_cost_micro_usd"] == 369
+    assert usage_row["estimated_output_cost_micro_usd"] == 675
+    assert usage_row["estimated_base_input_output_cost_micro_usd"] == 1044
+    assert usage_row["estimated_cache_tokens_excluded_from_base_cost"] == 7
+    assert "not a provider invoice" in usage_row["cost_estimation_boundary"]
     assert (
         payload["provider_usage_row_schema"]["$id"]
         == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
