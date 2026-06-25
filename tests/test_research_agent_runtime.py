@@ -2959,6 +2959,16 @@ def test_formalizer_lean_candidate_timeout_feedback_is_actionable() -> None:
     assert "compact theorem" in repair_contract[
         "timeout_next_candidate_shape"
     ]
+    proofengineer_context = feedback["proofengineer_repair_context"]
+    assert proofengineer_context["candidate_rerun_specs"][0][
+        "local_lean_project"
+    ] == "/Users/yukang/LeanProjects/LeanPractice"
+    assert proofengineer_context["candidate_rerun_specs"][0][
+        "local_lean_timeout"
+    ] == 60
+    assert "local_lean_command_project_timeout" in proofengineer_context[
+        "verifier_feedback_sources"
+    ]
 
     learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
         manifest
@@ -3690,10 +3700,22 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     )
     assert feedback["repair_owner_agent"] == "ProofEngineer"
     assert feedback["proofengineer_repair_context"]["candidate_artifact_paths"]
+    assert feedback["proofengineer_repair_context"]["candidate_rerun_specs"]
     assert "local_lean" in feedback["proofengineer_repair_context"][
         "available_runtime_tools"
     ]
     proofengineer_context = feedback["proofengineer_repair_context"]
+    rerun_spec = proofengineer_context["candidate_rerun_specs"][0]
+    assert rerun_spec["candidate_id"] == "bad_local_lean_candidate"
+    assert rerun_spec["artifact_path"] == proofengineer_context[
+        "candidate_artifact_paths"
+    ][0]
+    assert rerun_spec["target_lean_declaration"] == "bad_local_lean_candidate"
+    assert rerun_spec["local_lean_command"]
+    assert rerun_spec["local_lean_timeout"] > 0
+    assert "local_lean_command_project_timeout" in proofengineer_context[
+        "verifier_feedback_sources"
+    ]
     assert proofengineer_context["proof_state_workflow"]["style"] == (
         "lean_dojo_reprover_compatible"
     )
@@ -3744,6 +3766,8 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     assert "formalizer_lean_candidate_local_lean_feedback" in repair_prompt
     assert "ProofEngineer repair loop is active" in repair_prompt
     assert "proofengineer_repair_context" in repair_prompt
+    assert "candidate_rerun_specs" in repair_prompt
+    assert "local_lean_command" in repair_prompt
     assert "local_lean" in repair_prompt
     assert "proof_search" in repair_prompt
     assert "lean_state_search" in repair_prompt

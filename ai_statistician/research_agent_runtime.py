@@ -5154,6 +5154,18 @@ def _formalizer_lean_candidate_repair_feedback(
                 "local_lean_stderr_excerpt": str(
                     row.get("local_lean_stderr", "") or ""
                 )[:900],
+                "local_lean_command": list(
+                    row.get("local_lean_command", []) or []
+                ),
+                "local_lean_project": str(
+                    row.get("local_lean_project", "") or ""
+                ),
+                "local_lean_timeout": int(
+                    row.get("local_lean_timeout", 0) or 0
+                ),
+                "local_lean_skipped_reason": str(
+                    row.get("local_lean_skipped_reason", "") or ""
+                ),
             }
         )
     target_shape_contract = _formalizer_target_shape_contract_from_diagnostics(
@@ -5292,9 +5304,38 @@ def _proofengineer_repair_context_from_diagnostics(
             for row in diagnostics
             if str(row.get("artifact_path", "") or "")
         ],
+        "candidate_rerun_specs": [
+            {
+                "candidate_id": str(row.get("candidate_id", "") or ""),
+                "artifact_path": str(row.get("artifact_path", "") or ""),
+                "target_lean_file": str(row.get("target_lean_file", "") or ""),
+                "target_lean_line": int(row.get("target_lean_line", 0) or 0),
+                "target_lean_column": int(
+                    row.get("target_lean_column", 0) or 0
+                ),
+                "target_lean_declaration": str(
+                    row.get("target_lean_declaration", "") or ""
+                ),
+                "local_lean_command": list(
+                    row.get("local_lean_command", []) or []
+                ),
+                "local_lean_project": str(
+                    row.get("local_lean_project", "") or ""
+                ),
+                "local_lean_timeout": int(
+                    row.get("local_lean_timeout", 0) or 0
+                ),
+                "local_lean_skipped_reason": str(
+                    row.get("local_lean_skipped_reason", "") or ""
+                ),
+            }
+            for row in diagnostics[:3]
+            if str(row.get("candidate_id", "") or "")
+        ],
         "verifier_feedback_sources": [
             "runtime_precheck",
             "local_lean_stdout_stderr",
+            "local_lean_command_project_timeout",
             "local_lean_repair_contract",
             "target_shape_contract",
             "live_proof_state_request",
