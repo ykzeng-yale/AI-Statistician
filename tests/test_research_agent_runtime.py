@@ -69,6 +69,7 @@ from ai_statistician.formalizer_llm import (
     validate_formalizer_packet,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
     validate_standalone_input_payload,
 )
@@ -4170,6 +4171,188 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     ]
     assert "Do not reference any listed unknown identifier again" in (
         live_unknown_constant_contract["unknown_identifier_repair_rule"]
+    )
+
+
+def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding() -> None:
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.queries: list[tuple[str, int]] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            self.queries.append((query, k))
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="fixture_lean_project",
+                        source_type="lean_library",
+                        path="Fixture/Conformal.lean",
+                        line=12,
+                        kind="theorem",
+                        name="Nat.ceilReplacement_bridge",
+                        namespace="Fixture.Conformal",
+                        signature=(
+                            "theorem Nat.ceilReplacement_bridge "
+                            "(n : Nat) : n = n := by rfl"
+                        ),
+                    ),
+                    score=0.95,
+                    matched_terms=("Nat.ceil", "ceil"),
+                )
+            ]
+
+    retriever = DummyFormalSourceRetriever()
+    manifest = {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:unknown_api",
+        "manifest_path": "runs/unknown_api/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": "formalize-lean-repair:conformal_prediction_coverage:unknown_api",
+        "source_formalizer_packet_id": "formalizer_proposal:unknown_api",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_unknown_api",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "unknown-api-source",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_unknown_api : Nat.ceil 1 = 1 := by\n"
+                    "  rfl\n"
+                ),
+                "artifact_path": "runs/unknown_api/001_split_conformal.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": (
+                    "error(lean.unknownIdentifier): Unknown constant `Nat.ceil`"
+                ),
+                "local_lean_stderr": "",
+                "local_lean_project": "/tmp/LeanPractice",
+                "local_lean_timeout": 60,
+                "local_lean_skipped_reason": "",
+            }
+        ],
+    }
+
+    feedback = _formalizer_lean_candidate_repair_feedback(
+        manifest,
+        formal_source_retriever=retriever,
+    )
+
+    assert feedback is not None
+    assert retriever.queries[0] == ("Nat.ceil Lean declaration identifier", 3)
+    repair_contract = feedback["local_lean_repair_contract"]
+    assert repair_contract["unknown_identifiers"] == ["Nat.ceil"]
+    proofengineer_context = feedback["proofengineer_repair_context"]
+    assert proofengineer_context["formal_source_grounding_status"] == "retrieved_hits"
+    grounding_group = proofengineer_context["formal_source_grounding_hits"][0]
+    assert grounding_group["query_role"] == "unknown_identifier_api_repair"
+    assert grounding_group["unknown_identifier"] == "Nat.ceil"
+    assert grounding_group["proof_evidence_status"] == (
+        "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+    )
+    assert grounding_group["hits"][0]["name"] == "Nat.ceilReplacement_bridge"
+    assert "local Lean/AXLE gate" in proofengineer_context[
+        "formal_source_grounding_policy"
+    ]
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Formal-source grounding hits are available" in prompt
+    assert "Nat.ceilReplacement_bridge" in prompt
+    assert "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE" in prompt
+
+
+def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding() -> None:
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            self.queries.append(query)
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="fixture_lean_project",
+                        source_type="lean_library",
+                        path="Fixture/Order.lean",
+                        line=21,
+                        kind="lemma",
+                        name="rank_threshold_bridge",
+                        namespace="Fixture.Order",
+                        signature="lemma rank_threshold_bridge (p : Prop) : p -> p := id",
+                    ),
+                    score=0.88,
+                    matched_terms=("rank", "threshold"),
+                )
+            ]
+
+    retriever = DummyFormalSourceRetriever()
+    feedback = {
+        "feedback_type": "formalizer_packet_validation_feedback",
+        "local_lean_repair_contract": {
+            "unknown_identifiers": ["Nat.ceil"],
+        },
+        "proofengineer_repair_context": {
+            "repair_loop": "fixture loop",
+            "candidate_artifact_paths": ["runs/fixture.lean"],
+            "proof_state_workflow": {"style": "lean_dojo_reprover_compatible"},
+            "retrieval_query_seeds": [
+                "Nat.ceil",
+                "split conformal prediction interval coverage",
+            ],
+            "live_proof_state_requests": [{"target_lean_declaration": "fixture"}],
+        },
+    }
+
+    enriched = runtime_module._formalizer_environment_feedback_with_formal_source_grounding(
+        feedback,
+        formal_source_retriever=retriever,
+    )
+
+    context = enriched["proofengineer_repair_context"]
+    assert retriever.queries[0] == "Nat.ceil Lean declaration identifier"
+    assert context["formal_source_grounding_hits"][0]["hits"][0]["name"] == (
+        "rank_threshold_bridge"
+    )
+    assert context["live_proof_state_requests"][0]["target_lean_declaration"] == (
+        "fixture"
+    )
+    assert list(context).index("formal_source_grounding_hits") < list(context).index(
+        "live_proof_state_requests"
+    )
+    summary = (
+        runtime_module._formalizer_environment_feedback_formal_source_grounding_summary(
+            enriched
+        )
+    )
+    assert summary["n_formal_source_grounding_query_groups"] == 3
+    assert summary["n_formal_source_grounding_hits"] == 3
+    assert summary["unknown_identifiers"] == ["Nat.ceil"]
+    assert "rank_threshold_bridge" in summary["top_hit_names"]
+    assert summary["proof_evidence_status"] == (
+        "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
     )
 
 

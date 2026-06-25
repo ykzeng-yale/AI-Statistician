@@ -3112,6 +3112,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.lean_candidate_local_lean = lean_candidate_local_lean
         self.lean_candidate_lean_project = lean_candidate_lean_project
         self.lean_candidate_lean_timeout = lean_candidate_lean_timeout
+        self.formal_source_retriever = formal_source_retriever
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
             formal_source_retriever=formal_source_retriever,
@@ -3192,6 +3193,43 @@ class FormalizationEvaluatorRuntimeSubsystem:
             proposal_source = "deterministic_theorem_closure_work_order_seed"
         elif self.proposal_agent is not None:
             try:
+                environment_feedback = (
+                    _runtime_environment_feedback_with_architect_directive(
+                        context=context,
+                        subsystem=subsystem_name,
+                        feedback=task.inputs.get("environment_feedback", {})
+                        if isinstance(
+                            task.inputs.get("environment_feedback", {}),
+                            Mapping,
+                        )
+                        else {},
+                    )
+                )
+                environment_feedback = (
+                    _formalizer_environment_feedback_with_formal_source_grounding(
+                        environment_feedback,
+                        formal_source_retriever=self.formal_source_retriever,
+                    )
+                )
+                formal_source_grounding_summary = (
+                    _formalizer_environment_feedback_formal_source_grounding_summary(
+                        environment_feedback
+                    )
+                )
+                if formal_source_grounding_summary:
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "formalizer_environment_feedback_formal_source_grounding"
+                            ),
+                            summary=(
+                                "Formalizer/ProofEngineer repair feedback enriched "
+                                "with bounded formal-source grounding hits before "
+                                "LLM proposal; grounding is not proof evidence"
+                            ),
+                            payload=formal_source_grounding_summary,
+                        )
+                    )
                 proposal_packet = self.proposal_agent.propose(
                     question=question,
                     theory_packet=packet if isinstance(packet, Mapping) else {},
@@ -3201,18 +3239,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
                     proof_bank_obligation_catalog=proof_bank_obligation_catalog,
                     proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-                    environment_feedback=(
-                        _runtime_environment_feedback_with_architect_directive(
-                            context=context,
-                            subsystem=subsystem_name,
-                            feedback=task.inputs.get("environment_feedback", {})
-                            if isinstance(
-                                task.inputs.get("environment_feedback", {}),
-                                Mapping,
-                            )
-                            else {},
-                        )
-                    ),
+                    environment_feedback=environment_feedback,
                 )
             except PacketValidationError as exc:
                 return _formalizer_packet_validation_failure_result(
@@ -3223,6 +3250,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
                     proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
                     exc=exc,
+                    formal_source_retriever=self.formal_source_retriever,
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -3264,7 +3292,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ] = lean_candidate_materialization
                 lean_candidate_repair_feedback = (
                     _formalizer_lean_candidate_repair_feedback(
-                        lean_candidate_materialization
+                        lean_candidate_materialization,
+                        formal_source_retriever=self.formal_source_retriever,
                     )
                 )
                 if lean_candidate_repair_feedback is not None:
@@ -4338,6 +4367,7 @@ def _formalizer_packet_validation_failure_result(
     algorithm_sandbox_manifest_id: str,
     proof_bank_runtime_memory_summary: Mapping[str, Any],
     exc: PacketValidationError,
+    formal_source_retriever: Any | None = None,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
     validation_repair_directives = _formalizer_packet_validation_repair_directives(
@@ -4404,6 +4434,19 @@ def _formalizer_packet_validation_failure_result(
         )
         else {}
     )
+    if active_proofengineer_repair_context:
+        active_proofengineer_repair_context = (
+            _proofengineer_repair_context_with_formal_source_grounding(
+                active_proofengineer_repair_context,
+                formal_source_retriever=formal_source_retriever,
+                unknown_identifiers=active_local_lean_repair_contract.get(
+                    "unknown_identifiers",
+                    [],
+                )
+                if isinstance(active_local_lean_repair_contract, Mapping)
+                else [],
+            )
+        )
     active_target_shape_contract = (
         dict(prior_environment_feedback.get("target_shape_contract", {}) or {})
         if isinstance(
@@ -5544,6 +5587,8 @@ def _formalizer_lean_candidate_live_proof_state_request(
 
 def _formalizer_lean_candidate_repair_feedback(
     manifest: Mapping[str, Any],
+    *,
+    formal_source_retriever: Any | None = None,
 ) -> dict[str, Any] | None:
     """Build direct Formalizer feedback from runtime Lean-candidate diagnostics."""
 
@@ -5643,6 +5688,7 @@ def _formalizer_lean_candidate_repair_feedback(
         diagnostics=diagnostics,
         local_lean_repair_contract=local_lean_repair_contract,
         target_shape_contract=target_shape_contract,
+        formal_source_retriever=formal_source_retriever,
     )
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
@@ -5701,6 +5747,7 @@ def _proofengineer_repair_context_from_diagnostics(
     diagnostics: list[dict[str, Any]],
     local_lean_repair_contract: Mapping[str, Any],
     target_shape_contract: Mapping[str, Any],
+    formal_source_retriever: Any | None = None,
 ) -> dict[str, Any]:
     """Build a prover-loop context packet for Claude ProofEngineer repair.
 
@@ -5751,7 +5798,7 @@ def _proofengineer_repair_context_from_diagnostics(
         for seed in dict.fromkeys(part.strip() for part in query_seed_parts)
         if seed
     ][:10]
-    return {
+    context = {
         "repair_loop": (
             "LeanDojo/ReProver-style bounded loop: inspect exact materialized Lean "
             "artifact, read verifier/proof-state diagnostics, retrieve relevant "
@@ -5844,6 +5891,251 @@ def _proofengineer_repair_context_from_diagnostics(
         ],
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    return _proofengineer_repair_context_with_formal_source_grounding(
+        context,
+        formal_source_retriever=formal_source_retriever,
+        unknown_identifiers=unknown_identifiers,
+    )
+
+
+def _formalizer_environment_feedback_with_formal_source_grounding(
+    feedback: Mapping[str, Any] | None,
+    *,
+    formal_source_retriever: Any | None = None,
+) -> dict[str, Any]:
+    """Attach bounded formal-source grounding to carried repair feedback."""
+
+    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    repair_context = (
+        payload.get("proofengineer_repair_context", {})
+        if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
+        else {}
+    )
+    if not repair_context:
+        return payload
+    local_lean_repair_contract = (
+        payload.get("local_lean_repair_contract", {})
+        if isinstance(payload.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
+    payload["proofengineer_repair_context"] = (
+        _proofengineer_repair_context_with_formal_source_grounding(
+            repair_context,
+            formal_source_retriever=formal_source_retriever,
+            unknown_identifiers=local_lean_repair_contract.get(
+                "unknown_identifiers",
+                [],
+            ),
+        )
+    )
+    return payload
+
+
+def _formalizer_environment_feedback_formal_source_grounding_summary(
+    feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Summarize prompt-time formal-source grounding without serializing prompts."""
+
+    if not isinstance(feedback, Mapping):
+        return {}
+    repair_context = feedback.get("proofengineer_repair_context", {})
+    if not isinstance(repair_context, Mapping):
+        return {}
+    groups = [
+        group
+        for group in repair_context.get("formal_source_grounding_hits", []) or []
+        if isinstance(group, Mapping)
+    ]
+    if not groups:
+        return {}
+    top_hit_names: list[str] = []
+    n_hits = 0
+    for group in groups:
+        hits = [hit for hit in group.get("hits", []) or [] if isinstance(hit, Mapping)]
+        n_hits += len(hits)
+        for hit in hits:
+            name = str(hit.get("name", "") or "").strip()
+            if name and name not in top_hit_names:
+                top_hit_names.append(name)
+            if len(top_hit_names) >= 8:
+                break
+        if len(top_hit_names) >= 8:
+            break
+    return {
+        "n_formal_source_grounding_query_groups": len(groups),
+        "n_formal_source_grounding_hits": n_hits,
+        "query_roles": [
+            str(group.get("query_role", "") or "")
+            for group in groups[:5]
+            if str(group.get("query_role", "") or "")
+        ],
+        "query_fingerprints": [
+            str(group.get("query_fingerprint", "") or "")
+            for group in groups[:5]
+            if str(group.get("query_fingerprint", "") or "")
+        ],
+        "unknown_identifiers": [
+            str(group.get("unknown_identifier", "") or "")
+            for group in groups[:5]
+            if str(group.get("unknown_identifier", "") or "")
+        ],
+        "top_hit_names": top_hit_names,
+        "proof_evidence_status": (
+            "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _proofengineer_repair_context_with_formal_source_grounding(
+    context: Mapping[str, Any],
+    *,
+    formal_source_retriever: Any | None = None,
+    unknown_identifiers: Sequence[Any] = (),
+) -> dict[str, Any]:
+    """Ground a repair context in formal-source hits without treating hits as proof."""
+
+    payload = dict(context) if isinstance(context, Mapping) else {}
+    if payload.get("formal_source_grounding_hits"):
+        return _proofengineer_repair_context_ordered_with_formal_source_grounding(
+            payload,
+            immediate_fields={
+                "formal_source_grounding_hits": payload.get(
+                    "formal_source_grounding_hits"
+                )
+            },
+        )
+    if formal_source_retriever is None:
+        return payload
+    query_seeds = [
+        str(seed).strip()
+        for seed in payload.get("retrieval_query_seeds", []) or []
+        if str(seed).strip()
+    ]
+    unknowns = [
+        str(value).strip()
+        for value in unknown_identifiers or payload.get("unknown_identifiers", []) or []
+        if str(value).strip()
+    ]
+    groups = _proofengineer_formal_source_grounding_hit_groups(
+        formal_source_retriever,
+        query_seeds=query_seeds,
+        unknown_identifiers=unknowns,
+    )
+    if not groups:
+        return payload
+    trailing_fields: dict[str, Any] = {}
+    trailing_fields["formal_source_grounding_policy"] = (
+        "Formal-source retrieval hits are API/premise suggestions for the "
+        "ProofEngineer loop, not proof evidence. Every selected declaration or "
+        "replacement must still be checked by the configured local Lean/AXLE gate; "
+        "if no verified replacement exists, emit a FORMAL_GAP naming the missing "
+        "API/dependency."
+    )
+    trailing_fields["formal_source_grounding_status"] = (
+        "retrieved_hits"
+        if any(group.get("hits") for group in groups)
+        else "retrieval_attempted_no_hits"
+    )
+    if unknowns:
+        trailing_fields["unknown_identifier_grounding_requests"] = [
+            {
+                "unknown_identifier": value,
+                "required_action": (
+                    "Do not reuse this unknown identifier. Replace it only with a "
+                    "retrieved or otherwise verified local declaration, prove the "
+                    "needed fact from known primitives, or emit a FORMAL_GAP."
+                ),
+            }
+            for value in unknowns[:5]
+        ]
+    return _proofengineer_repair_context_ordered_with_formal_source_grounding(
+        payload,
+        immediate_fields={"formal_source_grounding_hits": groups},
+        trailing_fields=trailing_fields,
+    )
+
+
+def _proofengineer_repair_context_ordered_with_formal_source_grounding(
+    context: Mapping[str, Any],
+    *,
+    immediate_fields: Mapping[str, Any],
+    trailing_fields: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Keep compact prompt-visible grounding next to retrieval query seeds."""
+
+    trailing_fields = trailing_fields or {}
+    insert_after_key = "retrieval_query_seeds"
+    ordered: dict[str, Any] = {}
+    inserted = False
+    grounding_keys = set(immediate_fields) | set(trailing_fields)
+    for key, value in context.items():
+        if key in grounding_keys:
+            continue
+        ordered[key] = value
+        if key == insert_after_key:
+            ordered.update(dict(immediate_fields))
+            inserted = True
+    if not inserted:
+        ordered.update(dict(immediate_fields))
+    ordered.update(dict(trailing_fields))
+    return ordered
+
+
+def _proofengineer_formal_source_grounding_hit_groups(
+    formal_source_retriever: Any,
+    *,
+    query_seeds: Sequence[str],
+    unknown_identifiers: Sequence[str],
+    k: int = 3,
+    max_groups: int = 5,
+) -> list[dict[str, Any]]:
+    query_rows: list[dict[str, str]] = []
+    for identifier in unknown_identifiers:
+        query_rows.append(
+            {
+                "query": f"{identifier} Lean declaration identifier",
+                "query_role": "unknown_identifier_api_repair",
+                "unknown_identifier": identifier,
+            }
+        )
+    for seed in query_seeds:
+        query_rows.append(
+            {
+                "query": seed,
+                "query_role": "repair_context_seed",
+                "unknown_identifier": "",
+            }
+        )
+    groups: list[dict[str, Any]] = []
+    seen_queries: set[str] = set()
+    for row in query_rows:
+        query = str(row.get("query", "") or "").strip()
+        if not query or query in seen_queries:
+            continue
+        seen_queries.add(query)
+        group: dict[str, Any] = {
+            "query": query,
+            "query_role": row.get("query_role", ""),
+            "query_fingerprint": stable_hash(query),
+            "proof_evidence_status": (
+                "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        if row.get("unknown_identifier"):
+            group["unknown_identifier"] = row["unknown_identifier"]
+        try:
+            hits = formal_source_retriever.search(query, k=k)
+        except Exception as exc:  # pragma: no cover - defensive runtime path
+            group["hits"] = []
+            group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]
+        else:
+            group["hits"] = [_formal_source_hit_to_json(hit) for hit in hits]
+        groups.append(group)
+        if len(groups) >= max_groups:
+            break
+    return groups
 
 
 def _formalizer_lean_candidate_proof_state_subclaims(

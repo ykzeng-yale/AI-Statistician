@@ -2359,6 +2359,19 @@ def _formalizer_mode_specific_instructions(
             "lean_state_search/proof_search -> lean_multi_attempt -> "
             "local_lean_or_axle_rerun when those tools are available."
         )
+        if (
+            isinstance(proofengineer_repair_context, Mapping)
+            and proofengineer_repair_context.get("formal_source_grounding_hits")
+        ):
+            instructions.append(
+                "Formal-source grounding hits are available for this repair loop: "
+                "use them only as API/premise suggestions from the configured prover "
+                "corpus. A selected declaration or replacement still must compile "
+                "under local Lean/AXLE on the exact repaired artifact before it becomes "
+                "proof evidence. For unknown identifiers, replace only with a retrieved "
+                "or otherwise verified local declaration, derive the fact from known "
+                "primitives, or emit a FORMAL_GAP naming the missing API/dependency."
+            )
     carried_local_lean_repair_contract = (
         runtime_environment_feedback.get("local_lean_repair_contract", {})
         if isinstance(

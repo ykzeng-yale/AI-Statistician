@@ -298,6 +298,27 @@ probe at
 did not materialize a new post-patch candidate, so the mirror has not yet been
 live-exercised.
 
+The follow-up design fix wires formal-source grounding into that same repair
+loop instead of adding a `Nat.ceil` or conformal-specific rewrite. A configured
+`FormalSourceRetriever` is now carried by `FormalizationEvaluator`/`ProofEngineer`;
+Lean-candidate failures and carried packet-validation repair contexts attach
+bounded `formal_source_grounding_hits` next to their retrieval seeds before
+prompting Claude. These hits are API/premise suggestions only and are tagged
+`FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE`; local Lean/AXLE on the
+exact repaired artifact remains the only promotion gate. The focused grounding
+tests and the guarded suite `tests/test_source_to_bridge_metadata.py
+tests/test_research_agent_runtime.py` pass (`304 passed in 154.72s`).
+
+The live audit probe
+`runs/main_worker_live_runtime_resume_formal_source_grounding_audit_probe/research_agent_runtime_manifest.json`
+exercised the prompt-time grounding observation: 5 grounding query groups and 9
+formal-source hits were recorded as
+`FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE`. The Formalizer did not
+retry the bad `Nat.ceil` Lean helper; it kept the source theorem as a
+`FORMAL_GAP`, named `Nat.ceil` and exchangeability-definition blockers, and
+routed to Critic/next-action planning. Scorecard remained `41/49`; no source
+theorem or frontier theorem proof was produced.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

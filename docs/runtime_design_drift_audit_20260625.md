@@ -158,3 +158,23 @@ ignored project-local mirror under
 tooling. The repair context records both paths and preserves the proof boundary:
 only the exact kernel/audit artifact can become proof evidence after local
 Lean/AXLE verification; the project-local mirror is diagnostic/search context.
+
+The next design correction keeps the `Nat.ceil`-style unknown-API failure from
+becoming another hardcoded repair. Formalizer/ProofEngineer repair feedback now
+uses the configured formal-source retriever to attach bounded declaration hits
+directly inside `proofengineer_repair_context`. The hits are prompt-visible next
+to `retrieval_query_seeds`, but every hit is explicitly marked
+`FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE`; a replacement only
+matters after local Lean/AXLE verifies the exact repaired artifact. This restores
+the intended architecture: contracts say "do not invent; verify or gap", while
+formal-source/RAG/prover adapters supply candidate APIs and premises.
+
+The live audit probe
+`runs/main_worker_live_runtime_resume_formal_source_grounding_audit_probe/research_agent_runtime_manifest.json`
+confirmed the new observation path: the Formalizer/ProofEngineer turn recorded
+5 grounding query groups and 9 formal-source hits, all tagged as non-proof
+grounding. The model did not promote a new unverified helper. It fail-closed the
+source theorem as `FORMAL_GAP`, named `Nat.ceil` and exchangeability-definition
+blockers, and routed to Critic/next-action planning. That is still not a source
+theorem proof, but it is the desired architectural behavior for an unresolved
+Lean API dependency.
