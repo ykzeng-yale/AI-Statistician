@@ -80,18 +80,23 @@
   "latest_runtime_eval_alignment": {
     "date": "2026-06-25",
     "branch": "codex/runtime-eval-alignment-20260625",
-    "focus": "AgentRuntime source-to-bridge adapter instantiation, verified adapter retry, exact proof-body retry routing, integrated generated simulation repair evidence, and stricter audit expectations.",
+    "focus": "AgentRuntime source-to-bridge adapter instantiation, verified adapter retry, exact proof-body retry routing, integrated generated algorithm/simulation repair evidence, and stricter audit expectations.",
     "source_to_bridge_adapter_instantiation_queue_source": "Runtime now consumes source-to-bridge adapter-instantiation queues from the post-executor semantic bridge when present, otherwise from the initial source-semantic ProofEngineer bridge.",
     "verified_adapter_unblocks_exact_proof_body_retry": true,
+    "integrated_generated_algorithm_metric_gate_repair_regression": true,
+    "integrated_generated_algorithm_metric_gate_repair_test": "tests/test_research_agent_runtime.py::test_agent_runtime_repairs_generated_algorithm_metric_gate_failure",
+    "integrated_generated_algorithm_metric_gate_repair_evidence": "AgentRuntime now has a regression that runs AlgorithmEngineer for two iterations, records a FAILED_METRIC_GATE generated algorithm sandbox draft, carries algorithm_sandbox_execution_feedback into the next proposal, executes a repaired generated algorithm draft, counts one generated algorithm failed-then-passed repair sequence, and preserves the sandbox-not-proof boundary.",
     "integrated_generated_simulation_metric_gate_repair_regression": true,
     "integrated_generated_simulation_metric_gate_repair_test": "tests/test_research_agent_runtime.py::test_agent_runtime_repairs_generated_simulation_metric_gate_failure",
     "integrated_generated_simulation_metric_gate_repair_evidence": "AgentRuntime now has a regression that runs SimulationEvaluator for two iterations, records a FAILED_METRIC_GATE generated simulation draft, carries generated_simulation_sandbox_execution_feedback into the next proposal, executes a repaired generated simulation draft, counts one generated simulation failed-then-passed repair sequence, and preserves the simulation-not-proof boundary.",
     "proof_boundary": "Kernel-verified source-to-bridge adapter rows can route an exact source theorem proof-body retry, but they do not prove the source theorem or clear unrelated semantic-definition gaps.",
     "static_debug_runtime_audit_boundary": "The static debug runtime test now records a CriticEvaluator formalizer/proofengineer repair request as REVISE at max_iterations; audit all_ok is false with one result contract error because the runtime result is not ACCEPTED.",
-    "focused_runtime_tests": "8 adapter tests passed; 9 generated simulation repair/evidence tests passed",
-    "full_runtime_test_module": "279 passed in 145.87s after adding the integrated generated simulation repair regression"
+    "focused_runtime_tests": "8 adapter tests passed; 7 generated algorithm repair/evidence tests passed; 9 generated simulation repair/evidence tests passed",
+    "full_runtime_test_module": "280 passed in 145.72s after adding integrated generated algorithm and simulation repair regressions"
   },
   "latest_local_verification": [
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_agent_runtime_repairs_generated_algorithm_metric_gate_failure",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'agent_runtime_repairs_generated_algorithm_metric_gate_failure or algorithm_engineer_revises_after_generated_code_metric_gate_failure or algorithm_engineer_revises_after_nonexecutable_llm_code or algorithm_engineer_capability_eval_revises_template_only_output or algorithm_sandbox_failure_memory_replays_to_algorithm_prompt or algorithm_engineer_prompt_includes_metric_gate_repair_feedback or generated_sandbox_repair_sequence_counts_require_fail_then_later_pass'",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_agent_runtime_repairs_generated_simulation_metric_gate_failure",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'simulation_evaluator_revises_after_nonexecutable_generated_simulation_code or simulation_evaluator_capability_eval_revises_when_draft_omitted or simulation_evaluator_executes_safe_generated_simulation_code or agent_runtime_repairs_generated_simulation_metric_gate_failure or generated_sandbox_repair_sequence_counts_require_fail_then_later_pass or generated_simulation_sandbox'",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short",
@@ -113,13 +118,13 @@
   "current_blockers": [
     "project .env is not present in the repo worktree",
     "OpenProver checkout is not present at the default /Users/yukang/Documents/OpenProver/src path",
-    "integrated AgentRuntime now executes generated AlgorithmEngineer code, but it still lacks an integrated generated algorithm fail-then-pass repair sequence",
+    "latest local AgentRuntime regressions now cover generated AlgorithmEngineer and SimulationEngineer fail-then-pass repair sequences, but a fresh live LLM capability rerun has not yet demonstrated both repair loops in the same resumed runtime after these regressions",
     "Formalizer/ProofEngineer packet validation now fails closed into an inferred probability/measure target-shape contract and can produce a locally valid FORMAL_GAP source-theorem packet, but it still lacks a compiling repaired Lean candidate",
     "no live Lean LSP/MCP prover call has been observed",
     "no real kernel-verified subclaim or full frontier theorem proof is present"
   ],
   "next_main_worker_actions": [
-    "turn integrated AlgorithmEngineer one-shot execution into a same-run fail-then-pass repair sequence",
+    "rerun the live capability eval from the latest branch to see whether both generated AlgorithmEngineer and SimulationEngineer repair loops appear in the same resumed runtime audit",
     "resume the pending formalize-critic-repair task and turn the gap-preserving Formalizer packet into an executable source-to-bridge or support candidate with exact metadata and no proof holes",
     "wire or invoke a live Lean LSP/MCP proof-state adapter for the checked Formalizer candidates",
     "add a second non-conformal task-family capability run before claiming cross-task generality",
