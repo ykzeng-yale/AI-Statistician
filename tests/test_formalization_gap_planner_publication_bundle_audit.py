@@ -10533,6 +10533,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert any(
         row["check_name"]
+        == "optional_llm_route_planner_target_theorem_context_packet_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_target_theorem_context_packet_schema_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
         == "optional_llm_route_planner_target_theorem_context_packet_request_match"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -10541,6 +10553,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         row["check_name"] == "optional_llm_route_planner_route_planning_brief_request_match"
         and row["ok"]
         for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_route_planning_brief_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_route_planning_brief_schema_valid"
+        ]
+        == 1
     )
     assert any(
         row["check_name"]
@@ -11381,6 +11405,14 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
     )
+    target_context_packets_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl"
+    )
+    route_planning_briefs_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl"
+    )
     alignment_summary_schema_path = (
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
@@ -11399,7 +11431,19 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for line in alignment_summaries_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    original_target_context_packets = [
+        json.loads(line)
+        for line in target_context_packets_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    original_route_planning_briefs = [
+        json.loads(line)
+        for line in route_planning_briefs_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert original_alignment_summaries
+    assert original_target_context_packets
+    assert original_route_planning_briefs
     assert json.loads(alignment_summary_schema_path.read_text(encoding="utf-8"))[
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
@@ -11458,6 +11502,90 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     alignment_summaries_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in original_alignment_summaries)
+        + "\n",
+        encoding="utf-8",
+    )
+    malformed_target_context_packets = json.loads(
+        json.dumps(original_target_context_packets)
+    )
+    malformed_target_context_packets[0].pop("route_id", None)
+    target_context_packets_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in malformed_target_context_packets
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_target_context_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_target_context_packet_schema_drift",
+        )
+    )
+    target_context_schema_checks = [
+        row
+        for row in rejected_target_context_schema_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_target_theorem_context_packet_row_0_schema_valid"
+    ]
+    assert target_context_schema_checks
+    assert not target_context_schema_checks[0]["ok"]
+    assert any(
+        "target_theorem_context_packet.route_id required" in error
+        for error in target_context_schema_checks[0]["errors"]
+    )
+    assert (
+        rejected_target_context_schema_payload[
+            "n_optional_llm_route_planner_target_theorem_context_packet_schema_valid"
+        ]
+        == 0
+    )
+    target_context_packets_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in original_target_context_packets
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    malformed_route_planning_briefs = json.loads(
+        json.dumps(original_route_planning_briefs)
+    )
+    malformed_route_planning_briefs[0].pop("target_context", None)
+    route_planning_briefs_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in malformed_route_planning_briefs
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_route_brief_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_planning_brief_schema_drift",
+        )
+    )
+    route_brief_schema_checks = [
+        row
+        for row in rejected_route_brief_schema_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_route_planning_brief_row_0_schema_valid"
+    ]
+    assert route_brief_schema_checks
+    assert not route_brief_schema_checks[0]["ok"]
+    assert any(
+        "route_planning_brief.target_context required" in error
+        for error in route_brief_schema_checks[0]["errors"]
+    )
+    assert (
+        rejected_route_brief_schema_payload[
+            "n_optional_llm_route_planner_route_planning_brief_schema_valid"
+        ]
+        == 0
+    )
+    route_planning_briefs_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in original_route_planning_briefs
+        )
         + "\n",
         encoding="utf-8",
     )
