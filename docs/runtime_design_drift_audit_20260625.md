@@ -130,3 +130,14 @@ executable source-to-bridge work orders in the same iteration. That is the
 intended separation: metadata can guide a later Formalizer/ProofEngineer
 candidate, but it is not proof evidence and cannot certify a helper theorem by
 itself.
+
+The follow-up request-consumption probes then exposed the next generic boundary:
+the model can emit an executable premise candidate while forgetting to copy the
+request object. The runtime now preserves that nested request through
+Formalizer memory compaction and autofills it only in the unambiguous
+single-request/single-candidate case. The subsequent live failure moved from
+missing source-binding metadata to missing semantic-anchor references, with zero
+work orders emitted. That is the desired direction: typed request propagation
+gets the candidate to the real ProofEngineer obligation, while validation still
+blocks proof promotion until the candidate uses the semantic anchors and passes
+Lean/AXLE.

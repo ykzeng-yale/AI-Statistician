@@ -4768,6 +4768,15 @@ def _formalizer_packet_validation_repair_directives(
             "object with Lean source and source-binding metadata, or rewrite the "
             "action as an explicit FORMAL_GAP/proof-bank dependency task."
         )
+    if "missing required semantic anchor references" in error_text:
+        directives.append(
+            "Repair the source-to-bridge premise candidate by referencing every "
+            "missing required semantic anchor by its exact name outside comments, "
+            "not only in theorem headers or unused assumptions. If those anchors "
+            "cannot be used non-vacuously in the Lean proof body, emit no executable "
+            "source_to_bridge_premise_derivation_candidates entry and report the "
+            "specific semantic-anchor blocker instead."
+        )
     return directives
 
 

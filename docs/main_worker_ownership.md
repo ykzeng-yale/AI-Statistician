@@ -198,6 +198,23 @@ Live evidence collected on 2026-06-25:
   produced zero executable source-to-bridge work orders in that same iteration.
   Scorecard remains 41/49, with `kernel_verified_subclaims=14` and
   `formal_gaps=19`.
+- `runs/main_worker_live_runtime_resume_metadata_request_consumption_probe/research_agent_runtime_manifest.json`:
+  a two-iteration live resume consumed that request far enough to enter
+  `recommended_formalizer_target_mode=source_to_bridge_premise_derivation_required`,
+  but the Formalizer packet failed validation because its emitted
+  `source_to_bridge_premise_derivation_candidates` entry did not copy the
+  request id/object. This identified the next blocker as request consumption,
+  not metadata authoring.
+- `runs/main_worker_live_runtime_resume_metadata_request_autofill_probe/research_agent_runtime_manifest.json`:
+  after preserving the nested request through Formalizer memory compaction and
+  adding an unambiguous single-request/single-candidate autofill, the live
+  repair no longer failed on missing source-binding metadata
+  (`missing_source_binding_contract_metadata=false`). The failure moved to the
+  stricter semantic-anchor check:
+  `source_to_bridge_premise_derivation_candidates Lean candidate missing required
+  semantic anchor references: hQuantileThreshold, hGoodRank`. Runtime still
+  emitted zero executable source-to-bridge work orders, so no proof evidence was
+  claimed.
 - `docs/runtime_design_drift_audit_20260625.md` records the design correction
   for this lane: evidence-boundary guards may stay in the core runtime, but
   conformal/source-to-bridge tactics should move into typed artifacts, policy
@@ -243,15 +260,16 @@ emits concrete `source_to_bridge_premise_derivation_candidates` with copied
 source-binding metadata and local Lean/AXLE verifies the intended
 probability/measure coverage claim.
 
-The latest live blocker is no longer the `sorry` packet-validation loop, and
-not merely absent source-binding metadata. The runtime now has one complete
-metadata-authoring request in memory, but it has not yet consumed that request
-to ask Formalizer/ProofEngineer for an executable, locally verified
-source-to-bridge premise derivation candidate. The next worker should resume
-`critic:conformal_prediction_coverage:0fccd06e`, preserve the authored request
-as orchestration context, and require any subsequent premise-derivation
-candidate to copy the exact source-binding metadata before local Lean/AXLE can
-promote it to proof evidence.
+The latest live blocker is no longer the `sorry` packet-validation loop and no
+longer the source-binding metadata copy barrier. The runtime now has one
+complete metadata-authoring request in memory and can autofill it into a single
+unbound source-to-bridge candidate before validation. The next blocker is
+semantic: the candidate must reference `hQuantileThreshold` and `hGoodRank`
+non-vacuously in the Lean proof body, without putting adapter objects such as
+`coverage_event` or `good_rank_event` in theorem binders. The next worker should
+resume `formalize-repair:conformal_prediction_coverage:1af7fb86`; only after a
+locally valid source-to-bridge candidate is emitted should runtime queue the
+premise derivation for local Lean/AXLE.
 
 ## Delegation To Other Codex Workers
 

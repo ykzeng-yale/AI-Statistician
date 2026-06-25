@@ -19555,9 +19555,14 @@ def test_formalizer_validator_rejects_missing_source_to_bridge_anchor_references
     }
 
     errors = validate_formalizer_packet(packet)
+    directives = runtime_module._formalizer_packet_validation_repair_directives(errors)
 
     assert any("missing required semantic anchor references" in error for error in errors)
     assert any("hq" in error and "hC" in error for error in errors)
+    assert any(
+        "referencing every missing required semantic anchor" in directive
+        for directive in directives
+    )
 
 
 def test_formalizer_validator_rejects_source_to_bridge_candidate_without_contract_metadata() -> None:
@@ -19821,6 +19826,184 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
         "covered",
         "rank",
         "BadRanks",
+    ]
+    assert validate_formalizer_packet(packet) == []
+
+
+def test_formalizer_autofills_single_source_to_bridge_request_fallback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_source_theorem_still_gap",
+                "informal_source": "full source theorem remains unproved",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                    "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "exact source binders and semantic anchors",
+                "to": "hGoodRankImpliesCovered",
+                "role": "source-to-bridge premise derivation",
+                "risk": "semantic alignment",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal good rank implies coverage",
+                "target_library": "LeanRAG",
+                "purpose": "premise derivation",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["check source-to-bridge candidate after validation"],
+            "known_blockers": [],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodRankCoveredBridge",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "premise_derivation_candidate_lean_source": (
+                    "theorem hGoodRankImpliesCovered_source_to_bridge_derivation\n"
+                    "    (A B C : Prop)\n"
+                    "    (hQuantileThreshold : A)\n"
+                    "    (hGoodRank : A -> B)\n"
+                    "    (hExch : B -> C) : C := by\n"
+                    "  exact hExch (hGoodRank hQuantileThreshold)\n"
+                ),
+            }
+        ],
+        "gap_taxonomy": [
+            {
+                "gap": "source-to-bridge premise still needs kernel verification",
+                "kind": "semantic_alignment",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "validator",
+                "finding": "candidate omitted the runtime request object",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "ProofEngineer",
+                "action": "run local Lean after packet validation",
+                "acceptance_gate": "local Lean or AXLE verifies the exact candidate",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    request = {
+        "candidate_request_id": "request:hGoodRankImpliesCovered",
+        "premise_name": "hGoodRankImpliesCovered",
+        "premise_target_type": "good_rank_event -> coverage_event",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        "exact_source_theorem_binders": [
+            {"name": "n", "type": "Nat"},
+            {"name": "alpha", "type": "Real"},
+            {"name": "scores", "type": "Fin (n+1) -> Real"},
+        ],
+        "premise_semantic_anchor_binders": [
+            {"name": "hQuantileThreshold", "role": "quantile threshold"},
+            {"name": "hGoodRank", "role": "good rank event"},
+        ],
+        "premise_semantic_anchor_binder_names": [
+            "hQuantileThreshold",
+            "hGoodRank",
+        ],
+        "required_semantic_anchor_reference_names": [
+            "hQuantileThreshold",
+            "hGoodRank",
+            "hExch",
+        ],
+        "adapter_object_names_requiring_source_instantiation": [
+            "coverage_event",
+            "good_rank_event",
+            "C_n",
+        ],
+        "candidate_contract": "copy this request into the executable candidate",
+    }
+    memory_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_to_bridge_premise_derivation_required"
+        ),
+        "source_to_bridge_premise_derivation_required": True,
+        "source_to_bridge_premise_derivation_pending_premise_names": [
+            "hGoodRankImpliesCovered"
+        ],
+        "source_to_bridge_metadata_authoring_candidate_requests": [
+            {
+                "candidate_request_id": "request:hGoodRankImpliesCovered",
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "request:hGoodRankImpliesCovered"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": request,
+                "premise_name": "hGoodRankImpliesCovered",
+                "request_complete": True,
+                "metadata_authoring_status": (
+                    "COMPLETE_SOURCE_TO_BRIDGE_CANDIDATE_REQUEST_AUTHORED"
+                ),
+                "proof_evidence_status": (
+                    "SOURCE_TO_BRIDGE_METADATA_AUTHORING_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:single-request-fallback"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=memory_summary,
+    )
+
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert candidate["source_binding_metadata_autofilled_from_runtime_memory"] is True
+    assert (
+        candidate["source_binding_metadata_autofill_mode"]
+        == "single_request_single_candidate_fallback"
+    )
+    assert candidate["premise_name"] == "hGoodRankImpliesCovered"
+    assert (
+        candidate["model_premise_name_before_runtime_autofill"]
+        == "hGoodRankCoveredBridge"
+    )
+    assert (
+        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
+        == "request:hGoodRankImpliesCovered"
+    )
+    assert (
+        candidate["source_to_bridge_premise_derivation_candidate_request"][
+            "candidate_request_id"
+        ]
+        == "request:hGoodRankImpliesCovered"
+    )
+    assert candidate["required_semantic_anchor_reference_names"] == [
+        "hQuantileThreshold",
+        "hGoodRank",
+        "hExch",
     ]
     assert validate_formalizer_packet(packet) == []
 

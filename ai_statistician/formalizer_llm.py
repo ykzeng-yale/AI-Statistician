@@ -2169,13 +2169,26 @@ def _enrich_source_to_bridge_candidates_from_memory(
         return
     single_by_premise: dict[str, Mapping[str, Any]] = {}
     grouped_requests: list[Mapping[str, Any]] = []
+    single_request_shortcuts: list[Mapping[str, Any]] = []
     for shortcut in shortcuts:
         if shortcut.get("copy_this_candidate_request"):
+            single_request_shortcuts.append(shortcut)
             premise = str(shortcut.get("premise_name", "") or "").strip()
             if premise:
                 single_by_premise[premise] = shortcut
         if shortcut.get("copy_this_grouped_request"):
             grouped_requests.append(shortcut)
+    candidate_dicts = [candidate for candidate in candidates if isinstance(candidate, dict)]
+    unbound_candidates_before_autofill = [
+        candidate
+        for candidate in candidate_dicts
+        if not _source_to_bridge_candidate_has_source_binding_contract(candidate)
+    ]
+    allow_single_request_single_candidate_fallback = bool(
+        len(unbound_candidates_before_autofill) == 1
+        and len(single_request_shortcuts) == 1
+        and not grouped_requests
+    )
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
@@ -2212,15 +2225,18 @@ def _enrich_source_to_bridge_candidates_from_memory(
             continue
         if premise_name and premise_name in single_by_premise:
             shortcut = single_by_premise[premise_name]
-            if shortcut.get("copy_this_candidate_request_id"):
-                candidate[
-                    "source_to_bridge_premise_derivation_candidate_request_id"
-                ] = shortcut["copy_this_candidate_request_id"]
-            candidate["source_to_bridge_premise_derivation_candidate_request"] = (
-                shortcut["copy_this_candidate_request"]
+            _attach_single_source_to_bridge_request_shortcut(candidate, shortcut)
+            continue
+        if (
+            allow_single_request_single_candidate_fallback
+            and candidate is unbound_candidates_before_autofill[0]
+        ):
+            _attach_single_source_to_bridge_request_shortcut(
+                candidate,
+                single_request_shortcuts[0],
+                align_premise_name=True,
+                autofill_mode="single_request_single_candidate_fallback",
             )
-            _copy_missing_candidate_metadata(candidate, shortcut)
-            candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
 
 
 def _copy_missing_candidate_metadata(
@@ -2228,13 +2244,64 @@ def _copy_missing_candidate_metadata(
     source: Mapping[str, Any],
 ) -> None:
     for key in (
+        "exact_source_theorem_binders",
+        "premise_semantic_anchor_binders",
+        "premise_semantic_anchor_binder_names",
         "required_semantic_anchor_reference_names",
+        "semantic_anchor_reference_gate",
         "adapter_object_names_requiring_source_instantiation",
+        "premise_target_type",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "candidate_contract",
     ):
         if candidate.get(key) in (None, "", [], {}):
             values = source.get(key, [])
             if values not in (None, "", [], {}):
-                candidate[key] = list(values) if isinstance(values, list) else values
+                if isinstance(values, list | tuple | set):
+                    candidate[key] = list(values)
+                elif isinstance(values, Mapping):
+                    candidate[key] = dict(values)
+                else:
+                    candidate[key] = values
+
+
+def _attach_single_source_to_bridge_request_shortcut(
+    candidate: dict[str, Any],
+    shortcut: Mapping[str, Any],
+    *,
+    align_premise_name: bool = False,
+    autofill_mode: str = "premise_name_match",
+) -> None:
+    if shortcut.get("copy_this_candidate_request_id"):
+        candidate["source_to_bridge_premise_derivation_candidate_request_id"] = (
+            shortcut["copy_this_candidate_request_id"]
+        )
+    request = shortcut.get("copy_this_candidate_request", {})
+    if isinstance(request, Mapping):
+        candidate["source_to_bridge_premise_derivation_candidate_request"] = dict(
+            request
+        )
+        _copy_missing_candidate_metadata(candidate, request)
+    _copy_missing_candidate_metadata(candidate, shortcut)
+    request_premise_name = str(shortcut.get("premise_name", "") or "").strip()
+    current_premise_name = str(candidate.get("premise_name", "") or "").strip()
+    if align_premise_name and request_premise_name:
+        if current_premise_name and current_premise_name != request_premise_name:
+            candidate["model_premise_name_before_runtime_autofill"] = (
+                current_premise_name
+            )
+        candidate["premise_name"] = request_premise_name
+        premise_names = [
+            str(value).strip()
+            for value in candidate.get("premise_names", []) or []
+            if str(value).strip()
+        ]
+        candidate["premise_names"] = list(
+            dict.fromkeys([request_premise_name, *premise_names])
+        )
+    candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
+    candidate["source_binding_metadata_autofill_mode"] = autofill_mode
 
 
 def _feedback_int(value: Any) -> int:
@@ -3972,6 +4039,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 row.get("source_to_bridge_metadata_authoring_candidate_requests", []),
                 keys=(
                     "candidate_request_id",
+                    "source_to_bridge_premise_derivation_candidate_request_id",
+                    "source_to_bridge_premise_derivation_candidate_request",
                     "premise_name",
                     "premise_names",
                     "target_theorem_name",
