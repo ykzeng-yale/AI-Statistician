@@ -79,6 +79,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
     PROOF_EVIDENCE_STATUS as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
+    llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
     llm_route_planner_target_theorem_context_packet_json_schema,
     validate_llm_route_planner_request,
@@ -89,6 +90,7 @@ from .formalization_gap_planner_llm_route_planner import (
     llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_provider_usage_row_json_schema,
     _validate_with_schema as _llm_route_planner_validate_with_schema,
+    _validate_with_schema_deep as _llm_route_planner_validate_with_schema_deep,
     _response_resource_request_alignment_errors as _llm_route_planner_resource_request_alignment_errors,
 )
 from .formalization_gap_planner_route_adoption_blockers import (
@@ -1527,6 +1529,23 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_model_tier_decision_ledger_manifest_match"
             and check.ok
         ),
+        "n_optional_llm_route_planner_library_alignment_summary_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_library_alignment_summary_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_llm_route_planner_library_alignment_summary_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_library_alignment_summary_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_realization_witness_schema_checked": sum(
             1
             for check in checks
@@ -2011,6 +2030,23 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_library_alignment_summary_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_library_alignment_summary_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_feedback_llm_route_planner_library_alignment_summary_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_library_alignment_summary_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_realization_witness_schema_checked": sum(
@@ -12037,6 +12073,14 @@ def _llm_route_planner_optional_checks(
             == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
         ),
         _check(
+            f"{check_prefix}_library_alignment_summary_schema_shape",
+            "optional_artifacts",
+            "library-alignment summary schema matches canonical builder",
+            str(library_alignment_summary_schema.get("$id", "")),
+            library_alignment_summary_schema
+            == llm_route_planner_library_alignment_summary_json_schema(),
+        ),
+        _check(
             f"{check_prefix}_target_theorem_context_packet_schema_file",
             "optional_artifacts",
             "LLM route-planner target theorem context packet schema exists",
@@ -12561,6 +12605,22 @@ def _llm_route_planner_optional_checks(
                 _llm_request_generation_policy_observed(request),
                 not generation_policy_errors,
                 errors=generation_policy_errors,
+            )
+        )
+    for idx, alignment_row in enumerate(library_alignment_summary_rows):
+        schema_errors = _llm_route_planner_validate_with_schema_deep(
+            alignment_row,
+            library_alignment_summary_schema,
+            path="library_alignment_summary",
+        )
+        checks.append(
+            _check(
+                f"{check_prefix}_library_alignment_summary_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "LLM route-planner library-alignment summary row validates against public row schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
             )
         )
     for idx, ledger_row in enumerate(model_tier_decision_ledger_rows):
@@ -25596,6 +25656,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
         f"- Optional LLM route-planner model-tier ledger rows valid: {payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_schema_valid')}/{payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_schema_checked')}",
         f"- Optional LLM route-planner model-tier ledger manifest match valid: {payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_valid')}/{payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_checked')}",
+        f"- Optional LLM route-planner library-alignment summaries valid: {payload.get('n_optional_llm_route_planner_library_alignment_summary_schema_valid')}/{payload.get('n_optional_llm_route_planner_library_alignment_summary_schema_checked')}",
         f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",
         f"- Optional LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
@@ -25619,6 +25680,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner model-tier ledger rows valid: {payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_checked')}",
         f"- Optional feedback LLM route-planner model-tier ledger manifest match valid: {payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_valid')}/{payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_checked')}",
+        f"- Optional feedback LLM route-planner library-alignment summaries valid: {payload.get('n_optional_feedback_llm_route_planner_library_alignment_summary_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_library_alignment_summary_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",

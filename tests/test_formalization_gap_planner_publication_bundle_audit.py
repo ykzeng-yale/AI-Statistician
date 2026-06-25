@@ -11403,6 +11403,64 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert json.loads(alignment_summary_schema_path.read_text(encoding="utf-8"))[
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_library_alignment_summary_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_library_alignment_summary_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_library_alignment_summary_schema_valid"
+        ]
+        == 1
+    )
+    malformed_alignment_summaries = json.loads(
+        json.dumps(original_alignment_summaries)
+    )
+    malformed_alignment_summaries[0].pop("route_option_alignment", None)
+    alignment_summaries_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in malformed_alignment_summaries
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_alignment_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_library_alignment_summary_schema_drift",
+        )
+    )
+    alignment_schema_checks = [
+        row
+        for row in rejected_alignment_schema_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_library_alignment_summary_row_0_schema_valid"
+    ]
+    assert alignment_schema_checks
+    assert not alignment_schema_checks[0]["ok"]
+    assert any(
+        "library_alignment_summary.route_option_alignment required" in error
+        for error in alignment_schema_checks[0]["errors"]
+    )
+    assert (
+        rejected_alignment_schema_payload[
+            "n_optional_llm_route_planner_library_alignment_summary_schema_valid"
+        ]
+        == 0
+    )
+    alignment_summaries_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in original_alignment_summaries)
+        + "\n",
+        encoding="utf-8",
+    )
     original_model_tier_decision_ledger_text = (
         model_tier_decision_ledger_path.read_text(encoding="utf-8")
     )
