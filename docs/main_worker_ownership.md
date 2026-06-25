@@ -140,6 +140,15 @@ Live evidence collected on 2026-06-25:
   candidates, and ran local Lean/proof-state feedback; after the audit counter
   fix, `runtime_capability_audit_after_counter_fix/research_agent_runtime_audit_manifest.json`
   reports scorecard 36/49.
+- `runs/main_worker_live_runtime_resume_blocked_import_followup/research_agent_runtime_manifest.json`:
+  resumed the Mathlib-blocked ProofEngineer task and produced one
+  failed-then-passed Formalizer Lean repair sequence, ending with a compiled
+  `source_theorem_target_known=false` diagnostic helper; scorecard 38/49.
+- `runs/main_worker_live_runtime_resume_algorithm_formalizer_combined_probe/research_agent_runtime_manifest.json`:
+  resumed from the AlgorithmEngineer pending task and follow-up Critic task,
+  preserving one integrated generated AlgorithmEngineer repair sequence, one
+  generated SimulationEngineer repair sequence, and one Formalizer Lean
+  candidate repair sequence in the same runtime lineage; scorecard 40/49.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
@@ -155,14 +164,17 @@ not theorem proof and not an integrated runtime success by itself. In the
 ended at `AlgorithmEngineer algorithm_engineer_packet_validation_failed` before
 showing same-run integrated repair loops or any kernel-verified subclaim.
 
-The resumed entrypoint/shape-guard runs are stronger integrated evidence:
-`n_generated_code_sandbox_executed=2`,
+The combined Algorithm/Formalizer probe is the strongest current integrated
+capability evidence: `n_generated_code_sandbox_executed=2`,
+`n_generated_code_sandbox_failed_then_passed_repair_sequences=1`,
 `n_generated_simulation_sandbox_failed_then_passed_repair_sequences=1`,
-`n_formalizer_lean_candidate_local_lean_checked=2`, and
-`n_formalizer_lean_candidate_proof_state_feedback_rows=3`. They are still not
-source theorem proof: `n_real_kernel_verified_subclaims=0`, no full frontier
-theorem is kernel-proved, and the latest terminal state is
-`ProofEngineer formalizer_packet_validation_failed`.
+`n_formalizer_lean_candidate_failed_then_passed_repair_sequences=1`,
+`n_formalizer_lean_candidate_local_lean_checked=4`, and
+`n_formalizer_lean_candidate_local_lean_compiled=2`. It is still not source
+theorem proof: `n_kernel_verified_subclaims=0`, `n_formal_gaps=7`, the compiled
+Lean candidates are diagnostic helpers with
+`source_theorem_target_known=false`, and the pending task remains a
+Formalizer/Critic repair.
 
 ## Delegation To Other Codex Workers
 
@@ -172,8 +184,9 @@ outputs into the runtime path:
 - Formalizer/ProofEngineer worker: fix conformal target-shape drift and ensure
   repaired candidates preserve the probability/coverage theorem shape without
   sorry/hole placeholders or phantom source-to-bridge actions.
-- Algorithm/Simulation worker: turn integrated generated AlgorithmEngineer
-  one-shot execution into a same-run fail-then-pass repair sequence.
+- Algorithm/Simulation worker: promote the integrated generated
+  AlgorithmEngineer and SimulationEngineer repair evidence into registered
+  production algorithms only after registry tests and reruns pass.
 - Proof-library worker: add reusable statistics kernels with local Lean/AXLE
   manifests.
 - RAG/OpenProver worker: feed source hits and prover diagnostics into

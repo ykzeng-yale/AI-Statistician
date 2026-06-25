@@ -106,6 +106,9 @@ The live runtime has moved beyond static scaffold:
 - Generated algorithm code and generated simulation code have executed locally
   in capability runs, including failed-then-passed repair sequences.
 - Formalizer Lean candidates have been materialized and checked locally.
+- The latest combined runtime lineage records generated AlgorithmEngineer
+  repair, generated SimulationEngineer repair, and Formalizer Lean candidate
+  repair in the same resumed history.
 - Proof-state feedback rows now preserve `executed_tools` and
   `tool_call_trace`.
 - An opt-in Lean LSP MCP provider exists for materialized Formalizer
@@ -114,9 +117,11 @@ The live runtime has moved beyond static scaffold:
 The system is still incomplete:
 
 - `split_conformal_coverage` source theorem is not kernel verified.
-- Recent live conformal runs still stall in FormalizationEvaluator repair.
+- Recent live conformal runs still stall in Formalizer/Critic repair with open
+  formal gaps.
 - Dominant Formalizer failure mode: replacing a probability/coverage source
-  theorem with an arithmetic helper theorem.
+  theorem with a diagnostic helper theorem. Compiled helper candidates are
+  explicitly not source-theorem proof evidence.
 - Premise-derivation bridge rows are mostly not evidence-eligible or not kernel
   verified.
 - Cross-task capability beyond conformal has not been proven.
@@ -262,7 +267,8 @@ mock/static proof row as kernel proof.
    shape or move arithmetic lemmas into support channels.
 3. Ensure ProofEngineer consumes local Lean and optional Lean LSP MCP
    `tool_call_trace` inside the next prompt.
-4. Attach live algorithm/simulation repair sequences to the current task rather
-   than relying only on aggregate history.
+4. Promote generated algorithm/simulation prototypes only through explicit
+   registry tests and reruns; sandbox execution remains engineering evidence,
+   not theorem proof.
 5. Add a second task-family capability run, for example FDR, randomization
    variance, KKT/certificate, or empirical-process bound.
