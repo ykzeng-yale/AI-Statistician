@@ -2945,8 +2945,34 @@ def test_formalizer_candidate_materialization_allows_string_false_helper_target(
     assert row["local_lean_compiled"] is True
     assert row["kernel_verified"] is True
     assert row["proof_evidence_status"] == (
-        "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+        "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+        "NOT_SOURCE_THEOREM_PROOF"
     )
+    assert row["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert row["source_theorem_target_known"] is False
+    assert row["diagnostic_helper_not_source_theorem"] is True
+    assert manifest["proof_evidence_status"] == (
+        "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+        "NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert manifest["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert manifest["n_local_lean_compiled_diagnostic_helpers"] == 1
+    assert manifest["n_local_lean_compiled_source_theorem_candidates"] == 0
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {manifest["manifest_id"]: manifest}}}]
+    )
+    assert learning_rows[0]["memory_status"] == (
+        "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert learning_rows[0]["proof_evidence_status"] == (
+        "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+        "NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert learning_rows[0]["source_theorem_kernel_verified"] is False
 
 
 def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_lean(

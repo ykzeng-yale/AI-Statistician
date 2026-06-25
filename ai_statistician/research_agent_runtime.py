@@ -4860,6 +4860,20 @@ def _materialize_formalizer_lean_candidate_artifacts(
             if artifact_path
             else {}
         )
+        candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
+        source_theorem_target_known = _source_theorem_target_known_value(
+            candidate_metadata.get("source_theorem_target_provenance", {})
+        )
+        diagnostic_helper_not_source_theorem = source_theorem_target_known is False
+        local_lean_compiled = bool(
+            local_lean_result.get("local_lean_compiled", False)
+        )
+        proof_evidence_status = _formalizer_candidate_proof_evidence_status(
+            local_lean_compiled=local_lean_compiled,
+            diagnostic_helper_not_source_theorem=(
+                diagnostic_helper_not_source_theorem
+            ),
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -4915,17 +4929,28 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "kernel_verified": bool(
                     local_lean_result.get("local_lean_compiled", False)
                 ),
-                "proof_evidence_status": (
-                    "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
-                    if local_lean_result.get("local_lean_compiled", False)
-                    else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                "source_theorem_target_known": source_theorem_target_known,
+                "diagnostic_helper_not_source_theorem": (
+                    diagnostic_helper_not_source_theorem
+                ),
+                "proof_evidence_status": proof_evidence_status,
+                "source_theorem_proof_evidence_status": (
+                    "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    if diagnostic_helper_not_source_theorem
+                    else (
+                        "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+                        if local_lean_compiled
+                        else "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    )
                 ),
                 "boundary": (
-                    "This row materializes an LLM-generated Lean candidate. It is "
-                    "proof evidence only when local_lean_compiled=true for this exact "
-                    "candidate artifact; otherwise it is proof-search feedback only."
+                    _formalizer_candidate_proof_boundary(
+                        diagnostic_helper_not_source_theorem=(
+                            diagnostic_helper_not_source_theorem
+                        )
+                    )
                 ),
-                "candidate_metadata": dict(candidate.get("candidate_metadata", {}) or {}),
+                "candidate_metadata": candidate_metadata,
             }
         )
     written_rows = [row for row in rows if row.get("artifact_path")]
@@ -4936,6 +4961,11 @@ def _materialize_formalizer_lean_candidate_artifacts(
     ]
     local_checked_rows = [row for row in rows if row.get("local_lean_attempted")]
     local_compiled_rows = [row for row in rows if row.get("local_lean_compiled")]
+    compiled_source_candidate_rows = [
+        row
+        for row in local_compiled_rows
+        if not bool(row.get("diagnostic_helper_not_source_theorem", False))
+    ]
     live_proof_state_request_rows = [
         row for row in rows if row.get("live_proof_state_request")
     ]
@@ -4981,22 +5011,43 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "local_lean_attempted": bool(local_checked_rows),
         "n_local_lean_checked": len(local_checked_rows),
         "n_local_lean_compiled": len(local_compiled_rows),
+        "n_local_lean_compiled_diagnostic_helpers": (
+            len(local_compiled_rows) - len(compiled_source_candidate_rows)
+        ),
+        "n_local_lean_compiled_source_theorem_candidates": len(
+            compiled_source_candidate_rows
+        ),
         "n_live_proof_state_requests": len(live_proof_state_request_rows),
         "n_lean_lsp_mcp_ready_requests": len(lean_lsp_mcp_ready_rows),
         "kernel_verified": bool(local_compiled_rows),
+        "source_theorem_kernel_verified": False,
         "lean_project": str(lean_project or ""),
         "lean_timeout": lean_timeout,
         "artifact_dir": str(artifact_dir) if candidate_sources else "",
         "manifest_path": str(manifest_path or ""),
         "proof_evidence_status": (
             "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
-            if local_compiled_rows
-            else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+            if compiled_source_candidate_rows
+            else (
+                "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                if local_compiled_rows
+                else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+            )
+        ),
+        "source_theorem_proof_evidence_status": (
+            "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+            if compiled_source_candidate_rows
+            else (
+                "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                if local_compiled_rows
+                else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+            )
         ),
         "boundary": (
             "Formalizer Lean candidate materialization creates concrete files for "
-            "ProofEngineer consumption. It is only kernel proof evidence for rows "
-            "where local_lean_compiled=true for the exact candidate artifact."
+            "ProofEngineer consumption. It is only kernel proof evidence for the "
+            "exact candidate artifact. Rows with source_theorem_target_known=false "
+            "are diagnostic/helper evidence only and do not prove the source theorem."
         ),
     }
     if manifest_path is not None:
@@ -5006,6 +5057,55 @@ def _materialize_formalizer_lean_candidate_artifacts(
             encoding="utf-8",
         )
     return manifest_payload
+
+
+def _formalizer_candidate_proof_evidence_status(
+    *,
+    local_lean_compiled: bool,
+    diagnostic_helper_not_source_theorem: bool,
+) -> str:
+    if not local_lean_compiled:
+        return "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+    if diagnostic_helper_not_source_theorem:
+        return (
+            "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+            "NOT_SOURCE_THEOREM_PROOF"
+        )
+    return "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+
+
+def _formalizer_candidate_memory_status(
+    *,
+    local_lean_compiled: bool,
+    diagnostic_helper_not_source_theorem: bool,
+) -> str:
+    if not local_lean_compiled:
+        return "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"
+    if diagnostic_helper_not_source_theorem:
+        return (
+            "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+        )
+    return "EXACT_FORMALIZER_CANDIDATE_KERNEL_VERIFIED"
+
+
+def _formalizer_candidate_proof_boundary(
+    *,
+    diagnostic_helper_not_source_theorem: bool,
+) -> str:
+    if diagnostic_helper_not_source_theorem:
+        return (
+            "This row materializes an LLM-generated diagnostic/helper Lean "
+            "candidate with source_theorem_target_known=false. A local Lean compile "
+            "verifies only this helper artifact; it is not proof evidence for the "
+            "source theorem, the probability/measure coverage claim, or any full "
+            "frontier theorem."
+        )
+    return (
+        "This row materializes an LLM-generated Lean candidate. It is proof "
+        "evidence only when local_lean_compiled=true for this exact candidate "
+        "artifact and still requires semantic/source-theorem faithfulness auditing "
+        "before any source theorem proof claim."
+    )
 
 
 def _formalizer_lean_candidate_materialization_learning_rows(
@@ -5024,6 +5124,13 @@ def _formalizer_lean_candidate_materialization_learning_rows(
         artifact_path = str(candidate.get("artifact_path", "") or "")
         local_lean_compiled = bool(candidate.get("local_lean_compiled", False))
         local_lean_attempted = bool(candidate.get("local_lean_attempted", False))
+        diagnostic_helper_not_source_theorem = bool(
+            candidate.get("diagnostic_helper_not_source_theorem", False)
+        )
+        source_theorem_target_known = candidate.get(
+            "source_theorem_target_known",
+            None,
+        )
         diagnostic_row = {
             "precheck_status": str(candidate.get("precheck_status", "") or ""),
             "precheck_errors": list(candidate.get("precheck_errors", []) or []),
@@ -5102,6 +5209,10 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 ),
                 "local_lean_repair_contract": local_lean_repair_contract,
                 "target_shape_contract": target_shape_contract,
+                "source_theorem_target_known": source_theorem_target_known,
+                "diagnostic_helper_not_source_theorem": (
+                    diagnostic_helper_not_source_theorem
+                ),
                 "candidate_live_proof_state_request": live_request,
                 "n_candidate_live_proof_state_requests": 1 if live_request else 0,
                 "candidate_lean_lsp_mcp_ready_request": lean_lsp_mcp_ready,
@@ -5124,16 +5235,31 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 },
                 "kernel_verified": local_lean_compiled,
                 "proof_evidence_status": (
-                    "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
-                    if local_lean_compiled
-                    else "FORMALIZER_LEAN_CANDIDATE_NOT_KERNEL_VERIFIED"
+                    _formalizer_candidate_proof_evidence_status(
+                        local_lean_compiled=local_lean_compiled,
+                        diagnostic_helper_not_source_theorem=(
+                            diagnostic_helper_not_source_theorem
+                        ),
+                    )
+                ),
+                "source_theorem_proof_evidence_status": (
+                    "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    if diagnostic_helper_not_source_theorem
+                    else (
+                        "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+                        if local_lean_compiled
+                        else "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    )
                 ),
                 "source_theorem_kernel_verified": False,
                 "full_frontier_theorem_proved": False,
                 "memory_status": (
-                    "EXACT_FORMALIZER_CANDIDATE_KERNEL_VERIFIED"
-                    if local_lean_compiled
-                    else "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"
+                    _formalizer_candidate_memory_status(
+                        local_lean_compiled=local_lean_compiled,
+                        diagnostic_helper_not_source_theorem=(
+                            diagnostic_helper_not_source_theorem
+                        ),
+                    )
                 ),
                 "next_owner_agent": (
                     "ProofEngineer"
@@ -5149,9 +5275,11 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     )
                 ),
                 "proof_evidence_boundary": (
-                    "A local Lean compile here verifies only this exact materialized "
-                    "candidate artifact. It does not prove the source theorem, close "
-                    "formal gaps, or validate semantic faithfulness to the paper claim."
+                    _formalizer_candidate_proof_boundary(
+                        diagnostic_helper_not_source_theorem=(
+                            diagnostic_helper_not_source_theorem
+                        )
+                    )
                 ),
             }
         )
