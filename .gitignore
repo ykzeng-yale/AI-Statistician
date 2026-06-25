@@ -17,6 +17,11 @@ runs/
 .tmp_frontier/
 .tmp_publish/
 
+# Local handoff transcripts are useful for operator context but too large and
+# sensitive to commit. Keep concise project blueprints in docs/ instead.
+docs/chat_history_*_ai_statistician_system.md
+docs/api_key_inventory_redacted.md
+
 # Lean / Mathlib build artifacts
 .lake/
 build/

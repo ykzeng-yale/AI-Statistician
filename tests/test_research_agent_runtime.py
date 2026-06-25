@@ -6384,6 +6384,8 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
     }
 
     assert (
@@ -19669,6 +19671,14 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
     assert proposal["proof_evidence_status"] == (
         "DETERMINISTIC_THEOREM_CLOSURE_PACKET_NOT_PROOF_EVIDENCE"
     )
+    assert manifest["formalizer_proposal_source"] == (
+        "deterministic_theorem_closure_work_order_seed"
+    )
+    assert manifest["llm_formalizer_proof_engineer_proposal_observed"] is False
+    assert manifest["deterministic_formalizer_work_order_seed_used"] is True
+    assert manifest["formalizer_agentic_capability_evidence_status"] == (
+        "DETERMINISTIC_WORK_ORDER_SEED_NOT_AGENTIC_CAPABILITY"
+    )
     assert proposal["proof_bank_obligation_requests"] == []
     assert proposal["formal_targets"][0]["expected_status"] == "KERNEL_CHECK_READY"
     assert "sorry" not in proposal["formal_targets"][0]["lean_statement_sketch"]
@@ -19832,6 +19842,14 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
     assert proposal["source_agent"] == "LLMFormalizerProofEngineerAgent"
     assert proposal["provider"] == "anthropic"
     assert proposal["model"] == "claude-sonnet-4-6"
+    assert manifest["formalizer_proposal_source"] == (
+        "llm_formalizer_proof_engineer_proposal"
+    )
+    assert manifest["llm_formalizer_proof_engineer_proposal_observed"] is True
+    assert manifest["deterministic_formalizer_work_order_seed_used"] is False
+    assert manifest["formalizer_agentic_capability_evidence_status"] == (
+        "LIVE_LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
+    )
     assert proposal_evidence.evidence_type == "llm_formalizer_proof_engineer_proposal"
     assert proposal_evidence.evidence_type != (
         "deterministic_theorem_closure_work_order_seed"
@@ -27130,6 +27148,8 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
         "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
@@ -27164,6 +27184,8 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
         "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
@@ -27196,6 +27218,8 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
         "n_runtime_traces": 6,
@@ -27239,6 +27263,8 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "n_formalizer_lean_candidate_local_lean_tool_calls": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
     }
 
     table = _runtime_coding_agent_capability_table(payload)
@@ -27251,6 +27277,9 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "generated_algorithm_repair_loop_observed"
     ]["blocker"]
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is True
+    assert rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["passed"] is True
     assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
@@ -27378,6 +27407,23 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ]
     assert table["coding_agent_capability_ready"] is False
 
+    payload["n_live_generator_agents_enabled"] = 6
+    payload["n_llm_formalizer_proof_engineer_proposals"] = 0
+    payload["n_deterministic_formalizer_work_order_seed_proposals"] = 1
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["passed"] is False
+    assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is False
+    assert "deterministic theorem-closure seeds" in rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["blocker"]
+    assert "deterministic work-order seeds" in rows[
+        "formalizer_lean_candidate_checked_locally"
+    ]["blocker"]
+    assert table["coding_agent_capability_ready"] is False
+
     payload = {
         "question_ids": ["conformal_prediction_coverage"],
         "n_live_generator_agents_enabled": 6,
@@ -27447,6 +27493,8 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
         "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,

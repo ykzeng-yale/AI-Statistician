@@ -1890,6 +1890,13 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_llm_formalizer_proposals = int(
+        payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
+    )
+    integrated_deterministic_formalizer_seeds = int(
+        payload.get("n_deterministic_formalizer_work_order_seed_proposals", 0)
+        or 0
+    )
     attached_formalizer_repair_ready = (
         bool(
             payload.get(
@@ -1926,6 +1933,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         > 0
     )
+    integrated_formalizer_agentic_repair_ready = (
+        integrated_llm_formalizer_proposals > 0
+        and integrated_formalizer_repair_sequences > 0
+    )
     generated_code_and_lean_repair_ready = (
         (
             integrated_algorithm_repair_sequences > 0
@@ -1933,7 +1944,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or attached_coding_repair_ready
     ) and (
-        integrated_formalizer_repair_sequences > 0
+        integrated_formalizer_agentic_repair_ready
         or attached_formalizer_repair_ready
     )
     levels = [
@@ -1978,6 +1989,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_simulation_repair_sequences} "
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
+                "integrated_llm_formalizer_proposals="
+                f"{integrated_llm_formalizer_proposals} "
+                "integrated_deterministic_formalizer_seeds="
+                f"{integrated_deterministic_formalizer_seeds} "
                 "attached_coding_repair_ready="
                 f"{attached_coding_repair_ready} "
                 "attached_formalizer_repair_ready="
@@ -2246,6 +2261,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and attached_formalizer_repair_sequences > 0
         and attached_formalizer_local_lean_checked > 0
     )
+    integrated_llm_formalizer_proposals = int(
+        payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
+    )
+    integrated_deterministic_formalizer_seeds = int(
+        payload.get("n_deterministic_formalizer_work_order_seed_proposals", 0)
+        or 0
+    )
+    integrated_formalizer_agentic_repair_ready = (
+        integrated_llm_formalizer_proposals > 0
+        and integrated_formalizer_repair_sequences > 0
+    )
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -2475,8 +2501,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "llm_formalizer_proofengineer_proposal_observed",
+            integrated_llm_formalizer_proposals > 0
+            or attached_formalizer_live_gate_passed,
+            (
+                "n_llm_formalizer_proof_engineer_proposals="
+                f"{payload.get('n_llm_formalizer_proof_engineer_proposals')} "
+                "n_deterministic_formalizer_work_order_seed_proposals="
+                f"{payload.get('n_deterministic_formalizer_work_order_seed_proposals')} "
+                "attached_formalizer_live_gate="
+                f"{attached_formalizer_live_gate_passed}"
+            ),
+            (
+                "deterministic theorem-closure seeds are work-order scaffolds; "
+                "they cannot replace a live Claude/OpenAI Formalizer or "
+                "ProofEngineer proposal in capability evidence"
+            ),
+        ),
+        _scorecard_row(
             "formalizer_lean_candidate_local_check_attempted",
-            integrated_formalizer_candidate_checked > 0
+            (
+                integrated_llm_formalizer_proposals > 0
+                and integrated_formalizer_candidate_checked > 0
+            )
             or (
                 attached_formalizer_live_gate_passed
                 and attached_formalizer_local_lean_checked > 0
@@ -2484,6 +2531,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "n_formalizer_lean_candidate_local_lean_checked="
                 f"{payload.get('n_formalizer_lean_candidate_local_lean_checked')} "
+                "n_llm_formalizer_proof_engineer_proposals="
+                f"{payload.get('n_llm_formalizer_proof_engineer_proposals')} "
                 "compiled="
                 f"{payload.get('n_formalizer_lean_candidate_local_lean_compiled')} "
                 "attached_live_local_lean_checked="
@@ -2497,8 +2546,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_lean_candidate_proof_state_request_routed",
-            integrated_formalizer_live_proof_state_requests > 0
-            and integrated_formalizer_lean_lsp_mcp_ready_requests > 0,
+            (
+                integrated_llm_formalizer_proposals > 0
+                and integrated_formalizer_live_proof_state_requests > 0
+                and integrated_formalizer_lean_lsp_mcp_ready_requests > 0
+            ),
             (
                 "live_proof_state_requests="
                 f"{payload.get('n_formalizer_lean_candidate_live_proof_state_requests')} "
@@ -2513,7 +2565,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_lean_candidate_proof_state_feedback_recorded",
-            integrated_formalizer_proof_state_feedback_rows > 0,
+            integrated_llm_formalizer_proposals > 0
+            and integrated_formalizer_proof_state_feedback_rows > 0,
             (
                 "proof_state_feedback_rows="
                 f"{payload.get('n_formalizer_lean_candidate_proof_state_feedback_rows')}"
@@ -2526,7 +2579,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_local_lean_tool_call_observed",
-            integrated_formalizer_local_lean_tool_calls > 0,
+            integrated_llm_formalizer_proposals > 0
+            and integrated_formalizer_local_lean_tool_calls > 0,
             (
                 "local_lean_tool_calls="
                 f"{payload.get('n_formalizer_lean_candidate_local_lean_tool_calls')}"
@@ -2539,7 +2593,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_live_prover_tool_call_observed",
-            integrated_formalizer_lean_lsp_mcp_live_calls > 0,
+            integrated_llm_formalizer_proposals > 0
+            and integrated_formalizer_lean_lsp_mcp_live_calls > 0,
             (
                 "lean_lsp_mcp_live_calls="
                 f"{payload.get('n_formalizer_lean_candidate_lean_lsp_mcp_live_calls')}"
@@ -2552,11 +2607,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_lean_candidate_repair_component_gate",
-            integrated_formalizer_repair_sequences > 0
+            integrated_formalizer_agentic_repair_ready
             or attached_formalizer_live_gate_passed,
             (
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
+                "integrated_llm_formalizer_proposals="
+                f"{integrated_llm_formalizer_proposals} "
                 "attached_component_capability="
                 f"{payload.get('internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok')} "
                 "attached_live_generator="
