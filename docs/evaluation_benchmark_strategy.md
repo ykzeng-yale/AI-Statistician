@@ -22,7 +22,7 @@ The release audit already makes this boundary visible:
   closure is still a formal-library development problem. The target/action
   audits additionally separate exact proof-bank reuse from unresolved primitive
   work; exact reuse is not new proof evidence for the full frontier theorem.
-- Current release proof-bank evidence is `proofs_kernel_verified=122/122`.
+- Current release proof-bank evidence is `proofs_kernel_verified=128/128`.
   This is strong only when the cited run used AXLE or
   `--local-lean`. Release-speed `research-system-audit` runs may intentionally
   use `mock_static_check`; in that case `proofs_verified` is proof-bank
@@ -514,7 +514,14 @@ The `formalization-gap-planner-evaluation` gate scores those route selections
 against held-out or curated route truth with route recall/precision,
 formalization-delta precision/recall, existing-reuse precision/recall, coverage-label
 accuracy, residual/side-condition primitive precision/recall, two-DAG
-readiness, and feedback-loop readiness. Route-truth files may provide
+readiness, feedback-loop readiness, and LLM cost-tier decision traces. The
+evaluation rows expose model-tier decision basis, Sonnet trigger counts, and
+source-theorem/proof-body feedback counts, so benchmarks can separate cheap
+bounded Haiku triage from Sonnet calls justified by semantic primitive gaps,
+proof-body execution failures, or formal-environment blockers. LLM planner
+request packets also expose resource-feedback readiness counters, so evaluation
+can check whether feedback-driven replans preserve low-delta reuse priorities
+instead of expanding into avoidable source ports or new theory. Route-truth files may provide
 `expected_residual_primitives` and `expected_residual_goals` so proof-state
 feedback can be scored as a bounded oracle signal rather than treated as a
 binary success flag. It publishes an evaluation-row JSON Schema and row
@@ -551,6 +558,15 @@ nodes, informal-to-formal alignment rationales, minimal-delta rationale,
 bounded search requests or uncertainty flags when evidence is weak, and an
 explicit `not theorem proof evidence` boundary. Any `kernel_verified=true`
 claim is rejected before the response can become a standalone route seed.
+For live-provider runs, the LLM route-planner manifest reports
+`provider_usage_rows` plus aggregate input/output/cache/total token counters by
+provider, model, and model tier. Evaluation rows and summaries preserve these
+as cost-control
+metadata for Haiku/Sonnet routing, separate from source, library, prover, and
+kernel evidence. Reuse-smoke and publication-bundle summaries lift the same
+provider-usage totals for the primary and feedback route-planner passes, and
+add a combined provider-usage rollup so benchmark tables can compare route
+quality and Claude tier cost from one reusable artifact.
 The `formalization-gap-planner-portable-plan-audit` gate validates the plan
 contract before any scoring or target-prover mapping: schema identity, library
 snapshot consistency, two-DAG and AND/OR structure, work-packet gates,
@@ -600,13 +616,17 @@ recommendations under
 responses are `AWAITING_RESOURCE_RESPONSE`, not a failed gate, while malformed
 responses and `kernel_verified=true` claims are rejected in this non-proof
 layer. Ledger rows retain the request `dispatch_spec`, so downstream feedback
-can still be audited against the exact adapter surface that was requested.
+can still be audited against the exact adapter surface that was requested. They
+also retain queued minimal-delta cost, reuse/evidence readiness, and priority
+rationale fields, so route repair remains accountable to the original
+library-reuse preference after resource responses arrive asynchronously.
 Responses that echo a different resource, expected artifact, or dispatch spec
 are rejected as request mismatches rather than accepted as planner feedback.
 Accepted ledger rows with source, library, coverage, residual-goal, or
 diagnostic feedback are consumed by `formalization-gap-planner-route-revision-overlay`
 as conservative non-proof proposals. The overlay also records compact
-`applied_resource_response_traces`, including that dispatch context, so the
+`applied_resource_response_traces`, including that dispatch and readiness
+context, so the
 accepted response row can be audited after it becomes route-revision state,
 while missing and rejected responses remain explicit capacity or contract gaps
 through per-route resource-response status summaries.
@@ -911,7 +931,8 @@ artifacts are bundled with the ledger, audits also verify that
 `resource_response_ledger:*` overlay evidence ids resolve only to accepted,
 response-present, contract-valid ledger rows and that
 `applied_resource_response_traces` match those ledger rows, including compact
-dispatch context, without carrying the full response payload. Overlay rows also
+dispatch and minimal-delta readiness context, without carrying the full response
+payload. Overlay rows also
 expose compact awaiting/rejected resource-response status counts for the
 route-stability audit; bundle audits recompute those summaries and
 awaiting/rejected request-id lists from the bundled ledger rows before
@@ -1072,6 +1093,118 @@ not mean the system has proved the holdout papers' full theorems in Lean.
 This is the benchmark needed before claiming progress toward a general
 statistical theorist.
 
+### S10. Live Coding-Agent Generated-Code Repair Suite
+
+Question answered: can the system's own generator-backed coding agents write
+Python, execute it locally, consume failure feedback, and repair without
+Codex/manual edits or registered-template substitution?
+
+Sources:
+
+- `coding-agent-generated-code-repair-eval`
+- component manifests for `algorithm_engineer` and `simulation_engineer`
+- generated sandbox result files under the eval run directory
+
+Current live signal:
+
+- `runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard/coding_agent_generated_code_repair_eval_manifest.json`
+- provider `anthropic`, model `claude-haiku-4-5-20251001`
+- `capability_evidence_ok=true`
+- `algorithm_repair_sequences=1`
+- `simulation_repair_sequences=1`
+
+This is the first live evidence that both AlgorithmEngineer and
+SimulationEngineer can consume local metric-gate feedback and produce generated
+code that passes the bounded sandbox. Static fixture plumbing and registered
+templates remain excluded from capability evidence. This suite is
+implementation/simulation capability evidence only; it is not theorem proof
+evidence and does not close any Lean/source-theorem gap.
+
+### S11. Live Formalizer Lean-Candidate Repair Suite
+
+Question answered: can the system's own generator-backed Formalizer/ProofEngineer
+consume local Lean diagnostics, produce a repaired Lean candidate, and get that
+exact candidate checked locally without Codex/manual proof edits?
+
+Sources:
+
+- `formalizer-lean-candidate-repair-eval`
+- the generated Lean candidate materialization manifest
+- local Lean stdout/stderr captured in the eval result file
+
+Current live signal:
+
+- `runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair/formalizer_lean_candidate_repair_eval_manifest.json`
+- provider `anthropic`, model `claude-sonnet-4-6`
+- `capability_evidence_ok=true`
+- `repair_sequences=1`
+- `local_lean_checked=1`
+- `local_lean_compiled=1`
+- `source_theorem_kernel_verified=false`
+
+This is live Formalizer/ProofEngineer capability evidence: Claude consumed an
+injected local-Lean failure and produced a later generated candidate that local
+Lean compiled. It is not full theorem proof evidence. The local kernel evidence
+applies only to the exact generated helper candidate, not to the split conformal
+source theorem or to semantic faithfulness of a paper theorem.
+
+### S12. Live Architect Research-Path Policy Suite
+
+Question answered: can the system's own generator-backed ArchitectCoordinator
+choose and preserve the right evidence policy and research path instead of
+forcing every task through the same Lean/proof or simulation route?
+
+Sources:
+
+- `architect-research-path-policy-eval`
+- the generated Architect policy packet for each case
+- the case-level policy/path rows in the eval manifest
+
+Current live signal:
+
+- `runs/architect_research_path_policy_eval_live_20260623_sonnet/architect_research_path_policy_eval_manifest.json`
+- provider `anthropic`, model `claude-sonnet-4-6`
+- `capability_evidence_ok=true`
+- `n_cases_ok=3/3`
+- `n_with_problem_analysis=3`
+- `n_with_stat_knowledge_bank_plan=3`
+- `n_with_literature_fair_comparison_plan=3`
+
+The three cases cover a proof-required finite-sample theorem, an advisory
+simulation-first algorithmic exploration, and an optional mixed-evidence task.
+This is Architect planning capability evidence only. It does not run downstream
+subsystems, validate simulations, or prove theorems.
+
+### S13. Live Integrated AgentRuntime Capability Suite
+
+Question answered: can one live AgentRuntime run keep the full AI Statistician
+loop together, rather than proving component capabilities in isolation?
+
+Sources:
+
+- `research-agent-runtime --capability-eval`
+- `research-agent-runtime-audit`
+- runtime manifests, progress, LLM topology, generated-code sandbox results,
+  Formalizer Lean-candidate materialization, and ProofEngineer handoff fields
+
+Current inspected signal:
+
+- `runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json`
+- `capability_ready_for_full_ai_statistician=false`
+- `33/42` scorecard requirements passed
+- generated algorithm code executed, generated simulation code executed, and
+  Formalizer local Lean candidate checking was attempted
+- the audited run still disabled ArchitectCoordinator, lacked a generated
+  algorithm fail-then-pass repair sequence, left formal gaps, and did not prove
+  the full source theorem
+
+S13 is the anti-self-deception gate. S10, S11, and S12 are necessary component
+capability checks, but passing them separately does not mean the full system can
+run as an autonomous AI Statistician. Static replay, no-Architect routing,
+registered-template-only success, manual path overrides, and one-shot generated
+code execution cannot satisfy S13. S13 is still capability evidence, not theorem
+proof, unless exact local Lean/AXLE source-theorem verification succeeds.
+
 ## Recommended Near-Term Gate
 
 For the next development cycle, use this gate stack:
@@ -1084,6 +1217,17 @@ For the next development cycle, use this gate stack:
    top 10 primitives.
 5. S7 feedback-loop repair with at least one proof failure and one simulation
    failure that produce a verified changed trace.
+6. S10 live coding-agent generated-code repair, requiring nonzero
+   AlgorithmEngineer and SimulationEngineer fail-then-pass repair sequences
+   from a Claude/OpenAI provider.
+7. S11 live Formalizer Lean-candidate repair, requiring a live generator
+   fail-then-pass sequence and local Lean compile for the generated candidate.
+8. S12 live Architect research-path policy, requiring required/advisory/optional
+   cases to produce valid evidence contracts and long-horizon planning fields.
+9. S13 live integrated AgentRuntime capability, requiring the full
+   Architect-driven runtime to combine generated-code repair, generated
+   simulation repair, Formalizer local Lean feedback, runtime learning, and
+   ProofEngineer handoffs in one run.
 
 Do not treat `60/60 frontier_supported` as enough. It is a routing milestone.
 The next real milestone is reducing the 97 missing primitives and raising

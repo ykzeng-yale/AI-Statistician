@@ -265,6 +265,138 @@ def export_formalization_gap_planner_standalone_plan(
             for row in rows
             if row.standalone_input_trace.get("has_replan_metadata")
         ),
+        "n_standalone_input_traces_with_target_theorem_context_packet": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("has_target_theorem_context_packet")
+        ),
+        "n_standalone_input_traces_with_llm_target_theorem_context_packet": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_target_theorem_context_packet"
+            )
+        ),
+        "n_standalone_input_traces_with_llm_route_planning_brief": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_route_planning_brief"
+            )
+        ),
+        "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_primitive_evidence_matrix_witness"
+            )
+        ),
+        "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_primitive_evidence_matrix_accounting_complete"
+            )
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_repair_obligation_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_selected_without_matrix_rows": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_source_backed_missing_response_source_snippets": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_formal_supported_missing_reuse": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_delta_needed_missing_accounting": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_traces_with_llm_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_route_adoption_preconditions"
+            )
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_blockers": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_adoption_precondition_blocker_count",
+                    0,
+                )
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_adoption_precondition_required_response_field_count",
+                    0,
+                )
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_target_theorem_context_target_mismatches": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "target_theorem_context_packet_target_mismatch"
+            )
+        ),
+        "n_standalone_input_trace_target_theorem_context_route_statement_differs": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "target_theorem_context_route_statement_differs"
+            )
+        ),
         "n_standalone_input_traces_with_llm_route_planner_metadata": sum(
             1
             for row in rows
@@ -319,6 +451,15 @@ def export_formalization_gap_planner_standalone_plan(
                     [],
                 )
             )
+            for row in rows
+        ),
+        "n_standalone_input_traces_with_residual_goal_contexts": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("residual_goal_contexts")
+        ),
+        "n_standalone_input_trace_residual_goal_contexts": sum(
+            len(row.standalone_input_trace.get("residual_goal_contexts", []))
             for row in rows
         ),
         "standalone_input_trace_by_llm_route_adoption_status": dict(
@@ -606,6 +747,53 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
         effective_target_key = (
             route_target_key or metadata_target_key or payload_target_key
         )
+        errors.extend(
+            _target_theorem_context_packet_input_errors(
+                route.get("target_theorem_context_packet", {}),
+                location=f"routes[{idx}].target_theorem_context_packet",
+                target_prover_family=effective_target,
+            )
+        )
+        metadata_target_context = metadata.get(
+            "target_theorem_context_packet",
+            metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+        )
+        errors.extend(
+            _target_theorem_context_packet_input_errors(
+                metadata_target_context,
+                location=f"routes[{idx}].replan_metadata.target_theorem_context_packet",
+                target_prover_family=effective_target,
+            )
+        )
+        route_target_context = _dict_value(
+            route.get("target_theorem_context_packet", {})
+        )
+        metadata_target_context_dict = _dict_value(metadata_target_context)
+        if (
+            route_target_context
+            and metadata_target_context_dict
+            and route_target_context != metadata_target_context_dict
+        ):
+            errors.append(
+                f"routes[{idx}].target_theorem_context_packet must match "
+                f"routes[{idx}].replan_metadata.target_theorem_context_packet"
+            )
+        route_adoption_preconditions = _dict_value(
+            route.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        metadata_route_adoption_preconditions = _dict_value(
+            metadata.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        if (
+            route_adoption_preconditions
+            and metadata_route_adoption_preconditions
+            and route_adoption_preconditions != metadata_route_adoption_preconditions
+        ):
+            errors.append(
+                f"routes[{idx}].llm_route_planner_route_adoption_preconditions "
+                f"must match routes[{idx}].replan_metadata."
+                "llm_route_planner_route_adoption_preconditions"
+            )
         errors.extend(
             _legacy_lean_declaration_hit_input_errors(
                 route,
@@ -1006,6 +1194,30 @@ def _llm_seed_route_selection_trace_errors(
     return errors
 
 
+def _target_theorem_context_packet_input_errors(
+    packet: Any,
+    *,
+    location: str,
+    target_prover_family: str,
+) -> list[str]:
+    packet_dict = _dict_value(packet)
+    if not packet_dict:
+        return []
+    errors: list[str] = []
+    packet_target = str(packet_dict.get("target_prover_family", "")).strip()
+    if (
+        packet_target
+        and target_prover_family
+        and _target_prover_key(packet_target)
+        != _target_prover_key(target_prover_family)
+    ):
+        errors.append(
+            f"{location}.target_prover_family {packet_target} does not match "
+            f"target_prover_family {target_prover_family}"
+        )
+    return errors
+
+
 def standalone_input_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
@@ -1058,6 +1270,14 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "target_prover_family": {"type": "string"},
                     "theorem_statement": {"type": "string"},
                     "theorem_skeleton": {"type": "string"},
+                    "target_theorem_context_packet": {"type": "object"},
+                    "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_primitive_evidence_matrix_witness": {
+                        "type": "object"
+                    },
+                    "llm_route_planner_route_adoption_preconditions": {
+                        "type": "object"
+                    },
                     "route_class": {"type": "string"},
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
@@ -1255,6 +1475,17 @@ def standalone_input_json_schema() -> dict[str, object]:
                     },
                     "llm_route_planner_realization_coverage_witness": {
                         "$ref": "#/$defs/realization_coverage_witness"
+                    },
+                    "target_theorem_context_packet": {"type": "object"},
+                    "llm_route_planner_target_theorem_context_packet": {
+                        "type": "object"
+                    },
+                    "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_primitive_evidence_matrix_witness": {
+                        "type": "object"
+                    },
+                    "llm_route_planner_route_adoption_preconditions": {
+                        "type": "object"
                     },
                     **seed_route_selection_trace_properties,
                     "alignment_edge_primitives": string_array,
@@ -1788,6 +2019,22 @@ def _standalone_input_trace(
     llm_generator_metadata = _dict_value(
         metadata.get("llm_route_planner_generator_metadata", {})
     )
+    llm_model_tier_decision_evidence = _dict_value(
+        metadata.get("llm_route_planner_model_tier_decision_evidence", {})
+    )
+    if not llm_model_tier_decision_evidence:
+        llm_model_tier_decision_evidence = _dict_value(
+            metadata.get("model_tier_decision_evidence", {})
+        )
+    llm_model_tier_route_signal_counts = _dict_value(
+        llm_model_tier_decision_evidence.get("route_signal_counts", {})
+    )
+    llm_source_feedback_counts = _dict_value(
+        llm_model_tier_decision_evidence.get("source_theorem_feedback_counts", {})
+    )
+    llm_sonnet_triggers = _str_list(
+        llm_model_tier_decision_evidence.get("sonnet_triggers", [])
+    )
     llm_seed_selection_rank = _int_value(
         metadata.get(
             "llm_route_planner_seed_selection_rank",
@@ -1800,17 +2047,173 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_seed_minimal_delta_route_cost", None),
         )
     )
+    target_context_packet = _target_theorem_context_packet_for_trace(
+        raw_route,
+        metadata,
+    )
+    llm_target_context_packet = _dict_value(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    llm_route_planning_brief = _dict_value(
+        metadata.get(
+            "llm_route_planner_route_planning_brief",
+            raw_route.get("llm_route_planner_route_planning_brief", {}),
+        )
+    )
+    llm_primitive_evidence_matrix_witness = _dict_value(
+        metadata.get(
+            "llm_route_planner_primitive_evidence_matrix_witness",
+            raw_route.get(
+                "llm_route_planner_primitive_evidence_matrix_witness",
+                {},
+            ),
+        )
+    )
+    llm_matrix_unaccounted_primitives = _str_list(
+        llm_primitive_evidence_matrix_witness.get("matrix_unaccounted_primitives", [])
+    )
+    llm_matrix_selected_without_row = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "selected_primitives_without_matrix_row",
+            [],
+        )
+    )
+    llm_matrix_source_backed_missing = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            [],
+        )
+    )
+    llm_matrix_formal_missing_reuse = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "formal_supported_matrix_primitives_missing_reuse",
+            [],
+        )
+    )
+    llm_matrix_delta_missing_accounting = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "delta_needed_matrix_primitives_missing_accounting",
+            [],
+        )
+    )
+    llm_matrix_repair_obligation_count = (
+        len(llm_matrix_unaccounted_primitives)
+        + len(llm_matrix_selected_without_row)
+        + len(llm_matrix_source_backed_missing)
+        + len(llm_matrix_formal_missing_reuse)
+        + len(llm_matrix_delta_missing_accounting)
+    )
+    llm_route_adoption_preconditions = _dict_value(
+        metadata.get(
+            "llm_route_planner_route_adoption_preconditions",
+            raw_route.get("llm_route_planner_route_adoption_preconditions", {}),
+        )
+    )
+    trace_target_prover_family = str(
+        raw_route.get("target_prover_family", "")
+        or metadata.get("target_prover_family", "")
+        or target_prover_family
+    ).strip()
+    target_context_target = str(
+        target_context_packet.get("target_prover_family", "")
+    ).strip()
+    target_context_statement = str(
+        target_context_packet.get("theorem_statement", "")
+    ).strip()
+    route_theorem_statement = str(raw_route.get("theorem_statement", "")).strip()
     return {
         "trace_kind": "standalone_input_route_trace",
         "source_route_id": route_id,
         "route_index": route_index,
-        "target_prover_family": str(
-            raw_route.get("target_prover_family", "")
-            or metadata.get("target_prover_family", "")
-            or target_prover_family
-        ).strip(),
+        "target_prover_family": trace_target_prover_family,
         "has_replan_metadata": bool(metadata),
         "replan_metadata": dict(metadata),
+        "target_theorem_context_packet": dict(target_context_packet),
+        "has_target_theorem_context_packet": bool(target_context_packet),
+        "has_llm_route_planner_target_theorem_context_packet": bool(
+            llm_target_context_packet
+        ),
+        "llm_route_planner_route_planning_brief": dict(llm_route_planning_brief),
+        "has_llm_route_planner_route_planning_brief": bool(
+            llm_route_planning_brief
+        ),
+        "llm_route_planner_primitive_evidence_matrix_witness": dict(
+            llm_primitive_evidence_matrix_witness
+        ),
+        "has_llm_route_planner_primitive_evidence_matrix_witness": bool(
+            llm_primitive_evidence_matrix_witness
+        ),
+        "llm_route_planner_primitive_evidence_matrix_accounting_complete": bool(
+            llm_primitive_evidence_matrix_witness.get(
+                "matrix_accounting_complete",
+                False,
+            )
+        ),
+        "llm_route_planner_primitive_evidence_matrix_repair_obligation_count": (
+            llm_matrix_repair_obligation_count
+        ),
+        "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count": (
+            len(llm_matrix_unaccounted_primitives)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count": (
+            len(llm_matrix_selected_without_row)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": (
+            len(llm_matrix_source_backed_missing)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count": (
+            len(llm_matrix_formal_missing_reuse)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count": (
+            len(llm_matrix_delta_missing_accounting)
+        ),
+        "llm_route_planner_route_adoption_preconditions": dict(
+            llm_route_adoption_preconditions
+        ),
+        "has_llm_route_planner_route_adoption_preconditions": bool(
+            llm_route_adoption_preconditions
+        ),
+        "llm_route_adoption_precondition_blocker_count": len(
+            _str_tuple(
+                llm_route_adoption_preconditions.get(
+                    "known_pre_response_blockers",
+                    [],
+                )
+            )
+        ),
+        "llm_route_adoption_precondition_required_response_field_count": len(
+            _str_tuple(
+                llm_route_adoption_preconditions.get(
+                    "response_required_fields",
+                    [],
+                )
+            )
+        ),
+        "llm_route_planning_brief_focus_count": len(
+            _dict_list(llm_route_planning_brief.get("planner_focus", []))
+        ),
+        "llm_route_planning_brief_evidence_gap_count": len(
+            _dict_list(llm_route_planning_brief.get("evidence_gaps", []))
+        ),
+        "target_theorem_context_packet_kind": str(
+            target_context_packet.get("context_packet_kind", "")
+        ),
+        "target_theorem_context_route_id": str(
+            target_context_packet.get("route_id", "")
+        ),
+        "target_theorem_context_target_prover_family": target_context_target,
+        "target_theorem_context_theorem_statement": target_context_statement,
+        "target_theorem_context_packet_target_mismatch": bool(
+            target_context_target
+            and trace_target_prover_family
+            and _target_prover_key(target_context_target)
+            != _target_prover_key(trace_target_prover_family)
+        ),
+        "target_theorem_context_route_statement_differs": bool(
+            target_context_statement
+            and route_theorem_statement
+            and target_context_statement != route_theorem_statement
+        ),
         "llm_route_planner_row_id": str(
             metadata.get("llm_route_planner_row_id", "")
         ),
@@ -1826,6 +2229,63 @@ def _standalone_input_trace(
         ),
         "llm_route_planner_model_selection_rationale": str(
             metadata.get("llm_route_planner_model_selection_rationale", "")
+        ),
+        "llm_route_planner_model_tier_decision_evidence": (
+            llm_model_tier_decision_evidence
+        ),
+        "llm_route_planner_model_tier_decision_basis": str(
+            llm_model_tier_decision_evidence.get("decision_basis", "")
+        ),
+        "llm_route_planner_model_tier_decision_selection_mode": str(
+            llm_model_tier_decision_evidence.get("selection_mode", "")
+        ),
+        "llm_route_planner_model_tier_decision_sonnet_triggers": (
+            llm_sonnet_triggers
+        ),
+        "llm_route_planner_model_tier_decision_sonnet_trigger_count": len(
+            llm_sonnet_triggers
+        ),
+        "llm_route_planner_source_feedback_row_count": _int_value(
+            llm_source_feedback_counts.get(
+                "total_count",
+                llm_model_tier_route_signal_counts.get(
+                    "source_theorem_feedback_row_count",
+                    0,
+                ),
+            )
+        ),
+        "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "unverified_semantic_primitive_row_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_unverified_semantic_primitive_row_count",
+                        0,
+                    ),
+                )
+            )
+        ),
+        "llm_route_planner_source_feedback_proof_body_execution_failure_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "proof_body_execution_failure_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_proof_body_execution_failure_count",
+                        0,
+                    ),
+                )
+            )
+        ),
+        "llm_route_planner_source_feedback_formal_environment_blocker_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "formal_environment_blocker_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_formal_environment_blocker_count",
+                        0,
+                    ),
+                )
+            )
         ),
         "llm_route_planner_acceptance_status": str(
             metadata.get("llm_route_planner_acceptance_status", "")
@@ -1885,6 +2345,20 @@ def _standalone_input_trace(
         ),
         "applied_llm_route_planner_hook_traces": _dict_list(
             metadata.get("applied_llm_route_planner_hook_traces", [])
+        ),
+        "residual_goal_contexts": _dict_list(
+            metadata.get(
+                "residual_goal_contexts",
+                raw_route.get("residual_goal_contexts", []),
+            )
+        ),
+        "has_residual_goal_contexts": bool(
+            _dict_list(
+                metadata.get(
+                    "residual_goal_contexts",
+                    raw_route.get("residual_goal_contexts", []),
+                )
+            )
         ),
         "resource_response_awaiting_request_ids": _str_list(
             metadata.get("resource_response_awaiting_request_ids", [])
@@ -1968,6 +2442,21 @@ def _standalone_input_trace(
             )
         ),
     }
+
+
+def _target_theorem_context_packet_for_trace(
+    raw_route: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, object]:
+    for source in (
+        raw_route.get("target_theorem_context_packet", {}),
+        metadata.get("target_theorem_context_packet", {}),
+        metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+    ):
+        packet = _dict_value(source)
+        if packet:
+            return dict(packet)
+    return {}
 
 
 def _quality_controls_for_trace(

@@ -459,12 +459,12 @@ theorem finiteEndpointRadius_tendsto_zero {Bracket : Type*}
   have hsum :
       Tendsto
         (fun sampleSize =>
-          ∑ bracketIndex ∈ (Finset.univ : Finset Bracket),
+          ∑ bracketIndex : Bracket,
             (|upperEmpirical sampleSize bracketIndex -
                 upperPopulation bracketIndex| +
               |lowerPopulation bracketIndex -
                 lowerEmpirical sampleSize bracketIndex|))
-        atTop (𝓝 (∑ _bracketIndex ∈ (Finset.univ : Finset Bracket), (0 : ℝ))) := by
+        atTop (𝓝 (∑ _bracketIndex : Bracket, (0 : ℝ))) := by
     refine
       tendsto_finsetSum (Finset.univ : Finset Bracket)
         (x := atTop)
@@ -491,7 +491,16 @@ theorem finiteEndpointRadius_tendsto_zero {Bracket : Type*}
           atTop (𝓝 0) := by
       simpa using (h_lower bracketIndex).abs
     simpa using hupper_abs.add hlower_abs
-  simpa [finiteEndpointRadius] using hsum
+  change
+    Tendsto
+      (fun sampleSize =>
+        ∑ bracketIndex : Bracket,
+          (|upperEmpirical sampleSize bracketIndex -
+              upperPopulation bracketIndex| +
+            |lowerPopulation bracketIndex -
+              lowerEmpirical sampleSize bracketIndex|))
+      atTop (𝓝 0)
+  simpa using hsum
 
 /-- Each upper endpoint empirical-deviation error is bounded by the finite radius. -/
 theorem upper_endpoint_error_le_finiteEndpointRadius {Bracket : Type*}

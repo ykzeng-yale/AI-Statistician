@@ -54,12 +54,14 @@ class LLMAlgorithmEngineerAgent:
         theory_packet: Mapping[str, Any],
         simulation_manifest: Mapping[str, Any],
         implementation_gaps: list[Mapping[str, Any]],
+        environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         user_prompt = build_algorithm_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
             simulation_manifest=simulation_manifest,
             implementation_gaps=implementation_gaps,
+            environment_feedback=environment_feedback or {},
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -93,12 +95,27 @@ class LLMAlgorithmEngineerAgent:
                 implementation_gaps=implementation_gaps,
             )
 
+        requires_generated_code = _feedback_requires_generated_algorithm_code(
+            environment_feedback or {}
+        )
+
+        def validate_packet(packet: Mapping[str, Any]) -> list[str]:
+            errors = validate_algorithm_engineer_packet(packet)
+            if requires_generated_code:
+                errors.extend(
+                    _validate_capability_eval_generated_algorithm_packet(
+                        packet,
+                        implementation_gaps=implementation_gaps,
+                    )
+                )
+            return sorted(set(errors))
+
         return generate_validated_json_packet(
             provider=self.provider,
             request=request,
             extract_payload=_extract_json_object,
             build_packet=build_packet,
-            validate_packet=validate_algorithm_engineer_packet,
+            validate_packet=validate_packet,
             validation_label="LLM AlgorithmEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
         )
@@ -110,6 +127,7 @@ def build_algorithm_engineer_prompt(
     theory_packet: Mapping[str, Any],
     simulation_manifest: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
     payload = {
         "question": {
@@ -121,6 +139,9 @@ def build_algorithm_engineer_prompt(
         "theory_packet_summary": _compact_theory_packet_for_algorithm(theory_packet),
         "simulation_manifest_summary": _compact_simulation_manifest_for_algorithm(simulation_manifest),
         "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
+        "runtime_environment_feedback": _compact_algorithm_environment_feedback(
+            environment_feedback or {}
+        ),
         "registered_runtime_templates": [
             {
                 "template_id": "crossfit_aipw",
@@ -168,12 +189,12 @@ def build_algorithm_engineer_prompt(
                     "jax",
                 ],
                 "forbidden_syntax": [
-                    "import or from-import statements",
+                    "imports except math/statistics",
                     "class definitions",
                     "with blocks",
                     "global/nonlocal",
                     "file I/O, network, subprocess, eval, exec",
-                    "method calls or attribute access except math.* and statistics.*",
+                    "method calls or attribute access except math.*, statistics.*, and list append",
                 ],
                 "fallback_rule": (
                     "If you cannot express the draft in this pure-Python safe subset, "
@@ -194,17 +215,54 @@ def build_algorithm_engineer_prompt(
         "required_output_contract": ALGORITHM_ENGINEER_OUTPUT_CONTRACT,
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
+    requires_generated_code = _feedback_requires_generated_algorithm_code(
+        payload["runtime_environment_feedback"]
+    )
+    if requires_generated_code:
+        payload["generated_code_sandbox_contract"]["status"] = (
+            "required for capability-eval coding-agent evidence"
+        )
+        payload["generated_code_sandbox_contract"]["default"] = (
+            "include one safe sandbox_code_drafts entry even when a registered "
+            "template also matches; the template may be referenced only as a baseline"
+        )
+    generated_code_instruction = (
+        "Capability-eval mode is active: include exactly one safe "
+        "sandbox_code_drafts entry and set every implementation_targets row "
+        "registered_template_hint to none so AgentRuntime can test Claude-generated "
+        "algorithm code execution. Registered templates may be named only in prose "
+        "as baselines; they will not be executed for this capability gate. "
+        if requires_generated_code
+        else (
+            "Prefer registered runtime templates over sandbox_code_drafts; leave "
+            "sandbox_code_drafts empty whenever a template matches. "
+        )
+    )
+    metric_gate_instruction = (
+        "Runtime metric-gate repair is active: the previous generated draft executed "
+        "locally but returned statistically invalid metrics. Repair the algorithm or "
+        "metric computation so coverage/probability metrics are nondegenerate, inside "
+        "[0,1], and satisfy the stated target when target_coverage is present. Do not "
+        "only rename metrics or hide the coverage field. "
+        if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep each list to "
-        "exactly 1 short object or 1 short string. Include only required fields. Prefer registered runtime templates over "
-        "sandbox_code_drafts; leave sandbox_code_drafts empty whenever a template matches. You may "
+        "exactly 1 short object or 1 short string. Include only required fields. "
+        + generated_code_instruction
+        + metric_gate_instruction
+        + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
         "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
+        "If runtime_environment_feedback reports rejected or failed sandbox code, repair that concrete "
+        "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
+        "or non-executable code. "
         "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
-        "use imports, NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
-        "operations, method calls, or attribute access except math.* and statistics.*. If the requested "
+        "use imports except math/statistics, NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
+        "operations, method calls, or attribute access except math.*, statistics.*, and list append. If the requested "
         "prototype needs those tools, omit sandbox_code_drafts and describe the registered-template or "
         "human-reviewed adapter plan instead. For this compact packet, do not include "
         "sandbox_code_drafts unless registered_template_hint is none for every implementation target.\n\n"
@@ -282,6 +340,118 @@ def _compact_simulation_manifest_for_algorithm(simulation_manifest: Mapping[str,
             simulation_manifest.get("implementation_gaps", [])
         ),
     }
+
+
+def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(feedback, Mapping):
+        return {}
+    prototype_rows = feedback.get("prototypes", [])
+    if not isinstance(prototype_rows, list):
+        prototype_rows = []
+    return {
+        "architect_evidence_contract": _compact_architect_evidence_contract(
+            feedback.get("architect_evidence_contract", {})
+        ),
+        "runtime_requested_evidence_contract": _compact_architect_evidence_contract(
+            feedback.get("runtime_requested_evidence_contract", {})
+        ),
+        "architect_recommended_research_path": _truncate_text(
+            feedback.get("architect_recommended_research_path", ""),
+            limit=120,
+        ),
+        "architect_formal_verification_policy": _truncate_text(
+            feedback.get("architect_formal_verification_policy", ""),
+            limit=120,
+        ),
+        "architect_subsystem_acceptance_gate": _truncate_text(
+            feedback.get("architect_subsystem_acceptance_gate", ""),
+            limit=240,
+        ),
+        "feedback_type": _truncate_text(feedback.get("feedback_type", ""), limit=180),
+        "algorithm_sandbox_manifest_id": _truncate_text(
+            feedback.get("algorithm_sandbox_manifest_id", ""),
+            limit=180,
+        ),
+        "failure_classification": _truncate_text(
+            feedback.get("failure_classification", ""),
+            limit=180,
+        ),
+        "prototypes": [
+            {
+                "estimator_id": _truncate_text(row.get("estimator_id", ""), limit=120),
+                "prototype_status": _truncate_text(
+                    row.get("prototype_status", ""),
+                    limit=160,
+                ),
+                "executor": _truncate_text(row.get("executor", ""), limit=160),
+                "smoke_passed": row.get("smoke_passed"),
+                "execution_smoke_passed": row.get("execution_smoke_passed"),
+                "metric_gate_errors": _compact_string_list(
+                    row.get("metric_gate_errors", []),
+                    limit=3,
+                    char_limit=220,
+                ),
+                "safety_errors": _compact_string_list(
+                    row.get("safety_errors", []),
+                    limit=3,
+                    char_limit=220,
+                ),
+                "code_excerpt": _truncate_text(
+                    row.get("code_excerpt", ""),
+                    limit=500,
+                ),
+                "stderr_summary": _truncate_text(
+                    row.get("stderr_summary", ""),
+                    limit=240,
+                ),
+                "reason": _truncate_text(row.get("reason", ""), limit=240),
+            }
+            for row in _first_mapping_rows(prototype_rows, limit=3)
+        ],
+        "required_repair": _truncate_text(feedback.get("required_repair", ""), limit=360),
+        "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
+    }
+
+
+def _feedback_reports_metric_gate_failure(feedback: Mapping[str, Any]) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    failure = str(feedback.get("failure_classification", "") or "")
+    if "metric_gate" in failure:
+        return True
+    for row in feedback.get("prototypes", []) or []:
+        if isinstance(row, Mapping) and row.get("metric_gate_errors"):
+            return True
+    return False
+
+
+def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    keys = (
+        "formal_verification_policy",
+        "recommended_research_path",
+        "formal_required_for_final",
+        "formal_targets",
+        "simulation_targets",
+        "acceptance_modes",
+        "disclosure_requirements",
+        "evaluation_mode",
+        "capability_eval_requires_generated_algorithm_code",
+        "capability_eval_requires_generated_simulation_code",
+    )
+    compact: dict[str, Any] = {}
+    for key in keys:
+        if key not in value:
+            continue
+        row = value.get(key)
+        if isinstance(row, list):
+            compact[key] = _compact_string_list(row, limit=3, char_limit=180)
+        elif isinstance(row, bool):
+            compact[key] = row
+        else:
+            compact[key] = _truncate_text(row, limit=180)
+    return compact
 
 
 def _compact_implementation_gaps(value: Any) -> list[dict[str, Any]]:
@@ -413,6 +583,82 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     return sorted(set(errors))
 
 
+def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> bool:
+    """Return true when the Architect contract is testing coding-agent capacity."""
+
+    if not isinstance(feedback, Mapping):
+        return False
+    failure = str(feedback.get("failure_classification", "") or "")
+    if failure in {
+        "generated_algorithm_sandbox_metric_gate_failed",
+        "generated_algorithm_sandbox_required_not_executed",
+        "generated_algorithm_sandbox_repair_required",
+    }:
+        return True
+    for row in feedback.get("prototypes", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("executor", "") or "") == "generated_python_sandbox":
+            return True
+    contract_candidates = (
+        feedback.get("architect_evidence_contract", {}),
+        feedback.get("runtime_requested_evidence_contract", {}),
+        _mapping(feedback.get("architect_context", {})).get(
+            "runtime_requested_evidence_contract",
+            {},
+        ),
+    )
+    return any(
+        isinstance(contract, Mapping)
+        and contract.get("capability_eval_requires_generated_algorithm_code") is True
+        for contract in contract_candidates
+    )
+
+
+def _validate_capability_eval_generated_algorithm_packet(
+    packet: Mapping[str, Any],
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+) -> list[str]:
+    """Capability eval must exercise Claude-generated code, not a template path."""
+
+    errors: list[str] = []
+    targets = [row for row in packet.get("implementation_targets", []) or [] if isinstance(row, Mapping)]
+    drafts = [row for row in packet.get("sandbox_code_drafts", []) or [] if isinstance(row, Mapping)]
+    if not drafts:
+        errors.append(
+            "capability_eval requires at least one Claude/OpenAI-generated sandbox_code_drafts entry"
+        )
+    for row in targets:
+        template = str(row.get("registered_template_hint", "none") or "none").strip()
+        if template != "none":
+            errors.append(
+                "capability_eval requires registered_template_hint=none for every implementation target"
+            )
+    target_ids = {
+        str(row.get("estimator_id", "")).strip()
+        for row in targets
+        if str(row.get("estimator_id", "")).strip()
+    }
+    gap_ids = {
+        str(row.get("estimator_id", row.get("id", ""))).strip()
+        for row in implementation_gaps
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", row.get("id", ""))).strip()
+    }
+    expected_ids = target_ids or gap_ids
+    draft_ids = {
+        str(row.get("estimator_id", "")).strip()
+        for row in drafts
+        if str(row.get("estimator_id", "")).strip()
+    }
+    if expected_ids and draft_ids and expected_ids.isdisjoint(draft_ids):
+        errors.append(
+            "capability_eval sandbox_code_drafts estimator_id must match an implementation target or gap"
+        )
+    return errors
+
+
 def _normalize_algorithm_packet(
     payload: Mapping[str, Any],
     *,
@@ -424,6 +670,10 @@ def _normalize_algorithm_packet(
     implementation_gaps: list[Mapping[str, Any]],
 ) -> dict[str, Any]:
     body = dict(payload)
+    _normalize_algorithm_sandbox_code_drafts(
+        body,
+        implementation_gaps=implementation_gaps,
+    )
     body["execution_evidence_status"] = ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
     body["execution_evidence_boundary"] = ALGORITHM_ENGINEER_BOUNDARY
     body["proof_evidence_status"] = "NOT_PROOF_EVIDENCE"
@@ -458,6 +708,65 @@ def _normalize_algorithm_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _normalize_algorithm_sandbox_code_drafts(
+    body: dict[str, Any],
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+) -> None:
+    """Normalize harmless sandbox draft metadata before validation.
+
+    The runtime still executes only Python drafts that pass the static sandbox
+    guard. This normalization prevents live generators from burning repair
+    loops on metadata variants such as ``Python``/``python3`` or an omitted
+    estimator id when the task has exactly one implementation target.
+    """
+
+    raw_drafts = body.get("sandbox_code_drafts", [])
+    if not isinstance(raw_drafts, list):
+        return
+    default_estimator_id = _single_algorithm_estimator_id(
+        body.get("implementation_targets", []),
+        implementation_gaps=implementation_gaps,
+    )
+    normalized_drafts: list[Any] = []
+    for row in raw_drafts:
+        if not isinstance(row, Mapping):
+            normalized_drafts.append(row)
+            continue
+        normalized = dict(row)
+        language = str(normalized.get("language", "") or "").strip().lower()
+        if language in {"", "py", "py3", "python3", "python 3"} and str(
+            normalized.get("code", "") or ""
+        ).strip():
+            normalized["language"] = "python"
+        if (
+            default_estimator_id
+            and not str(normalized.get("estimator_id", "") or "").strip()
+        ):
+            normalized["estimator_id"] = default_estimator_id
+        normalized_drafts.append(normalized)
+    body["sandbox_code_drafts"] = normalized_drafts
+
+
+def _single_algorithm_estimator_id(
+    implementation_targets: Any,
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+) -> str:
+    ids: set[str] = set()
+    for row in implementation_targets or []:
+        if isinstance(row, Mapping):
+            estimator_id = str(row.get("estimator_id", "") or "").strip()
+            if estimator_id:
+                ids.add(estimator_id)
+    for row in implementation_gaps:
+        if isinstance(row, Mapping):
+            estimator_id = str(row.get("estimator_id", row.get("id", "")) or "").strip()
+            if estimator_id:
+                ids.add(estimator_id)
+    return next(iter(ids)) if len(ids) == 1 else ""
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

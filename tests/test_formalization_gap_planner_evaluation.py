@@ -297,6 +297,22 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "response_validation_signals": ["residual_goals_or_diagnostics_present"],
         "stop_conditions": ["residual interpreted or source search requested"],
     }
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "quality_control_obligations_pending",
+            "source_grounding_obligations_pending",
+        ],
+        "n_known_pre_response_blockers": 2,
+        "response_required_fields": [
+            "search_requests",
+            "planner_next_actions",
+        ],
+        "n_response_required_fields": 2,
+    }
     expected_quality_controls = {
         field_name: tuple(values)
         for field_name, values in {
@@ -331,18 +347,56 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                                 "source_grounding_obligations_pending",
                                 "search_requests_pending_evidence",
                             ],
+                            "llm_route_planner_route_adoption_preconditions": (
+                                route_adoption_preconditions
+                            ),
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
                             ),
                             "llm_route_planner_model_selection_rationale": (
                                 "auto selected Sonnet because the route needs a bridge"
                             ),
+                            "llm_route_planner_model_tier_decision_evidence": {
+                                "decision_basis": "auto_sonnet_triggers",
+                                "selection_mode": "auto",
+                                "selected_model_tier": "sonnet",
+                                "effective_model_tier": "sonnet",
+                                "sonnet_triggers": [
+                                    (
+                                        "1 source-theorem proof-body execution "
+                                        "failure(s)"
+                                    ),
+                                    (
+                                        "3 source-theorem formal-environment "
+                                        "blocker(s)"
+                                    ),
+                                ],
+                                "route_signal_counts": {
+                                    "source_theorem_feedback_row_count": 4,
+                                    "source_theorem_unverified_semantic_primitive_row_count": 2,
+                                    "source_theorem_proof_body_execution_failure_count": 1,
+                                    "source_theorem_formal_environment_blocker_count": 3,
+                                },
+                                "source_theorem_feedback_counts": {
+                                    "total_count": 4,
+                                    "unverified_semantic_primitive_row_count": 2,
+                                    "proof_body_execution_failure_count": 1,
+                                    "formal_environment_blocker_count": 3,
+                                },
+                            },
                             "llm_route_planner_generator_metadata": {
                                 "generator_only": True,
+                                "provider_usage": {
+                                    "input_tokens": 120,
+                                    "output_tokens": 34,
+                                    "cache_creation_input_tokens": 5,
+                                    "cache_read_input_tokens": 6,
+                                },
                                 "retry_count": 0,
                             },
                             "llm_route_planner_generator_metadata_keys": [
                                 "generator_only",
+                                "provider_usage",
                                 "retry_count",
                             ],
                             "minimal_delta_and_or_cost_graph": cost_graph,
@@ -411,6 +465,28 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_with_complete_realization_coverage"] == 1
     assert payload["n_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
+    assert payload["n_llm_route_planner_model_tier_decision_sonnet_triggers"] == 2
+    assert payload["n_rows_with_llm_route_planner_source_feedback_tier_signal"] == 1
+    assert payload["n_llm_route_planner_source_feedback_rows"] == 4
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_unverified_semantic_primitive_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_proof_body_execution_failures"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_formal_environment_blockers"
+        ]
+        == 3
+    )
     assert payload["n_rows_with_llm_route_planner_route_adoption_status"] == 1
     assert payload["n_rows_ready_for_route_adoption"] == 0
     assert payload["n_rows_pending_refinement_before_route_adoption"] == 1
@@ -419,6 +495,39 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_llm_route_adoption_blockers"] == 3
     assert payload["n_llm_route_adoption_pending_quality_control_blockers"] == 1
     assert payload["n_llm_route_adoption_pending_source_grounding_blockers"] == 1
+    assert (
+        payload["n_rows_with_llm_route_planner_route_adoption_preconditions"] == 1
+    )
+    assert (
+        payload[
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
+    assert payload[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] == (
+        "quality_control_obligations_pending",
+        "source_grounding_obligations_pending",
+    )
+    assert payload[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
+    )
     assert payload["llm_route_adoption_blockers"] == (
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
@@ -466,6 +575,27 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "mean_delta_precision": 1.0,
     }
     assert payload["n_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_rows_with_llm_route_planner_provider_usage"] == 1
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 120
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 34
+    assert payload[
+        "total_llm_route_planner_provider_cache_creation_input_tokens"
+    ] == 5
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 6
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 165
+    assert payload["llm_route_planner_provider_usage_summary"]["row_count"] == 1
+    assert payload["llm_route_planner_provider_usage_summary"]["by_provider"][
+        "anthropic"
+    ]["total_tokens"] == 165
+    assert payload["llm_route_planner_provider_usage_summary"]["by_model_tier"][
+        "sonnet"
+    ]["input_tokens"] == 120
+    assert payload["llm_route_planner_provider_usage_summary"]["by_model"][
+        "claude-sonnet-4-6"
+    ]["output_tokens"] == 34
+    assert payload["llm_route_planner_provider_usage_rows"][0][
+        "proof_evidence_status"
+    ] == "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
     assert payload["n_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_rows_with_llm_route_planner_errors"] == 0
     assert payload["n_llm_route_planner_errors"] == 0
@@ -479,8 +609,38 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "mean_delta_precision": 1.0,
             "mean_alignment_coverage": 1.0,
             "n_rows_with_generator_metadata": 1,
+            "n_rows_with_provider_usage": 1,
+            "provider_input_tokens": 120,
+            "provider_output_tokens": 34,
+            "provider_cache_creation_input_tokens": 5,
+            "provider_cache_read_input_tokens": 6,
+            "provider_total_tokens": 165,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
+            "n_sonnet_triggers": 2,
+            "n_source_feedback_rows": 4,
+            "n_source_feedback_proof_body_execution_failures": 1,
+            "n_source_feedback_formal_environment_blockers": 3,
+        }
+    }
+    assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": {
+            "n_rows": 1,
+            "n_ok": 0,
+            "n_matched_ground_truth": 1,
+            "by_model_tier": {"sonnet": 1},
+            "n_sonnet_triggers": 2,
+            "n_source_feedback_rows": 4,
+            "n_source_feedback_proof_body_execution_failures": 1,
+            "n_source_feedback_formal_environment_blockers": 3,
+            "n_rows_with_provider_usage": 1,
+            "provider_input_tokens": 120,
+            "provider_output_tokens": 34,
+            "provider_cache_creation_input_tokens": 5,
+            "provider_cache_read_input_tokens": 6,
+            "provider_total_tokens": 165,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
         }
     }
     assert payload["n_rows_with_quality_controls"] == 1
@@ -541,6 +701,34 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_provider"] == "anthropic"
     assert row["llm_route_planner_model"] == "claude-sonnet-4-6"
     assert row["llm_route_planner_model_tier"] == "sonnet"
+    assert (
+        row["llm_route_planner_model_tier_decision_basis"]
+        == "auto_sonnet_triggers"
+    )
+    assert row["llm_route_planner_model_tier_decision_sonnet_triggers"] == (
+        "1 source-theorem proof-body execution failure(s)",
+        "3 source-theorem formal-environment blocker(s)",
+    )
+    assert row["llm_route_planner_model_tier_decision_sonnet_trigger_count"] == 2
+    assert row["llm_route_planner_source_feedback_row_count"] == 4
+    assert (
+        row[
+            "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_source_feedback_proof_body_execution_failure_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_source_feedback_formal_environment_blocker_count"
+        ]
+        == 3
+    )
     assert row["llm_route_planner_route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
@@ -549,11 +737,53 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "search_requests_pending_evidence",
         "source_grounding_obligations_pending",
     )
+    assert (
+        row["llm_route_planner_route_adoption_preconditions"]
+        == route_adoption_preconditions
+    )
+    assert row["llm_route_planner_route_adoption_precondition_present"] is True
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_blocked_before_response"
+        ]
+        is True
+    )
+    assert row[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] == (
+        "quality_control_obligations_pending",
+        "source_grounding_obligations_pending",
+    )
+    assert row[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
+    )
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_known_blocker_count"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_required_response_field_count"
+        ]
+        == 2
+    )
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (
         "generator_only",
+        "provider_usage",
         "retry_count",
     )
+    assert row["llm_route_planner_has_provider_usage"] is True
+    assert row["llm_route_planner_provider_input_tokens"] == 120
+    assert row["llm_route_planner_provider_output_tokens"] == 34
+    assert row["llm_route_planner_provider_cache_creation_input_tokens"] == 5
+    assert row["llm_route_planner_provider_cache_read_input_tokens"] == 6
+    assert row["llm_route_planner_provider_total_tokens"] == 165
     assert row["llm_route_planner_request_contract_blocked"] is False
     assert row["llm_route_planner_errors"] == ()
     assert row["llm_route_planner_generation_errors"] == ()

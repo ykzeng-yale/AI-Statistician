@@ -446,9 +446,8 @@ theorem vaart1998_theorem20_9_frechet_chain_rule
     HasFDerivAt (vaart1998_theorem20_9ComposedMap psi phi)
       (vaart1998_theorem20_9ComposedDerivative psiDerivative phiDerivative)
       theta := by
-  simpa [vaart1998_theorem20_9ComposedMap,
-    vaart1998_theorem20_9ComposedDerivative, Function.comp_def] using
-    hpsi.comp theta hphi
+  change HasFDerivAt (fun x => psi (phi x)) (psiDerivative ∘L phiDerivative) theta
+  exact hpsi.comp theta hphi
 
 /-- Source package for the general Hadamard-differentiable Theorem 20.9 chain
 rule. -/

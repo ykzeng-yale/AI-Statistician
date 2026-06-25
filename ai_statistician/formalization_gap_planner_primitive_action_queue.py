@@ -50,6 +50,7 @@ QUEUE_ACTION_KINDS = (
     "source_port",
     "design_new_theory_fragment",
     "rerun_library_alignment",
+    "route_revision",
 )
 OWNER_AGENTS = (
     "target_prover_adapter",
@@ -76,6 +77,10 @@ class FormalizationGapPlannerPrimitiveActionQueueRow:
     queue_action_kind: str
     owner_agent: str
     priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     rank: int
     candidate_declarations: tuple[str, ...]
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -184,6 +189,24 @@ def export_formalization_gap_planner_primitive_action_queue(
             1 for row in rows if row.actionable_work_items
         ),
         "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
+        ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "primitive_action_queue_row_schema": row_schema,
@@ -263,6 +286,10 @@ def primitive_action_queue_row_json_schema() -> dict[str, object]:
         "queue_action_kind",
         "owner_agent",
         "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "rank",
         "candidate_declarations",
         "candidate_declaration_rows",
@@ -312,6 +339,10 @@ def primitive_action_queue_row_json_schema() -> dict[str, object]:
             "queue_action_kind": {"type": "string", "enum": list(QUEUE_ACTION_KINDS)},
             "owner_agent": {"type": "string", "enum": list(OWNER_AGENTS)},
             "priority_score": {"type": "integer"},
+            "minimal_delta_cost_score": {"type": "integer"},
+            "reuse_readiness_score": {"type": "integer"},
+            "evidence_readiness_score": {"type": "integer"},
+            "priority_rationale": string_array,
             "rank": {"type": "integer"},
             "candidate_declarations": string_array,
             "candidate_declaration_rows": {
@@ -366,6 +397,15 @@ def validate_primitive_action_queue_row(
     if isinstance(priority, int) and not isinstance(priority, bool):
         if priority < 0 or priority > 100:
             errors.append("priority_score must be between 0 and 100")
+    for field_name in (
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     rank = row.get("rank")
     if isinstance(rank, int) and not isinstance(rank, bool) and rank < 1:
         errors.append("rank must be positive")
@@ -397,6 +437,9 @@ def _action_row(
     coverage_bucket = str(coverage_row.get("coverage_bucket", UNKNOWN_OR_UNALIGNED))
     action_kind, owner, priority = _action_mapping(coverage_bucket)
     primitive = str(coverage_row.get("primitive", ""))
+    minimal_delta_cost_score = _minimal_delta_cost_score(coverage_bucket)
+    reuse_readiness_score = _reuse_readiness_score(coverage_row, coverage_bucket)
+    evidence_readiness_score = _evidence_readiness_score(coverage_row, coverage_bucket)
     row_errors = list(coverage_errors)
     if not primitive:
         row_errors.append("primitive missing")
@@ -427,6 +470,17 @@ def _action_row(
         queue_action_kind=action_kind,
         owner_agent=owner,
         priority_score=priority,
+        minimal_delta_cost_score=minimal_delta_cost_score,
+        reuse_readiness_score=reuse_readiness_score,
+        evidence_readiness_score=evidence_readiness_score,
+        priority_rationale=_priority_rationale(
+            coverage_row,
+            coverage_bucket,
+            primitive,
+            minimal_delta_cost_score=minimal_delta_cost_score,
+            reuse_readiness_score=reuse_readiness_score,
+            evidence_readiness_score=evidence_readiness_score,
+        ),
         rank=0,
         candidate_declarations=_str_tuple(
             coverage_row.get("candidate_declarations", [])
@@ -457,6 +511,9 @@ def _rank_rows(
     ranked = sorted(
         rows,
         key=lambda row: (
+            row.minimal_delta_cost_score,
+            -row.reuse_readiness_score,
+            -row.evidence_readiness_score,
             -row.priority_score,
             row.route_id,
             row.primitive,
@@ -480,6 +537,113 @@ def _action_mapping(coverage_bucket: str) -> tuple[str, str, int]:
     if coverage_bucket == DEFINITION_OR_THEORY_MISSING:
         return ("design_new_theory_fragment", "formalization_planner", 50)
     return ("rerun_library_alignment", "tooling_engineer", 95)
+
+
+def _minimal_delta_cost_score(coverage_bucket: str) -> int:
+    if coverage_bucket == EXACT_EXISTS:
+        return 0
+    if coverage_bucket == NEAR_EXISTS:
+        return 15
+    if coverage_bucket == WRAPPER_NEEDED:
+        return 25
+    if coverage_bucket == BRIDGE_NEEDED:
+        return 40
+    if coverage_bucket == SOURCE_PORT_NEEDED:
+        return 60
+    if coverage_bucket == DEFINITION_OR_THEORY_MISSING:
+        return 85
+    return 100
+
+
+def _reuse_readiness_score(coverage_row: dict[str, Any], coverage_bucket: str) -> int:
+    base = {
+        EXACT_EXISTS: 90,
+        NEAR_EXISTS: 75,
+        WRAPPER_NEEDED: 65,
+        BRIDGE_NEEDED: 50,
+        SOURCE_PORT_NEEDED: 30,
+        DEFINITION_OR_THEORY_MISSING: 15,
+        UNKNOWN_OR_UNALIGNED: 0,
+    }.get(coverage_bucket, 0)
+    bonus = 0
+    if _str_tuple(coverage_row.get("candidate_declarations", [])) or _dict_tuple(
+        coverage_row.get("candidate_declaration_rows", [])
+    ):
+        bonus += 10
+    if _str_tuple(coverage_row.get("actionable_work_items", [])):
+        bonus += 5
+    if _str_tuple(coverage_row.get("expected_premises", [])):
+        bonus += 5
+    if _str_tuple(coverage_row.get("bridge_candidate_obligations", [])):
+        bonus += 5
+    return max(0, min(100, base + bonus))
+
+
+def _evidence_readiness_score(coverage_row: dict[str, Any], coverage_bucket: str) -> int:
+    base = {
+        EXACT_EXISTS: 55,
+        NEAR_EXISTS: 45,
+        WRAPPER_NEEDED: 40,
+        BRIDGE_NEEDED: 35,
+        SOURCE_PORT_NEEDED: 35,
+        DEFINITION_OR_THEORY_MISSING: 20,
+        UNKNOWN_OR_UNALIGNED: 0,
+    }.get(coverage_bucket, 0)
+    bonus = 0
+    if _str_tuple(coverage_row.get("candidate_declarations", [])) or _dict_tuple(
+        coverage_row.get("candidate_declaration_rows", [])
+    ):
+        bonus += 20
+    if _str_tuple(coverage_row.get("source_refs", [])):
+        bonus += 20
+    if _str_tuple(coverage_row.get("expected_premises", [])):
+        bonus += 10
+    if _str_tuple(coverage_row.get("bridge_candidate_obligations", [])):
+        bonus += 10
+    if _str_tuple(coverage_row.get("actionable_work_items", [])):
+        bonus += 10
+    return max(0, min(100, base + bonus))
+
+
+def _priority_rationale(
+    coverage_row: dict[str, Any],
+    coverage_bucket: str,
+    primitive: str,
+    *,
+    minimal_delta_cost_score: int,
+    reuse_readiness_score: int,
+    evidence_readiness_score: int,
+) -> tuple[str, ...]:
+    lines = [
+        f"primitive={primitive}",
+        f"coverage_bucket={coverage_bucket}",
+        f"minimal_delta_cost_score={minimal_delta_cost_score}",
+        f"reuse_readiness_score={reuse_readiness_score}",
+        f"evidence_readiness_score={evidence_readiness_score}",
+    ]
+    if coverage_bucket == EXACT_EXISTS:
+        lines.append("prefer exact current-library reuse before adding declarations")
+    elif coverage_bucket == NEAR_EXISTS:
+        lines.append("compose existing declarations before writing new theory")
+    elif coverage_bucket == WRAPPER_NEEDED:
+        lines.append("small wrapper delta is cheaper than a new bridge theory")
+    elif coverage_bucket == BRIDGE_NEEDED:
+        lines.append("focused bridge lemma is a bounded formalization delta")
+    elif coverage_bucket == SOURCE_PORT_NEEDED:
+        lines.append("source port requires cited informal statement before proof expansion")
+    elif coverage_bucket == DEFINITION_OR_THEORY_MISSING:
+        lines.append("new theory fragment is high delta and must pass minimal-delta audit")
+    else:
+        lines.append("alignment unknown; rerun library search before formalization")
+    if _str_tuple(coverage_row.get("candidate_declarations", [])) or _dict_tuple(
+        coverage_row.get("candidate_declaration_rows", [])
+    ):
+        lines.append("candidate declarations available")
+    if _str_tuple(coverage_row.get("source_refs", [])):
+        lines.append("source references available")
+    if _str_tuple(coverage_row.get("actionable_work_items", [])):
+        lines.append("route-level actionable work item available")
+    return tuple(lines)
 
 
 def _required_inputs(coverage_bucket: str) -> tuple[str, ...]:
@@ -803,6 +967,13 @@ def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _average_int(values: Any) -> int:
+    items = [int(value) for value in values]
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Primitive Action Queue",
@@ -818,6 +989,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Design new theory fragment: {payload.get('n_design_new_theory_fragment')}",
         f"- Rerun library alignment: {payload.get('n_rerun_library_alignment')}",
         f"- Rows with actionable work items: {payload.get('n_with_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_action_items')}"

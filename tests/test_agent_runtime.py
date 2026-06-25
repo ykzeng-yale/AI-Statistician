@@ -129,6 +129,10 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert result.traces[1].tool_calls[0].safety_boundary == "simulation is not proof evidence"
     assert result.blackboard.evidence_ledger[0].boundary == "empirical support, not theorem proof"
     payload = result.to_json()
+    assert payload["traces"][0]["next_task"]["task_id"] == "simulate:q1"
+    assert payload["traces"][0]["next_task"]["inputs"] == {
+        "theory_packet": "theory_packet:q1"
+    }
     assert payload["traces"][1]["observations"][0]["observation_type"] == "simulation_result"
 
 

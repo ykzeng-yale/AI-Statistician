@@ -65,6 +65,11 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packets_missing_target_library_snapshot_trace: int
     n_packets_target_library_snapshot_mismatch: int
     n_packets_with_replan_metadata_trace: int
+    n_packets_with_residual_goal_contexts: int
+    n_packet_residual_goal_contexts: int
+    packet_residual_context_source_kinds: tuple[str, ...]
+    n_packet_residual_contexts_with_source_refs: int
+    n_packet_residual_contexts_with_formal_gap_boundary: int
     n_packets_with_quality_controls: int
     n_packet_quality_control_fields: int
     packet_quality_control_fields: tuple[str, ...]
@@ -81,6 +86,11 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packet_llm_route_adoption_pending_quality_control_blockers: int
     n_packet_llm_route_adoption_pending_source_grounding_blockers: int
     by_packet_llm_route_adoption_status: dict[str, int]
+    n_packets_with_formal_attempt_dependency: int
+    n_packets_formal_attempt_initial_ready: int
+    n_packets_formal_attempt_waiting: int
+    n_packets_formal_attempt_missing_prerequisites: int
+    by_packet_formal_attempt_dependency_status: dict[str, int]
     n_response_present: int
     n_awaiting_adapter_mapping: int
     n_response_contract_ok: int
@@ -153,10 +163,19 @@ def audit_formalization_gap_planner_cross_prover_matrix(
     packet_quality_control_counts = {
         row.n_packets_with_quality_controls for row in rows
     }
+    packet_residual_context_counts = {
+        row.n_packets_with_residual_goal_contexts for row in rows
+    }
     route_adoption_status_counts = Counter(
         status
         for row in rows
         for status, count in row.by_packet_llm_route_adoption_status.items()
+        for _ in range(count)
+    )
+    formal_attempt_dependency_status_counts = Counter(
+        status
+        for row in rows
+        for status, count in row.by_packet_formal_attempt_dependency_status.items()
         for _ in range(count)
     )
     matrix_row_dicts = [asdict(row) for row in rows]
@@ -259,6 +278,21 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_total_packets_with_replan_metadata_trace": sum(
             row.n_packets_with_replan_metadata_trace for row in rows
         ),
+        "n_total_packets_with_residual_goal_contexts": sum(
+            row.n_packets_with_residual_goal_contexts for row in rows
+        ),
+        "n_total_packet_residual_goal_contexts": sum(
+            row.n_packet_residual_goal_contexts for row in rows
+        ),
+        "packet_residual_context_source_kinds": (
+            _matrix_residual_context_source_kinds(rows)
+        ),
+        "n_total_packet_residual_contexts_with_source_refs": sum(
+            row.n_packet_residual_contexts_with_source_refs for row in rows
+        ),
+        "n_total_packet_residual_contexts_with_formal_gap_boundary": sum(
+            row.n_packet_residual_contexts_with_formal_gap_boundary for row in rows
+        ),
         "n_total_packets_with_quality_controls": sum(
             row.n_packets_with_quality_controls for row in rows
         ),
@@ -314,6 +348,21 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "by_total_packet_llm_route_adoption_status": dict(
             sorted(route_adoption_status_counts.items())
         ),
+        "n_total_packets_with_formal_attempt_dependency": sum(
+            row.n_packets_with_formal_attempt_dependency for row in rows
+        ),
+        "n_total_packets_formal_attempt_initial_ready": sum(
+            row.n_packets_formal_attempt_initial_ready for row in rows
+        ),
+        "n_total_packets_formal_attempt_waiting": sum(
+            row.n_packets_formal_attempt_waiting for row in rows
+        ),
+        "n_total_packets_formal_attempt_missing_prerequisites": sum(
+            row.n_packets_formal_attempt_missing_prerequisites for row in rows
+        ),
+        "by_total_packet_formal_attempt_dependency_status": dict(
+            sorted(formal_attempt_dependency_status_counts.items())
+        ),
         "n_response_present": sum(row.n_response_present for row in rows),
         "n_awaiting_adapter_mapping": sum(
             row.n_awaiting_adapter_mapping for row in rows
@@ -335,6 +384,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_distinct_quality_control_packet_counts": len(
             packet_quality_control_counts
         ),
+        "n_distinct_residual_context_packet_counts": len(
+            packet_residual_context_counts
+        ),
         "packet_count_consistent": len(packet_counts) == 1 if rows else False,
         "alignment_packet_count_consistent": (
             len(packet_alignment_counts) == 1 if rows else False
@@ -347,6 +399,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         ),
         "quality_control_packet_count_consistent": (
             len(packet_quality_control_counts) == 1 if rows else False
+        ),
+        "residual_context_packet_count_consistent": (
+            len(packet_residual_context_counts) == 1 if rows else False
         ),
         "matrix_row_schema": matrix_row_schema,
         "cross_prover_target_summary_schema": target_summary_schema,
@@ -372,6 +427,7 @@ def audit_formalization_gap_planner_cross_prover_matrix(
             and len(packet_trace_counts) == 1
             and len(packet_target_snapshot_counts) == 1
             and len(packet_quality_control_counts) == 1
+            and len(packet_residual_context_counts) == 1
             and sum(row.n_packets_schema_invalid for row in rows) == 0
             and sum(row.n_packets_missing_alignment for row in rows) == 0
             and sum(row.n_packets_missing_standalone_input_trace for row in rows) == 0
@@ -506,6 +562,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_missing_target_library_snapshot_trace",
             "n_total_packets_target_library_snapshot_mismatch",
             "n_total_packets_with_replan_metadata_trace",
+            "n_total_packets_with_residual_goal_contexts",
+            "n_total_packet_residual_goal_contexts",
+            "packet_residual_context_source_kinds",
+            "n_total_packet_residual_contexts_with_source_refs",
+            "n_total_packet_residual_contexts_with_formal_gap_boundary",
             "n_total_packets_with_quality_controls",
             "n_total_packet_quality_control_fields",
             "packet_quality_control_fields",
@@ -522,6 +583,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packet_llm_route_adoption_pending_quality_control_blockers",
             "n_total_packet_llm_route_adoption_pending_source_grounding_blockers",
             "by_total_packet_llm_route_adoption_status",
+            "n_total_packets_with_formal_attempt_dependency",
+            "n_total_packets_formal_attempt_initial_ready",
+            "n_total_packets_formal_attempt_waiting",
+            "n_total_packets_formal_attempt_missing_prerequisites",
+            "by_total_packet_formal_attempt_dependency_status",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "all_ok",
@@ -546,6 +612,15 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_missing_target_library_snapshot_trace": {"type": "integer"},
             "n_total_packets_target_library_snapshot_mismatch": {"type": "integer"},
             "n_total_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_total_packets_with_residual_goal_contexts": {"type": "integer"},
+            "n_total_packet_residual_goal_contexts": {"type": "integer"},
+            "packet_residual_context_source_kinds": string_array,
+            "n_total_packet_residual_contexts_with_source_refs": {
+                "type": "integer"
+            },
+            "n_total_packet_residual_contexts_with_formal_gap_boundary": {
+                "type": "integer"
+            },
             "n_total_packets_with_quality_controls": {"type": "integer"},
             "n_total_packet_quality_control_fields": {"type": "integer"},
             "packet_quality_control_fields": string_array,
@@ -570,6 +645,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "by_total_packet_llm_route_adoption_status": {"type": "object"},
+            "n_total_packets_with_formal_attempt_dependency": {"type": "integer"},
+            "n_total_packets_formal_attempt_initial_ready": {"type": "integer"},
+            "n_total_packets_formal_attempt_waiting": {"type": "integer"},
+            "n_total_packets_formal_attempt_missing_prerequisites": {
+                "type": "integer"
+            },
+            "by_total_packet_formal_attempt_dependency_status": {"type": "object"},
             "n_unmatched_adapter_responses": {"type": "integer"},
             "target_rows": {
                 "type": "array",
@@ -598,6 +680,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_missing_target_library_snapshot_trace",
                     "n_packets_target_library_snapshot_mismatch",
                     "n_packets_with_replan_metadata_trace",
+                    "n_packets_with_residual_goal_contexts",
+                    "n_packet_residual_goal_contexts",
+                    "packet_residual_context_source_kinds",
+                    "n_packet_residual_contexts_with_source_refs",
+                    "n_packet_residual_contexts_with_formal_gap_boundary",
                     "n_packets_with_quality_controls",
                     "n_packet_quality_control_fields",
                     "packet_quality_control_fields",
@@ -614,6 +701,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packet_llm_route_adoption_pending_quality_control_blockers",
                     "n_packet_llm_route_adoption_pending_source_grounding_blockers",
                     "by_packet_llm_route_adoption_status",
+                    "n_packets_with_formal_attempt_dependency",
+                    "n_packets_formal_attempt_initial_ready",
+                    "n_packets_formal_attempt_waiting",
+                    "n_packets_formal_attempt_missing_prerequisites",
+                    "by_packet_formal_attempt_dependency_status",
                     "aggregate_packet_jsonl_path",
                     "aggregate_response_validation_jsonl_path",
                     "packet_filter_field",
@@ -637,6 +729,15 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_missing_target_library_snapshot_trace": {"type": "integer"},
                     "n_packets_target_library_snapshot_mismatch": {"type": "integer"},
                     "n_packets_with_replan_metadata_trace": {"type": "integer"},
+                    "n_packets_with_residual_goal_contexts": {"type": "integer"},
+                    "n_packet_residual_goal_contexts": {"type": "integer"},
+                    "packet_residual_context_source_kinds": string_array,
+                    "n_packet_residual_contexts_with_source_refs": {
+                        "type": "integer"
+                    },
+                    "n_packet_residual_contexts_with_formal_gap_boundary": {
+                        "type": "integer"
+                    },
                     "n_packets_with_quality_controls": {"type": "integer"},
                     "n_packet_quality_control_fields": {"type": "integer"},
                     "packet_quality_control_fields": string_array,
@@ -661,6 +762,15 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                         "type": "integer"
                     },
                     "by_packet_llm_route_adoption_status": {"type": "object"},
+                    "n_packets_with_formal_attempt_dependency": {"type": "integer"},
+                    "n_packets_formal_attempt_initial_ready": {"type": "integer"},
+                    "n_packets_formal_attempt_waiting": {"type": "integer"},
+                    "n_packets_formal_attempt_missing_prerequisites": {
+                        "type": "integer"
+                    },
+                    "by_packet_formal_attempt_dependency_status": {
+                        "type": "object"
+                    },
                     "n_response_validation_rows": {"type": "integer"},
                     "n_unmatched_adapter_responses": {"type": "integer"},
                     "aggregate_packet_jsonl_path": {
@@ -819,6 +929,43 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "n_total_packets_with_replan_metadata_trace must equal target replan metadata trace total"
         )
+    if payload.get("n_total_packets_with_residual_goal_contexts") != sum(
+        _int(row.get("n_packets_with_residual_goal_contexts")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_residual_goal_contexts must equal target residual-context packet total"
+        )
+    if payload.get("n_total_packet_residual_goal_contexts") != sum(
+        _int(row.get("n_packet_residual_goal_contexts")) for row in rows
+    ):
+        errors.append(
+            "n_total_packet_residual_goal_contexts must equal target residual-context total"
+        )
+    observed_residual_source_kinds = _str_tuple(
+        payload.get("packet_residual_context_source_kinds", [])
+    )
+    expected_residual_source_kinds = _residual_context_source_kinds_from_target_rows(
+        rows
+    )
+    if observed_residual_source_kinds != expected_residual_source_kinds:
+        errors.append(
+            "packet_residual_context_source_kinds must equal target residual-context source kinds"
+        )
+    if payload.get("n_total_packet_residual_contexts_with_source_refs") != sum(
+        _int(row.get("n_packet_residual_contexts_with_source_refs")) for row in rows
+    ):
+        errors.append(
+            "n_total_packet_residual_contexts_with_source_refs must equal target residual-context source-ref total"
+        )
+    if payload.get(
+        "n_total_packet_residual_contexts_with_formal_gap_boundary"
+    ) != sum(
+        _int(row.get("n_packet_residual_contexts_with_formal_gap_boundary"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packet_residual_contexts_with_formal_gap_boundary must equal target residual-context boundary total"
+        )
     if payload.get("n_total_packets_with_quality_controls") != sum(
         _int(row.get("n_packets_with_quality_controls")) for row in rows
     ):
@@ -947,6 +1094,45 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "by_total_packet_llm_route_adoption_status must equal target status counts"
         )
+    if payload.get("n_total_packets_with_formal_attempt_dependency") != sum(
+        _int(row.get("n_packets_with_formal_attempt_dependency")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_formal_attempt_dependency must equal target formal-attempt dependency total"
+        )
+    if payload.get("n_total_packets_formal_attempt_initial_ready") != sum(
+        _int(row.get("n_packets_formal_attempt_initial_ready")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_initial_ready must equal target formal-attempt ready total"
+        )
+    if payload.get("n_total_packets_formal_attempt_waiting") != sum(
+        _int(row.get("n_packets_formal_attempt_waiting")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_waiting must equal target formal-attempt waiting total"
+        )
+    if payload.get("n_total_packets_formal_attempt_missing_prerequisites") != sum(
+        _int(row.get("n_packets_formal_attempt_missing_prerequisites"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_missing_prerequisites must equal target formal-attempt missing-prerequisite total"
+        )
+    expected_attempt_counts = _sum_formal_attempt_dependency_status_counts(rows)
+    raw_attempt_counts = payload.get(
+        "by_total_packet_formal_attempt_dependency_status",
+        {},
+    )
+    observed_attempt_counts = (
+        {str(status): _int(count) for status, count in raw_attempt_counts.items()}
+        if isinstance(raw_attempt_counts, dict)
+        else {}
+    )
+    if observed_attempt_counts != expected_attempt_counts:
+        errors.append(
+            "by_total_packet_formal_attempt_dependency_status must equal target formal-attempt dependency status counts"
+        )
     if "n_unmatched_adapter_responses" in payload and payload.get(
         "n_unmatched_adapter_responses"
     ) != sum(_int(row.get("n_unmatched_adapter_responses")) for row in rows):
@@ -1019,6 +1205,11 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_missing_target_library_snapshot_trace",
             "n_packets_target_library_snapshot_mismatch",
             "n_packets_with_replan_metadata_trace",
+            "n_packets_with_residual_goal_contexts",
+            "n_packet_residual_goal_contexts",
+            "packet_residual_context_source_kinds",
+            "n_packet_residual_contexts_with_source_refs",
+            "n_packet_residual_contexts_with_formal_gap_boundary",
             "n_packets_with_quality_controls",
             "n_packet_quality_control_fields",
             "packet_quality_control_fields",
@@ -1035,6 +1226,11 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packet_llm_route_adoption_pending_quality_control_blockers",
             "n_packet_llm_route_adoption_pending_source_grounding_blockers",
             "by_packet_llm_route_adoption_status",
+            "n_packets_with_formal_attempt_dependency",
+            "n_packets_formal_attempt_initial_ready",
+            "n_packets_formal_attempt_waiting",
+            "n_packets_formal_attempt_missing_prerequisites",
+            "by_packet_formal_attempt_dependency_status",
             "n_response_present",
             "n_awaiting_adapter_mapping",
             "n_response_contract_ok",
@@ -1072,6 +1268,13 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_missing_target_library_snapshot_trace": {"type": "integer"},
             "n_packets_target_library_snapshot_mismatch": {"type": "integer"},
             "n_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_packets_with_residual_goal_contexts": {"type": "integer"},
+            "n_packet_residual_goal_contexts": {"type": "integer"},
+            "packet_residual_context_source_kinds": string_array,
+            "n_packet_residual_contexts_with_source_refs": {"type": "integer"},
+            "n_packet_residual_contexts_with_formal_gap_boundary": {
+                "type": "integer"
+            },
             "n_packets_with_quality_controls": {"type": "integer"},
             "n_packet_quality_control_fields": {"type": "integer"},
             "packet_quality_control_fields": string_array,
@@ -1092,6 +1295,11 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "by_packet_llm_route_adoption_status": {"type": "object"},
+            "n_packets_with_formal_attempt_dependency": {"type": "integer"},
+            "n_packets_formal_attempt_initial_ready": {"type": "integer"},
+            "n_packets_formal_attempt_waiting": {"type": "integer"},
+            "n_packets_formal_attempt_missing_prerequisites": {"type": "integer"},
+            "by_packet_formal_attempt_dependency_status": {"type": "object"},
             "n_response_present": {"type": "integer"},
             "n_awaiting_adapter_mapping": {"type": "integer"},
             "n_response_contract_ok": {"type": "integer"},
@@ -1208,6 +1416,23 @@ def _matrix_row(
         n_packets_with_replan_metadata_trace=_int(
             contract_payload.get("n_packets_with_replan_metadata_trace")
         ),
+        n_packets_with_residual_goal_contexts=_int(
+            contract_payload.get("n_packets_with_residual_goal_contexts")
+        ),
+        n_packet_residual_goal_contexts=_int(
+            contract_payload.get("n_packet_residual_goal_contexts")
+        ),
+        packet_residual_context_source_kinds=_str_tuple(
+            contract_payload.get("packet_residual_context_source_kinds", [])
+        ),
+        n_packet_residual_contexts_with_source_refs=_int(
+            contract_payload.get("n_packet_residual_contexts_with_source_refs")
+        ),
+        n_packet_residual_contexts_with_formal_gap_boundary=_int(
+            contract_payload.get(
+                "n_packet_residual_contexts_with_formal_gap_boundary"
+            )
+        ),
         n_packets_with_quality_controls=_int(
             contract_payload.get("n_packets_with_quality_controls")
         ),
@@ -1268,6 +1493,28 @@ def _matrix_row(
             str(status): _int(count)
             for status, count in dict(
                 contract_payload.get("by_packet_llm_route_adoption_status", {})
+                or {}
+            ).items()
+        },
+        n_packets_with_formal_attempt_dependency=_int(
+            contract_payload.get("n_packets_with_formal_attempt_dependency")
+        ),
+        n_packets_formal_attempt_initial_ready=_int(
+            contract_payload.get("n_packets_formal_attempt_initial_ready")
+        ),
+        n_packets_formal_attempt_waiting=_int(
+            contract_payload.get("n_packets_formal_attempt_waiting")
+        ),
+        n_packets_formal_attempt_missing_prerequisites=_int(
+            contract_payload.get("n_packets_formal_attempt_missing_prerequisites")
+        ),
+        by_packet_formal_attempt_dependency_status={
+            str(status): _int(count)
+            for status, count in dict(
+                contract_payload.get(
+                    "by_packet_formal_attempt_dependency_status",
+                    {},
+                )
                 or {}
             ).items()
         },
@@ -1339,6 +1586,16 @@ def _target_summary_payload(
             for packet in target_packet_rows
             if _packet_target_library_snapshot_mismatch(packet)
         )
+        residual_goal_contexts = [
+            context
+            for packet in target_packet_rows
+            for context in _residual_goal_contexts_from_packet_row(packet)
+        ]
+        n_packets_with_residual_goal_contexts = sum(
+            1
+            for packet in target_packet_rows
+            if _residual_goal_contexts_from_packet_row(packet)
+        )
         n_packets_with_quality_controls = sum(
             1
             for packet in target_packet_rows
@@ -1352,6 +1609,11 @@ def _target_summary_payload(
             str(packet.get("llm_route_planner_route_adoption_status", ""))
             for packet in target_packet_rows
             if str(packet.get("llm_route_planner_route_adoption_status", ""))
+        )
+        formal_attempt_dependency_status_counts = Counter(
+            str(packet.get("formal_attempt_dependency_status", ""))
+            for packet in target_packet_rows
+            if str(packet.get("formal_attempt_dependency_status", ""))
         )
         n_route_adoption_quality_control_blockers = sum(
             1
@@ -1400,6 +1662,23 @@ def _target_summary_payload(
                     for packet in target_packet_rows
                     if isinstance(packet.get("standalone_input_trace"), dict)
                     and packet["standalone_input_trace"].get("has_replan_metadata")
+                ),
+                "n_packets_with_residual_goal_contexts": (
+                    n_packets_with_residual_goal_contexts
+                ),
+                "n_packet_residual_goal_contexts": len(residual_goal_contexts),
+                "packet_residual_context_source_kinds": (
+                    _residual_context_source_kinds(tuple(residual_goal_contexts))
+                ),
+                "n_packet_residual_contexts_with_source_refs": sum(
+                    1
+                    for context in residual_goal_contexts
+                    if _residual_context_has_sources(context)
+                ),
+                "n_packet_residual_contexts_with_formal_gap_boundary": sum(
+                    1
+                    for context in residual_goal_contexts
+                    if _residual_context_has_formal_gap_boundary(context)
                 ),
                 "n_packets_with_quality_controls": n_packets_with_quality_controls,
                 "n_packet_quality_control_fields": n_packet_quality_control_fields,
@@ -1471,6 +1750,33 @@ def _target_summary_payload(
                 "by_packet_llm_route_adoption_status": dict(
                     sorted(route_adoption_status_counts.items())
                 ),
+                "n_packets_with_formal_attempt_dependency": sum(
+                    1
+                    for packet in target_packet_rows
+                    if str(packet.get("formal_attempt_dependency_status", ""))
+                    != "not_formal_attempt_queue_item"
+                ),
+                "n_packets_formal_attempt_initial_ready": (
+                    formal_attempt_dependency_status_counts.get(
+                        "ready_no_formal_prerequisites",
+                        0,
+                    )
+                ),
+                "n_packets_formal_attempt_waiting": (
+                    formal_attempt_dependency_status_counts.get(
+                        "waiting_for_formal_prerequisite_attempts",
+                        0,
+                    )
+                ),
+                "n_packets_formal_attempt_missing_prerequisites": (
+                    formal_attempt_dependency_status_counts.get(
+                        "missing_formal_prerequisite_attempts",
+                        0,
+                    )
+                ),
+                "by_packet_formal_attempt_dependency_status": dict(
+                    sorted(formal_attempt_dependency_status_counts.items())
+                ),
                 "n_response_validation_rows": len(target_response_rows),
                 "n_unmatched_adapter_responses": row.n_unmatched_adapter_responses,
                 "aggregate_packet_jsonl_path": (
@@ -1490,6 +1796,55 @@ def _target_summary_payload(
                 "errors": list(row.errors),
             }
         )
+        target_rows[-1]["ok"] = bool(
+            target_rows[-1]["ok"]
+            and n_packets_with_residual_goal_contexts
+            == row.n_packets_with_residual_goal_contexts
+            and len(residual_goal_contexts) == row.n_packet_residual_goal_contexts
+            and target_rows[-1]["n_packets_with_formal_attempt_dependency"]
+            == row.n_packets_with_formal_attempt_dependency
+            and target_rows[-1]["n_packets_formal_attempt_initial_ready"]
+            == row.n_packets_formal_attempt_initial_ready
+            and target_rows[-1]["n_packets_formal_attempt_waiting"]
+            == row.n_packets_formal_attempt_waiting
+            and target_rows[-1][
+                "n_packets_formal_attempt_missing_prerequisites"
+            ]
+            == row.n_packets_formal_attempt_missing_prerequisites
+        )
+        if (
+            n_packets_with_residual_goal_contexts
+            != row.n_packets_with_residual_goal_contexts
+        ):
+            target_rows[-1]["errors"].append(
+                "residual-context packet count mismatch between contract manifest and packet rows"
+            )
+        if len(residual_goal_contexts) != row.n_packet_residual_goal_contexts:
+            target_rows[-1]["errors"].append(
+                "residual-context total mismatch between contract manifest and packet rows"
+            )
+        if (
+            target_rows[-1]["n_packets_with_formal_attempt_dependency"]
+            != row.n_packets_with_formal_attempt_dependency
+            or target_rows[-1]["n_packets_formal_attempt_initial_ready"]
+            != row.n_packets_formal_attempt_initial_ready
+            or target_rows[-1]["n_packets_formal_attempt_waiting"]
+            != row.n_packets_formal_attempt_waiting
+            or target_rows[-1][
+                "n_packets_formal_attempt_missing_prerequisites"
+            ]
+            != row.n_packets_formal_attempt_missing_prerequisites
+        ):
+            target_rows[-1]["errors"].append(
+                "formal-attempt dependency count mismatch between contract manifest and packet rows"
+            )
+        if (
+            target_rows[-1]["by_packet_formal_attempt_dependency_status"]
+            != row.by_packet_formal_attempt_dependency_status
+        ):
+            target_rows[-1]["errors"].append(
+                "formal-attempt dependency status mismatch between contract manifest and packet rows"
+            )
     summary_errors = [
         f"{target_row['target_prover_family']}: " + "; ".join(
             str(error) for error in target_row.get("errors", [])
@@ -1531,6 +1886,24 @@ def _target_summary_payload(
         ),
         "n_total_packets_with_replan_metadata_trace": sum(
             _int(row["n_packets_with_replan_metadata_trace"])
+            for row in target_rows
+        ),
+        "n_total_packets_with_residual_goal_contexts": sum(
+            _int(row["n_packets_with_residual_goal_contexts"])
+            for row in target_rows
+        ),
+        "n_total_packet_residual_goal_contexts": sum(
+            _int(row["n_packet_residual_goal_contexts"]) for row in target_rows
+        ),
+        "packet_residual_context_source_kinds": (
+            _residual_context_source_kinds_from_target_rows(target_rows)
+        ),
+        "n_total_packet_residual_contexts_with_source_refs": sum(
+            _int(row["n_packet_residual_contexts_with_source_refs"])
+            for row in target_rows
+        ),
+        "n_total_packet_residual_contexts_with_formal_gap_boundary": sum(
+            _int(row["n_packet_residual_contexts_with_formal_gap_boundary"])
             for row in target_rows
         ),
         "n_total_packets_with_quality_controls": sum(
@@ -1605,6 +1978,24 @@ def _target_summary_payload(
         "by_total_packet_llm_route_adoption_status": (
             _sum_route_adoption_status_counts(target_rows)
         ),
+        "n_total_packets_with_formal_attempt_dependency": sum(
+            _int(row["n_packets_with_formal_attempt_dependency"])
+            for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_initial_ready": sum(
+            _int(row["n_packets_formal_attempt_initial_ready"])
+            for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_waiting": sum(
+            _int(row["n_packets_formal_attempt_waiting"]) for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_missing_prerequisites": sum(
+            _int(row["n_packets_formal_attempt_missing_prerequisites"])
+            for row in target_rows
+        ),
+        "by_total_packet_formal_attempt_dependency_status": (
+            _sum_formal_attempt_dependency_status_counts(target_rows)
+        ),
         "n_unmatched_adapter_responses": sum(
             _int(row.get("n_unmatched_adapter_responses")) for row in target_rows
         ),
@@ -1673,6 +2064,162 @@ def _sum_route_adoption_status_counts(
             if status_text:
                 counts[status_text] += _int(count)
     return dict(sorted(counts.items()))
+
+
+def _sum_formal_attempt_dependency_status_counts(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        raw_counts = row.get("by_packet_formal_attempt_dependency_status", {})
+        if not isinstance(raw_counts, dict):
+            continue
+        for status, count in raw_counts.items():
+            status_text = str(status)
+            if status_text:
+                counts[status_text] += _int(count)
+    return dict(sorted(counts.items()))
+
+
+def _residual_goal_contexts_from_packet_row(
+    packet: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    contexts = _normalize_residual_goal_contexts(
+        _dict_tuple(packet.get("residual_goal_contexts", []))
+    )
+    if contexts:
+        return contexts
+    trace = packet.get("standalone_input_trace", {})
+    if not isinstance(trace, dict):
+        return tuple()
+    return _normalize_residual_goal_contexts(
+        _dict_tuple(trace.get("residual_goal_contexts", []))
+    )
+
+
+def _normalize_residual_goal_contexts(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    normalized_contexts: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for context in contexts:
+        normalized = {
+            str(field_name): value
+            for field_name, value in context.items()
+            if str(field_name)
+        }
+        for field_name in (
+            "residual_goals",
+            "residual_primitives",
+            "target_primitives",
+            "source_refs",
+            "queries",
+            "source_search_queries",
+            "literature_queries",
+        ):
+            if field_name in normalized:
+                normalized[field_name] = _str_tuple(normalized.get(field_name, []))
+        for field_name in (
+            "source_kind",
+            "residual_goal",
+            "interpretation",
+            "route_repair",
+            "repair_action",
+            "source_search_status",
+            "formal_gap_boundary",
+            "formal_boundary",
+            "source_ref",
+        ):
+            if field_name in normalized:
+                normalized[field_name] = str(normalized.get(field_name, "")).strip()
+        if "source_snippets" in normalized:
+            normalized["source_snippets"] = _dict_tuple(
+                normalized.get("source_snippets", [])
+            )
+        normalized = {
+            field_name: value
+            for field_name, value in normalized.items()
+            if _residual_context_value_present(value)
+        }
+        if not normalized:
+            continue
+        key = stable_hash(normalized)
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized_contexts.append(normalized)
+    return tuple(normalized_contexts)
+
+
+def _residual_context_value_present(value: object) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, (list, tuple, set, dict)) and not value:
+        return False
+    return True
+
+
+def _residual_context_source_kinds(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(context.get("source_kind", "")).strip()
+                for context in contexts
+                if str(context.get("source_kind", "")).strip()
+            }
+        )
+    )
+
+
+def _matrix_residual_context_source_kinds(
+    rows: list[FormalizationGapPlannerCrossProverMatrixRow],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                source_kind
+                for row in rows
+                for source_kind in row.packet_residual_context_source_kinds
+                if source_kind
+            }
+        )
+    )
+
+
+def _residual_context_source_kinds_from_target_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                source_kind
+                for row in rows
+                for source_kind in _str_tuple(
+                    row.get("packet_residual_context_source_kinds", [])
+                )
+                if source_kind
+            }
+        )
+    )
+
+
+def _residual_context_has_sources(context: dict[str, object]) -> bool:
+    return bool(
+        _str_tuple(context.get("source_refs", []))
+        or _dict_tuple(context.get("source_snippets", []))
+        or str(context.get("source_ref", "")).strip()
+    )
+
+
+def _residual_context_has_formal_gap_boundary(context: dict[str, object]) -> bool:
+    return bool(
+        str(
+            context.get("formal_gap_boundary", "")
+            or context.get("formal_boundary", "")
+        ).strip()
+    )
 
 
 def _quality_controls_from_packet_row(
@@ -1905,6 +2452,14 @@ def _str_tuple(value: Any) -> tuple[str, ...]:
     return (str(value),) if str(value) else tuple()
 
 
+def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
+    if isinstance(value, dict):
+        return (dict(value),)
+    if not isinstance(value, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
 def _int(value: Any) -> int:
     try:
         return int(value or 0)
@@ -1975,6 +2530,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with alignment: {payload.get('n_total_packets_with_alignment')}/{payload.get('n_total_packets')}",
         f"- Packets with standalone trace: {payload.get('n_total_packets_with_standalone_input_trace')}/{payload.get('n_total_packets')}",
         f"- Packets with replan metadata trace: {payload.get('n_total_packets_with_replan_metadata_trace')}/{payload.get('n_total_packets')}",
+        f"- Packets with residual goal contexts: {payload.get('n_total_packets_with_residual_goal_contexts')}/{payload.get('n_total_packets')}",
+        f"- Residual goal contexts: {payload.get('n_total_packet_residual_goal_contexts')}",
+        f"- Residual context source kinds: {payload.get('packet_residual_context_source_kinds')}",
         f"- Packets with quality controls: {payload.get('n_total_packets_with_quality_controls')}/{payload.get('n_total_packets')}",
         f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         f"- Packets with LLM route-adoption status: {payload.get('n_total_packets_with_llm_route_adoption_status')}/{payload.get('n_total_packets')}",
@@ -1985,12 +2543,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"{payload.get('n_total_packet_llm_route_adoption_pending_quality_control_blockers')}",
         "- LLM route-adoption pending source-grounding blockers: "
         f"{payload.get('n_total_packet_llm_route_adoption_pending_source_grounding_blockers')}",
+        f"- Packets with formal-attempt dependency: {payload.get('n_total_packets_with_formal_attempt_dependency')}/{payload.get('n_total_packets')}",
+        f"- Formal-attempt initially ready packets: {payload.get('n_total_packets_formal_attempt_initial_ready')}",
+        f"- Formal-attempt waiting packets: {payload.get('n_total_packets_formal_attempt_waiting')}",
+        f"- Formal-attempt missing-prerequisite packets: {payload.get('n_total_packets_formal_attempt_missing_prerequisites')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Rejected mappings: {payload.get('n_rejected')}",
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",
         f"- Alignment packet count consistent: {payload.get('alignment_packet_count_consistent')}",
         f"- Standalone trace packet count consistent: {payload.get('standalone_input_trace_packet_count_consistent')}",
         f"- Quality-control packet count consistent: {payload.get('quality_control_packet_count_consistent')}",
+        f"- Residual-context packet count consistent: {payload.get('residual_context_packet_count_consistent')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -2009,8 +2572,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"schema={row.get('n_packet_schema_valid')}/{row.get('n_packets')} "
             f"aligned={row.get('n_packets_with_alignment')}/{row.get('n_packets')} "
             f"trace={row.get('n_packets_with_standalone_input_trace')}/{row.get('n_packets')} "
+            f"residual_contexts={row.get('n_packets_with_residual_goal_contexts')}/{row.get('n_packets')} "
             f"quality_controls={row.get('n_packets_with_quality_controls')}/{row.get('n_packets')} "
             f"llm_status={row.get('n_packets_with_llm_route_adoption_status')} "
+            f"formal_attempt_waiting={row.get('n_packets_formal_attempt_waiting')} "
             f"awaiting={row.get('n_awaiting_adapter_mapping')} "
             f"ok={row.get('ok')}"
         )

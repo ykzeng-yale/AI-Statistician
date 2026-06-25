@@ -847,6 +847,10 @@ theorem vaart1998_theorem_3_1_delta_method_linearized
         (fun ω => ((fun x => L x) ∘ T) ω + (0 : F))
         (fun _ => P) Q :=
     hLW.add_of_tendstoInMeasure_const (c := (0 : F)) hR hR_meas
+  change
+    TendstoInDistribution
+      (fun n => (fun ω => L (W n ω)) + R n) l
+      (fun ω => L (T ω)) (fun _ => P) Q
   simpa [Function.comp_def] using hsum
 
 /--
@@ -1088,7 +1092,7 @@ theorem vaart1998_delta_remainder_small_on_scaled_ball_of_hasFDerivAt
         ‖r n • (Tn n ω - theta)‖ < M ->
         ‖r n • (phi (Tn n ω) - phi theta - L (Tn n ω - theta))‖ < ε := by
   have hr_norm : Tendsto (fun n => ‖r n‖) atTop atTop := by
-    simpa [Real.norm_eq_abs] using (tendsto_abs_atTop_atTop.comp hr)
+    simpa [Real.norm_eq_abs, Function.comp_def] using (tendsto_abs_atTop_atTop.comp hr)
   exact
     vaart1998_delta_remainder_small_on_scaled_ball_of_hasFDerivAt_norm_atTop
       (L := L) hphi hr_norm

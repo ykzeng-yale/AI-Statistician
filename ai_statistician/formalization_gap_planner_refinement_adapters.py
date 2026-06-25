@@ -73,6 +73,7 @@ def export_formalization_gap_planner_refinement_adapter_responses(
     )
     by_hook_kind = Counter(str(row.get("hook_kind", "")) for row in queue_rows)
     by_evidence_kind = Counter(str(row.get("evidence_kind", "")) for row in responses)
+    by_attempt_status = Counter(str(row.get("attempt_status", "")) for row in responses)
     n_ground_truth_matched = sum(
         1
         for row in queue_rows
@@ -102,6 +103,13 @@ def export_formalization_gap_planner_refinement_adapter_responses(
         ),
         "n_lean_grounding_responses": by_evidence_kind.get("lean_library_grounding", 0),
         "n_prover_feedback_responses": by_evidence_kind.get("prover_feedback", 0),
+        "n_formal_attempt_dependency_waiting_responses": by_attempt_status.get(
+            "waiting_for_formal_prerequisite_attempts",
+            0,
+        ),
+        "n_formal_attempt_dependency_missing_prerequisite_responses": (
+            by_attempt_status.get("missing_formal_prerequisite_attempts", 0)
+        ),
         "n_route_revision_responses": by_evidence_kind.get(
             "route_revision_proposal", 0
         ),
@@ -121,6 +129,7 @@ def export_formalization_gap_planner_refinement_adapter_responses(
         "errors": errors + [str(error) for error in ground_truth_payload.get("errors", [])],
         "by_hook_kind": dict(sorted(by_hook_kind.items())),
         "by_evidence_kind": dict(sorted(by_evidence_kind.items())),
+        "by_attempt_status": dict(sorted(by_attempt_status.items())),
         "responses": responses,
         "refinement_tool_response_schema": response_schema,
         "responses_fingerprint": stable_hash(responses),
@@ -210,9 +219,16 @@ def _base_response(
         "resource_ids",
         "resource_request_bindings",
         "llm_route_planner_hook_trace",
+        "formal_attempt_queue_index",
+        "formal_attempt_initial_ready",
+        "formal_attempt_dependency_status",
+        "formal_attempt_prerequisite_formal_node_ids",
+        "formal_attempt_prerequisite_refinement_item_ids",
+        "formal_attempt_blocking_prerequisite_formal_node_ids",
+        "formal_attempt_missing_prerequisite_formal_node_ids",
     ):
         value = queue_row.get(field_name, [])
-        if value:
+        if value or isinstance(value, (bool, int)):
             response[field_name] = value
     quality_controls = _merge_quality_controls(
         _quality_controls_from_payload(queue_row.get("quality_controls", {})),
@@ -285,6 +301,9 @@ def _prover_feedback_response(
     queue_row: dict[str, Any],
     truth_row: dict[str, Any] | None,
 ) -> dict[str, object]:
+    dependency_response = _formal_attempt_dependency_response(queue_row)
+    if dependency_response:
+        return dependency_response
     prover_status = str(queue_row.get("prover_feedback_status", ""))
     first_error = str(queue_row.get("prover_feedback_first_error", ""))
     error_category = str(queue_row.get("prover_feedback_error_category", ""))
@@ -323,6 +342,57 @@ def _prover_feedback_response(
             "residual_goals": tuple(residual_goals),
             "route_revision_recommended": bool(revision_reasons),
             "route_revision_reasons": tuple(revision_reasons),
+        }
+    )
+    return response
+
+
+def _formal_attempt_dependency_response(queue_row: dict[str, Any]) -> dict[str, object]:
+    dependency_status = str(queue_row.get("formal_attempt_dependency_status", ""))
+    if dependency_status not in {
+        "waiting_for_formal_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }:
+        return {}
+    blockers = _str_tuple(
+        queue_row.get("formal_attempt_blocking_prerequisite_formal_node_ids", [])
+    )
+    missing = _str_tuple(
+        queue_row.get("formal_attempt_missing_prerequisite_formal_node_ids", [])
+    )
+    diagnostics = [
+        (
+            "Formal attempt not run because prerequisite formal DAG attempts "
+            "must produce feedback first."
+        )
+    ]
+    if blockers:
+        diagnostics.append("blocking prerequisite formal nodes: " + ", ".join(blockers))
+    response = _base_response(
+        queue_row,
+        evidence_kind="prover_feedback",
+        tool_name="local_replay_calibration_adapter",
+    )
+    route_revision_recommended = dependency_status == "missing_formal_prerequisite_attempts"
+    response.update(
+        {
+            "attempt_status": dependency_status,
+            "prover_attempt_class": "formal_attempt_dependency_waiting"
+            if not route_revision_recommended
+            else "formal_attempt_dependency_missing",
+            "prover_diagnostics": tuple(diagnostics),
+            "residual_goals": tuple(
+                f"{node_id}: missing prerequisite attempt" for node_id in missing
+            ),
+            "route_revision_recommended": route_revision_recommended,
+            "route_revision_reasons": (
+                (
+                    "formal attempt queue references missing prerequisite attempts; "
+                    "regenerate the formal attempt queue"
+                ),
+            )
+            if route_revision_recommended
+            else (),
         }
     )
     return response

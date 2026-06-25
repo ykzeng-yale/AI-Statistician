@@ -204,8 +204,8 @@ theorem vaart1998_measure_le_smul_of_likelihoodRatio_le
     P ≤ C • Q := by
   calc
     P = Q.withDensity (vaart1998_likelihoodRatio P Q) := by
-      simpa [vaart1998_likelihoodRatio] using
-        (Measure.withDensity_rnDeriv_eq P Q hAC).symm
+      change P = Q.withDensity (P.rnDeriv Q)
+      exact (Measure.withDensity_rnDeriv_eq P Q hAC).symm
     _ ≤ Q.withDensity (fun _ => C) := by
       exact withDensity_mono hLR
     _ = C • Q := by
@@ -257,8 +257,8 @@ theorem vaart1998_measureReal_le_mul_add_likelihoodRatio_tail_ofReal
     exact measurableSet_le (vaart1998_likelihoodRatio_measurable P Q) measurable_const
   have hAB_meas : MeasurableSet (A ∩ B) := hA.inter hB_meas
   have hP_eq : P = Q.withDensity (vaart1998_likelihoodRatio P Q) := by
-    simpa [vaart1998_likelihoodRatio] using
-      (Measure.withDensity_rnDeriv_eq P Q hAC).symm
+    change P = Q.withDensity (P.rnDeriv Q)
+    exact (Measure.withDensity_rnDeriv_eq P Q hAC).symm
   have hbounded_enn : P (A ∩ B) ≤ ENNReal.ofReal C * Q (A ∩ B) := by
     calc
       P (A ∩ B) = Q.withDensity (vaart1998_likelihoodRatio P Q) (A ∩ B) := by
@@ -423,7 +423,8 @@ theorem vaart1998_likelihoodRatio_tail_measureReal_le_logLikelihoodRatio_tail_of
       P.real {ω | r < vaart1998_logLikelihoodRatio P Q ω} := by
   have hfinite : ∀ᵐ ω ∂P, vaart1998_likelihoodRatio P Q ω ≠ ∞ := by
     have hlt : ∀ᵐ ω ∂P, vaart1998_likelihoodRatio P Q ω < ∞ := by
-      simpa [vaart1998_likelihoodRatio] using hAC.ae_le (Measure.rnDeriv_lt_top P Q)
+      change {ω | (P.rnDeriv Q) ω < ∞} ∈ ae P
+      exact hAC.ae_le (Measure.rnDeriv_lt_top P Q)
     filter_upwards [hlt] with ω hω
     exact ne_of_lt hω
   have hset_le :
@@ -436,8 +437,8 @@ theorem vaart1998_likelihoodRatio_tail_measureReal_le_logLikelihoodRatio_tail_of
     have hlog :
         Real.log (Real.exp r) < Real.log ((vaart1998_likelihoodRatio P Q ω).toReal) := by
       exact Real.log_lt_log (Real.exp_pos r) htoReal
-    simpa [vaart1998_logLikelihoodRatio, MeasureTheory.llr_def, vaart1998_likelihoodRatio,
-      Real.log_exp] using hlog
+    change r < Real.log ((P.rnDeriv Q) ω).toReal
+    simpa [vaart1998_likelihoodRatio] using hlog
   have hmeasure_le :
       P {ω | ENNReal.ofReal (Real.exp r) < vaart1998_likelihoodRatio P Q ω} ≤
         P {ω | r < vaart1998_logLikelihoodRatio P Q ω} :=
@@ -602,7 +603,8 @@ theorem vaart1998_logLikelihoodRatio_self_ae_eq_zero
     {Ω : Type*} [MeasurableSpace Ω]
     (P : Measure Ω) [SigmaFinite P] :
     vaart1998_logLikelihoodRatio P P =ᵐ[P] fun _ => 0 := by
-  simpa [vaart1998_logLikelihoodRatio] using MeasureTheory.llr_self P
+  change MeasureTheory.llr P P =ᵐ[P] (0 : Ω -> ℝ)
+  exact MeasureTheory.llr_self P
 
 end AsymptoticStatistics
 end StatInference

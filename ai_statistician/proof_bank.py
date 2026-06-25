@@ -1422,7 +1422,8 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
         ),
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.Data.Set.Basic
+import Mathlib.Data.Finset.Basic
 
 theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
     (covered : Set Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)
@@ -1465,7 +1466,9 @@ theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
         ),
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.MeasureTheory.Measure.MeasureSpaceDef
+import Mathlib.Data.ENNReal.Basic
+import Mathlib.Data.Finset.Basic
 open MeasureTheory
 
 theorem splitConformal_badRank_budget_of_uniformRankBound {Ω ρ : Type*}
@@ -1663,6 +1666,110 @@ theorem splitConformalCoverage_of_goodRankCoverage {Ω ρ : Type*}
             "coverage_lower_bound_of_complement_error",
             "finite_union_budget_control",
         ),
+    ),
+    "split_conformal_upper_coverage_rank_budget_bridge": FormalObligation(
+        id="split_conformal_upper_coverage_rank_budget_bridge",
+        title="Split-conformal upper coverage from a finite covered-rank budget",
+        english=(
+            "If the split-conformal coverage event is contained in a finite set "
+            "of ranks and each such rank event has a local probability budget, "
+            "then the coverage event has probability at most the sum budget. "
+            "This is a reusable theorem-reduction bridge for the exact source "
+            "theorem's upper-coverage component. It does not prove exchangeability, "
+            "rank uniformity, the order-statistic quantile construction, or the "
+            "source theorem's real-valued probability statement by itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem splitConformalUpperCoverage_of_rankBudget {Ω ρ : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (covered : Set Ω) (CoveredRanks : Finset ρ) (rank : Ω → ρ)
+    (α : ρ → ENNReal) (α_total : ENNReal)
+    (hCovered : covered ⊆ {ω | rank ω ∈ CoveredRanks})
+    (hRank : ∀ r ∈ CoveredRanks, μ {ω | rank ω = r} ≤ α r)
+    (h_total : (∑ r ∈ CoveredRanks, α r) ≤ α_total) :
+    μ covered ≤ α_total := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  calc\n"
+            "    μ covered ≤ μ {ω | rank ω ∈ CoveredRanks} := by\n"
+            "      exact measure_mono hCovered\n"
+            "    _ ≤ μ (⋃ r ∈ CoveredRanks, {ω | rank ω = r}) := by\n"
+            "      apply measure_mono\n"
+            "      intro ω hω\n"
+            "      exact Set.mem_iUnion.mpr ⟨rank ω, Set.mem_iUnion.mpr ⟨hω, rfl⟩⟩\n"
+            "    _ ≤ ∑ r ∈ CoveredRanks, μ {ω | rank ω = r} := by\n"
+            "      exact measure_biUnion_finset_le (μ := μ) CoveredRanks (fun r => {ω | rank ω = r})\n"
+            "    _ ≤ ∑ r ∈ CoveredRanks, α r := by\n"
+            "      exact Finset.sum_le_sum (fun r hr => hRank r hr)\n"
+            "    _ ≤ α_total := h_total"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "split_conformal",
+            "rank",
+            "upper_coverage",
+            "coverage_counting",
+            "finite_sample_coverage_counting",
+            "order_statistic_quantile_rule",
+            "theorem_reduction",
+            "theorem_reduction_closure",
+            "source_theorem_exact_goal_shape_obligation",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+        ),
+        depends_on=(
+            "finite_conformal_rank_coverage_counting",
+            "order_statistic_quantile_rule_bridge",
+            "finite_union_budget_control",
+        ),
+    ),
+    "source_theorem_conjunction_from_components": FormalObligation(
+        id="source_theorem_conjunction_from_components",
+        title="Source-theorem conjunction assembly from verified components",
+        english=(
+            "If the lower and upper source-theorem components have both been "
+            "proved, then their conjunction can be assembled directly. This is "
+            "a proof-assembly helper for exact source theorem proof-body repair; "
+            "it does not prove either component or the source theorem's "
+            "statistical semantics by itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem sourceTheoremConjunction_of_components (P Q : Prop)
+    (hP : P) (hQ : Q) : P ∧ Q := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  exact And.intro hP hQ"
+        ),
+        tags=(
+            "logic",
+            "conjunction",
+            "proof_assembly",
+            "source_theorem_exact_goal_shape_obligation",
+            "theorem_reduction_closure",
+        ),
+        expected_lemmas=(
+            "And.intro",
+        ),
+        depends_on=(),
     ),
     "finite_family_absolute_error_union_control": FormalObligation(
         id="finite_family_absolute_error_union_control",
@@ -4290,7 +4397,13 @@ theorem prob_measure_univ {α : Type*} [MeasurableSpace α]
 """
         ),
         proof_body="by\n  exact measure_univ",
-        tags=("probability", "measure", "normalization"),
+        tags=(
+            "probability",
+            "measure",
+            "normalization",
+            "probability_measure_semantics",
+            "source_theorem_semantic_primitive",
+        ),
         expected_lemmas=("measure_univ",),
     ),
     "integral_of_constant": FormalObligation(

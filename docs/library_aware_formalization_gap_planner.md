@@ -139,7 +139,8 @@ the command is schema-only. With `--request-context` pointing at a staged
 request packet, request JSONL, planner manifest, or planner output directory,
 it also runs the full request-bound preflight checks for target theorem
 identity, target prover family, source-ref grounding, formal-declaration
-provenance, residual repair grounding, and minimal-delta cost accounting. The
+provenance, residual repair grounding, route-adoption precondition response
+fields, and minimal-delta cost accounting. The
 validator also writes manifest and row schemas, and the publication bundle
 exports those schemas as reusable contracts. The publication bundle can also
 package an actual validator run with
@@ -157,21 +158,34 @@ to route-planning consistency against the staged request, but it still does not
 prove kernel verification. Request-bound validator manifests and rows also
 record whether each matched request context carried
 `context_packet.context_packet_inventory` and the corresponding inventory row
-totals. They also record the declared payload target prover, the matched
+totals. They also record whether each matched request context carried blocking
+`route_adoption_preconditions`, plus the known-blocker and required-response
+field counts, so external audits can measure blocked route-adoption coverage
+without reparsing the full staged request packet. They also record the declared
+payload target prover, the matched
 request-context target prover, normalized target keys, and a
 `target_prover_family_consistent` flag, with manifest-level target counts and
 mismatch counters. This lets external prover adapters audit target-family drift
 from the reusable validator output without reopening the raw response payload.
+They also record `formal_attempt_queue` presence, item counts, and
+queue-specific validation-error counts, so a reusable validator artifact can
+distinguish a generally invalid route from a route whose bottom-up
+prover-feedback schedule is malformed or missing required DAG nodes.
 The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
-manifest lifts the same validation target-count summary into
-`llm_route_planner_response_payload_validation_summary`. The public planner path
+manifest lifts the same validation target-count, route-precondition-count, and
+formal-attempt queue validation summary into
+`llm_route_planner_response_payload_validation_summary`. The bundle audit also
+recomputes that lifted summary from the packaged validator manifest, so a bundle
+cannot report different public validation counts than the copied artifact. The
+public planner path
 records `*_provider_execution_mode`, live-call counters, and generation
 preflight block counts/errors so staged packets are distinguishable from paid
 provider calls and schema/model-tier-invalid requests are visible before any
 live Claude call. The reuse-smoke manifest/report lifts the validator
-target-prover counts and mismatch counter into top-level fields for release
-gating. When a live generator response fails local validation and the planner
+target-prover counts, mismatch counter, and request-bound route-precondition
+counters into top-level fields for release gating. When a live generator response
+fails local validation and the planner
 spends a repair attempt, the planner manifest and rows now publish a
 `repair_attempt_ledger` with the failed attempt index, bounded validator errors,
 error fingerprint, structured repair-guidance categories, repair-guidance
@@ -211,9 +225,20 @@ Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. Live generator backends surface both `requested_model` and
 `provider_reported_model`, and downstream row validation uses the reported model
-when the provider response object exposes one. In addition to the manifest-level
-policy, every LLM
-route-planner request packet
+when the provider response object exposes one. They also compact provider
+diagnostics such as stop reason, incomplete-response details, and token usage
+into generator metadata, so live-call truncation and repair causes are auditable
+without storing full provider objects. The LLM route-planner manifest also
+derives `provider_usage_rows`, `provider_usage_summary`, and total
+input/output/cache/overall token counters from that metadata, grouped by
+provider, model, and model tier. Those fields are cost-accounting evidence for
+Haiku/Sonnet switching, not proof evidence. Reuse-smoke and publication-bundle
+summaries now preserve the same provider-usage summary for both the primary and
+feedback LLM route-planner passes, plus a combined input/output/cache/total
+token rollup. Reuse-smoke also lifts evaluation-level provider-usage rows and
+totals, so system-level evaluations can audit Claude tier cost without
+replaying provider calls. In addition to the manifest-level
+policy, every LLM route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an
@@ -227,22 +252,73 @@ Each request and row also carries `model_tier_decision_evidence`: structured
 counts, coverage/action markers, Sonnet trigger reasons, Haiku bounded-route
 safety checks, and any Haiku-to-Sonnet repair escalation. This keeps the
 cost-aware Claude routing decision auditable as data rather than only as a
-free-text rationale. In
+free-text rationale. Source-theorem and proof-body feedback rows are included
+in those counts; semantic-primitive gaps, exact proof-body execution failures,
+and formal-environment blockers are explicit Sonnet auto-tier triggers because
+they require route repair rather than cheap bounded triage. In
+addition, unresolved interactive-session route-adoption preconditions and their
+known pre-response blockers are counted in request-scoped tier-decision
+evidence and force Sonnet under `--model-tier auto`, so cost-saving Haiku calls
+are still used only for bounded routes that are not waiting on route-repair
+obligations. The planner also writes
+`formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl`
+plus its schema. Each row binds the request tier, effective response tier,
+resolved model, decision basis, Sonnet triggers, source-feedback counts,
+provider-failure status, and repair escalation evidence, so downstream runtime,
+benchmark, and publication tools can audit cost routing without parsing full
+request packets or raw model text. The reuse-smoke manifest also mirrors
+primary, feedback, and combined ledger counts next to provider token usage, so
+public smoke runs report both API cost and the tier-routing reason surface. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable
 `formal_library_grounding_queries` and `formal_declaration_hits`, while non-Lean
 requests keep that map empty and the prompt requires new route output to prefer
-the portable fields.
+the portable fields. Response validation also checks target-specific tool and
+resource scope: a Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar, or Metamath
+route cannot silently dispatch Lean-specific hooks such as LeanSearch, Loogle,
+Lake, or `lean_lsp_mcp`, nor another prover family's resource, merely by
+omitting `target_prover_family` on the action row; the tool owner, resource id,
+and adapter id must either be portable or match the request target prover
+family.
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, many `formal_library_grounding_queries`, or large normalized
 theorem context upgrade a superficially small route from Haiku triage to Sonnet
 route synthesis. Accepted LLM rows must include
-source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
+source-grounded informal DAG nodes, acyclic informal DAG edges,
+formal-realization DAG nodes, acyclic formal-realization DAG edges, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. When a selected primitive is priced or marked as a wrapper, bridge
+rejected. Every DAG edge must carry a source node id, target node id, edge kind,
+and rationale, and the endpoints must reference nodes returned in the same LLM
+payload. Multi-node DAGs cannot omit their edge set. Informal node-level
+`depends_on` lists must match `informal_knowledge_dag_edges` in both directions:
+each dependency needs a corresponding edge, and each edge needs a corresponding
+target-node dependency entry. Route-relevant
+`route_alignment_edges` endpoints must also participate in the matching
+informal or formal DAG edge set when that DAG has multiple nodes; otherwise the
+response is only a disconnected collection of claims and realization candidates,
+not an executable dependency route. Resolved alignment edges must preserve
+informal dependency order: when an informal DAG edge maps two proof steps to
+distinct formal realization nodes, the formal realization DAG must contain a
+dependency path in the same direction. Accepted LLM rows must also include
+`formal_attempt_queue`, a bottom-up prover-feedback schedule over the selected
+formal realization DAG. Each queued row names an existing formal node, target
+prover family, owner/action, attempt kind, expected feedback, target
+primitives, and immediate formal-node prerequisites; validation rejects queues
+that omit selected-route formal nodes or order attempts contrary to
+`formal_realization_dag_edges`. Queue `target_primitives` must also stay within
+the selected `minimal_delta_plan` primitives or the formal realization DAG
+primitive set; request-baseline or alternative-route primitives may remain in
+the AND/OR cost graph, but they cannot be scheduled for prover execution unless
+the selected formal route actually realizes them. Minimality rationales are
+validated as
+evidence-anchored text: they
+must mention selected primitives, the selected route option, coverage/cost
+buckets, route-cost comparisons, or concrete delta work, and placeholder
+claims such as "minimal" or "cheapest" are rejected. When a selected primitive
+is priced or marked as a wrapper, bridge
 lemma, source port, new definition, or new theory fragment, the same
 `minimal_delta_plan` must also list that primitive in the matching concrete
 action bucket such as `wrapper_lemmas`, `bridge_lemmas`,
@@ -306,18 +382,26 @@ silently swap its own public contracts. That payload schema is
 structured around informal DAG nodes, formal realization nodes or the legacy
 Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
 graph, residual interpretations, search requests, planner next actions, source
-snippets, and standalone-route primitives. Evaluation rows preserve the
+snippets, formal attempt queues, and standalone-route primitives.
+`formal_attempt_queue` turns the static route alignment into a replayable
+worklist for Lean LSP, Rocq, Isabelle, Agda, or another target prover adapter;
+adapter residuals from those attempts are fed back as route-repair evidence,
+not proof evidence. Route-alignment rationales are
+validated as substantive, evidence-anchored text: a placeholder like `ok` or an
+unanchored explanation that does not mention the mapped informal claim, formal
+primitive, declaration, coverage/action, or source-backed route anchor rejects
+the response. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
-`search_requests` and `planner_next_actions` rows expose first-class
+`search_requests`, `planner_next_actions`, and `formal_attempt_queue` rows expose first-class
 `target_primitives`, `resource_request_id`, `resource_id`,
 `resource_contract_ids`, `required_quality_signals`, `quality_gates`,
 `response_validation_signals`, and `stop_conditions` in the public response
 payload schema. When request context
 contains an interactive decision policy, resource queue, feedback summary, or
 component-resource registry, those quality controls must be grounded in that
-context; invented gates or response-validation signals reject the LLM route
+context; invented queue resources, gates, or response-validation signals reject the LLM route
 instead of silently becoming tool policy. Explicit
 `search_requests.target_primitives` and
 `planner_next_actions.target_primitives` must also resolve to primitives already
@@ -327,7 +411,12 @@ refinement hooks preserve those explicit primitive targets. Explicit
 `residual_interpretations.target_primitives` and
 `residual_interpretations.residual_primitives` are stricter: they must resolve
 to request, route, formal-realization, or cost-hint primitive evidence and
-cannot self-ground by merely appearing in the same residual interpretation. The
+cannot self-ground by merely appearing in the same residual interpretation. A
+residual interpretation that proposes `route_repair` or `repair_action` must
+also name the affected primitive through `target_primitives`,
+`residual_primitives`, `primitive`, or the shorthand
+`primitive_id: residual goal`; otherwise the route-revision hook is too
+ambiguous for an external prover adapter to replay. The
 request-bound primitive-scope collector also ignores rejected or failed-contract
 context rows, so status-only resource responses, rejected refinement evidence,
 and failed provider rows remain audit metadata rather than evidence for
@@ -378,6 +467,13 @@ hidden inside opaque metadata. Its compact
 `applied_llm_route_planner_hook_traces`, so a feedback-driven route repair
 prompt can see which earlier LLM search/action request produced the residual or
 resource-response evidence it is repairing.
+Accepted resource-response rows and handoff `applied_resource_response_traces`
+also feed a compact `context_packet.resource_feedback_readiness_summary` into
+the LLM request. That summary lists high-priority primitives with their queued
+`minimal_delta_cost_score`, `reuse_readiness_score`,
+`evidence_readiness_score`, and `priority_rationale`, and the route-planning
+brief adds a focus row requiring the LLM to preserve those priorities in the
+next `minimal_delta_plan` and follow-up actions.
 Publication-bundle LLM route-planner summaries and the reuse-smoke top-level
 manifest expose the matching prior-hook-trace counters, and the bundle audit
 recomputes them from the packaged planner manifest so summary drift is rejected.
@@ -429,11 +525,29 @@ standalone-route primitives. Every primitive used by either the top-level
 top-level `primitive_costs` witness row. Each route option's `route_cost` must
 also be auditable: it either equals the sum of those global cost rows for its
 `selected_primitives`, or the route option carries its own `primitive_costs`
-rows for route-specific actions such as source ports versus bridge lemmas. The
-same route-option primitives must appear in `standalone_route.primitives` and
-the formal-realization DAG, so rejected alternatives are still library-aware
-routes rather than numeric placeholders. The top-level `selected_primitives`
-list must be duplicate-free. The plan must also
+rows for route-specific actions such as source ports versus bridge lemmas. Those
+route-specific primitive cost rows must obey the same coverage-bucket evidence
+floor as top-level primitive costs: a route option cannot label a primitive as
+`exact_exists` while the corresponding standalone or formal-realization node
+still says `bridge_needed`, `source_port_needed`, or another more expensive
+coverage marker. A route option with route-specific `primitive_costs` must also
+carry route-option action witnesses for every wrapper, bridge, source-port,
+new-definition, or new-theory bucket it prices. For example, an unselected
+source-port alternative must put the concrete theorem-porting work item in that
+option's `source_port_lemmas`, and an alternative bridge primitive must have a
+route-option `bridge_lemmas` item. The selected route may use the top-level
+minimal-delta action lists, but unselected alternatives cannot borrow the
+selected route's action witness for a different kind of work. The same
+route-option primitives must appear in
+`standalone_route.primitives` and the formal-realization DAG, so rejected
+alternatives are still library-aware routes rather than numeric placeholders.
+They must also have resolved
+`route_alignment_edges`, so an unselected alternative cannot smuggle in a
+costed primitive without the same informal-to-formal DAG alignment evidence as
+the chosen route. A newly introduced route-option primitive must be justified
+by aligned informal evidence and formal-realization evidence before it can be
+used in the AND/OR graph. The top-level `selected_primitives` list must be
+duplicate-free. The plan must also
 include an `and_or_cost_graph` with enumerated route options with unique
 `route_option_id` values and duplicate-free `selected_primitives`, a
 `selected_route_option_id` naming one enumerated route option, exactly one
@@ -505,14 +619,41 @@ cross-prover matrix/target summary aggregate them as
 non-Lean adapter teams can block kernel-attempt queues on unmet resource,
 response-validation, or source-grounding obligations without parsing generic
 blocker strings.
+They also expose normalized `residual_goal_contexts` on every prover-adapter
+packet, plus residual-context counts, source-kind inventories, source-ref
+coverage, and formal-gap-boundary counts in the adapter contract and
+cross-prover target summary. This makes Lean/LSP residual repair evidence
+portable to Rocq/Coq, Isabelle, Agda, or other adapters without forcing those
+workers to parse opaque standalone trace blobs.
+Adapter packets now also publish the formal-attempt dependency protocol:
+`formal_attempt_queue_index`, `formal_attempt_initial_ready`,
+`formal_attempt_dependency_status`, prerequisite formal-node ids, prerequisite
+refinement item ids when available, blocking/missing prerequisite ids, and the
+human-readable unlock rule. This lets non-Lean workers preserve the same
+bottom-up route order as the Lean proof-state adapter. A waiting packet cannot
+be marked `ready_for_kernel_attempt` unless the adapter response sets
+`prerequisite_feedback_satisfied=true` and names the prior
+`prerequisite_response_ids`; packets with missing prerequisite attempts must
+request route repair rather than kernel replay.
+The cross-prover matrix and target summary also roll these fields up as
+formal-attempt dependency readiness counters and status histograms, so
+Rocq/Isabelle/Agda adapters can identify initially ready, waiting, and
+missing-prerequisite packet queues before opening individual packet rows.
+The reuse-smoke and publication-bundle manifests/reports lift the same counters
+into release-gate and bundle output, so public checks expose dependency-queue
+readiness without requiring consumers to inspect nested cross-prover JSON.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,
-kernel-verified ground-truth counts, and mean alignment coverage. Public bundles
-therefore expose semantic route weakening, minimal-delta quality, and readiness
-blockers before a consumer runs the separate audit command; the audit also
-recomputes and checks this top-level summary against the packaged evaluation
-artifacts.
+kernel-verified ground-truth counts, mean alignment coverage, and evaluation
+LLM provider-usage totals. Public bundles therefore expose semantic route
+weakening, minimal-delta quality, readiness blockers, and Claude tier cost
+before a consumer runs the separate audit command; the audit also recomputes
+and checks this top-level summary against the packaged evaluation artifacts.
+The bundle audit also validates the packaged LLM model policy against official
+Anthropic source URLs and the pinned-snapshot/not-evergreen Claude model-ID
+versioning claim, so Haiku/Sonnet/Opus routing evidence is source-attributed in
+the reusable artifact rather than only implied by constants.
 The same bundle manifest also includes `llm_route_planner_summary` and
 `feedback_llm_route_planner_summary`, projecting request/row counts, response
 presence, accepted route plans, route-adoption status counts, and blocker
@@ -522,6 +663,10 @@ counts, so a public bundle shows whether packaged primary and feedback
 route-planner prompts carried the compact `context_packet_inventory` needed for
 evidence-bounded LLM route repair, and whether the planner JSONL rows preserved
 that same request-context snapshot for standalone reuse. They also expose
+request-side and row-side `route_adoption_preconditions` counts, including
+known pre-response blockers and required LLM response fields, so replay users
+can tell whether a packaged route was blocked by source-backed obligations
+already known before any model response. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also
@@ -534,7 +679,10 @@ definition, or new-theory work-list entries. They also
 preserve the generic informal DAG, formal realization DAG, Lean legacy
 realization alias, and route-alignment edge counts from the packaged planner
 manifests, so non-Lean prover routes remain visible in the public summary
-without relying on Lean-specific names.
+without relying on Lean-specific names. They also expose `formal_attempt_queue`
+item and row counts for primary and feedback planner artifacts, so public
+bundles and smoke runs show whether the LLM route includes a bottom-up
+prover-feedback attempt schedule rather than only a static DAG alignment.
 The publication-bundle audit recomputes those two summaries from the packaged
 route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.
@@ -565,8 +713,9 @@ LLM route-planner request packets can also carry compact component-resource
 registry context through
 `--formalization-gap-planner-component-resource-registry-dir`. That context
 lists planner stages, local-first resources, frontier tools such as Paperclip,
-PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, and Agda adapters, plus
-their request/response contracts and quality gates. The model may use those
+PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, Agda, HOL4/HOL Light,
+Mizar, and Metamath adapters, plus their request/response contracts and quality
+gates. The model may use those
 rows only to choose bounded `search_requests` and `planner_next_actions`.
 If the response cites explicit `resource_contract_id` or
 `resource_contract_ids` values, the validator now requires those ids to appear
@@ -604,16 +753,50 @@ adds explicit repair actions for missing formal realization nodes or missing
 route-alignment edges. It does not replace raw rows and is not proof evidence;
 it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
-Each request packet also carries `context_packet.route_planning_brief`, a
-target-aware planning brief generated from the same raw context. It records the
-target theorem identity, target-intake claims and shapes, admissible evidence
-counts, prioritized planner focus rows, and explicit evidence gaps such as
-missing source grounding, missing formal-library grounding, residual repair, or
-pending quality controls. The prompt uses it as a compact route-synthesis
-checklist before the model emits the informal DAG, formal-realization DAG,
-alignment edges, and minimal-delta plan. Request and manifest validation check
-the brief's counts against the raw context and inventory, so the brief is
-auditable planning guidance rather than a separate evidence source.
+Each request packet also carries
+`context_packet.target_theorem_context_packet`, a compact theorem-context
+packet for the route planner. It preserves the target theorem statement,
+skeleton, mathematical objects, assumptions, statistical procedure, desired
+conclusion, theorem shape, proof-style hints, source/formal queries, primitive
+candidates, and residual goals while keeping raw context rows as the source of
+truth. `context_packet.route_planning_brief` is then generated from the same
+packet and raw context. It records the target theorem identity, target-intake
+claims and shapes, admissible evidence counts, prioritized planner focus rows,
+an auditable `primitive_evidence_matrix`, and explicit evidence gaps such as
+missing source grounding, missing formal-library grounding, residual repair,
+resource-feedback readiness priorities, or pending quality controls. The matrix joins each candidate primitive to its
+primitive-scoped source snippets, target-compatible formal declarations,
+minimal-delta coverage bucket, residual-goal context, and recommended planner
+actions, so the LLM does not have to reconstruct the source/formal/residual
+alignment from scattered context arrays. The
+prompt uses these fields as a compact route-synthesis checklist before the
+model emits the informal DAG, formal-realization DAG, alignment edges, and
+minimal-delta plan. Request and manifest validation check the brief and target
+context counts against the raw context and inventory, so they are auditable
+planning guidance rather than separate evidence sources.
+Accepted and fallback LLM route-planner rows now also publish the same
+`target_theorem_context_packet` and the compact `route_planning_brief`, and
+standalone/replan seeds copy them to route-level provenance and
+`replan_metadata`. This keeps the theorem statement, assumptions, procedure,
+desired conclusion, primitive candidates, residual-goal contract, prioritized
+planner focus, and evidence-gap checklist available to the next prover-feedback
+or replan round even when raw prompt rows are trimmed for reuse by an external
+prover adapter.
+Standalone replay exposes that same packet as
+`standalone_input_trace.target_theorem_context_packet` with compact route id,
+target-prover, theorem-statement, packet-kind, target-mismatch, and
+route-statement-differs fields. The standalone manifest counts traces with
+target-context packets, target mismatches, and route statements that differ from
+the preserved target theorem. It also counts traces with
+`llm_route_planner_route_planning_brief`, and the reuse-smoke manifest lifts
+that counter, while the LLM route-planner manifest separately counts
+`primitive_evidence_matrix` rows, source-backed primitives, and
+formal-supported primitives. Publication consumers can therefore verify that
+the distilled route planning checklist and the per-primitive source/formal
+alignment survived request -> LLM row -> seed -> standalone replay.
+This lets reusable/publication bundles distinguish legitimate route-specific
+theorem wording from actual target-prover drift after LLM route adoption while
+keeping route-repair focus auditable.
 Each request packet also includes `context_packet.context_packet_inventory`, a
 validator-checked compact inventory of the same prompt context: row counts for
 target intake, source grounding, library coverage, resource queues, response
@@ -658,8 +841,31 @@ planner next actions, quality-control evidence, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
 handoff blockers under the current evidence bound. The readiness gate is
 computed from both the current row's structured `realization_coverage_witness`
-and any upstream feedback-loop realization summary, so a stale or missing
-feedback summary cannot make an incomplete current response adoption-ready.
+the current row's `primitive_evidence_matrix_witness`, and any upstream
+feedback-loop realization summary, so a stale or missing feedback summary
+cannot make an incomplete current response adoption-ready. The matrix witness
+checks that every request-side primitive evidence row is accounted by the
+selected route, standalone route, formal realization, route alignment, residual
+interpretation, search request, planner action, or reused source snippet, and
+it blocks standalone adoption when the response selects a primitive with no
+request-side matrix row. Complete matrix accounting also requires source-backed
+matrix primitives to be cited by response source snippets, formally supported
+matrix primitives to reuse a target-compatible declaration rather than
+silently adding new work, and delta-needed matrix primitives to have an
+explicit delta action or planner action.
+Each request context also carries `route_adoption_preconditions`, a pre-response
+forecast of blockers already implied by residual goals, feedback-loop repair
+requirements, pending source-grounding rows, pending quality controls, resource
+redispatch work, or incomplete realization coverage. The route-planning prompt,
+manifest counters, and output rows preserve this object so a live LLM and a
+public replay consumer can see which blocker-specific response fields or next
+actions must be produced before standalone replay can become admissible.
+The response contract now enforces that forecast: when preconditions require
+`residual_interpretations`, `search_requests`, or `planner_next_actions`, a
+silent response is rejected instead of being accepted and repaired only by local
+post-processing. The standalone response-payload validator applies the same
+rule in request-bound mode, so external prover integrations cannot bypass the
+route-adoption gate by validating only the reusable JSON payload artifact.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
 repair is replayed or discharged by later evidence. The standalone seed also
@@ -679,7 +885,26 @@ action stored in the refinement-queue trace. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses. The route-planner manifest also exposes `standalone_replay_gate`,
+responses. The source-grounding audit reads preserved
+`llm_route_planner_residual_interpretations` directly from that trace, so a
+route repair suggested by the LLM must be source-backed, search-pending, or
+explicitly declared as a formal boundary after standalone conversion. The next
+LLM route-planner request also promotes those preserved interpretations into
+`residual_goal_contexts`, so their residual goal, route-repair text, source
+refs, diagnostics, and evidence ids remain visible to the prompt packet and
+auto Haiku/Sonnet tier decision instead of being treated as inert metadata. If
+one of those carried residual contexts lacks source refs, a bounded source-search
+hook, and a substantive formal boundary, the request packet synthesizes a
+pending `source_grounding_rows` entry and source-grounding obligation before
+the LLM answers, even when the standalone source-grounding audit has not been
+run yet. Accepted LLM rows and their standalone seed routes preserve those
+inline source-grounding rows and obligation summaries in `replan_metadata`, so
+publication and replay consumers can recover the exact blocker without
+recomputing the original request packet. Publication-bundle audit treats these
+row, seed-route, and seed-metadata copies as provenance-bearing fields and
+rejects bundles where the source-grounding rows or obligation summary drift.
+The
+route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,
 `route_adoption_blocker_counts`, and `by_route_adoption_blocker`, so downstream
@@ -698,6 +923,16 @@ Publication-bundle audits and reuse-smoke reports lift the same seed-selection
 counts as first-class fields, including candidate count, adoptable candidates,
 selected-adoptable, and selected-not-adoptable, so external consumers can gate
 route adoption without opening nested seed artifacts.
+Reuse-smoke also forwards the publication-bundle audit counters for
+LLM seed source-grounding provenance, separately for the primary and feedback
+route-planner passes, so one-command public runs expose whether residual/source
+obligations survived row, seed-route, and seed-metadata preservation.
+Publication-bundle LLM route-planner summaries also lift request-side
+source-grounding rows, pending obligation inventories, unresolved rows, and
+residual-unresolved row counts from the packaged primary and feedback planner
+manifests. The bundle audit recomputes those fields from the copied planner
+artifacts, so a public manifest cannot silently under-report residual
+source-grounding work.
 Publication and reuse-smoke LLM-route summaries also surface
 `n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
 formal-boundary gaps visible beside source-grounding, quality-control,
@@ -790,7 +1025,11 @@ reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
-larger theorem context to Sonnet. If a live Anthropic Haiku route-plan response
+larger theorem context to Sonnet. It also upgrades source-theorem/proof-body
+feedback rows with semantic-primitive gaps, exact proof-body execution
+failures, or formal-environment blockers to Sonnet and records those row counts
+and trigger reasons in `model_tier_decision_evidence`. If a live Anthropic
+Haiku route-plan response
 fails local JSON/contract validation and a repair attempt remains, the repair
 attempt escalates to Sonnet and records `requested_model_tier`,
 `effective_model_tier`, and `model_tier_escalated` in generator metadata,
@@ -801,7 +1040,11 @@ Claude after the deterministic residual/context stages have completed, use
 Sonnet 4.6 unless a model is supplied. Static or reviewed JSON responses can be
 passed with the matching `--feedback-llm-route-planner-static-response-file` or
 `--feedback-llm-route-planner-response-json` flags for no-cost reproducible
-review. When the initial or feedback LLM route planner has an actual response
+review. Both primary and feedback route-planner directories also publish a
+model-tier decision ledger JSONL, which lets reuse-smoke and publication audits
+inspect Haiku/Sonnet/Opus routing, source-feedback Sonnet triggers, provider
+failures, and Haiku-to-Sonnet repair escalation without replaying the full
+planner run. When the initial or feedback LLM route planner has an actual response
 payload, reuse-smoke now writes
 `formalization_gap_planner_llm_route_planner_response_payload_validation/` and
 passes that optional validator run into the publication bundle. The smoke path
@@ -836,10 +1079,24 @@ external prover or planner team can discover and validate the next-round input
 without importing AI Statistician internals. The seed carries the revised
 informal DAG nodes, revised formal-realization DAG nodes, the legacy
 `revised_lean_realization_dag_nodes` alias, and exact revised route-alignment
-edges in each route and in its `replan_metadata`, and the
+edges in each route and in its `replan_metadata`. It also carries the
+`llm_route_planner_route_planning_brief` in each route and its
+`replan_metadata`, plus the derived
+`llm_route_planner_primitive_evidence_matrix_witness`, when an LLM
+route-planner seed produced the handoff, and the
 sidecar standalone-input schema publishes those optional route and metadata
-fields for external validators. The publication-bundle audit reports
-seed-alignment and seed-DAG preservation counters. It also names the cross-prover
+fields for external validators. Standalone traces also publish compact
+primitive-matrix accounting counters for complete accounting, total repair
+obligations, unaccounted matrix primitives, selected primitives without matrix
+rows, source-backed rows missing response snippets, formal-supported rows
+missing declaration reuse, and delta-needed rows missing delta/action
+accounting, so external prover teams can triage adoption blockers without
+reparsing the whole witness. The publication-bundle audit reports
+seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
+also checks the packaged route-replan handoff audit for the
+`roundtrip_llm_route_planning_brief_trace` signal, so public bundles expose
+whether the compact route-focus/evidence-gap checklist and its
+per-primitive evidence matrix survived standalone replay. It also names the cross-prover
 target summary and `formalization_gap_planner_cross_prover_target_summary.schema.json`,
 which tell non-Lean prover teams how to filter aggregate packet and response
 JSONL files for their prover family. Each target-prover adapter packet also
@@ -850,7 +1107,8 @@ validator rejects rows whose trace target does not match the packet's adapter
 target. Adapter manifests also count quality-control-bearing packet traces and
 the resource contracts, response-validation signals, and stop conditions they
 preserve, so target-prover handoff does not hide bounded-tool policy. This
-keeps a Lean-origin route and a Rocq/Isabelle/Agda target replay
+keeps a Lean-origin route and
+Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath target replays
 distinguishable inside the same publication bundle. Finally, it names
 `contract/formalization_gap_planner_schema_catalog.json` and its schema from
 the publication bundle, plus the publication-bundle manifest schema, so
@@ -915,6 +1173,10 @@ primitive-action-queue command consumes that coverage map and writes
 executable work order per selected primitive, with action kinds such as target
 prover replay, compose existing declarations, write wrapper, prove bridge
 lemma, source port, design new theory fragment, or rerun library alignment.
+Each work order also publishes a deterministic `minimal_delta_cost_score`,
+`reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
+so a downstream prover team can choose cheap exact/near reuse before expanding
+source ports or new theory.
 These are operational work orders and acceptance gates, not proof evidence. The
 action-resource-plan command then joins those primitive work orders to the
 component-resource registry and writes
@@ -923,7 +1185,9 @@ component-resource registry and writes
 the planner components, local-first resources, frontier escalation tools,
 adapter ids, aggregate resource contracts, per-resource request/response
 contract maps, escalation triggers, stop conditions, and reproduction commands
-needed for that primitive action.
+needed for that primitive action. The same minimal-delta cost and
+reuse/evidence readiness scores are preserved here so tool selection can still
+prefer low-delta reuse after resource binding.
 This makes tool choice auditable for other prover ecosystems without turning
 resource routing metadata into proof evidence. The resource-request-queue
 command expands those rows into one dispatch packet per local-first or frontier
@@ -933,11 +1197,50 @@ packet carries the primitive id, route id, component ids, resource id, request
 phase, the resource-specific contract id and request/response fields, evidence
 inputs, expected outputs, acceptance gate, stop conditions, an execution hint,
 the first-class `target_primitives` scope, the propagated
-`actionable_work_items` from minimal-delta/action planning, and the explicit
+`actionable_work_items` from minimal-delta/action planning, the propagated
+minimal-delta cost/readiness scores and rationale, and the explicit
 proof boundary. It
 is the executable interface for literature search, formal-source search, Lean-library lookup,
 Lean/LSP/Lake/LeanDojo-style prover feedback, and cross-prover/publication
-audits; it is still not theorem proof evidence. When both action-resource and
+audits; it is still not theorem proof evidence. Accepted LLM route-planner
+`search_requests`, `planner_next_actions`, and `residual_interpretations` are
+also converted into these dispatch packets. Residual interpretations become
+route-revision requests by default, or literature/formal-library/prover
+requests when the repair text explicitly asks for those tools, and the queue
+preserves `residual_goal_context` in both `request_payload` and
+`request_playbook` so residual-driven route repair cannot be mistaken for a
+generic search. LLM-derived resource-request packets also preserve
+`llm_route_planner_route_adoption_preconditions` in the request payload,
+request playbook, and playbook input summary, and expose manifest counters for
+rows, known pre-response blockers, required response fields, and generated
+request packets. This keeps Paperclip/PaperQA/formal-library/prover operators
+aware of the exact blocker forecast the LLM planner must discharge before route
+adoption. The resource-response ledger treats that residual packet as
+request-bound context: `residual_goal_context` is copied from the request into
+the validated ledger row and then into both applied resource-response traces
+and LLM route-planner hook traces consumed by the route-revision overlay. This
+keeps a residual-driven revision tied to the concrete prover side condition and
+repair directive that triggered it, rather than only to a generic
+route-revision response. Refinement-evidence responses also preserve
+`residual_goal_context` and pass it into route-revision proposals, so
+adapter-provided proof-state residuals follow the same overlay path as
+LLM-originated residual repairs. When proof-state feedback reports residual
+goals but omits that field, refinement evidence derives a conservative
+`proof_state_feedback` context from the residuals, diagnostics, target
+primitives, and route-revision reasons while retaining the not-proof-evidence
+boundary. The source-grounding audit also consumes residual contexts: context
+`source_refs`/`source_snippets` count as source backing, context
+`queries`/`source_search_queries` count as bounded search hooks, and a
+substantive `formal_gap_boundary` is classified as an explicit formal boundary
+rather than a completed proof. Route-replan handoff rows now aggregate those
+residual contexts into `residual_goal_contexts`, copy them into the replayable
+standalone seed's `replan_metadata`, and the standalone planner exposes them in
+`standalone_input_trace`. The next LLM route-planning request then promotes the
+same contexts into top-level and `context_packet.residual_goal_contexts`,
+target-theorem context counts, route-planning brief focus rows, and inventory
+counters, so a replan prompt can consume the specific residual repair without
+scanning opaque hook traces. When both
+action-resource and
 request-queue artifacts are bundled, the publication audit checks that each
 request row resolves to its action-resource row and matches the selected
 resource's contract map, so stale per-tool contract fields cannot silently pass
@@ -986,6 +1289,10 @@ the original request packet has been consumed. They also retain the queued
 `resource_contract_ids`, `stop_conditions`, and compact `quality_controls`, so
 downstream route-revision overlays can preserve bounded tool policy from
 asynchronous resource feedback without reopening the original request queue.
+They also carry forward the queued `minimal_delta_cost_score`,
+`reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
+so feedback-loop route repair keeps the same preference for cheap library reuse
+over source ports or new theory.
 Present responses that echo the
 wrong resource, expected artifact, dispatch spec, or declaration provenance are
 rejected before they can become accepted planner feedback. When supplied to the
@@ -995,7 +1302,8 @@ do not change the route. When both artifacts are bundled, the publication
 audit checks each overlay `resource_response_ledger:*` evidence reference
 against an accepted, response-present, contract-valid ledger row and verifies
 that the overlay's compact `applied_resource_response_traces` match the
-bundled ledger rows, including dispatch and declaration-provenance context. The
+bundled ledger rows, including dispatch, declaration-provenance, and
+minimal-delta readiness context. The
 minimal-delta audit checks structural cost accounting, selected-cut
 consistency, `do_not_formalize_now` exclusions, work-packet scope, and obvious
 same-target dominated route alternatives; it also writes
@@ -1109,6 +1417,14 @@ feedback-loop readiness, and the proof-boundary check. It writes
 `formalization_gap_planner_evaluation_ground_truth.json`, and row schema-valid
 counts for those diagnostics. These scores are
 benchmark evidence about planning quality, not theorem proof evidence.
+Evaluation rows and publication/reuse summaries also preserve the LLM route
+planner's pre-response `route_adoption_preconditions`, including blocker and
+required-response-field counts, so adoption-readiness metrics can be stratified
+by obligations known before the planner response was accepted or rejected. The
+same evaluation summaries now expose LLM primitive-matrix witness presence,
+complete-accounting rows, total matrix repair obligations, and source/reuse/delta
+gap counts, so benchmark reports explain why a source-grounded route still was
+not adoptable for standalone prover replay.
 
 The ablation study compares the observed planner with counterfactual
 `no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and
@@ -1122,8 +1438,12 @@ generic route-adoption blockers from
 `mean_route_adoption_pending_source_grounding_blockers`, so ablation rows can
 show when readiness loss reflects unmet resource/response-validation policy or
 source-grounding obligations rather than missing literature, formal-library,
-proof-state, or route-planner signals. It is not theorem
-proof evidence. `research-system-audit` promotes the evaluation and ablation
+proof-state, or route-planner signals. The same rows also report
+`mean_route_adoption_precondition_known_blockers` and
+`mean_route_adoption_precondition_required_response_fields`, preserving the
+LLM route planner's recorded pre-response adoption obligations through
+counterfactual evaluation. It is not theorem proof evidence.
+`research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
 runs can be filtered by adoption readiness without parsing nested planner
 artifacts. The publication-bundle audit recomputes the ablation
@@ -1163,7 +1483,8 @@ declare `revised_formal_realization_dag_nodes` in addition to any legacy
 `revised_lean_realization_dag_nodes` alias, so non-Lean prover clients can
 consume the generic DAG contract directly. Standalone input validation rejects
 `revised_lean_realization_dag_nodes` for non-Lean targets, including route and
-replan-metadata locations, so Rocq/Isabelle/Agda-style seeds cannot rely on a
+replan-metadata locations, so
+Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath seeds cannot rely on a
 Lean-only alias to carry their formal realization DAG.
 The adapter-registry audit validates that the registry covers the required
 literature, formal-library, proof-state, route-revision, offline-regression,
@@ -1175,8 +1496,11 @@ intake, literature route synthesis, informal DAG decomposition, formal-library
 coverage, minimal-delta planning, prover feedback, route revision, and
 cross-prover publication to local fallbacks and frontier tools such as
 Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore, Lean/LSP,
-LeanDojo/ReProver, Rocq LSP/SerAPI, Isabelle/Sledgehammer, and Agda
-Search/Auto surfaces. It also emits one execution-plan row per planner
+LeanDojo/ReProver, the source-theorem semantic primitive ProofEngineer bridge,
+the source-theorem formal-environment bridge, the exact source-theorem
+proof-body executor, Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda
+Search/Auto, HOL4/HOL Light, Mizar, and Metamath surfaces. It also emits one
+execution-plan row per planner
 component with local-first resources, frontier escalation resources, adapter
 ids, evidence inputs, expected outputs, escalation triggers, and stop
 conditions. Resource rows include `capability_tags` and `validation_signals`,
@@ -1255,6 +1579,25 @@ python3 -m ai_statistician.cli formalization-gap-planner-route-stability-audit \
   --formalization-gap-planner-refinement-evidence-dir runs/current/formalization_gap_planner_refinement_evidence \
   --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
   --out runs/current/formalization_gap_planner_route_stability_audit
+
+The route-stability audit now treats the LLM route planner's
+`route_adoption_preconditions` as part of the stop rule. A route that otherwise
+has accepted literature, formal-library, and proof-state evidence is still
+reported as awaiting refinement while `blocked_before_response` preconditions
+remain unresolved. Stability rows expose the precondition object, blocker and
+required-response-field counts, and
+`route_adoption_precondition_unresolved`; the published row validator rejects a
+stale row that marks such a route as stable.
+
+The feedback LLM route planner now keeps those interactive-session
+preconditions live in the next request packet. Interactive rows that are
+waiting on unresolved route-adoption preconditions are compacted with their
+blockers and required response fields, summarized in
+`context_packet.feedback_loop_summary.interactive_route_adoption_preconditions`,
+and folded back into `context_packet.route_adoption_preconditions`. This keeps
+the next Haiku/Sonnet/Opus planner turn from treating a route as replay-ready
+when the interactive loop is still waiting for source search, proof-state
+feedback, or route-repair obligations.
 
 python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
@@ -1392,17 +1735,18 @@ round. It also writes
 seed so a downloaded handoff is a self-describing standalone planner input; the
 schema includes optional replan metadata fields for revised DAG nodes,
 alignment edges, applied feedback ids, resource-response traces, pending or
-rejected resource-response request ids, prover diagnostics, source refs, and
-Lean declaration hits. The standalone planner copies that seed provenance into
-each roundtrip goal-plan row as `standalone_input_trace`, so later prover queues
-can recover which overlay, resource-response-ledger row, prover diagnostic, and
+rejected resource-response request ids, prover diagnostics, source refs, Lean
+declaration hits, and `llm_route_planner_route_planning_brief`. The standalone
+planner copies that seed provenance into each roundtrip goal-plan row as
+`standalone_input_trace`, so later prover queues can recover which overlay,
+resource-response-ledger row, prover diagnostic, route-planning brief, and
 revised DAG/alignment payload shaped the route. The
 handoff audit checks that schema id, checks the seed, verifies exact
 row-to-seed preservation of revised alignment edges and revised informal/Lean
 DAG nodes, rejects promoted proof claims, and runs a standalone planner
-round-trip that must preserve `standalone_input_trace`, including applied LLM
-route-planner hook traces that shaped the replan; this is replayability
-evidence, not theorem proof evidence. The proof-state triage command turns overlay-level prover statuses into
+round-trip that must preserve `standalone_input_trace`, including the LLM
+route-planning brief and applied LLM route-planner hook traces that shaped the
+replan; this is replayability evidence, not theorem proof evidence. The proof-state triage command turns overlay-level prover statuses into
 ranked work items for statement materialization, local Lean repair, or
 environment configuration.
 The interactive-session command joins the plan, refinement queue, evidence,
@@ -1418,29 +1762,53 @@ response-validation signals, stop conditions, and fallbacks explaining why that
 next action is bounded and appropriate. If no component-resource registry is
 provided, the decision-policy rows still validate but leave the concrete
 resource and quality-gate fields empty.
+When route stability reports unresolved LLM `route_adoption_preconditions`, the
+interactive-session row now keeps the route in
+`AWAITING_REFINEMENT_RESPONSES` even if no hook is explicitly awaiting. The row
+copies the precondition object, blocker counts, required-response-field counts,
+and `route_adoption_precondition_unresolved`, adds the signal to decision-policy
+trigger/evidence fields, and emits next commands to materialize the missing
+precondition responses before rerunning the resource queue, response ledger, and
+stability audit.
 Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality
 gates, stop conditions, and fallback actions rather than replanning from only
-static route artifacts.
+static route artifacts. For `route_replan` rows, the session ledger requires
+the LLM route-planner request, response-payload, and model-tier decision-ledger
+schemas. It also injects prompt-only plus explicit live Anthropic
+`--model-tier auto` LLM route-planner commands if a legacy/manual replan handoff
+did not already include them, so residual/prover feedback returns to
+literature-grounded route synthesis before any replay claim is attempted.
 Literature, Lean-search, prover-diagnostic responses, revision overlays,
 proof-state triage rows, interactive-session rows, and decision-policy rows are
 route evidence only.
 The prover-adapter contract command turns portable work packets into
-target-prover mapping packets for Lean, Rocq/Coq, Isabelle, Agda, or another
-ecosystem, and validates adapter responses without accepting kernel-proof
+target-prover mapping packets for Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+HOL Light, Mizar, Metamath, or another ecosystem, and validates adapter
+responses without accepting kernel-proof
 claims in the mapping layer. It publishes both
 `formalization_gap_planner_prover_adapter_packet.schema.json` and
 `formalization_gap_planner_prover_adapter_response_validation_row.schema.json`
 with schema-valid counts, so downstream prover adapters can validate requested
 work packets and replay-response validation rows without importing this repo.
+Those packet schemas also expose the `formal_attempt_queue` dependency/readiness
+state that the refinement queue computes locally. Cross-prover adapters should
+attempt `ready_no_formal_prerequisites` packets first, then unlock
+`waiting_for_formal_prerequisite_attempts` packets only after prior non-waiting
+prover-feedback rows have been recorded and referenced by
+`prerequisite_response_ids`. The validator rejects a premature
+`ready_for_kernel_attempt` response for a waiting packet, and it rejects kernel
+readiness for a packet whose prerequisite formal attempts are missing.
 The cross-prover matrix audit reruns that packet export for the declared public
-reuse targets, currently Lean4, Rocq, Isabelle, and Agda, checks packet-count
-consistency, verifies that every target packet still carries both route
-alignment and `standalone_input_trace` provenance, aggregates target-specific
-packet JSONL, rolls up quality-control-bearing packet counts and field/value
-summaries across every target, and preserves the same proof-boundary discipline. It also
-publishes and validates the matrix-row schema, the aggregated prover-adapter
+reuse targets, currently Lean4, Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar,
+and Metamath, checks packet-count consistency, verifies that every target packet
+still carries both route alignment and `standalone_input_trace` provenance,
+aggregates target-specific packet JSONL, rolls up quality-control-bearing
+packet counts and field/value summaries across every target, rolls up
+formal-attempt dependency readiness and status counts across every target, and
+preserves the same proof-boundary discipline. It also publishes and validates the matrix-row
+schema, the aggregated prover-adapter
 packet schema, and the aggregated response-validation row schema beside the
 cross-prover JSONL files.
 The publication bundle command packages the portable schema, contract,
@@ -1484,7 +1852,14 @@ It also includes
 `examples/formalization_gap_planner_target_intake_example.json` so downstream
 users can run the public path immediately after replacing local corpus,
 formal-source, Lean-RAG, and Lake-project placeholders. The bundle is still not
-proof evidence. The publication-bundle audit
+proof evidence. Runtime feedback that discovers generated source-theorem
+placeholders is routed through source-theorem semantic primitive work orders:
+`MeasureProbability` maps to `probability_measure_semantics` and the registered
+`prob_measure_univ` support obligation, while exchangeability/rank and
+order-statistic placeholders map to their registered split-conformal semantic
+bridges. These rows are reusable planner inputs and runtime learning signals,
+not proof evidence unless the referenced proof-audit manifest kernel-verifies
+the registered obligation. The publication-bundle audit
 then checks the bundle is self-contained, schema-consistent, has the required
 adapter registry, benchmark, benchmark-audit, and reproduction artifacts,
 includes the published planner/prover/refinement/component/benchmark/evaluation
@@ -1548,11 +1923,84 @@ The current manifest therefore exports two separate DAG views:
   non-Lean rows with nonempty Lean realization aliases even when the generic
   DAG fields are present.
 
+Both DAG edge arrays are part of the accepted-response contract. If either DAG
+has more than one returned node, its edge array must be nonempty, acyclic, and
+must reference only node ids from that same DAG. This keeps the route planner
+from returning disconnected proof-step bags while claiming to synthesize a
+dependency route. The informal DAG also has an internal consistency check:
+`informal_knowledge_dag_nodes[].depends_on` must be exactly represented by
+`informal_knowledge_dag_edges`, so source-facing route explanations and machine
+edge data cannot drift apart. The realization witness also records
+`route_relevant_*_missing_dag_edge_endpoint` and
+`route_relevant_dag_endpoint_complete`, so a route-aligned informal or formal
+node that is isolated from the DAG keeps the row pending or rejected instead of
+being treated as usable planner evidence. The LLM response contract also
+rejects a formal realization DAG that reverses an aligned informal proof
+dependency, even if the formal DAG is still acyclic.
+
+The same accepted-response contract exports `formal_attempt_queue` as the
+prover-neutral topological queue over the selected formal realization DAG. Each
+selected-route formal node, plus any formal DAG ancestor needed to reach it,
+must appear exactly once; immediate formal predecessors must be listed as
+`prerequisite_formal_node_ids`; and prerequisite attempts must occur earlier in
+the queue. Queue rows carry `target_prover_family`, `owner`, `action`,
+`attempt_kind`, `expected_feedback`, and `target_primitives`, so prover
+adapters can run the next bottom-up attempt and return residual goals without
+guessing the route order. `target_primitives` are intentionally stricter than
+general planner action targets: they must be drawn from selected
+`minimal_delta_plan` primitives or `formal_realization_dag_nodes` primitives,
+so an LLM cannot smuggle an unselected request-baseline primitive from an
+alternative cost route into the prover worklist. When a staged request includes
+a resource queue or component-resource registry, queue `resource_id`,
+`adapter_id`, `resource_contract_ids`, and quality-control fields are validated
+against that context before the row can be exported as a prover worklist item;
+`owner` remains an execution label unless the row also provides an explicit
+resource binding. Queue `attempt_kind` must also match the formal node's
+coverage/action bucket: exact or already-existing nodes schedule reuse checks,
+wrapper or different-formulation nodes schedule wrapper checks, bridge nodes
+schedule bridge proofs, source-port nodes schedule source-port probes, and new
+definition/theory or unknown nodes schedule definition probes; explicit
+`proof_state_feedback` remains a generic feedback attempt kind. The
+`expected_feedback` field must then name at least one signal that can drive that
+attempt: reuse checks need declaration-closure feedback, bridge/proof-state
+attempts need residual goals, diagnostics, proof obligations, or missing side
+conditions, source-port probes need source-port targets or obligations, and
+definition probes need definition/typeclass/new-declaration obligations.
+
+Accepted queue rows are also materialized into `proof_state_feedback`
+interactive refinement hooks and `blocked_by_formal_side_condition` route
+revision triggers. The refinement queue preserves each row's attempt id, formal
+node id, attempt kind, prerequisites, expected feedback, target primitives, and
+resource bindings in `llm_route_planner_hook_trace`, so proof-state adapters can
+consume the LLM schedule directly and later feedback can be traced back to the
+specific formal DAG attempt that caused a route repair.
+The queue exporter also computes dependency-readiness metadata:
+`formal_attempt_initial_ready`, `formal_attempt_dependency_status`,
+`formal_attempt_prerequisite_refinement_item_ids`, and
+`formal_attempt_blocking_prerequisite_formal_node_ids`. External prover workers
+should execute `ready_no_formal_prerequisites` rows first, record their
+proof-state feedback, and only then unlock dependent rows such as bridge lemmas
+whose prerequisites have produced usable declarations or residual diagnostics.
+The deterministic refinement adapter and local Lean proof-state adapter both
+respect this gate: waiting rows emit `waiting_for_formal_prerequisite_attempts`
+diagnostics instead of running a prover attempt, and those waiting diagnostics
+are recorded as audit feedback rather than residual-driven route-revision
+proposals.
+For iterative local Lean runs, pass the prior
+`formalization_gap_planner_local_proof_state_adapter_responses.jsonl` as
+`--base-response-jsonl`; once every
+`formal_attempt_prerequisite_refinement_item_ids` entry has non-waiting
+`prover_feedback`, the adapter unlocks the dependent row and attempts its
+theorem skeleton.
+
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.
   Each selected primitive should have one of these edges before the route is
   handed to a prover adapter; the portable-plan audit checks the edge source
-  and target nodes and rejects missing selected-primitive alignments. The
+  and target nodes and rejects missing selected-primitive alignments. Each edge
+  rationale must be substantive and anchored to the mapped claim, primitive,
+  declaration, coverage/action, or source evidence; placeholder rationales are
+  rejected by the LLM route-planner response contract. The
   standalone planner and portable-plan audit also write
   `formalization_gap_planner_route_alignment_edge.schema.json`, so external
   prover adapters can validate these links independently of the full plan
@@ -1571,8 +2019,9 @@ route primitives are already covered by the current library and which require a
 wrapper, bridge lemma, source port, or new theory before prover replay.
 Rows keep the legacy flat `candidate_declarations` list for simple consumers,
 and also publish `candidate_declaration_rows` with `declaration`,
-`target_prover_family`, and `source_field` so external Lean/Rocq/Isabelle/Agda
-adapters do not have to infer declaration provenance from strings.
+`target_prover_family`, and `source_field` so external
+Lean/Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath adapters do not have to
+infer declaration provenance from strings.
 The primitive-action queue carries the same structured declaration rows into
 target-prover work orders, so replay workers can validate prover-family
 compatibility without reopening the full coverage-map manifest.
@@ -1613,17 +2062,19 @@ A prover adapter should provide:
   risk events that should revise the route.
 - `next_work_packets`: bounded prover work items with source and kernel gates.
 
-The same shape can be adapted to Lean, Rocq/Coq, Isabelle, Agda, or a mixed
-symbolic/statistical verifier, as long as the adapter can assign costs to
-existing reuse and missing formalization work. Prover-adapter packets preserve
-the relevant `route_alignment_edge` for each primitive, so a target-prover
-adapter can see which informal semantic atom and Lean realization candidate it
-is translating.
+The same shape can be adapted to Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+HOL Light, Mizar, Metamath, or a mixed symbolic/statistical verifier, as long as
+the adapter can assign costs to existing reuse and missing formalization work.
+Prover-adapter packets preserve the relevant `route_alignment_edge` for each
+primitive, so a target-prover adapter can see which informal semantic atom and
+formal realization candidate it is translating.
 Adapter responses must also name a verifier command compatible with the target
 family before a packet can be marked ready for kernel attempt: Lean4 responses
 use `lake`, `lean`, or `elan`; Rocq/Coq responses use `coqc`, `coqtop`, `rocq`,
-`rocqtop`, or `dune`; Isabelle responses use `isabelle`; and Agda responses use
-`agda`.
+`rocqtop`, or `dune`; Isabelle responses use `isabelle`; Agda responses use
+`agda`; HOL-family responses use their configured HOL executables; Mizar
+responses use `mizar`; and Metamath responses use the configured Metamath
+verifier.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and
@@ -1722,7 +2173,10 @@ The current implementation composes four existing AI Statistician artifacts:
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only
-   audit counters. The request packet also exposes `available_source_refs` and
+   audit counters. Their queued minimal-delta/readiness priority fields are
+   compacted into `resource_feedback_readiness_summary`, which is also reflected
+   in `route_planning_brief.evidence_summary` and planner-focus rows. The
+   request packet also exposes `available_source_refs` and
    `available_formal_declarations`, and accepted LLM responses may cite only
    those source refs and formal declarations. If a needed source or declaration
    is missing from the evidence packet, the LLM must emit a bounded literature
@@ -1771,7 +2225,13 @@ The current implementation composes four existing AI Statistician artifacts:
    generation. Its public row schema defines a structured
    `realization_coverage_witness`, so bundle consumers can validate selected,
    delta, introduced, aligned, cost-hint baseline, and omitted cost-hint
-   primitive coverage without relying on free-form row text. If a component-resource registry directory is supplied, request
+   primitive coverage without relying on free-form row text. It also defines
+   `primitive_evidence_matrix_witness`, which cross-checks the accepted route
+   against the request-side primitive matrix and publishes unaccounted matrix
+   primitives, selected primitives without matrix rows, source-backed rows
+   missing response snippets, formal-supported rows missing declaration reuse,
+   and delta-needed rows missing delta/action accounting as explicit
+   route-repair targets. If a component-resource registry directory is supplied, request
    packets also include a bounded `component_resource_registry_context` with
    compatible resources, execution plans, and response contracts. That context
    is planner guidance only; it cannot justify source-backed claims, formal
@@ -1817,8 +2277,9 @@ The current implementation composes four existing AI Statistician artifacts:
    library-coverage-map row schema.
    The companion `formalization_gap_planner_primitive_action_queue` command
    turns those coverage rows into primitive-level work orders with action kind,
-   owner, priority, tools, acceptance gate, and expected outputs under the
-   published primitive-action-queue row schema.
+   owner, priority, minimal-delta cost score, reuse/evidence readiness scores,
+   tools, acceptance gate, and expected outputs under the published
+   primitive-action-queue row schema.
 
 8. `formalization_gap_planner_adapter_registry`
    Records the live/offline adapter inventory, preflight readiness, output
@@ -1853,17 +2314,21 @@ The current implementation composes four existing AI Statistician artifacts:
    joins primitive action-queue rows to those component resources and contracts,
    producing one local-first/frontier-escalation resource plan per primitive
    action under
-   `formalization_gap_planner_action_resource_plan_row.schema.json`.
+   `formalization_gap_planner_action_resource_plan_row.schema.json`. The row
+   preserves the action queue's minimal-delta cost score, reuse/evidence
+   readiness scores, and priority rationale.
 
 12. `formalization_gap_planner_resource_request_queue`
    Expands each action-resource plan into per-resource dispatch packets for
    local-first and frontier resources. Rows carry the primitive id, route id,
    resource id, phase, first-class `target_primitives`, the exact contract id
    and request/response fields for that resource, execution hint, structured
-   `dispatch_spec`, acceptance gate, stop conditions, and proof-boundary text. The nested `request_payload` is
+   `dispatch_spec`, minimal-delta cost/readiness scores, acceptance gate, stop
+   conditions, and proof-boundary text. The nested `request_payload` is
    self-contained: it includes the generated `resource_request_id`, request
    rank, expected response artifact, response-contract fields, and dispatch
-   spec an external MCP/CLI adapter needs to emit a valid response row. They
+   spec an external MCP/CLI adapter needs to emit a valid response row, plus
+   the same priority rationale used by the planner. They
    are adapter work packets, not
    theorem proof evidence. Publication-bundle audit rows also verify that each
    request resolves to a bundled action-resource plan and matches that plan's
@@ -1939,7 +2404,8 @@ The current implementation composes four existing AI Statistician artifacts:
    realization node are rejected before handoff. Publication bundles that
    include the resource-response ledger also validate overlay evidence ids
    against accepted ledger rows and validate the compact
-   `applied_resource_response_traces` copied from those ledger rows.
+   `applied_resource_response_traces` copied from those ledger rows, including
+   minimal-delta/readiness priority fields.
 
 22. `formalization_gap_planner_route_stability_audit`
    Decides whether each route has stabilized under the current evidence bound
@@ -1958,6 +2424,21 @@ The current implementation composes four existing AI Statistician artifacts:
    route-alignment edges, and copy them into each seed route and its replan
    metadata so the next planner run can be audited for two-DAG alignment
    continuity.
+   If the prior standalone trace carries an LLM
+   `target_theorem_context_packet`, the handoff row, seed route, and seed
+   `replan_metadata` preserve the same packet, including the
+   `llm_route_planner_target_theorem_context_packet` alias, so feedback-driven
+   replan rounds do not lose the original target theorem identity.
+   If the prior standalone trace also carries
+   `llm_route_planner_route_planning_brief`, the handoff row, seed route, and
+   seed `replan_metadata` preserve it too, so the next LLM route-planner call
+   keeps the compact planner-focus, evidence-gap checklist, and per-primitive
+   source/formal/residual/cost matrix instead of reconstructing route intent
+   from raw prompts.
+   If the prior trace carries
+   `llm_route_planner_route_adoption_preconditions`, the handoff row, seed
+   route, and seed `replan_metadata` preserve it too, so the next LLM
+   route-planner call retains the pre-response blocker forecast.
    They also preserve applied proposal ids, evidence ids, hook kinds,
    compact resource-response traces, pending or rejected resource-response
    request ids, prover-attempt statuses, diagnostic signatures, residual
@@ -1978,11 +2459,15 @@ The current implementation composes four existing AI Statistician artifacts:
    Validates the handoff manifest and standalone seed, checks proof-boundary
    discipline, verifies that preserved alignment edges cover revised selected
    primitives, checks exact row-to-seed preservation of revised DAG and
+   target-theorem-context packets,
    alignment payloads plus provenance continuity from handoff rows into
    seed-route metadata, and reruns the standalone planner on the generated seed
    to check that the roundtrip regenerates selected-primitive alignment and
-   carries the seed provenance forward in `standalone_input_trace`. It also
-   checks that each row exposes prompt-only and live LLM route-planner commands
+   carries the seed provenance forward in `standalone_input_trace`, checks
+   that `llm_route_planner_route_adoption_preconditions` survives
+   row-to-seed preservation and roundtrip standalone traces, so the next LLM
+   planner call keeps known pre-response blockers visible, and checks that each
+   row exposes prompt-only and live LLM route-planner commands
    with route-revision overlay context, route-replan handoff context, and
    component-resource registry context.
    It is a replayability audit, not theorem proof evidence. It exports
@@ -2002,7 +2487,10 @@ The current implementation composes four existing AI Statistician artifacts:
    decisions, replan handoff, and proof-state triage into one next-action
    ledger for each route. It records the bounded interaction to run next plus a
    decision-policy row explaining trigger signals, evidence inputs, stop
-   conditions, and fallback actions. All rows stay outside the proof-evidence
+   conditions, and fallback actions. Route-replan rows surface prompt-only and
+   live Anthropic `--model-tier auto` LLM route-planner commands and require the
+   planner request/response/decision-ledger schemas, even when the handoff row
+   itself predates those commands. All rows stay outside the proof-evidence
    boundary.
 
 27. `formalization_gap_planner_benchmark`
@@ -2033,11 +2521,13 @@ The current implementation composes four existing AI Statistician artifacts:
 
 30. `formalization_gap_planner_prover_adapter_contract`
    Exports portable work packets as target-prover mapping tasks and validates
-   target-prover adapter responses for Lean, Rocq/Coq, Isabelle, Agda, or
-   another prover family. Each packet carries its route-alignment edge and
-   alignment status plus compact `quality_controls` traces when the standalone
-   route exposes bounded tool policy. It writes a packet JSON Schema for incoming adapter work
-   and a response JSON Schema for adapter output; raw adapter responses may use
+   target-prover adapter responses for Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+   HOL Light, Mizar, Metamath, or another prover family. Each packet carries
+   its route-alignment edge and alignment status plus compact `quality_controls`
+   traces when the standalone
+   route exposes bounded tool policy. It writes a packet JSON Schema for
+   incoming adapter work and a response JSON Schema for adapter output; raw
+   adapter responses may use
    accepted prover-family aliases such as `coq` or `isabelle/hol`, while packet
    and validation rows stay canonical (`rocq`, `isabelle`). Packet validation
    also checks that `standalone_input_trace.target_library_snapshot_ref` matches
@@ -2050,16 +2540,18 @@ The current implementation composes four existing AI Statistician artifacts:
    target-prover replay/calibration gate.
 
 31. `formalization_gap_planner_cross_prover_matrix_audit`
-   Reruns target-prover packet export for Lean4, Rocq, Isabelle, and Agda from
-   the same portable plan, checks packet-count consistency, packet-schema
-   validity, alignment-backed packet consistency, `standalone_input_trace`
-   provenance counts, quality-control packet counts, and rejection counts, and writes aggregate
-   packet/validation JSONL plus
+   Reruns target-prover packet export for Lean4, Rocq, Isabelle, Agda, HOL4,
+   HOL Light, Mizar, and Metamath from the same portable plan, checks
+   packet-count consistency, packet-schema validity, alignment-backed packet
+   consistency, `standalone_input_trace`
+   provenance counts, quality-control packet counts, and rejection counts, and
+   writes aggregate packet/validation JSONL plus
    `formalization_gap_planner_cross_prover_target_summary.json` for downstream
    prover adapters. The target summary records the target families, packet
    counts, standalone-trace counts, replan-metadata trace counts,
    target-library snapshot trace counts and mismatch counts, quality-control
-   field summaries, and per-target filter values needed to
+   field summaries, formal-attempt dependency readiness/status counters, and
+   per-target filter values needed to
    consume the aggregate JSONL files from a publication
    bundle. It also writes
    `formalization_gap_planner_cross_prover_target_summary.schema.json`, and the
@@ -2086,6 +2578,10 @@ The current implementation composes four existing AI Statistician artifacts:
 records the proof boundary and remains route/planning evidence only. The
 reuse-smoke manifest exposes the schema catalog, catalog schema, and
 publication-bundle manifest schema as top-level artifacts for external users.
+The publication-bundle manifest also lifts cross-prover formal-attempt
+dependency readiness counters from the matrix manifest and verifies that they
+match the copied target summary; the bundle audit recomputes the same histogram
+from packet JSONL rows.
 The reproduction manifest includes a
 `run_evaluation` command; for bundles with optional evaluation artifacts, that
 command uses
@@ -2170,6 +2666,8 @@ A publication-quality evaluation should measure:
 - import cone and dependency depth
 - route cost versus a human minimal-delta plan
 - proof-bank and local-library reuse
+- LLM cost-tier routing efficiency, including whether Sonnet calls are driven
+  by source/proof-body feedback rather than routine bounded triage
 - rate of avoiding unrelated field-wide formalization
 - downstream proof-attempt success after replay
 - semantic faithfulness of selected route to the informal theorem

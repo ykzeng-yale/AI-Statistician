@@ -65,6 +65,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     coverage_updates: dict[str, str]
     prover_diagnostics: tuple[str, ...]
     residual_goals: tuple[str, ...]
+    residual_goal_context: dict[str, object]
     prover_attempt_status: str
     prover_attempt_class: str
     target_prover_family: str
@@ -140,9 +141,7 @@ def export_formalization_gap_planner_refinement_evidence(
     route_revision_proposals = [
         _route_revision_proposal(row)
         for row in rows
-        if row.route_revision_recommended
-        or row.hook_kind == "route_revision"
-        or row.prover_attempt_status
+        if _should_emit_route_revision_proposal(row)
     ]
     declaration_hit_target_error_counts = tuple(
         len(
@@ -227,6 +226,14 @@ def export_formalization_gap_planner_refinement_evidence(
             declaration_hit_target_error_counts
         ),
         "n_prover_feedback_evidence": by_hook_kind.get("proof_state_feedback", 0),
+        "n_rows_with_residual_goal_context": sum(
+            1 for row in rows if row.residual_goal_context
+        ),
+        "n_route_revision_proposals_with_residual_goal_context": sum(
+            1
+            for proposal in route_revision_proposals
+            if proposal.get("residual_goal_context")
+        ),
         "n_route_revision_evidence": by_hook_kind.get("route_revision", 0),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
@@ -347,6 +354,13 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "resource_request_bindings": object_array,
             "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
+            "formal_attempt_queue_index": {"type": "integer"},
+            "formal_attempt_initial_ready": {"type": "boolean"},
+            "formal_attempt_dependency_status": {"type": "string"},
+            "formal_attempt_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_prerequisite_refinement_item_ids": string_array,
+            "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
             "target_primitives": string_array,
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -356,6 +370,7 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "coverage_updates": {"type": "object"},
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
+            "residual_goal_context": {"type": "object"},
             "attempt_status": {"type": "string"},
             "prover_attempt_class": {"type": "string"},
             "target_prover_family": {"type": "string"},
@@ -431,6 +446,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "coverage_updates",
             "prover_diagnostics",
             "residual_goals",
+            "residual_goal_context",
             "prover_attempt_status",
             "prover_attempt_class",
             "target_prover_family",
@@ -486,6 +502,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "coverage_updates": string_map,
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
+            "residual_goal_context": {"type": "object"},
             "prover_attempt_status": {"type": "string"},
             "prover_attempt_class": {"type": "string"},
             "target_prover_family": {"type": "string"},
@@ -615,6 +632,7 @@ def _evidence_row(
             coverage_updates={},
             prover_diagnostics=(),
             residual_goals=(),
+            residual_goal_context={},
             prover_attempt_status="",
             prover_attempt_class="",
             target_prover_family=str(queue_row.get("target_prover_family", "")),
@@ -756,6 +774,9 @@ def _evidence_row(
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
     residual_goals = _str_tuple(response.get("residual_goals", []))
+    explicit_residual_goal_context = _residual_goal_context_value(
+        _dict_value(response, "residual_goal_context")
+    )
     prover_attempt_status = str(response.get("attempt_status", ""))
     prover_attempt_class = str(
         response.get(
@@ -796,6 +817,22 @@ def _evidence_row(
     )
     route_revision_recommended = bool(response.get("route_revision_recommended", False))
     route_revision_reasons = _str_tuple(response.get("route_revision_reasons", []))
+    residual_goal_context = (
+        explicit_residual_goal_context
+        or _derived_residual_goal_context(
+            hook_kind=hook_kind,
+            residual_goals=residual_goals,
+            prover_diagnostics=prover_diagnostics,
+            target_primitives=target_primitives,
+            source_refs=source_refs,
+            route_revision_summary=route_revision_summary,
+            route_revision_reasons=route_revision_reasons,
+            route_revision_recommended=route_revision_recommended,
+            prover_attempt_status=prover_attempt_status,
+            prover_attempt_class=prover_attempt_class,
+            target_prover_family=target_prover_family,
+        )
+    )
     prover_diagnostic_signature = _prover_diagnostic_signature(
         prover_attempt_status,
         prover_diagnostics,
@@ -887,6 +924,7 @@ def _evidence_row(
         coverage_updates=coverage_updates,
         prover_diagnostics=prover_diagnostics,
         residual_goals=residual_goals,
+        residual_goal_context=residual_goal_context,
         prover_attempt_status=prover_attempt_status,
         prover_attempt_class=prover_attempt_class,
         target_prover_family=target_prover_family,
@@ -941,6 +979,7 @@ def _route_revision_proposal(
         "formal_declaration_hits": row.formal_declaration_hits,
         "lean_declaration_hits": row.lean_declaration_hits,
         "residual_goals": row.residual_goals,
+        "residual_goal_context": row.residual_goal_context,
         "prover_attempt_status": row.prover_attempt_status,
         "prover_attempt_class": row.prover_attempt_class,
         "target_prover_family": row.target_prover_family,
@@ -951,6 +990,95 @@ def _route_revision_proposal(
             "rerun goal-conditioned minimal formalization planning and replay "
             "before treating this revision as proof-relevant"
         ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _should_emit_route_revision_proposal(
+    row: FormalizationGapPlannerRefinementEvidenceRow,
+) -> bool:
+    if row.prover_attempt_status == "waiting_for_formal_prerequisite_attempts":
+        return False
+    return (
+        row.route_revision_recommended
+        or row.hook_kind == "route_revision"
+        or bool(row.prover_attempt_status)
+    )
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+        "source_search_queries",
+        "literature_queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    if "source_snippets" in context:
+        context["source_snippets"] = _dict_tuple(context.get("source_snippets", []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+        "source_search_status",
+        "formal_gap_boundary",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
+
+
+def _derived_residual_goal_context(
+    *,
+    hook_kind: str,
+    residual_goals: tuple[str, ...],
+    prover_diagnostics: tuple[str, ...],
+    target_primitives: tuple[str, ...],
+    source_refs: tuple[str, ...],
+    route_revision_summary: str,
+    route_revision_reasons: tuple[str, ...],
+    route_revision_recommended: bool,
+    prover_attempt_status: str,
+    prover_attempt_class: str,
+    target_prover_family: str,
+) -> dict[str, object]:
+    if hook_kind != "proof_state_feedback" or not residual_goals:
+        return {}
+    repair_text = (
+        str(route_revision_summary).strip()
+        or "; ".join(route_revision_reasons)
+        or "rerun route planning from proof-state residual goals"
+    )
+    diagnostic_text = (
+        prover_diagnostics[0]
+        if prover_diagnostics
+        else "proof-state feedback reported residual goals"
+    )
+    return {
+        "source_kind": "proof_state_feedback",
+        "residual_goal": residual_goals[0],
+        "residual_goals": residual_goals,
+        "residual_primitives": target_primitives,
+        "target_primitives": target_primitives,
+        "interpretation": diagnostic_text,
+        "route_repair": repair_text,
+        "repair_action": repair_text,
+        "source_refs": source_refs,
+        "queries": (),
+        "route_revision_recommended": route_revision_recommended,
+        "prover_attempt_status": prover_attempt_status,
+        "prover_attempt_class": prover_attempt_class,
+        "target_prover_family": target_prover_family,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }

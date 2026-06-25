@@ -2,6 +2,11 @@
 
 This document is the canonical goal boundary for AI Statistician.
 
+For parallel work across multiple Codex sessions, read
+[`multi_codex_coordination.md`](multi_codex_coordination.md) before starting a
+branch. That document records the shared coordination branch, capability
+ladder, evidence boundaries, and current blockers.
+
 The target system is not an audit harness, a static frontier benchmark runner,
 a deterministic registry executor, or a thin wrapper around a complete external
 coding agent. Those pieces can be support infrastructure or model backends. The
@@ -18,6 +23,35 @@ The runtime must be able to turn an open statistical research question or paper
 into proposed methodology, theory, formal proof obligations, code, simulations,
 Lean/proof attempts, critiques, revisions, and a reviewable evidence ledger
 through repeated plan-act-observe-revise cycles.
+
+## Corrected Goal Statement
+
+The project goal is to build a live Claude/OpenAI generator-backed AI
+Statistical Theory Lab whose own `AgentRuntime` and `Architect` control
+statistical theory discovery, algorithm/simulation environment execution,
+formalization, ProofEngineer Lean/AXLE attempts, critique, memory, and
+rerouting.
+
+The runtime succeeds only when it can start from an open statistical question or
+paper, create and revise statistical theory/procedures in an environment loop,
+and report which claims are source-grounded, simulated, kernel-verified, or
+still formally open. It is not enough for the system to pass broad audits, emit
+prompt packets, create queues, retrieve Lean declarations, or prove helper
+lemmas unless those artifacts are consumed by the Architect-controlled loop and
+change the next statistical action.
+
+The central design correction is to keep these roles separate:
+
+- `AgentRuntime` is the operating system: task scheduling, blackboard state,
+  tool execution, observations, failure recovery, and stop rules.
+- `Architect` is the controller: next subsystem, budget, reroute, acceptance
+  gate, and stopping condition.
+- LLM workers are generator backends: they propose theory, code, proof plans,
+  critiques, and repairs, but do not own tool execution or evidence promotion.
+- Validators are gates: Lean/AXLE, sandbox tests, source review, semantic
+  checks, and hidden evals accept, reject, or downgrade proposals.
+- Audits, RAG package checks, release bundles, and static benchmarks are
+  support telemetry. They must not become the main system.
 
 ## Target System
 
@@ -196,31 +230,143 @@ Architect loop:
 Resources that only add another audit, monitor, or static score without feeding
 the Architect's action policy should be treated as low priority.
 
+## Corrected Blueprint
+
+The blueprint is a single closed loop, not a collection of independent audits:
+
+```text
+Open statistical question or paper
+  -> AgentRuntime creates ProjectState on the Blackboard
+  -> Architect performs problem analysis and sets the next-action policy
+  -> ProblemFormalizer / PaperTheoryExtractor builds StatTheory IR
+       DGP, estimand, assumptions, regime, source theorem DAG
+  -> RAG/SearchMemory builds dynamic StatKnowledgeBank
+       paper analogies, theorem families, Lean/Mathlib/StatInference hits,
+       proof memory, failed attempts, fair-comparison notes
+  -> TheoryDeveloper proposes theory
+       estimator/procedure, theorem cards, derivation chain, lemma DAG,
+       simulation predictions, proof obligations, rejected alternatives
+  -> SimulatorEngineer designs adversarial stress tests
+       DGP mismatch, hidden assumption violations, finite-sample regimes,
+       theorem-prediction vs empirical behavior checks
+  -> AlgorithmEngineer implements or patches executable artifacts
+       sandbox code, tests, diagnostics, hashes, promotion blockers
+  -> Formalizer translates selected theorem cards into Lean targets
+       semantic alignment, source spans, formal gaps, exact target identity
+  -> ProofEngineer / LeanProver works inside the runtime
+       reads Lean goals, retrieves premises, attempts proofs, runs local
+       Lean/AXLE, records residual goals, writes kernel results to memory
+  -> Critic/Evaluator attacks the result
+       false analogy, hidden assumptions, semantic drift, weak theorem,
+       simulation flaw, proof gap, implementation drift
+  -> EvidenceLedger records typed evidence and boundaries
+  -> Architect reroutes until source theorem proved, accepted with explicit
+     gaps, rejected, or budget exhausted with honest blockers
+```
+
+The current split-conformal source-theorem path is a useful first stress test,
+but it must not define the whole goal. It should become the first verified
+ProofEngineer skill in the runtime, then be followed by at least one unrelated
+statistics task such as randomization variance, FDR/multiple testing, KKT or
+convex-estimator certificates, or privacy accounting. Cross-task transfer is a
+core requirement for the AI Statistician claim.
+
+## Core Completion Gates
+
+These gates define what counts as progress toward the final system:
+
+1. Live generator-backed loop: Architect, TheoryDeveloper, SimulatorEngineer,
+   AlgorithmEngineer, Formalizer/ProofEngineer, and Critic can run with
+   supported Anthropic/OpenAI generator backends. Static replay is a plumbing
+   test only.
+2. Architect control: no successful main-capability run may bypass the
+   Architect, and `ACCEPTED` must mean only runtime agenda acceptance unless a
+   kernel proof gate says more.
+3. Environment execution: generated code/proof artifacts are executed by the
+   runtime in controlled sandboxes or Lean projects, with observations written
+   back to the blackboard.
+4. Internal ProofEngineer loop: proof-body queues, adapters, premise
+   derivations, local Lean/AXLE checks, residual goals, and proof repair must be
+   consumed inside `AgentRuntime`, not left as disconnected post-run CLI
+   artifacts.
+5. Source-theorem evidence: helper proofs, bridge proofs, theorem-reduction
+   closures, and compiled candidate definitions remain support evidence until
+   the exact source theorem or a reviewed theorem-equivalent target is kernel
+   verified.
+6. Paper and literature grounding: paper ingestion must produce source spans,
+   statement catalogs, dependency DAGs, fair-comparison notes, and StatTheory IR
+   that the Architect can use in subsequent actions.
+7. Cross-task capability: at least two unrelated frontier-statistics tasks must
+   show live theory, simulation/code, formalization, proof feedback, memory, and
+   reroute behavior. A single conformal proof path is insufficient.
+
+## Anti-Drift Rules
+
+When choosing future work, prefer edits that make the closed loop more real:
+live generator proposal, environment action, verifier observation, memory
+update, and Architect reroute. Defer edits that only add another monitor,
+package audit, static score, or publication artifact unless they directly feed
+the Architect's next action or prevent a known evidence-boundary bug.
+
+The system is drifting when status reports emphasize `audit passed`, `contract
+ok`, `RAG healthy`, `queue ready`, `ACCEPTED`, or `static E2E` without also
+reporting live-generator status, Architect participation, environment
+execution, source-theorem kernel evidence, formal gaps, and the next runtime
+owner.
+
 ## Immediate Implementation Priority
 
 The next aligned implementation work is not another release gate. It is:
 
-1. Define the `AgentRuntime` contracts: `ModelBackend`, `AgentTask`,
-   `RuntimeIterationTrace`, `EnvironmentObservation`, `ToolCallRecord`,
-   `Blackboard`, and `EvidenceLedger`.
-2. Promote `ResearchArchitectAgent` from a one-shot artifact exporter into an
-   Architect subsystem that dispatches tasks through the runtime.
-3. Add an LLM-backed `TheoryDeveloper` subsystem with a rigorous derivation
-   prompt, response validator, memory inputs, and failure-feedback loop.
-4. Route frontier/open tasks through
-   `Architect -> TheoryDeveloper -> Algorithm/Simulation/SymbolicDerivation ->
-   Formalizer/LeanProver -> Critic/Evaluator -> Architect reroute`
-   before deterministic fallback.
-5. Require environment iteration artifacts: generated code/proof attempts,
-   commands, simulation outputs, Lean diagnostics, diffs, and replanning
-   decisions.
-6. Score whether accepted LLM/runtime iterations improve hidden frontier target
-   recovery, simulation behavior, source alignment, and downstream formal proof
-   progress.
+1. Stabilize the canonical baseline: work from a clean, current checkout or a
+   named dirty branch so runtime/proof changes are not confused with old
+   planner/audit edits.
+2. Make ProofEngineer an internal runtime worker for the current
+   `split_conformal_coverage` exact proof-body loop: read the reached Lean goal,
+   derive or import missing adapter/premise obligations, rerun local Lean/AXLE,
+   and write source-theorem evidence or residual goals back to memory.
+3. Add a compact `ProjectState`/`EvidenceLedger` truth table to the runtime:
+   proposal, retrieval, simulation, helper-kernel proof, theorem-reduction
+   proof, source-theorem proof, and formal gap must be distinct states.
+4. Run one fresh live Architect-enabled Claude/OpenAI end-to-end task in strict
+   capability mode. Static/no-Architect/no-proof runs cannot be used as main
+   capability evidence.
+5. Add a second frontier-statistics task line and require the same loop to
+   generate theory, run simulation/code, formalize obligations, and produce
+   proof or explicit gaps.
+6. Move external LLM context export approval to the shared `ModelBackend` or
+   `AgentRuntime` boundary so every worker follows one approval and redaction
+   policy.
+7. Promote MerLean-style paper extraction only after the live runtime can
+   consume the extracted StatTheory IR and route actions from it.
 
 The existing deterministic implementation should remain as a fallback,
 regression testbed, and evidence boundary. It should not be the main engine of
 theory discovery or the substitute for a full coding-agent runtime.
+
+## Capability Anti-Substitution Rules
+
+The project goal must not be redefined around artifacts that are easier to test
+than the live agentic system. In main capability evaluation:
+
+- Static/replay providers are forbidden. They are unit-test fixtures for
+  schema, manifest, and plumbing coverage only.
+- No-Architect runs are forbidden. The Architect must choose and justify the
+  research path, evidence gates, reroutes, and stop conditions.
+- Deterministic fallback planners, registered templates, proof-bank shortcuts,
+  and hard-coded theorem-specific pattern matches may preserve safety,
+  regression coverage, or explicit `INCOMPLETE` status, but they cannot count as
+  statistical research ability.
+- Manual proof filters and manual research-path overrides are debug or
+  controlled-smoke tools. They cannot stand in for autonomous path selection in
+  capability claims.
+- A fallback may keep the system honest by refusing to promote evidence, but it
+  must not silently substitute for LLM TheoryDeveloper, Simulator, Algorithm,
+  Formalizer, ProofEngineer, Critic, or Architect work.
+- Capability summaries must separate live-agent capability from scaffold
+  health. Static pass, fallback contract, queue creation, RAG hit, simulation
+  run, or helper proof is not proof that the AI Statistician can do open
+  statistical research.
 
 Initial runtime contracts and the small dispatch loop live in
 `ai_statistician/agent_runtime.py`. The first project-specific runtime bridge

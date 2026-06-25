@@ -50,6 +50,36 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
                 {"primitive": "score_definition", "action_class": "wrapper_needed"}
             ],
         },
+        {
+            "goal_plan_id": "goal:precondition",
+            "route_id": "route:precondition",
+            "display_name": "precondition-blocked route",
+            "selected_primitives": ["score_definition"],
+            "minimal_additional_formalization_nodes": [
+                {"primitive": "score_definition", "action_class": "wrapper_needed"}
+            ],
+            "standalone_input_trace": {
+                "llm_route_planner_route_adoption_status": (
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                ),
+                "llm_route_planner_route_adoption_preconditions": {
+                    "precondition_kind": (
+                        "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+                    ),
+                    "status": "PENDING_CONTEXT_OBLIGATIONS",
+                    "blocked_before_response": True,
+                    "known_pre_response_blockers": [
+                        "source_grounding_obligations_pending"
+                    ],
+                    "n_known_pre_response_blockers": 1,
+                    "response_required_fields": [
+                        "search_requests",
+                        "planner_next_actions",
+                    ],
+                    "n_response_required_fields": 2,
+                },
+            },
+        },
     ]
     (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
         json.dumps(
@@ -124,6 +154,44 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
             "formal_declaration_hits": [],
             "route_revision_recommended": False,
         },
+        {
+            "goal_plan_id": "goal:precondition",
+            "route_id": "route:precondition",
+            "display_name": "precondition-blocked route",
+            "hook_kind": "literature_discovery",
+            "response_present": True,
+            "response_contract_ok": True,
+            "acceptance_status": "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE",
+            "source_refs": ["paper:precondition#lemma3"],
+            "route_revision_recommended": False,
+        },
+        {
+            "goal_plan_id": "goal:precondition",
+            "route_id": "route:precondition",
+            "display_name": "precondition-blocked route",
+            "hook_kind": "lean_library_grounding",
+            "response_present": True,
+            "response_contract_ok": True,
+            "acceptance_status": "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE",
+            "lean_declaration_hits": [
+                {"primitive": "score_definition", "declaration": "Demo.score_definition"}
+            ],
+            "route_revision_recommended": False,
+        },
+        {
+            "goal_plan_id": "goal:precondition",
+            "route_id": "route:precondition",
+            "display_name": "precondition-blocked route",
+            "hook_kind": "proof_state_feedback",
+            "response_present": True,
+            "response_contract_ok": True,
+            "acceptance_status": "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE",
+            "prover_attempt_status": "local_lean_scaffold_accepted",
+            "target_prover_family": "lean4",
+            "prover_diagnostics": ["accepted scaffold"],
+            "residual_goals": [],
+            "route_revision_recommended": False,
+        },
     ]
     (evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json").write_text(
         json.dumps({"rows": evidence_rows}, indent=2),
@@ -176,6 +244,19 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
             "revised_delta_primitives": ["score_definition"],
             "added_delta_primitives": [],
         },
+        {
+            "goal_plan_id": "goal:precondition",
+            "route_id": "route:precondition",
+            "display_name": "precondition-blocked route",
+            "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
+            "original_selected_primitives": ["score_definition"],
+            "revised_selected_primitives": ["score_definition"],
+            "added_primitives": [],
+            "removed_primitives": [],
+            "original_delta_primitives": ["score_definition"],
+            "revised_delta_primitives": ["score_definition"],
+            "added_delta_primitives": [],
+        },
     ]
     (overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json").write_text(
         json.dumps({"rows": overlay_rows}, indent=2),
@@ -190,7 +271,7 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
     )
 
     assert payload["all_ok"]
-    assert payload["n_stability_rows"] == 3
+    assert payload["n_stability_rows"] == 4
     assert payload["n_row_schema_valid"] == payload["n_stability_rows"]
     assert payload["n_row_schema_invalid"] == 0
     assert (
@@ -198,14 +279,20 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
         == "urn:ai-statistician:schemas:formalization-gap-planner-route-stability-audit-row:1"
     )
     assert payload["n_stable"] == 1
+    assert payload["n_awaiting_responses"] == 1
     assert payload["n_apply_route_revision"] == 1
     assert payload["n_expand_formal_grounding"] == 1
     assert payload["n_expand_lean_grounding"] == 0
     assert payload["by_prover_attempt_class"] == {
-        "target_prover_scaffold_accepted": 1
+        "target_prover_scaffold_accepted": 2
     }
     assert payload["target_prover_families"] == ("lean4",)
     assert payload["n_new_primitives_since_plan"] == 1
+    assert payload["n_routes_with_route_adoption_preconditions"] == 1
+    assert payload["n_routes_with_blocking_route_adoption_preconditions"] == 1
+    assert payload["n_routes_with_unresolved_route_adoption_preconditions"] == 1
+    assert payload["n_route_adoption_precondition_known_blockers"] == 1
+    assert payload["n_route_adoption_precondition_required_response_fields"] == 2
     by_route = {row["route_id"]: row for row in payload["rows"]}
     assert (
         by_route["route:stable"]["stability_decision"]
@@ -230,6 +317,35 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
     assert by_route["route:formal"]["needs_more_formal_grounding"]
     assert not by_route["route:formal"]["needs_more_lean_grounding"]
     assert by_route["route:formal"]["formal_declaration_hits"] == ()
+    assert (
+        by_route["route:precondition"]["stability_decision"]
+        == "AWAITING_REFINEMENT_RESPONSES"
+    )
+    assert not by_route["route:precondition"]["stable_under_current_evidence_bound"]
+    assert by_route["route:precondition"]["route_adoption_precondition_present"]
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_blocked_before_response"
+    ]
+    assert by_route["route:precondition"]["route_adoption_precondition_unresolved"]
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_known_blockers"
+    ] == ("source_grounding_obligations_pending",)
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_required_response_fields"
+    ] == ("search_requests", "planner_next_actions")
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_known_blocker_count"
+    ] == 1
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_required_response_field_count"
+    ] == 2
+    assert any(
+        "route_adoption_preconditions remain unresolved" in item
+        for item in by_route["route:precondition"]["stopping_rule_evidence"]
+    )
+    assert by_route["route:precondition"]["next_actions"][0].startswith(
+        "resolve LLM route-adoption precondition blockers"
+    )
     assert "conditional_mean_residual_zero" in by_route["route:revise"]["new_primitives_since_plan"]
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
     broken_row = dict(by_route["route:stable"])
@@ -238,6 +354,20 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
         broken_row,
         route_stability_audit_row_json_schema(),
     )
+    stale_precondition_row = dict(by_route["route:precondition"])
+    stale_precondition_row["stability_decision"] = (
+        "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
+    )
+    stale_precondition_row["stable_under_current_evidence_bound"] = True
+    stale_errors = validate_route_stability_audit_row(
+        stale_precondition_row,
+        route_stability_audit_row_json_schema(),
+    )
+    assert "unresolved route_adoption_preconditions cannot be marked stable" in stale_errors
+    assert (
+        "stable_under_current_evidence_bound must be false when "
+        "route_adoption_precondition_unresolved is true"
+    ) in stale_errors
     assert (
         out_dir / "formalization_gap_planner_route_stability_audit_manifest.json"
     ).exists()

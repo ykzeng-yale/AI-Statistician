@@ -32,6 +32,46 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     root.mkdir(parents=True, exist_ok=True)
     overlay_dir.mkdir(parents=True, exist_ok=True)
     stability_dir.mkdir(parents=True, exist_ok=True)
+    route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": "route:split_conformal_seed",
+        "display_name": "split_conformal_finite_sample_coverage",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "preserve_rank_route",
+                "priority": 1,
+                "action": "keep the rank-uniformity route under exchangeability",
+                "reason": "proof-state feedback should refine, not replace, the target theorem",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "conditional_rank_argument_source",
+                "gap_kind": "source_grounding",
+                "recommended_action": "search source proof for the conditional rank argument",
+                "target_primitives": ["conditional_rank_argument"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": ["source_grounding_obligations_pending"],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -43,6 +83,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                     {
                         "display_name": "split_conformal_finite_sample_coverage",
                         "theorem_statement": "Split conformal has finite sample coverage.",
+                        "llm_route_planner_route_planning_brief": route_planning_brief,
+                        "llm_route_planner_route_adoption_preconditions": (
+                            route_adoption_preconditions
+                        ),
                         "source_refs": ["Lei-Wasserman distribution-free prediction"],
                         "primitives": [
                             {
@@ -66,6 +110,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         encoding="utf-8",
     )
     plan_payload = export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    assert (
+        plan_payload["n_standalone_input_traces_with_llm_route_planning_brief"]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
     plan_row = plan_payload["rows"][0]
     revised_selected = [
         *plan_row["selected_primitives"],
@@ -86,6 +140,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "route_id": plan_row["route_id"],
         "primitive": "conditional_rank_argument",
         "target_primitives": ["conditional_rank_argument"],
+        "priority_score": 77,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 35,
+        "evidence_readiness_score": 90,
+        "priority_rationale": [
+            "coverage_status=source_port_needed",
+            "minimal_delta_cost_score=60",
+            "reuse_readiness_score=35",
+            "evidence_readiness_score=90",
+        ],
         "resource_id": "lean_lsp_mcp",
         "request_phase": "frontier_escalation",
         "expected_response_artifact": "proof_state_or_prover_feedback_response",
@@ -103,6 +167,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "route_id": plan_row["route_id"],
         "goal_plan_id": plan_row["goal_plan_id"],
         "target_primitives": ["conditional_rank_argument"],
+        "priority_score": 77,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 35,
+        "evidence_readiness_score": 90,
+        "priority_rationale": [
+            "coverage_status=source_port_needed",
+            "minimal_delta_cost_score=60",
+            "reuse_readiness_score=35",
+            "evidence_readiness_score=90",
+        ],
         "resource_id": "lean_lsp_mcp",
         "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
         "llm_route_planner_row_id": "llm_route_row:conditional_rank",
@@ -117,6 +191,29 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
             "action": "ask Lean LSP for conditional_rank_argument residual goals",
             "resource_id": "lean_lsp_mcp",
             "target_primitives": ["conditional_rank_argument"],
+        },
+        "residual_goal_context": {
+            "source_kind": "planner_next_action",
+            "residual_goal": (
+                "conditional_rank_argument: missing source-backed statement"
+            ),
+            "residual_goals": [
+                "conditional_rank_argument: missing source-backed statement"
+            ],
+            "residual_primitives": ["conditional_rank_argument"],
+            "target_primitives": ["conditional_rank_argument"],
+            "interpretation": (
+                "Lean feedback requires a source-backed conditional rank "
+                "argument before replay"
+            ),
+            "route_repair": (
+                "add conditional_rank_argument to the informal and formal DAGs"
+            ),
+            "repair_action": "rerun route planning with conditional_rank_argument",
+            "source_refs": ["Lei-Wasserman theorem proof route"],
+            "queries": [
+                "ask Lean LSP for conditional_rank_argument residual goals"
+            ],
         },
         "llm_route_planner_response_trace_grounded": True,
         "llm_route_planner_response_trace_mismatches": [],
@@ -248,9 +345,38 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_resource_response_awaiting_request_ids"] == 1
     assert payload["n_resource_response_rejected_request_ids"] == 1
     assert payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert (
+        payload[
+            "n_applied_resource_response_traces_with_minimal_delta_priority"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "average_applied_resource_response_reuse_readiness_score"
+        ]
+        == 35
+    )
+    assert (
+        payload[
+            "average_applied_resource_response_evidence_readiness_score"
+        ]
+        == 90
+    )
     assert payload["n_routes_with_llm_route_planner_hook_trace"] == 1
+    assert payload["n_residual_goal_contexts"] == 1
+    assert payload["n_routes_with_residual_goal_contexts"] == 1
+    assert payload["n_standalone_seed_residual_goal_contexts"] == 1
+    assert payload["n_standalone_seed_routes_with_residual_goal_contexts"] == 1
     assert payload["n_source_snippets"] == 1
     assert payload["n_routes_with_source_snippets"] == 1
+    assert payload["n_routes_with_llm_route_planning_brief"] == 1
+    assert payload["n_standalone_seed_routes_with_llm_route_planning_brief"] == 1
+    assert payload["n_routes_with_llm_route_adoption_preconditions"] == 1
+    assert (
+        payload["n_standalone_seed_routes_with_llm_route_adoption_preconditions"]
+        == 1
+    )
     assert payload["n_route_alignment_edges"] >= 1
     assert payload["n_revised_informal_knowledge_dag_nodes"] >= 1
     assert payload["n_revised_formal_realization_dag_nodes"] >= 1
@@ -294,6 +420,22 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
     )
+    assert row["applied_resource_response_traces"][0]["priority_score"] == 77
+    assert row["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
+    assert row["applied_resource_response_traces"][0][
+        "reuse_readiness_score"
+    ] == 35
+    assert row["applied_resource_response_traces"][0][
+        "evidence_readiness_score"
+    ] == 90
+    assert tuple(row["applied_resource_response_traces"][0]["priority_rationale"]) == (
+        "coverage_status=source_port_needed",
+        "minimal_delta_cost_score=60",
+        "reuse_readiness_score=35",
+        "evidence_readiness_score=90",
+    )
     assert row["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_row_id"
     ] == "llm_route_row:conditional_rank"
@@ -303,6 +445,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_source_index"
     ] == 0
+    assert row["residual_goal_contexts"][0]["residual_goal"].startswith(
+        "conditional_rank_argument"
+    )
+    assert row["residual_goal_contexts"][0]["residual_primitives"] == (
+        "conditional_rank_argument",
+    )
     assert row["resource_response_awaiting_request_ids"] == (
         "request:awaiting-literature",
     )
@@ -327,6 +475,20 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["formal_declaration_hits"] == row["lean_declaration_hits"]
     assert row["standalone_route"]["target_prover_family"] == "lean4"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
+    assert row["route_planning_brief"] == route_planning_brief
+    assert row["route_adoption_preconditions"] == route_adoption_preconditions
+    assert row["standalone_route"]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert row["standalone_route"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == route_adoption_preconditions
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == route_adoption_preconditions
     seed = json.loads(
         (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").read_text(
             encoding="utf-8"
@@ -336,6 +498,18 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["target_prover_family"] == "lean4"
     assert seed["routes"][0]["target_prover_family"] == "lean4"
     assert seed["routes"][0]["replan_metadata"]["target_prover_family"] == "lean4"
+    assert seed["routes"][0]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert seed["routes"][0]["llm_route_planner_route_adoption_preconditions"] == (
+        route_adoption_preconditions
+    )
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == route_adoption_preconditions
     assert seed["routes"][0]["revised_informal_knowledge_dag_nodes"]
     assert seed["routes"][0]["revised_formal_realization_dag_nodes"] == seed[
         "routes"
@@ -351,6 +525,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert seed["routes"][0]["replan_metadata"]["alignment_edge_primitives"]
     handoff_schema = route_replan_handoff_row_json_schema()
+    assert "route_planning_brief" in handoff_schema["properties"]
+    assert "route_adoption_preconditions" in handoff_schema["properties"]
     assert "source_snippets" in handoff_schema["properties"]
     assert "source_snippets" not in handoff_schema["required"]
     assert "formal_declaration_hits" in handoff_schema["required"]
@@ -366,6 +542,31 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert "revised_formal_realization_dag_nodes required" in validate_route_replan_handoff_row(
         missing_generic_row,
         handoff_schema,
+    )
+    dropped_brief_row = dict(row)
+    dropped_brief_route = dict(row["standalone_route"])
+    dropped_brief_route.pop("llm_route_planner_route_planning_brief", None)
+    dropped_brief_row["standalone_route"] = dropped_brief_route
+    assert (
+        "standalone_route.llm_route_planner_route_planning_brief missing"
+        in validate_route_replan_handoff_row(
+            dropped_brief_row,
+            handoff_schema,
+        )
+    )
+    dropped_preconditions_row = dict(row)
+    dropped_preconditions_route = dict(row["standalone_route"])
+    dropped_preconditions_route.pop(
+        "llm_route_planner_route_adoption_preconditions",
+        None,
+    )
+    dropped_preconditions_row["standalone_route"] = dropped_preconditions_route
+    assert (
+        "standalone_route.llm_route_planner_route_adoption_preconditions missing"
+        in validate_route_replan_handoff_row(
+            dropped_preconditions_row,
+            handoff_schema,
+        )
     )
     assert seed["routes"][0]["replan_metadata"][
         "revised_informal_knowledge_dag_nodes"
@@ -397,6 +598,15 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
     ][0]["llm_route_planner_source_item"]["resource_id"] == "lean_lsp_mcp"
+    assert seed["routes"][0]["replan_metadata"]["residual_goal_contexts"][0][
+        "route_repair"
+    ] == "add conditional_rank_argument to the informal and formal DAGs"
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_residual_goal_contexts"
+    ] == seed["routes"][0]["replan_metadata"]["residual_goal_contexts"]
+    assert seed["routes"][0]["residual_goal_contexts"][0][
+        "residual_goal"
+    ].startswith("conditional_rank_argument")
     assert seed["routes"][0]["replan_metadata"][
         "resource_response_awaiting_request_ids"
     ] == ["request:awaiting-literature"]
@@ -419,6 +629,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert (
         primitive_by_name["conditional_rank_argument"]["coverage_status"]
         == "source_port_needed"
+    )
+    assert (
+        "conditional_rank_argument: missing source-backed statement"
+        in primitive_by_name["conditional_rank_argument"]["side_conditions"]
     )
     assert primitive_by_name["conditional_rank_argument"]["source_snippets"][0][
         "source_ref"
@@ -485,17 +699,38 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert next_plan["n_standalone_input_traces"] == 1
     assert next_plan["n_standalone_input_traces_with_replan_metadata"] == 1
     assert next_plan["n_standalone_input_traces_with_source_snippets"] == 1
+    assert next_plan["n_standalone_input_traces_with_llm_route_planning_brief"] == 1
+    assert (
+        next_plan[
+            "n_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
     assert next_plan["n_standalone_input_trace_source_snippets"] == 1
     assert (
         next_plan["n_standalone_input_traces_with_llm_route_planner_hook_traces"]
         == 1
     )
     assert next_plan["n_standalone_input_trace_llm_route_planner_hook_traces"] == 1
+    assert next_plan["n_standalone_input_traces_with_residual_goal_contexts"] == 1
+    assert next_plan["n_standalone_input_trace_residual_goal_contexts"] == 1
     assert next_plan["n_primitive_source_snippets"] == 1
     next_row = next_plan["rows"][0]
     trace = next_row["standalone_input_trace"]
     assert trace["source_route_id"] == seed["routes"][0]["route_id"]
     assert trace["has_replan_metadata"]
+    assert trace["has_llm_route_planner_route_planning_brief"]
+    assert trace["llm_route_planner_route_planning_brief"] == route_planning_brief
+    assert trace["has_llm_route_planner_route_adoption_preconditions"]
+    assert trace["llm_route_planner_route_adoption_preconditions"] == (
+        route_adoption_preconditions
+    )
+    assert trace["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
+    assert trace["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == route_adoption_preconditions
     assert trace["has_source_snippets"]
     assert trace["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
@@ -513,12 +748,25 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
     )
+    assert trace["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
     assert trace["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_request_id"
     ] == "llm_route_request:conditional_rank"
     assert trace["applied_llm_route_planner_hook_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
+    assert trace["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_queries"
     ] == ["ask Lean LSP for conditional_rank_argument residual goals"]
+    assert trace["has_residual_goal_contexts"]
+    assert trace["residual_goal_contexts"][0]["repair_action"] == (
+        "rerun route planning with conditional_rank_argument"
+    )
+    assert trace["replan_metadata"]["residual_goal_contexts"] == trace[
+        "residual_goal_contexts"
+    ]
     assert trace["resource_response_awaiting_request_ids"] == [
         "request:awaiting-literature"
     ]

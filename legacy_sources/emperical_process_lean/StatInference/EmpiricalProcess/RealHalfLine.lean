@@ -367,7 +367,7 @@ theorem exists_realOpenInterval_diff_singleton_measureReal_lt
   have htendsto :
       Tendsto (fun δ : ℝ => μ.real (Set.Icc (x - δ) (x + δ)))
         (𝓝[>] (0 : ℝ)) (𝓝 (μ.real ({x} : Set ℝ))) := by
-    simpa [measureReal_def] using
+    simpa [measureReal_def, Function.comp_def] using
       (ENNReal.tendsto_toReal hsingleton_ne_top).comp
         (tendsto_measure_Icc_nhdsWithin_right' μ x)
   have hsmall : ∀ᶠ δ : ℝ in 𝓝[>] (0 : ℝ),
@@ -777,7 +777,11 @@ noncomputable def snocCell
         rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
         exact partition.strictMono (Fin.castSucc_lt_castSucc_iff.mp hij)
   left_eq := by
-    simpa [Fin.snoc] using partition.left_eq
+    rw [show (0 : Fin (middleCells + 2)) = Fin.castSucc (0 : Fin (middleCells + 1)) by
+      ext
+      rfl]
+    rw [Fin.snoc_castSucc]
+    exact partition.left_eq
   right_eq := by
     rw [Fin.snoc_last]
   bracketOf := fun x hleft hright =>
@@ -1203,7 +1207,8 @@ theorem SuppliedRealMiddleCDFPartitionChain.of_strict_subdivision_prefix_closed_
     have hzsub : (⟨z, hzab⟩ : Set.Icc a b) ∈ Set.Icc (t cell.1) (t (cell.1 + 1)) := by
       constructor
       · exact hz.1
-      · simpa [endpoint, Fin.val_succ] using hz.2
+      · change (z : ℝ) ≤ (t (cell.1 + 1) : ℝ)
+        simpa [endpoint, Fin.val_succ] using hz.2
     exact hclosed hzsub
   have hchain := SuppliedRealMiddleCDFPartitionChain.of_endpointGrid_closed_cover_refinement
     endpoint hstrict hrefineEndpoint

@@ -141,6 +141,12 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ]
     assert payload["n_with_actionable_work_items"] > 0
     assert payload["n_actionable_work_items"] > 0
+    assert payload["n_minimal_delta_reuse_ready"] > 0
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] > 0
+    assert payload["n_minimal_delta_source_or_new_theory"] > 0
+    assert payload["n_minimal_delta_alignment_blocked"] == 0
+    assert payload["average_reuse_readiness_score"] > 0
+    assert payload["average_evidence_readiness_score"] > 0
     assert payload["n_row_schema_valid"] == payload["n_resource_request_rows"]
     assert payload["n_row_schema_invalid"] == 0
     assert (
@@ -150,6 +156,18 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     assert "actionable_work_items" in payload[
         "resource_request_queue_row_schema"
     ]["required"]
+    assert "minimal_delta_cost_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "reuse_readiness_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "evidence_readiness_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "priority_rationale" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
     rows = payload["rows"]
     assert rows
     exact_rows = [
@@ -157,6 +175,25 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ]
     assert exact_rows
     exact_row = exact_rows[0]
+    assert exact_row["minimal_delta_cost_score"] == 0
+    assert exact_row["reuse_readiness_score"] == 100
+    assert exact_row["evidence_readiness_score"] == 75
+    assert (
+        exact_row["request_payload"]["minimal_delta_cost_score"]
+        == exact_row["minimal_delta_cost_score"]
+    )
+    assert (
+        exact_row["request_payload"]["reuse_readiness_score"]
+        == exact_row["reuse_readiness_score"]
+    )
+    assert (
+        exact_row["request_payload"]["evidence_readiness_score"]
+        == exact_row["evidence_readiness_score"]
+    )
+    assert (
+        tuple(exact_row["request_payload"]["priority_rationale"])
+        == tuple(exact_row["priority_rationale"])
+    )
     assert exact_row["candidate_declaration_rows"] == (
         {
             "declaration": "Probability.exchangeable",
@@ -181,8 +218,18 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     bridge_rows = [
         row for row in rows if row["queue_action_kind"] == "prove_bridge_lemma"
     ]
+    assert payload["n_minimal_delta_reuse_ready"] == len(exact_rows)
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == len(bridge_rows)
+    assert payload["n_minimal_delta_source_or_new_theory"] == len(source_rows)
     lean_lsp_row = next(
         row for row in bridge_rows if row["resource_id"] == "lean_lsp_mcp"
+    )
+    assert lean_lsp_row["minimal_delta_cost_score"] == 40
+    assert lean_lsp_row["reuse_readiness_score"] == 70
+    assert lean_lsp_row["evidence_readiness_score"] == 75
+    assert (
+        lean_lsp_row["request_payload"]["minimal_delta_cost_score"]
+        == lean_lsp_row["minimal_delta_cost_score"]
     )
     assert lean_lsp_row["request_phase"] == "frontier_escalation"
     assert (
@@ -520,6 +567,22 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "rank_uniformity",
                             ]
                         },
+                        "route_adoption_preconditions": {
+                            "blocked_before_response": True,
+                            "known_pre_response_blockers": [
+                                "search_requests_pending_evidence",
+                                "planner_next_actions_pending_evidence",
+                            ],
+                            "n_known_pre_response_blockers": 2,
+                            "response_required_fields": [
+                                "search_requests",
+                                "planner_next_actions",
+                            ],
+                            "n_response_required_fields": 2,
+                            "proof_evidence_status": (
+                                "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
                         "search_requests": [
                             {
                                 "request_kind": "literature_discovery",
@@ -544,6 +607,38 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "target_primitives": ["rank_uniformity"],
                             }
                         ],
+                        "residual_interpretations": [
+                            {
+                                "residual_goal": (
+                                    "rank_uniformity: missing conditioning side "
+                                    "condition from prover feedback"
+                                ),
+                                "interpretation": (
+                                    "the proof route must add the conditional "
+                                    "exchangeability side condition before replay"
+                                ),
+                                "route_repair": (
+                                    "add conditional exchangeability to the "
+                                    "informal and formal route DAGs"
+                                ),
+                                "residual_primitives": ["rank_uniformity"],
+                                "target_primitives": ["rank_uniformity"],
+                                "source_refs": ["conformal_prediction_textbook"],
+                                "source_snippets": [
+                                    {
+                                        "source_ref": (
+                                            "conformal_prediction_textbook"
+                                        ),
+                                        "text": (
+                                            "Rank uniformity follows under the "
+                                            "conditional exchangeability side "
+                                            "condition."
+                                        ),
+                                    }
+                                ],
+                                "source_search_status": "source_backed",
+                            }
+                        ],
                     }
                 ],
             },
@@ -566,11 +661,33 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_rows"] == 1
     assert payload["n_llm_route_planner_rows_with_search_requests"] == 1
     assert payload["n_llm_route_planner_rows_with_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_rows_with_residual_interpretations"] == 1
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_residual_interpretations"] == 1
+    assert payload["n_llm_route_planner_rows_with_route_adoption_preconditions"] == 1
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     assert payload["n_llm_route_planner_search_request_rows"] == 3
     assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
-    assert payload["n_llm_route_planner_resource_request_rows"] == 6
+    assert payload["n_llm_route_planner_residual_interpretation_rows"] == 2
+    assert payload["n_llm_route_planner_resource_request_rows"] == 8
+    assert (
+        payload[
+            "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_resource_request_rows"]
+    )
     assert (
         payload["n_resource_request_rows"]
         == payload["n_action_resource_plan_resource_request_rows"]
@@ -591,6 +708,8 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
             "local_lake_lean",
             "lean_lsp_mcp",
             "leandojo_reprover",
+            "local_route_revision_overlay",
+            "frontier_route_revision_handoff",
         }
     )
     paperclip_row = next(
@@ -626,6 +745,31 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         ]
         == "literature_discovery"
     )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]["n_known_pre_response_blockers"]
+        == 2
+    )
+    assert (
+        "llm_route_planner_route_adoption_preconditions"
+        in paperclip_row["request_contract_fields"]
+    )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+        == paperclip_row["request_playbook"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+        == paperclip_row["request_playbook"]["input_summary"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+    )
+    assert any(
+        "route_adoption_preconditions" in item
+        for item in paperclip_row["request_playbook"]["acceptance_checklist"]
+    )
     lean_lsp_row = next(
         row for row in llm_rows if row["resource_id"] == "lean_lsp_mcp"
     )
@@ -645,6 +789,35 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         == tuple(lean_lsp_row["actionable_work_items"])
     )
     assert "not theorem proof evidence" in lean_lsp_row["proof_evidence_boundary"]
+    route_revision_row = next(
+        row for row in llm_rows if row["resource_id"] == "local_route_revision_overlay"
+    )
+    assert route_revision_row["request_payload"][
+        "llm_route_planner_source_kind"
+    ] == "residual_interpretation"
+    assert route_revision_row["request_payload"][
+        "llm_route_planner_hook_kind"
+    ] == "route_revision"
+    assert route_revision_row["queue_action_kind"] == "route_revision"
+    assert route_revision_row["expected_response_artifact"] == "route_revision_response"
+    assert "residual_goal_context" in route_revision_row["request_contract_fields"]
+    residual_context = route_revision_row["request_payload"]["residual_goal_context"]
+    assert residual_context["residual_goal"].startswith("rank_uniformity")
+    assert residual_context["residual_primitives"] == ("rank_uniformity",)
+    assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
+    assert residual_context["source_snippets"][0]["source_ref"] == (
+        "conformal_prediction_textbook"
+    )
+    assert residual_context["source_search_status"] == "source_backed"
+    assert residual_context == route_revision_row["request_playbook"][
+        "residual_goal_context"
+    ]
+    assert residual_context == route_revision_row["request_playbook"][
+        "input_summary"
+    ]["residual_goal_context"]
+    assert "conditional exchangeability" in " ".join(
+        route_revision_row["actionable_work_items"]
+    )
     assert (
         validate_resource_request_queue_row(
             paperclip_row,
@@ -655,6 +828,13 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert (
         validate_resource_request_queue_row(
             lean_lsp_row,
+            resource_request_queue_row_json_schema(),
+        )
+        == []
+    )
+    assert (
+        validate_resource_request_queue_row(
+            route_revision_row,
             resource_request_queue_row_json_schema(),
         )
         == []

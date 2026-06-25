@@ -459,6 +459,25 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
                             "target_prover_family": {"type": "string"},
                             "target_library_snapshot_ref": {"type": "string"},
                             "trace_target_projection": {"type": "string"},
+                            "target_theorem_context_packet": {"type": "object"},
+                            "has_target_theorem_context_packet": {"type": "boolean"},
+                            "has_llm_route_planner_target_theorem_context_packet": {
+                                "type": "boolean"
+                            },
+                            "target_theorem_context_packet_kind": {"type": "string"},
+                            "target_theorem_context_route_id": {"type": "string"},
+                            "target_theorem_context_target_prover_family": {
+                                "type": "string"
+                            },
+                            "target_theorem_context_theorem_statement": {
+                                "type": "string"
+                            },
+                            "target_theorem_context_packet_target_mismatch": {
+                                "type": "boolean"
+                            },
+                            "target_theorem_context_route_statement_differs": {
+                                "type": "boolean"
+                            },
                             "source_refs": {
                                 "type": "array",
                                 "items": {"type": "string"},

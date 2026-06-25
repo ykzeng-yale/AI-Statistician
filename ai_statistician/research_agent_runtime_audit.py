@@ -10,6 +10,11 @@ from typing import Any, Mapping
 from .fingerprint import stable_hash
 from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
+from .research_agent_runtime import (
+    _formalizer_lean_candidate_repair_sequence_count,
+    _generated_sandbox_repair_sequence_counts,
+    _runtime_evidence_truth_table_from_manifest,
+)
 
 
 RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION = 1
@@ -40,9 +45,16 @@ class RuntimeAuditRow:
     n_retrieval_manifests: int
     n_theory_packets: int
     n_simulation_manifests: int
+    n_generated_simulation_sandbox_executed: int
+    n_generated_simulation_sandbox_passed: int
+    n_generated_simulation_sandbox_metric_gate_failed: int
+    n_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
+    n_unsafe_generated_simulation_code_rejected: int
     n_algorithm_manifests: int
     n_algorithm_sandbox_executed: int
     n_generated_code_sandbox_executed: int
+    n_generated_code_sandbox_metric_gate_failed: int
+    n_generated_code_sandbox_failed_then_passed_repair_sequences: int
     n_unsafe_generated_code_rejected: int
     n_formalization_manifests: int
     n_critic_manifests: int
@@ -150,6 +162,52 @@ def audit_research_agent_runtime(
     n_real_kernel_verified_subclaims = sum(row.n_real_kernel_verified_subclaims for row in rows)
     n_non_real_kernel_verified_subclaims = sum(row.n_non_real_kernel_verified_subclaims for row in rows)
     runtime_memory_evidence = _runtime_learning_memory_evidence(trace_rows)
+    runtime_evidence_summary = (
+        dict(manifest.get("runtime_evidence_summary", {}) or {})
+        if isinstance(manifest.get("runtime_evidence_summary", {}), Mapping)
+        else {}
+    )
+    runtime_proof_summary = (
+        dict(runtime_evidence_summary.get("proof", {}) or {})
+        if isinstance(runtime_evidence_summary.get("proof", {}), Mapping)
+        else {}
+    )
+    derived_formalizer_repair_sequences = (
+        _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
+    )
+    formalizer_repair_sequences = max(
+        int(
+            manifest.get(
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        ),
+        int(
+            runtime_proof_summary.get(
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        ),
+        derived_formalizer_repair_sequences,
+    )
+    attached_coding_agent_repair_eval = (
+        dict(manifest.get("internal_coding_agent_generated_code_repair_eval", {}) or {})
+        if isinstance(
+            manifest.get("internal_coding_agent_generated_code_repair_eval", {}),
+            Mapping,
+        )
+        else {}
+    )
+    attached_formalizer_repair_eval = (
+        dict(manifest.get("internal_formalizer_lean_candidate_repair_eval", {}) or {})
+        if isinstance(
+            manifest.get("internal_formalizer_lean_candidate_repair_eval", {}),
+            Mapping,
+        )
+        else {}
+    )
     payload: dict[str, Any] = {
         "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -157,6 +215,28 @@ def audit_research_agent_runtime(
         "manifest": str(manifest_path),
         "runtime_stage": manifest.get("runtime_stage", ""),
         "runtime_evaluation_mode": str(manifest.get("runtime_evaluation_mode", "")),
+        "effective_formal_verification_policy": str(
+            manifest.get("effective_formal_verification_policy", "")
+            or manifest.get("formal_verification_policy", "")
+            or ""
+        ),
+        "requested_recommended_research_path": str(
+            manifest.get("requested_recommended_research_path", "") or ""
+        ),
+        "effective_recommended_research_path": str(
+            manifest.get("effective_recommended_research_path", "") or ""
+        ),
+        "runtime_research_path_control_propagated": bool(
+            manifest.get("runtime_research_path_control_propagated", False)
+        ),
+        "runtime_research_path_execution_summary": (
+            dict(manifest.get("runtime_research_path_execution_summary", {}) or {})
+            if isinstance(
+                manifest.get("runtime_research_path_execution_summary", {}),
+                Mapping,
+            )
+            else {}
+        ),
         "n_results": len(rows),
         "n_distinct_question_ids": len({row.question_id for row in rows if row.question_id}),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -223,6 +303,11 @@ def audit_research_agent_runtime(
                 "kernel_verified_source_theorem_semantic_primitive_ids"
             ]
         ),
+        "runtime_memory_kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_support_obligation_ids"
+            ]
+        ),
         "runtime_memory_kernel_verified_theorem_reduction_closure_work_order_ids": (
             runtime_memory_evidence[
                 "kernel_verified_theorem_reduction_closure_work_order_ids"
@@ -244,6 +329,11 @@ def audit_research_agent_runtime(
         "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": len(
             runtime_memory_evidence[
                 "kernel_verified_source_theorem_semantic_primitive_ids"
+            ]
+        ),
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_support_obligation_ids": len(
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_support_obligation_ids"
             ]
         ),
         "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": len(
@@ -275,13 +365,883 @@ def audit_research_agent_runtime(
         ),
         "n_full_frontier_theorem_proved": sum(1 for row in rows if row.full_frontier_theorem_proved),
         "n_algorithm_sandbox_executed": sum(row.n_algorithm_sandbox_executed for row in rows),
+        "n_generated_simulation_sandbox_executed": sum(
+            row.n_generated_simulation_sandbox_executed for row in rows
+        ),
+        "n_generated_simulation_sandbox_passed": sum(
+            row.n_generated_simulation_sandbox_passed for row in rows
+        ),
+        "n_generated_simulation_sandbox_metric_gate_failed": sum(
+            row.n_generated_simulation_sandbox_metric_gate_failed for row in rows
+        ),
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": sum(
+            row.n_generated_simulation_sandbox_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_unsafe_generated_simulation_code_rejected": sum(
+            row.n_unsafe_generated_simulation_code_rejected for row in rows
+        ),
         "n_generated_code_sandbox_executed": sum(
             row.n_generated_code_sandbox_executed for row in rows
+        ),
+        "n_generated_code_sandbox_metric_gate_failed": sum(
+            row.n_generated_code_sandbox_metric_gate_failed for row in rows
+        ),
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": sum(
+            row.n_generated_code_sandbox_failed_then_passed_repair_sequences
+            for row in rows
         ),
         "n_unsafe_generated_code_rejected": sum(
             row.n_unsafe_generated_code_rejected for row in rows
         ),
+        "internal_coding_agent_generated_code_repair_eval_attached": bool(
+            attached_coding_agent_repair_eval
+        ),
+        "internal_coding_agent_generated_code_repair_eval_manifest_path": str(
+            attached_coding_agent_repair_eval.get("manifest_path", "") or ""
+        ),
+        "internal_coding_agent_generated_code_repair_eval_live_generator": bool(
+            attached_coding_agent_repair_eval.get("live_generator", False)
+        ),
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": bool(
+            attached_coding_agent_repair_eval.get("static_or_fixture_only", False)
+        ),
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": bool(
+            attached_coding_agent_repair_eval.get("capability_evidence_ok", False)
+        ),
+        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": int(
+            attached_coding_agent_repair_eval.get("algorithm_repair_sequences", 0)
+            or 0
+        ),
+        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": int(
+            attached_coding_agent_repair_eval.get("simulation_repair_sequences", 0)
+            or 0
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_attached": bool(
+            attached_formalizer_repair_eval
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_manifest_path": str(
+            attached_formalizer_repair_eval.get("manifest_path", "") or ""
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_live_generator": bool(
+            attached_formalizer_repair_eval.get("live_generator", False)
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": bool(
+            attached_formalizer_repair_eval.get("static_or_fixture_only", False)
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": bool(
+            attached_formalizer_repair_eval.get("capability_evidence_ok", False)
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_repair_sequences": int(
+            attached_formalizer_repair_eval.get("repair_sequences", 0) or 0
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": int(
+            attached_formalizer_repair_eval.get("local_lean_checked", 0) or 0
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": int(
+            attached_formalizer_repair_eval.get("local_lean_compiled", 0) or 0
+        ),
+        "n_formalizer_lean_candidate_local_lean_checked": int(
+            runtime_proof_summary.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+            or 0
+        ),
+        "n_formalizer_lean_candidate_local_lean_compiled": int(
+            runtime_proof_summary.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
+            or 0
+        ),
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
+            formalizer_repair_sequences
+        ),
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_derived_from_results": (
+            derived_formalizer_repair_sequences
+        ),
         "n_lean_lsp_mcp_live_calls": sum(row.n_lean_lsp_mcp_live_calls for row in rows),
+        "source_theorem_promotion_proofengineer_bridge_ran": bool(
+            manifest.get("source_theorem_promotion_proofengineer_bridge_ran", False)
+        ),
+        "source_theorem_promotion_proofengineer_bridge_skipped_reason": str(
+            manifest.get("source_theorem_promotion_proofengineer_bridge_skipped_reason", "")
+            or ""
+        ),
+        "source_theorem_formal_environment_proofengineer_bridge_ran": bool(
+            manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
+        )
+        or bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": str(
+            manifest.get("source_theorem_formal_environment_proofengineer_bridge_skipped_reason", "")
+            or manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": max(
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+                    0,
+                )
+                or 0
+            ),
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        "source_theorem_exact_proof_body_repair_executor_ran": bool(
+            manifest.get("source_theorem_exact_proof_body_repair_executor_ran", False)
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": int(
+            manifest.get("source_theorem_exact_proof_body_repair_executor_n_result_rows", 0)
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": str(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status": (
+            dict(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+                    {},
+                )
+                or {}
+            )
+            if isinstance(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback": int(
+            manifest.get(
+                "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_ready": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_ready",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification": str(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_by_proof_body_gate_status": (
+            dict(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_by_proof_body_gate_status",
+                    {},
+                )
+                or {}
+            )
+            if isinstance(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_by_proof_body_gate_status",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback": int(
+            manifest.get(
+                "n_runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback": int(
+            manifest.get(
+                "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": int(
+            manifest.get(
+                "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_required",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_ran": bool(
+            manifest.get("source_theorem_exact_semantic_definition_source_lookup_ran", False)
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_skipped_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_n_closure_review_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_required",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "source_theorem_exact_semantic_definition_n_closure_review_packets",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_required",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_results",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_by_proof_body_gate_status": (
+            dict(
+                manifest.get(
+                    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_by_proof_body_gate_status",
+                    {},
+                )
+                or {}
+            )
+            if isinstance(
+                manifest.get(
+                    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_by_proof_body_gate_status",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_semantic_definition_repair_required": bool(
+            manifest.get("source_theorem_exact_semantic_definition_repair_required", False)
+        ),
+        "source_theorem_exact_semantic_definition_repair_required_reason": str(
+            manifest.get("source_theorem_exact_semantic_definition_repair_required_reason", "")
+            or ""
+        ),
+        "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": int(
+            manifest.get(
+                "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_required",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_ran",
+                False,
+            )
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_skipped_reason": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_local_lean_skipped_not_evidence_eligible": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_n_local_lean_skipped_not_evidence_eligible",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_dominant_failure_classification": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_dominant_failure_classification",
+                "",
+            )
+            or ""
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_by_failure_classification": dict(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_by_failure_classification",
+                {},
+            )
+            or {}
+        )
+        if isinstance(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_by_failure_classification",
+                {},
+            ),
+            Mapping,
+        )
+        else {},
+        "n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback": int(
+            manifest.get(
+                "n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback": int(
+            manifest.get(
+                "n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback": int(
+            manifest.get(
+                "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification": str(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_by_proof_body_gate_status": (
+            dict(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_by_proof_body_gate_status",
+                    {},
+                )
+                or {}
+            )
+            if isinstance(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_by_proof_body_gate_status",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_proof_body_adapter_proofengineer_bridge_required": bool(
+            manifest.get(
+                "source_theorem_proof_body_adapter_required",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "n_runtime_source_theorem_proof_body_adapter_work_orders",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason",
+                "",
+            )
+            or (
+                ""
+                if manifest.get(
+                    "source_theorem_proof_body_adapter_proofengineer_bridge_ran",
+                    False,
+                )
+                else "adapter_bridge_not_run"
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_ran": bool(
+            manifest.get("source_theorem_formal_environment_proof_body_executor_ran", False)
+        )
+        or bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran",
+                False,
+            )
+        )
+        or bool(manifest.get("source_theorem_exact_proof_body_repair_executor_ran", False))
+        or bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran",
+                False,
+            )
+        )
+        or bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_local_lean_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": (
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get("source_theorem_exact_proof_body_repair_executor_n_result_rows", 0)
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": (
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+        ),
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,
         "unsupported_generator_backends_enabled": _topology_unsupported_count(manifest),
@@ -325,6 +1285,7 @@ def audit_research_agent_runtime(
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
+    payload["evidence_truth_table"] = _runtime_evidence_truth_table(payload)
     capability_gaps = _runtime_capability_gaps_from_scorecard(capability_scorecard)
     payload["capability_ready_for_full_ai_statistician"] = not capability_gaps
     payload["capability_status"] = (
@@ -503,9 +1464,44 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         int(row.get("n_executed", 0) or 0)
         for row in algorithm
     )
+    n_generated_simulation_sandbox_executed = sum(
+        int(row.get("n_generated_simulation_sandbox_executed", 0) or 0)
+        for row in simulation
+    )
+    n_generated_simulation_sandbox_passed = sum(
+        int(row.get("n_generated_simulation_sandbox_passed", 0) or 0)
+        for row in simulation
+    )
+    n_generated_simulation_sandbox_metric_gate_failed = sum(
+        int(row.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0)
+        for row in simulation
+    )
+    repair_sequences = _generated_sandbox_repair_sequence_counts(artifacts)
+    n_generated_simulation_sandbox_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_unsafe_generated_simulation_code_rejected = sum(
+        int(row.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
+        for row in simulation
+    )
     n_generated_code_sandbox_executed = sum(
         int(row.get("n_generated_code_executed", 0) or 0)
         for row in algorithm
+    )
+    n_generated_code_sandbox_metric_gate_failed = sum(
+        int(row.get("n_metric_gate_failed", 0) or 0)
+        for row in algorithm
+    )
+    n_generated_code_sandbox_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
     n_unsafe_generated_code_rejected = sum(
         int(row.get("n_unsafe_generated_code_rejected", 0) or 0)
@@ -553,9 +1549,22 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_retrieval_manifests=len(retrieval),
         n_theory_packets=len(theory),
         n_simulation_manifests=len(simulation),
+        n_generated_simulation_sandbox_executed=n_generated_simulation_sandbox_executed,
+        n_generated_simulation_sandbox_passed=n_generated_simulation_sandbox_passed,
+        n_generated_simulation_sandbox_metric_gate_failed=(
+            n_generated_simulation_sandbox_metric_gate_failed
+        ),
+        n_generated_simulation_sandbox_failed_then_passed_repair_sequences=(
+            n_generated_simulation_sandbox_failed_then_passed_repair_sequences
+        ),
+        n_unsafe_generated_simulation_code_rejected=n_unsafe_generated_simulation_code_rejected,
         n_algorithm_manifests=len(algorithm),
         n_algorithm_sandbox_executed=n_algorithm_sandbox_executed,
         n_generated_code_sandbox_executed=n_generated_code_sandbox_executed,
+        n_generated_code_sandbox_metric_gate_failed=n_generated_code_sandbox_metric_gate_failed,
+        n_generated_code_sandbox_failed_then_passed_repair_sequences=(
+            n_generated_code_sandbox_failed_then_passed_repair_sequences
+        ),
         n_unsafe_generated_code_rejected=n_unsafe_generated_code_rejected,
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
@@ -688,6 +1697,16 @@ def _runtime_capability_gaps(payload: Mapping[str, Any]) -> list[str]:
     return _runtime_capability_gaps_from_scorecard(_runtime_capability_scorecard(payload))
 
 
+def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
+    return sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+        )
+    )
+
+
 def _runtime_capability_gaps_from_scorecard(
     scorecard: Mapping[str, Any],
 ) -> list[str]:
@@ -707,6 +1726,7 @@ def _runtime_capability_gaps_from_scorecard(
 def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]:
     proof_obligation_ids: list[str] = []
     source_semantic_ids: list[str] = []
+    source_semantic_support_obligation_ids: list[str] = []
     closure_work_order_ids: list[str] = []
     closure_target_ids: list[str] = []
     closure_goal_ids: list[str] = []
@@ -727,6 +1747,11 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                 proof_obligation_ids,
                 row,
                 "kernel_verified_proof_obligation_ids",
+            )
+            _extend_unique_from_row(
+                source_semantic_support_obligation_ids,
+                row,
+                "kernel_verified_source_theorem_semantic_support_obligation_ids",
             )
             for obligation_id in proof_obligation_ids:
                 if _proof_obligation_has_tag(
@@ -756,6 +1781,11 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                     input_summary,
                     "kernel_verified_proof_obligation_ids",
                 )
+                _extend_unique_from_row(
+                    source_semantic_support_obligation_ids,
+                    input_summary,
+                    "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                )
                 for obligation_id in proof_obligation_ids:
                     if _proof_obligation_has_tag(
                         obligation_id,
@@ -779,6 +1809,9 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                 )
     return {
         "kernel_verified_proof_obligation_ids": proof_obligation_ids,
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            source_semantic_support_obligation_ids or source_semantic_ids
+        ),
         "kernel_verified_source_theorem_semantic_primitive_ids": source_semantic_ids,
         "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
         "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
@@ -802,6 +1835,107 @@ def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
 
 
 def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
+    source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    integrated_algorithm_repair_sequences = int(
+        payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
+        or 0
+    )
+    integrated_simulation_repair_sequences = int(
+        payload.get(
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_coding_repair_ready = (
+        bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok",
+                False,
+            )
+        )
+        and bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_live_generator",
+                False,
+            )
+        )
+        and not bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only",
+                False,
+            )
+        )
+        and int(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        > 0
+        and int(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    integrated_formalizer_repair_sequences = int(
+        payload.get(
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_repair_ready = (
+        bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
+                False,
+            )
+        )
+        and bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_live_generator",
+                False,
+            )
+        )
+        and not bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
+                False,
+            )
+        )
+        and int(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        > 0
+        and int(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    generated_code_and_lean_repair_ready = (
+        (
+            integrated_algorithm_repair_sequences > 0
+            and integrated_simulation_repair_sequences > 0
+        )
+        or attached_coding_repair_ready
+    ) and (
+        integrated_formalizer_repair_sequences > 0
+        or attached_formalizer_repair_ready
+    )
     levels = [
         _ladder_level(
             0,
@@ -835,10 +1969,26 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _ladder_level(
             3,
-            "environment_algorithm_feedback_executed",
-            int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
-            f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
-            "no executable algorithm sandbox feedback was produced",
+            "live_generated_code_and_lean_repair_environment_feedback",
+            generated_code_and_lean_repair_ready,
+            (
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences} "
+                "integrated_formalizer_repair_sequences="
+                f"{integrated_formalizer_repair_sequences} "
+                "attached_coding_repair_ready="
+                f"{attached_coding_repair_ready} "
+                "attached_formalizer_repair_ready="
+                f"{attached_formalizer_repair_ready}"
+            ),
+            (
+                "no live generated-code Algorithm/Simulation repair gate plus "
+                "generated Lean-candidate repair gate was observed; registered "
+                "templates, one-shot sandbox execution, and static fixtures do "
+                "not demonstrate coding-agent environment iteration"
+            ),
         ),
         _ladder_level(
             4,
@@ -902,10 +2052,15 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         _ladder_level(
             7,
             "full_source_theorem_kernel_verified",
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            (
+                int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+                or source_theorem_kernel_count > 0
+            )
             and int(payload.get("n_formal_gaps", 0) or 0) <= 0,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "proof_body_source_kernel="
+                f"{source_theorem_kernel_count} "
                 f"n_formal_gaps={payload.get('n_formal_gaps')}"
             ),
             "no full source/frontier theorem was kernel-verified with formal gaps closed",
@@ -965,6 +2120,132 @@ def _ladder_level(
 
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
+    source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    integrated_algorithm_repair_sequences = int(
+        payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
+        or 0
+    )
+    integrated_simulation_repair_sequences = int(
+        payload.get(
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_repair_eval_algorithm_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_repair_eval_simulation_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_live_component_repair_gate_passed = (
+        bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok",
+                False,
+            )
+        )
+        and bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_live_generator",
+                False,
+            )
+        )
+        and not bool(
+            payload.get(
+                "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only",
+                False,
+            )
+        )
+        and attached_repair_eval_algorithm_sequences > 0
+        and attached_repair_eval_simulation_sequences > 0
+    )
+    integrated_formalizer_candidate_checked = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
+    )
+    integrated_formalizer_live_proof_state_requests = int(
+        payload.get("n_formalizer_lean_candidate_live_proof_state_requests", 0)
+        or 0
+    )
+    integrated_formalizer_lean_lsp_mcp_ready_requests = int(
+        payload.get(
+            "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests",
+            0,
+        )
+        or 0
+    )
+    integrated_formalizer_proof_state_feedback_rows = int(
+        payload.get(
+            "n_formalizer_lean_candidate_proof_state_feedback_rows",
+            0,
+        )
+        or 0
+    )
+    integrated_formalizer_local_lean_tool_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_local_lean_tool_calls",
+            0,
+        )
+        or 0
+    )
+    integrated_formalizer_lean_lsp_mcp_live_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+            0,
+        )
+        or 0
+    )
+    integrated_formalizer_repair_sequences = int(
+        payload.get(
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_repair_sequences = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_local_lean_checked = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_live_gate_passed = (
+        bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
+                False,
+            )
+        )
+        and bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_live_generator",
+                False,
+            )
+        )
+        and not bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
+                False,
+            )
+        )
+        and attached_formalizer_repair_sequences > 0
+        and attached_formalizer_local_lean_checked > 0
+    )
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -991,6 +2272,31 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research",
         ),
         _scorecard_row(
+            "architect_research_path_control_propagated",
+            payload.get("runtime_research_path_control_propagated") is True,
+            (
+                "effective_policy="
+                f"{payload.get('effective_formal_verification_policy')} "
+                "effective_path="
+                f"{payload.get('effective_recommended_research_path')} "
+                "summary="
+                f"{_research_path_summary_detail(payload)}"
+            ),
+            "Architect evidence contract did not propagate consistently to runtime artifacts",
+        ),
+        _scorecard_row(
+            "research_path_selected_by_architect_not_manual_override",
+            not str(payload.get("requested_recommended_research_path", "") or "").strip(),
+            (
+                "requested_recommended_research_path="
+                f"{payload.get('requested_recommended_research_path')}"
+            ),
+            (
+                "manual --recommended-research-path override was used; this is "
+                "controlled-smoke/debug routing, not autonomous Architect path selection"
+            ),
+        ),
+        _scorecard_row(
             "architect_problem_analysis_present",
             int(payload.get("n_results_with_problem_analysis", 0) or 0) >= n_results,
             f"problem_analysis={payload.get('n_results_with_problem_analysis')}/{n_results}",
@@ -1015,10 +2321,259 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "no algorithm sandbox prototype executed",
         ),
         _scorecard_row(
+            "generated_algorithm_code_executed",
+            int(payload.get("n_generated_code_sandbox_executed", 0) or 0) > 0,
+            (
+                "n_generated_code_sandbox_executed="
+                f"{payload.get('n_generated_code_sandbox_executed')}"
+            ),
+            (
+                "no Claude/OpenAI-generated algorithm code executed locally; "
+                "registered templates are baselines and do not demonstrate "
+                "coding-agent implementation capacity"
+            ),
+        ),
+        _scorecard_row(
             "generated_algorithm_sandbox_clean",
-            int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) <= 0,
-            f"n_unsafe_generated_code_rejected={payload.get('n_unsafe_generated_code_rejected')}",
-            "at least one generated algorithm draft was rejected by the sandbox guard",
+            int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) <= 0
+            or integrated_algorithm_repair_sequences > 0,
+            (
+                "n_unsafe_generated_code_rejected="
+                f"{payload.get('n_unsafe_generated_code_rejected')} "
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences}"
+            ),
+            (
+                "at least one generated algorithm draft was rejected by the "
+                "sandbox guard and no later generated-code repair loop passed"
+            ),
+        ),
+        _scorecard_row(
+            "generated_algorithm_metric_gate_clean",
+            int(payload.get("n_generated_code_sandbox_metric_gate_failed", 0) or 0)
+            <= 0
+            or integrated_algorithm_repair_sequences > 0,
+            (
+                "n_generated_code_sandbox_metric_gate_failed="
+                f"{payload.get('n_generated_code_sandbox_metric_gate_failed')} "
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences}"
+            ),
+            (
+                "at least one generated algorithm draft executed locally but failed "
+                "the statistical metric gate and no later generated-code repair "
+                "loop passed"
+            ),
+        ),
+        _scorecard_row(
+            "generated_algorithm_repair_loop_observed",
+            integrated_algorithm_repair_sequences > 0,
+            (
+                "n_generated_code_sandbox_failed_then_passed_repair_sequences="
+                f"{payload.get('n_generated_code_sandbox_failed_then_passed_repair_sequences')}"
+            ),
+            (
+                "no generated algorithm draft failure was followed by a later "
+                "generated draft passing local sandbox/metric gates; one-shot "
+                "execution is not evidence of autonomous coding repair"
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_code_executed",
+            int(payload.get("n_generated_simulation_sandbox_executed", 0) or 0)
+            > 0,
+            (
+                "n_generated_simulation_sandbox_executed="
+                f"{payload.get('n_generated_simulation_sandbox_executed')}"
+            ),
+            (
+                "no Claude/OpenAI-generated simulation stress-test code executed "
+                "locally; registered simulator rows alone do not demonstrate "
+                "simulation coding-agent capacity"
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_sandbox_clean",
+            int(payload.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
+            <= 0
+            or integrated_simulation_repair_sequences > 0,
+            (
+                "n_unsafe_generated_simulation_code_rejected="
+                f"{payload.get('n_unsafe_generated_simulation_code_rejected')} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences}"
+            ),
+            (
+                "at least one generated simulation draft was rejected by the "
+                "sandbox guard and no later generated-code repair loop passed"
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_metric_gate_clean",
+            int(
+                payload.get(
+                    "n_generated_simulation_sandbox_metric_gate_failed",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or integrated_simulation_repair_sequences > 0,
+            (
+                "n_generated_simulation_sandbox_metric_gate_failed="
+                f"{payload.get('n_generated_simulation_sandbox_metric_gate_failed')} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences}"
+            ),
+            (
+                "at least one generated simulation draft executed locally but failed "
+                "the statistical metric gate and no later generated-code repair "
+                "loop passed"
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_repair_loop_observed",
+            integrated_simulation_repair_sequences > 0,
+            (
+                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
+                f"{payload.get('n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}"
+            ),
+            (
+                "no generated simulation draft failure was followed by a later "
+                "generated draft passing local sandbox/metric gates; registered "
+                "simulation rows or one-shot execution do not demonstrate "
+                "simulation coding-agent repair"
+            ),
+        ),
+        _scorecard_row(
+            "coding_agent_generated_code_repair_component_gate",
+            (
+                integrated_algorithm_repair_sequences > 0
+                and integrated_simulation_repair_sequences > 0
+            )
+            or attached_live_component_repair_gate_passed,
+            (
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences} "
+                "attached_component_capability="
+                f"{payload.get('internal_coding_agent_generated_code_repair_eval_capability_evidence_ok')} "
+                "attached_live_generator="
+                f"{payload.get('internal_coding_agent_generated_code_repair_eval_live_generator')} "
+                "attached_static_or_fixture_only="
+                f"{payload.get('internal_coding_agent_generated_code_repair_eval_static_or_fixture_only')} "
+                "attached_algorithm_repair_sequences="
+                f"{attached_repair_eval_algorithm_sequences} "
+                "attached_simulation_repair_sequences="
+                f"{attached_repair_eval_simulation_sequences}"
+            ),
+            (
+                "neither integrated AgentRuntime repair loops nor an attached "
+                "live combined coding-agent repair gate show both AlgorithmEngineer "
+                "and SimulationEngineer fail-then-pass generated-code repair evidence"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_lean_candidate_local_check_attempted",
+            integrated_formalizer_candidate_checked > 0
+            or (
+                attached_formalizer_live_gate_passed
+                and attached_formalizer_local_lean_checked > 0
+            ),
+            (
+                "n_formalizer_lean_candidate_local_lean_checked="
+                f"{payload.get('n_formalizer_lean_candidate_local_lean_checked')} "
+                "compiled="
+                f"{payload.get('n_formalizer_lean_candidate_local_lean_compiled')} "
+                "attached_live_local_lean_checked="
+                f"{attached_formalizer_local_lean_checked}"
+            ),
+            (
+                "no Claude/OpenAI-generated Formalizer Lean candidate was checked "
+                "with local Lean; proof packets without local diagnostics do not "
+                "demonstrate Formalizer/ProofEngineer capacity"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_lean_candidate_proof_state_request_routed",
+            integrated_formalizer_live_proof_state_requests > 0
+            and integrated_formalizer_lean_lsp_mcp_ready_requests > 0,
+            (
+                "live_proof_state_requests="
+                f"{payload.get('n_formalizer_lean_candidate_live_proof_state_requests')} "
+                "lean_lsp_mcp_ready="
+                f"{payload.get('n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests')}"
+            ),
+            (
+                "Formalizer Lean candidate failures did not produce "
+                "Lean-LSP/MCP-ready ProofEngineer proof-state requests; local "
+                "Lean checks alone do not demonstrate an autonomous prover loop"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_lean_candidate_proof_state_feedback_recorded",
+            integrated_formalizer_proof_state_feedback_rows > 0,
+            (
+                "proof_state_feedback_rows="
+                f"{payload.get('n_formalizer_lean_candidate_proof_state_feedback_rows')}"
+            ),
+            (
+                "Formalizer Lean candidate failures did not produce structured "
+                "ProofEngineer feedback rows with diagnostics/residual goals for "
+                "the next Claude/OpenAI repair turn"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_local_lean_tool_call_observed",
+            integrated_formalizer_local_lean_tool_calls > 0,
+            (
+                "local_lean_tool_calls="
+                f"{payload.get('n_formalizer_lean_candidate_local_lean_tool_calls')}"
+            ),
+            (
+                "ProofEngineer feedback did not record actual local Lean tool "
+                "execution in executed_tools/tool_call_trace; candidate local "
+                "checks without tool-call transcript are weaker repair context"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_live_prover_tool_call_observed",
+            integrated_formalizer_lean_lsp_mcp_live_calls > 0,
+            (
+                "lean_lsp_mcp_live_calls="
+                f"{payload.get('n_formalizer_lean_candidate_lean_lsp_mcp_live_calls')}"
+            ),
+            (
+                "LeanDojo/ReProver/Lean-LSP style prover tools were requested "
+                "or staged but no live prover tool call was observed; request "
+                "rows alone are not full ProofEngineer capacity"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_lean_candidate_repair_component_gate",
+            integrated_formalizer_repair_sequences > 0
+            or attached_formalizer_live_gate_passed,
+            (
+                "integrated_formalizer_repair_sequences="
+                f"{integrated_formalizer_repair_sequences} "
+                "attached_component_capability="
+                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok')} "
+                "attached_live_generator="
+                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_live_generator')} "
+                "attached_static_or_fixture_only="
+                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only')} "
+                "attached_repair_sequences="
+                f"{attached_formalizer_repair_sequences} "
+                "attached_local_lean_checked="
+                f"{attached_formalizer_local_lean_checked}"
+            ),
+            (
+                "neither integrated AgentRuntime repair loops nor an attached "
+                "live Formalizer Lean-candidate repair gate showed fail-then-pass "
+                "generated Lean repair with local Lean diagnostics; static fixtures "
+                "and proof packets do not demonstrate this capacity"
+            ),
         ),
         _scorecard_row(
             "runtime_progress_observable",
@@ -1030,6 +2585,483 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "source_theorem_promotion_proofengineer_bridge_ran",
+            payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
+            (
+                "ran="
+                f"{payload.get('source_theorem_promotion_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_promotion_proofengineer_bridge_skipped_reason')}"
+            ),
+            "source-theorem promotion ProofEngineer bridge did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "source_theorem_formal_environment_bridge_ran",
+            (
+                payload.get("source_theorem_formal_environment_proofengineer_bridge_ran")
+                is True
+            ),
+            (
+                "ran="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_skipped_reason')}"
+            ),
+            "source-theorem formal-environment ProofEngineer bridge did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "source_theorem_signature_probe_reached_proof_body",
+            int(
+                payload.get(
+                    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                "n_signature_or_proof_body_work_orders="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body')}"
+            ),
+            "source-theorem signature probe did not reach an exact proof body",
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_executor_ran",
+            payload.get("source_theorem_formal_environment_proof_body_executor_ran")
+            is True,
+            (
+                "ran="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_ran')} "
+                "n_rows="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')}"
+            ),
+            "exact source-theorem proof-body executor did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "post_adapter_exact_source_theorem_proof_body_retry_queued",
+            int(
+                payload.get(
+                    "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran"
+                )
+                is True
+            ),
+            (
+                "work_orders="
+                f"{payload.get('n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback')} "
+                "queue_ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran')} "
+                "queue_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows')}"
+            ),
+            "verified proof-body adapter feedback did not trigger a same-run exact source theorem retry queue",
+        ),
+        _scorecard_row(
+            "post_adapter_exact_source_theorem_proof_body_executor_ran",
+            (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
+                )
+                is not True
+            )
+            or (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran"
+                )
+                is True
+            ),
+            (
+                "requested="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran')} "
+                "n_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows')} "
+                "source_kernel="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified')}"
+            ),
+            "same-run post-adapter exact source theorem proof-body executor was requested but did not run",
+        ),
+        _scorecard_row(
+            "post_adapter_failure_rerouted_to_semantic_primitives_or_source_proved",
+            (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran"
+                )
+                is not True
+            )
+            or
+            int(
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            or int(
+                payload.get(
+                    "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                "post_adapter_source_kernel="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified')} "
+                "new_semantic_work_orders="
+                f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')}"
+            ),
+            "post-adapter proof-body failure neither proved the source theorem nor rerouted to semantic primitive work",
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_source_lookup_handoff_not_dropped",
+            (
+                payload.get("source_theorem_exact_semantic_definition_source_lookup_required")
+                is not True
+            )
+            or (
+                payload.get("source_theorem_exact_semantic_definition_source_lookup_ran")
+                is True
+            ),
+            (
+                "work_orders="
+                f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
+                "required="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}"
+            ),
+            "exact semantic-definition work orders were generated but source lookup did not run",
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
+            (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
+                )
+                is not True
+            )
+            or (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_proofengineer_bridge_ran"
+                )
+                is True
+            ),
+            (
+                "review_packets="
+                f"{payload.get('source_theorem_exact_semantic_definition_n_closure_review_packets')} "
+                "required="
+                f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_required')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason')}"
+            ),
+            "source lookup produced exact semantic-definition review packets but the ProofEngineer bridge did not run",
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
+            (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+                )
+                is not True
+            )
+            or (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_ran"
+                )
+                is True
+            ),
+            (
+                "lean_tasks="
+                f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks')} "
+                "required="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_required')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason')} "
+                "local_lean_requested="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')}"
+            ),
+            "ProofEngineer bridge produced exact semantic-definition Lean repair tasks but the Lean repair executor did not run",
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_late_typechecked_review_not_hidden",
+            not (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required"
+                )
+                is True
+                or payload.get(
+                    "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required"
+                )
+                is True
+            )
+            or int(
+                payload.get(
+                    "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            or (
+                payload.get("source_theorem_exact_semantic_definition_repair_required")
+                is True
+                and bool(
+                    str(
+                        payload.get(
+                            "source_theorem_exact_semantic_definition_repair_required_reason",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                )
+            ),
+            (
+                "materialized_review_packets="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets')} "
+                "materialized_review_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_materialized_candidate_review_required')} "
+                "late_review_packets="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets')} "
+                "late_review_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required')} "
+                "repair_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_required')} "
+                "repair_reason="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_required_reason')}"
+                " recheck_execution_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')}"
+            ),
+            (
+                "typechecked exact semantic-definition candidate review is pending "
+                "but the runtime did not expose it as exact semantic-definition repair work"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped",
+            int(
+                payload.get(
+                    "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or (
+                payload.get(
+                    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran"
+                )
+                is True
+            ),
+            (
+                "queue_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran')} "
+                "approved="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets')} "
+                "execution_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')} "
+                "executor_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')}"
+            ),
+            (
+                "approved exact semantic-definition review packets produced "
+                "proof-body recheck rows but the exact proof-body executor did not run"
+            ),
+        ),
+        _scorecard_row(
+            "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped",
+            (
+                payload.get(
+                    "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+                )
+                is not True
+            )
+            or (
+                payload.get(
+                    "source_to_bridge_premise_derivation_from_formalizer_bridge_ran"
+                )
+                is True
+            ),
+            (
+                "work_orders="
+                f"{payload.get('n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer')} "
+                "required="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_required')} "
+                "ran="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_skipped_reason')} "
+                "check_rows="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows')} "
+                "learning_rows="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows')} "
+                "skipped_not_evidence_eligible="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_local_lean_skipped_not_evidence_eligible')} "
+                "dominant_failure="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_dominant_failure_classification')}"
+            ),
+            (
+                "Formalizer emitted source-to-bridge premise derivation work "
+                "orders but the same-run ProofEngineer premise bridge did not run"
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_premise_feedback_adapter_handoff_not_dropped",
+            int(
+                payload.get(
+                    "n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or (
+                payload.get(
+                    "source_theorem_proof_body_adapter_proofengineer_bridge_ran"
+                )
+                is True
+            ),
+            (
+                "adapter_work_orders_from_formalizer_premise_feedback="
+                f"{payload.get('n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback')} "
+                "adapter_bridge_ran="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_ran')} "
+                "adapter_bridge_rows="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_n_rows')} "
+                "skipped="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason')}"
+            ),
+            (
+                "Formalizer premise-derivation feedback generated source-theorem "
+                "adapter work orders, but the same-run adapter ProofEngineer "
+                "bridge did not run"
+            ),
+        ),
+        _scorecard_row(
+            "adapter_premise_feedback_adapter_retry_not_silently_dropped",
+            int(
+                payload.get(
+                    "n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or (
+                payload.get(
+                    "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran"
+                )
+                is True
+            ),
+            (
+                "adapter_work_orders_from_adapter_premise_feedback="
+                f"{payload.get('n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback')} "
+                "retry_bridge_ran="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_skipped_reason')}"
+            ),
+            (
+                "Adapter-generated premise-derivation feedback produced "
+                "source-theorem adapter work orders, but the runtime does not "
+                "yet run the bounded same-run adapter retry"
+            ),
+        ),
+        _scorecard_row(
+            "adapter_premise_verified_adapter_exact_retry_queued",
+            int(
+                payload.get(
+                    "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or (
+                int(
+                    payload.get(
+                        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+                and payload.get(
+                    "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran"
+                )
+                is True
+            ),
+            (
+                "adapter_retry_kernel_verified="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified')} "
+                "exact_repair_work_orders="
+                f"{payload.get('n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback')} "
+                "exact_queue_ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')}"
+            ),
+            (
+                "Adapter-premise feedback produced a kernel-verified source-to-bridge "
+                "adapter, but the runtime did not queue the exact source-theorem "
+                "proof-body retry"
+            ),
+        ),
+        _scorecard_row(
+            "adapter_premise_verified_adapter_exact_executor_ran_when_requested",
+            (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
+                )
+                is not True
+            )
+            or (
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran"
+                )
+                is True
+            ),
+            (
+                "exact_executor_requested="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested')} "
+                "exact_executor_ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran')} "
+                "exact_executor_results="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows')}"
+            ),
+            (
+                "Adapter-premise verified-adapter exact source-theorem proof-body "
+                "executor was requested but did not run"
+            ),
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_local_lean_gate_requested",
+            (
+                payload.get(
+                    "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+                )
+                is True
+            ),
+            (
+                "local_lean_requested="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')}"
+            ),
+            "exact source-theorem proof-body executor did not request local Lean",
         ),
         _scorecard_row(
             "live_lean_lsp_mcp_called",
@@ -1051,8 +3083,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "full_frontier_theorem_kernel_proved",
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0,
-            f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')}",
+            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            or source_theorem_kernel_count > 0,
+            (
+                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "proof_body_source_kernel="
+                f"{source_theorem_kernel_count}"
+            ),
             "no full frontier theorem was kernel-proved",
         ),
     ]
@@ -1073,6 +3110,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
+    summary = payload.get("runtime_research_path_execution_summary", {})
+    if not isinstance(summary, Mapping):
+        return "missing"
+    return (
+        "controlled="
+        f"{summary.get('n_controlled_artifacts')} "
+        "with_contract="
+        f"{summary.get('n_controlled_artifacts_with_evidence_contract')} "
+        "policy_mismatches="
+        f"{summary.get('n_policy_mismatches')} "
+        "path_mismatches="
+        f"{summary.get('n_path_mismatches')} "
+        "subsystems="
+        f"{summary.get('controlled_subsystems')}"
+    )
+
+
 def _scorecard_row(
     requirement_id: str,
     passed: bool,
@@ -1085,6 +3140,10 @@ def _scorecard_row(
         "evidence": evidence,
         "blocker": "" if passed else blocker,
     }
+
+
+def _runtime_evidence_truth_table(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return _runtime_evidence_truth_table_from_manifest(payload)
 
 
 def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:
@@ -1145,6 +3204,35 @@ def _resolve_path(base: Path, raw: object) -> Path:
         if candidate.exists():
             return candidate
     return candidates[0]
+
+
+def _formalizer_lean_candidate_repair_sequences_from_result_paths(
+    result_paths: list[Path],
+) -> int:
+    total = 0
+    for path in result_paths:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(payload, Mapping):
+            continue
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard"), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts"), Mapping)
+            else {}
+        )
+        if not isinstance(artifacts, Mapping):
+            continue
+        total += _formalizer_lean_candidate_repair_sequence_count(artifacts)
+    return total
 
 
 def _artifacts_with_prefix(artifacts: Mapping[str, Any], prefix: str) -> list[dict[str, Any]]:
@@ -1209,6 +3297,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- capability ladder max contiguous level: {payload.get('capability_ladder', {}).get('max_contiguous_level')}",
         f"- capability ladder max evidence level: {payload.get('capability_ladder', {}).get('max_evidence_level')}",
         f"- capability ladder current label: {payload.get('capability_ladder', {}).get('current_level_label')}",
+        f"- evidence truth table source theorem kernel verified: {payload.get('evidence_truth_table', {}).get('source_theorem_kernel_verified')}",
+        f"- evidence truth table formal gaps open: {payload.get('evidence_truth_table', {}).get('formal_gaps_open')}",
+        f"- current exact proof-body blocker: {payload.get('evidence_truth_table', {}).get('current_exact_proof_body_blocker')}",
         f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- result errors: {payload.get('n_result_errors')}",
@@ -1223,7 +3314,16 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- critic reroutes: {payload.get('n_critic_reroutes')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
+        f"- generated-code metric gate failed: {payload.get('n_generated_code_sandbox_metric_gate_failed')}",
+        "- generated-code fail->pass repair sequences: "
+        f"{payload.get('n_generated_code_sandbox_failed_then_passed_repair_sequences')}",
         f"- unsafe generated-code rejected: {payload.get('n_unsafe_generated_code_rejected')}",
+        f"- generated simulation sandbox executed: {payload.get('n_generated_simulation_sandbox_executed')}",
+        f"- generated simulation sandbox passed: {payload.get('n_generated_simulation_sandbox_passed')}",
+        f"- generated simulation metric gate failed: {payload.get('n_generated_simulation_sandbox_metric_gate_failed')}",
+        "- generated simulation fail->pass repair sequences: "
+        f"{payload.get('n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}",
+        f"- unsafe generated simulation rejected: {payload.get('n_unsafe_generated_simulation_code_rejected')}",
         f"- Lean LSP/MCP live calls: {payload.get('n_lean_lsp_mcp_live_calls')}",
         f"- runtime-learning-memory inputs: {payload.get('n_results_with_runtime_learning_memory_input')}",
         f"- runtime-learning-memory input rows: {payload.get('n_runtime_learning_memory_input_rows')}",
@@ -1249,6 +3349,45 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM off-catalog proof obligations: {payload.get('n_llm_off_catalog_proof_obligations')}",
         f"- LLM-rejected proof obligations: {payload.get('n_llm_rejected_proof_obligations')}",
         f"- full frontier theorem proved: {payload.get('n_full_frontier_theorem_proved')}",
+        "- exact proof-body repair executor source-kernel verified: "
+        f"{payload.get('source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified')}",
+        "- post-adapter exact proof-body retry queue ran: "
+        f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran')}",
+        "- post-adapter exact proof-body executor ran: "
+        f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran')}",
+        "- post-adapter exact proof-body executor source-kernel verified: "
+        f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified')}",
+        "- post-adapter semantic primitive work orders: "
+        f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')}",
+        "- exact semantic-definition work orders: "
+        f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')}",
+        "- exact semantic-definition source lookup: "
+        f"required={payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+        f"ran={payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
+        f"skipped={payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}",
+        "- exact semantic-definition ProofEngineer bridge: "
+        f"required={payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_required')} "
+        f"ran={payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_ran')} "
+        f"skipped={payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason')}",
+        "- exact semantic-definition Lean repair executor: "
+        f"required={payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_required')} "
+        f"ran={payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_ran')} "
+        f"local_lean_requested={payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')} "
+        f"skipped={payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason')}",
+        "- exact semantic-definition late typechecked review: "
+        f"materialized_packets={payload.get('source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets')} "
+        f"materialized_required={payload.get('source_theorem_exact_semantic_definition_late_materialized_candidate_review_required')} "
+        f"late_packets={payload.get('source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets')} "
+        f"late_required={payload.get('source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required')} "
+        f"repair_required={payload.get('source_theorem_exact_semantic_definition_repair_required')} "
+        f"repair_reason={payload.get('source_theorem_exact_semantic_definition_repair_required_reason')}",
+        "- exact semantic-definition typechecked-review proof-body recheck: "
+        f"queue_ran={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran')} "
+        f"approved={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets')} "
+        f"blocked={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets')} "
+        f"execution_rows={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')} "
+        f"executor_ran={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')} "
+        f"source_kernel_verified={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified')}",
         "",
         "## Capability Gaps",
     ]

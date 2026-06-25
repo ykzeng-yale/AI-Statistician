@@ -104,6 +104,7 @@ class LLMArchitectCoordinatorAgent:
                 model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
+                runtime_config=runtime_config,
             )
 
         return generate_validated_json_packet(
@@ -138,6 +139,7 @@ def build_architect_coordinator_prompt(
             "SimulationEvaluator",
             "AlgorithmEngineer",
             "FormalizationEvaluator",
+            "ProofEngineer",
             "CriticEvaluator",
         ],
         "authority_gates": [
@@ -148,6 +150,38 @@ def build_architect_coordinator_prompt(
             "AXLE/local Lean/kernel evidence is required for theorem proof claims",
         ],
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
+        "requested_evidence_contract": {
+            "formal_verification_policy": str(
+                runtime_config.get("formal_verification_policy", "optional")
+                or "optional"
+            ),
+            "requested_research_path": str(
+                runtime_config.get("recommended_research_path", "") or ""
+            ),
+            **_architect_runtime_capability_eval_contract(runtime_config),
+            "policy_semantics": {
+                "required": (
+                    "full formal proof is an acceptance gate; unresolved formal "
+                    "gaps block final theorem acceptance"
+                ),
+                "optional": (
+                    "Architect chooses simulation-first, proof-first, or "
+                    "dual-track based on problem type and verification cost; "
+                    "formal gaps must still be disclosed"
+                ),
+                "advisory": (
+                    "formal tools are diagnostic only; final research-candidate "
+                    "acceptance may rely on derivation, implementation, "
+                    "simulation stress tests, and critic review with explicit "
+                    "non-formal-proof disclosure"
+                ),
+            },
+            "allowed_research_paths": [
+                "simulation_first",
+                "proof_first",
+                "dual_track",
+            ],
+        },
         "required_output_contract": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT,
         "boundary": ARCHITECT_COORDINATOR_BOUNDARY,
     }
@@ -158,8 +192,20 @@ def build_architect_coordinator_prompt(
         "schema repair. Keep each list to at most 2 short strings or 1 short object. Do not "
         "include paragraphs, Markdown, LaTeX derivations, optional long-form analysis sections, "
         "or code. Route first to RetrievalMemory and leave detailed derivation to TheoryDeveloper. "
+        "If runtime learning memory reports concrete source-to-bridge premise targets with "
+        "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
+        "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "
+        "another exact source proof-body retry; ProofEngineer can only close the gap after a "
+        "non-vacuous premise derivation candidate exists. "
+        "If runtime learning memory reports learning_task=source_theorem_truth_table_feedback "
+        "or trigger=RUNTIME_EVIDENCE_TRUTH_TABLE with source_theorem_kernel_verified=false, "
+        "prioritize the generated next-action agenda: route proof_body_goal_reached cases to "
+        "ProofEngineer/LeanProver, but route premise_derivation_gap_kind or adapter-context "
+        "blockers upstream to TheoryDeveloper/Formalizer before another exact source theorem "
+        "retry. Do not broaden retrieval or mark the agenda accepted while this source theorem "
+        "truth-table feedback is open. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
-        + json.dumps(payload, separators=(",", ":"), default=str)
+        + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
 
@@ -201,6 +247,19 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             "unsafe_transfer_risks": ["one short string"],
         }
     ],
+    "evidence_contract": {
+        "formal_verification_policy": "required|optional|advisory",
+        "recommended_research_path": "simulation_first|proof_first|dual_track",
+        "formal_required_for_final": "boolean",
+        "evaluation_mode": "debug|capability_eval",
+        "capability_eval_requires_generated_algorithm_code": "boolean",
+        "capability_eval_requires_generated_simulation_code": "boolean",
+        "capability_eval_requires_formalizer_lean_candidate": "boolean",
+        "formal_targets": ["one short string"],
+        "simulation_targets": ["one short string"],
+        "acceptance_modes": ["one short string"],
+        "disclosure_requirements": ["one short string"],
+    },
     "subsystem_execution_plan": [
         {
             "subsystem": "RetrievalMemory",
@@ -245,6 +304,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "problem_analysis",
         "stat_knowledge_bank_plan",
         "literature_fair_comparison_plan",
+        "evidence_contract",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -257,6 +317,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "problem_analysis": {"type": "object"},
         "stat_knowledge_bank_plan": {"type": "object"},
         "literature_fair_comparison_plan": {"type": "array", "minItems": 1},
+        "evidence_contract": {"type": "object"},
         "subsystem_execution_plan": {"type": "array", "minItems": 1},
         "retrieval_strategy": {"type": "object"},
         "iteration_policy": {"type": "object"},
@@ -274,6 +335,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         "problem_analysis",
         "stat_knowledge_bank_plan",
         "literature_fair_comparison_plan",
+        "evidence_contract",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -324,6 +386,36 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 errors.append(
                     f"literature_fair_comparison_plan entry missing or empty field: {field}"
                 )
+    evidence_contract = packet.get("evidence_contract", {})
+    if isinstance(evidence_contract, Mapping):
+        policy = str(
+            evidence_contract.get("formal_verification_policy", "") or ""
+        ).strip().lower()
+        if policy not in {"required", "optional", "advisory"}:
+            errors.append(
+                "evidence_contract.formal_verification_policy must be required, "
+                "optional, or advisory"
+            )
+        path = str(
+            evidence_contract.get("recommended_research_path", "") or ""
+        ).strip().lower()
+        if path not in {"simulation_first", "proof_first", "dual_track"}:
+            errors.append(
+                "evidence_contract.recommended_research_path must be "
+                "simulation_first, proof_first, or dual_track"
+            )
+        if not isinstance(evidence_contract.get("formal_required_for_final"), bool):
+            errors.append(
+                "evidence_contract.formal_required_for_final must be a boolean"
+            )
+        for field in (
+            "formal_targets",
+            "simulation_targets",
+            "acceptance_modes",
+            "disclosure_requirements",
+        ):
+            if evidence_contract.get(field) in (None, "", [], {}):
+                errors.append(f"evidence_contract missing or empty field: {field}")
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
@@ -344,8 +436,19 @@ def _normalize_architect_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
+    runtime_config: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
+    evidence_contract = body.get("evidence_contract", {})
+    if isinstance(evidence_contract, Mapping):
+        normalized_contract = dict(evidence_contract)
+    else:
+        normalized_contract = {}
+    for key, value in _architect_runtime_capability_eval_contract(
+        runtime_config or {}
+    ).items():
+        normalized_contract.setdefault(key, value)
+    body["evidence_contract"] = normalized_contract
     body["proof_evidence_status"] = ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE
     body["evidence_boundary"] = ARCHITECT_COORDINATOR_BOUNDARY
     body["runtime_executed"] = False
@@ -376,6 +479,19 @@ def _normalize_architect_packet(
         },
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
+    }
+
+
+def _architect_runtime_capability_eval_contract(
+    runtime_config: Mapping[str, Any],
+) -> dict[str, Any]:
+    evaluation_mode = str(runtime_config.get("evaluation_mode", "debug") or "debug")
+    capability_eval = evaluation_mode == "capability_eval"
+    return {
+        "evaluation_mode": evaluation_mode,
+        "capability_eval_requires_generated_algorithm_code": capability_eval,
+        "capability_eval_requires_generated_simulation_code": capability_eval,
+        "capability_eval_requires_formalizer_lean_candidate": capability_eval,
     }
 
 

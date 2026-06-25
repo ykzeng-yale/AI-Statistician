@@ -1253,7 +1253,7 @@ theorem VdVWInnerExpectation_prod_fst_eq_of_measurable
   have hprod :
       VdVWOuterExpectation (μ.prod ν) (fun z : Ω × S => T z.1) =
         VdVWInnerExpectation (μ.prod ν) (fun z : Ω × S => T z.1) := by
-    simpa only [Function.comp_apply] using
+    simpa [Function.comp_def] using
       (VdVWOuterExpectation_eq_innerExpectation_of_measurable
         (hT.comp measurable_fst))
   have hbase :
@@ -1275,7 +1275,7 @@ theorem VdVWInnerExpectation_prod_snd_eq_of_measurable
   have hprod :
       VdVWOuterExpectation (μ.prod ν) (fun z : Ω × S => T z.2) =
         VdVWInnerExpectation (μ.prod ν) (fun z : Ω × S => T z.2) := by
-    simpa only [Function.comp_apply] using
+    simpa [Function.comp_def] using
       (VdVWOuterExpectation_eq_innerExpectation_of_measurable
         (hT.comp measurable_snd))
   have hbase :
@@ -1856,9 +1856,9 @@ theorem VdVWOuterExpectation_thresholdIndicator_eq_measure_cover_threshold
       μ {ω | c < U ω} := by
   rw [VdVWOuterExpectation_eq_lintegral_thresholdIndicatorCover U c]
   change
-    (∫⁻ ω, ({ω | c < U ω}.indicator (fun _ => (1 : ℝ≥0∞)) ω) ∂μ) =
+    (∫⁻ ω, ({ω | c < U ω}.indicator (1 : Ω -> ℝ≥0∞) ω) ∂μ) =
       μ {ω | c < U ω}
-  simpa [Pi.one_apply] using
+  simpa using
     lintegral_indicator_one (measurableSet_lt measurable_const U.measurable_toFun)
 
 /--
@@ -2467,10 +2467,10 @@ theorem lintegral_eventIndicator_setCover_eq_measure
     {event : Set Ω} (cover : VdVWMeasurableSetCover μ event) :
     (∫⁻ ω, VdVWEventIndicator cover.toSet ω ∂μ) = μ event := by
   change
-    (∫⁻ ω, cover.toSet.indicator (fun _ => (1 : ℝ≥0∞)) ω ∂μ) =
+    (∫⁻ ω, cover.toSet.indicator (1 : Ω -> ℝ≥0∞) ω ∂μ) =
       μ event
   rw [← cover.measure_eq]
-  simpa [Pi.one_apply] using lintegral_indicator_one cover.measurable_toSet
+  simpa using lintegral_indicator_one cover.measurable_toSet
 
 /--
 The `toMeasurable` hull gives the direct integral realization of the outer
@@ -2487,9 +2487,9 @@ theorem lintegral_eventIndicator_toMeasurable_eq_measure
         μ (toMeasurable μ event) := by
       change
         (∫⁻ ω,
-          (toMeasurable μ event).indicator (fun _ => (1 : ℝ≥0∞)) ω ∂μ) =
+          (toMeasurable μ event).indicator (1 : Ω -> ℝ≥0∞) ω ∂μ) =
           μ (toMeasurable μ event)
-      simpa only [Pi.one_apply] using
+      simpa using
         lintegral_indicator_one (measurableSet_toMeasurable μ event)
     _ = μ event := measure_toMeasurable event
 
@@ -2526,8 +2526,8 @@ theorem measure_compl_setCover_eq_innerProbability
       change
         μ coverCompl.toSetᶜ =
           ∫⁻ ω,
-            coverCompl.toSetᶜ.indicator (fun _ => (1 : ℝ≥0∞)) ω ∂μ
-      simpa [Pi.one_apply] using
+            coverCompl.toSetᶜ.indicator (1 : Ω -> ℝ≥0∞) ω ∂μ
+      simpa using
         (lintegral_indicator_one coverCompl.measurable_toSet.compl).symm
     _ = VdVWInnerProbability μ event :=
       lintegral_eventIndicator_complSetCover_eq_innerProbability μ coverCompl

@@ -5,8 +5,9 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
+from .agent_runtime import AgentTask
 from .algorithms import audit_algorithm_registry
 from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
 from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
@@ -268,6 +269,9 @@ from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
 from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
+from .exact_source_theorem_proof_body_executor import (
+    export_exact_source_theorem_proof_body_execution_results,
+)
 from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
     export_formal_verifier_agentic_proof_source_theorem_target_resolution,
 )
@@ -336,6 +340,39 @@ from .theorem_reduction_closure_proofengineer_bridge import (
     resolve_theorem_reduction_queue_path,
     run_theorem_reduction_closure_proofengineer_bridge,
 )
+from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    run_source_theorem_semantic_primitive_proofengineer_bridge,
+)
+from .source_theorem_proof_body_adapter_proofengineer_bridge import (
+    run_source_theorem_proof_body_adapter_proofengineer_bridge,
+)
+from .source_to_bridge_premise_derivation_proofengineer_bridge import (
+    run_source_to_bridge_premise_derivation_proofengineer_bridge,
+)
+from .source_theorem_formal_environment_proofengineer_bridge import (
+    export_exact_source_theorem_proof_body_repair_execution_queue,
+    run_source_theorem_formal_environment_proofengineer_bridge,
+)
+from .source_theorem_exact_semantic_definition_source_lookup import (
+    run_source_theorem_exact_semantic_definition_candidate_synthesis,
+    run_source_theorem_exact_semantic_definition_closure_review,
+    run_source_theorem_exact_semantic_definition_source_lookup,
+)
+from .source_theorem_exact_semantic_definition_proofengineer_bridge import (
+    run_source_theorem_exact_semantic_definition_proofengineer_bridge,
+)
+from .source_theorem_exact_semantic_definition_lean_repair_executor import (
+    run_source_theorem_exact_semantic_definition_lean_repair_executor,
+)
+from .source_theorem_exact_semantic_definition_authoring_worker import (
+    AuthoringCandidateMaterializerConfig,
+    AuthoringWorkerConfig,
+    run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
+    run_source_theorem_exact_semantic_definition_authoring_worker,
+)
+from .source_theorem_exact_semantic_definition_lean_environment_repair_executor import (
+    run_source_theorem_exact_semantic_definition_lean_environment_repair_executor,
+)
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
@@ -357,7 +394,22 @@ from .research_architect import (
     StaticArchitectLLMProvider,
 )
 from .architect_coordinator_llm import ArchitectCoordinatorConfig, LLMArchitectCoordinatorAgent
+from .architect_research_path_policy_eval import (
+    run_architect_research_path_policy_eval,
+    write_architect_research_path_policy_eval_failure_manifest,
+)
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from .algorithm_engineer_generated_code_repair_eval import (
+    run_algorithm_engineer_generated_code_repair_eval,
+    write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
+)
+from .simulation_engineer_generated_code_repair_eval import (
+    run_simulation_engineer_generated_code_repair_eval,
+    write_simulation_engineer_generated_code_repair_eval_failure_manifest,
+)
+from .coding_agent_generated_code_repair_eval import (
+    run_coding_agent_generated_code_repair_eval,
+)
 from .model_backend import (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -365,15 +417,28 @@ from .model_backend import (
     default_generator_model,
     default_generator_provider,
 )
-from .proof_state_feedback import LocalLeanProofStateFeedbackProvider
+from .proof_state_feedback import (
+    LeanLspMcpProofStateFeedbackProvider,
+    LocalLeanProofStateFeedbackProvider,
+)
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
-from .research_agent_runtime import ResearchAgentRuntimeConfig, run_research_agent_runtime
+from .research_agent_runtime import (
+    ResearchAgentRuntimeConfig,
+    _runtime_coding_agent_capability_learning_rows,
+    _runtime_coding_agent_capability_table,
+    _run_runtime_source_theorem_promotion_proofengineer_bridge,
+    run_research_agent_runtime,
+)
 from .research_agent_runtime_audit import audit_research_agent_runtime
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
 from .critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
+from .formalizer_lean_candidate_repair_eval import (
+    run_formalizer_lean_candidate_repair_eval,
+    write_formalizer_lean_candidate_repair_eval_failure_manifest,
+)
 from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
@@ -403,6 +468,237 @@ def _attach_runtime_learning_memory(args: argparse.Namespace, context: dict[str,
         [Path(item) for item in paths],
         max_rows=int(getattr(args, "max_learning_memory_rows", 20) or 20),
     )
+
+
+def _load_runtime_resume_task_from_manifest(
+    path: Path,
+) -> tuple[str, AgentTask, dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    artifact_kind = str(payload.get("artifact_kind", "") or "")
+    if artifact_kind == "RuntimePendingNextTask":
+        task_payload = payload.get("pending_next_task")
+    else:
+        task_payload = payload.get("incomplete_pending_next_task")
+    if not isinstance(task_payload, Mapping) or not task_payload:
+        raise ValueError(
+            f"{path} does not contain an incomplete pending runtime task payload"
+        )
+    question_id = _runtime_resume_task_question_id(task_payload)
+    if not question_id and artifact_kind == "RuntimePendingNextTask":
+        question_id = str(payload.get("question_id", "") or "")
+    if not question_id:
+        question_id = str(payload.get("runtime_failure_summary", {}).get("terminal_question_id", "") or "")
+    if not question_id:
+        question_ids = payload.get("question_ids")
+        if isinstance(question_ids, list) and len(question_ids) == 1:
+            question_id = str(question_ids[0] or "")
+    if not question_id:
+        raise ValueError(
+            f"{path} pending task does not expose a question id; cannot resume safely"
+        )
+    artifacts = _runtime_resume_blackboard_artifacts(
+        resume_path=path,
+        resume_payload=payload,
+        question_id=question_id,
+    )
+    return (
+        question_id,
+        _agent_task_from_payload(_normalize_runtime_resume_task_payload(task_payload)),
+        artifacts,
+    )
+
+
+def _normalize_runtime_resume_task_payload(
+    task_payload: Mapping[str, object],
+) -> dict[str, object]:
+    """Fill backward-compatible repair fields for persisted pending runtime tasks."""
+
+    normalized = dict(task_payload)
+    inputs = (
+        dict(normalized.get("inputs", {}))
+        if isinstance(normalized.get("inputs", {}), Mapping)
+        else {}
+    )
+    feedback = (
+        dict(inputs.get("environment_feedback", {}))
+        if isinstance(inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    if (
+        str(feedback.get("feedback_source", "") or "") == "CriticEvaluator"
+        and str(feedback.get("required_revision", "") or "").strip()
+    ):
+        feedback.setdefault("failure_classification", "critic_requested_theory_revision")
+        feedback.setdefault("required_repair", str(feedback.get("required_revision", "")))
+        inputs["environment_feedback"] = feedback
+        normalized["inputs"] = inputs
+    return normalized
+
+
+def _runtime_resume_blackboard_artifacts(
+    *,
+    resume_path: Path,
+    resume_payload: Mapping[str, Any],
+    question_id: str,
+) -> dict[str, Any]:
+    source_manifest = _resolve_runtime_resume_source_manifest(
+        resume_path=resume_path,
+        resume_payload=resume_payload,
+    )
+    if source_manifest is None:
+        return {}
+    artifacts = source_manifest.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        return {}
+    result_paths = artifacts.get("per_question_results", [])
+    if not isinstance(result_paths, list):
+        return {}
+    for raw_result_path in result_paths:
+        result_path = _resolve_runtime_resume_path(
+            str(raw_result_path),
+            base_dir=Path(source_manifest.get("_manifest_path", "") or ".").parent,
+        )
+        if result_path is None:
+            continue
+        try:
+            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if _runtime_result_question_id(result_payload) != question_id:
+            continue
+        blackboard = result_payload.get("blackboard", {})
+        if not isinstance(blackboard, Mapping):
+            return {}
+        blackboard_artifacts = blackboard.get("artifacts", {})
+        if not isinstance(blackboard_artifacts, Mapping):
+            return {}
+        return dict(blackboard_artifacts)
+    return {}
+
+
+def _resolve_runtime_resume_source_manifest(
+    *,
+    resume_path: Path,
+    resume_payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    source_manifest_path = str(resume_payload.get("source_manifest_path", "") or "")
+    if not source_manifest_path and str(resume_payload.get("artifact_kind", "") or "") != "RuntimePendingNextTask":
+        source_manifest_path = str(resume_path)
+    if not source_manifest_path:
+        return None
+    path = _resolve_runtime_resume_path(source_manifest_path, base_dir=resume_path.parent)
+    if path is None:
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if isinstance(payload, dict):
+        payload["_manifest_path"] = str(path)
+        return payload
+    return None
+
+
+def _resolve_runtime_resume_path(raw_path: str, *, base_dir: Path) -> Path | None:
+    if not raw_path:
+        return None
+    path = Path(raw_path)
+    candidates = [path]
+    if not path.is_absolute():
+        candidates.append(base_dir / path)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _runtime_result_question_id(payload: Mapping[str, Any]) -> str:
+    traces = payload.get("traces", [])
+    if isinstance(traces, list):
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            task = trace.get("task", {})
+            if not isinstance(task, Mapping):
+                continue
+            question_id = _runtime_resume_task_question_id(task)
+            if question_id:
+                return question_id
+    blackboard = payload.get("blackboard", {})
+    if isinstance(blackboard, Mapping):
+        project_id = str(blackboard.get("project_id", "") or "")
+        prefix = "ai_statistician:"
+        if project_id.startswith(prefix):
+            return project_id[len(prefix) :]
+    return ""
+
+
+def _runtime_resume_task_question_id(task_payload: Mapping[str, object]) -> str:
+    inputs = task_payload.get("inputs", {})
+    if not isinstance(inputs, Mapping):
+        return ""
+    question = inputs.get("question", {})
+    if isinstance(question, Mapping) and str(question.get("id", "") or ""):
+        return str(question.get("id", "") or "")
+    environment_feedback = inputs.get("environment_feedback", {})
+    if isinstance(environment_feedback, Mapping) and str(
+        environment_feedback.get("question_id", "") or ""
+    ):
+        return str(environment_feedback.get("question_id", "") or "")
+    return ""
+
+
+def _agent_task_from_payload(payload: Mapping[str, object]) -> AgentTask:
+    task_id = str(payload.get("task_id", "") or "")
+    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
+    if not task_id or not owner_subsystem:
+        raise ValueError(
+            "pending resume task must include task_id and owner_subsystem"
+        )
+    return AgentTask(
+        task_id=task_id,
+        owner_subsystem=owner_subsystem,
+        objective=str(payload.get("objective", "") or ""),
+        inputs=dict(payload.get("inputs", {}) if isinstance(payload.get("inputs"), Mapping) else {}),
+        allowed_tools=tuple(
+            str(item)
+            for item in (
+                payload.get("allowed_tools", [])
+                if isinstance(payload.get("allowed_tools"), list | tuple)
+                else []
+            )
+        ),
+        budget=dict(payload.get("budget", {}) if isinstance(payload.get("budget"), Mapping) else {}),
+        expected_artifacts=tuple(
+            str(item)
+            for item in (
+                payload.get("expected_artifacts", [])
+                if isinstance(payload.get("expected_artifacts"), list | tuple)
+                else []
+            )
+        ),
+        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
+        stop_condition=str(payload.get("stop_condition", "") or ""),
+    )
+
+
+def _select_questions_by_id(
+    questions: list[object],
+    question_ids: list[str] | tuple[str, ...],
+) -> tuple[list[object], list[str]]:
+    requested = [str(item).strip() for item in question_ids if str(item).strip()]
+    if not requested:
+        return questions, []
+    by_id = {str(getattr(question, "id", "") or ""): question for question in questions}
+    selected: list[object] = []
+    missing: list[str] = []
+    for question_id in requested:
+        question = by_id.get(question_id)
+        if question is None:
+            missing.append(question_id)
+            continue
+        selected.append(question)
+    return selected, missing
 
 
 def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> dict[str, object]:
@@ -454,11 +750,138 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
     compact = {
         "schema_version": row.get("schema_version", 1),
         "question_id": str(row.get("question_id", "")),
+        "artifact_kind": str(row.get("artifact_kind", "")),
         "learning_task": str(row.get("learning_task", "")),
-        "input_summary": row.get("input_summary", {}) if isinstance(row.get("input_summary", {}), dict) else {},
+        "input_summary": _compact_runtime_learning_input_summary(
+            row.get("input_summary", {})
+        ),
         "target_behavior": str(row.get("target_behavior", "")),
         "acceptance_gate": str(row.get("acceptance_gate", "")),
     }
+    for key in (
+        "work_order_id",
+        "source_manifest_id",
+        "source_materialization_manifest_id",
+        "source_manifest_path",
+        "source_formalizer_packet_id",
+        "feedback_type",
+        "algorithm_sandbox_manifest_id",
+        "simulation_manifest_id",
+        "estimator_id",
+        "simulation_id",
+        "prototype_status",
+        "executor",
+        "smoke_passed",
+        "execution_smoke_passed",
+        "script_path",
+        "code_excerpt",
+        "stderr_summary",
+        "reason",
+        "required_repair",
+        "n_prototypes",
+        "n_executed",
+        "n_passed",
+        "n_metric_gate_failed",
+        "n_generated_code_executed",
+        "n_unsafe_generated_code_rejected",
+        "n_generated_simulation_sandbox_prototypes",
+        "n_generated_simulation_sandbox_executed",
+        "n_generated_simulation_sandbox_passed",
+        "n_generated_simulation_sandbox_metric_gate_failed",
+        "n_unsafe_generated_simulation_code_rejected",
+        "action_type",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "candidate_id",
+        "candidate_kind",
+        "source_field",
+        "source_hash",
+        "placeholder_symbol",
+        "replacement_strategy",
+        "next_step_kind",
+        "definition_candidate_status",
+        "artifact_path",
+        "precheck_status",
+        "local_lean_attempted",
+        "local_lean_compiled",
+        "local_lean_exit_status",
+        "local_lean_project",
+        "local_lean_timeout",
+        "local_lean_skipped_reason",
+        "local_lean_stdout_excerpt",
+        "local_lean_stderr_excerpt",
+        "kernel_verified",
+        "review_status",
+        "forbidden_placeholder_detected",
+        "semantic_definition_risk_detected",
+        "ready_for_definition_lean_check",
+        "candidate_synthesis_status",
+        "definition_candidate_review_mode",
+        "replacement_applied",
+        "semantic_risk",
+        "source_theorem_kernel_evidence_eligible",
+        "source_theorem_kernel_verified",
+        "source_theorem_proof_body_adapter_kernel_verified",
+        "adapter_kernel_verified",
+        "adapter_candidate_evidence_eligible",
+        "adapter_candidate_artifact_path",
+        "adapter_declaration_name",
+        "synthesized_candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
+        "semantic_definition_typecheck_evidence_status",
+        "lookup_id",
+        "lookup_status",
+        "semantic_closure_status",
+        "placeholder_definition_status",
+        "source_theorem_ready_for_exact_proof_body",
+        "source_theorem_semantic_support_only",
+        "source_semantic_alignment_review_required",
+        "source_theorem_target_identity_status",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "memory_status",
+        "next_owner_agent",
+        "next_action",
+        "proof_body_attempt_source",
+        "trigger",
+        "execution_status",
+        "source_execution_status",
+        "source_execution_result_id",
+        "source_lean_repair_task_id",
+        "authoring_trigger",
+        "authoring_mode",
+        "runtime_queue_status",
+        "failure_classification",
+        "candidate_artifact_path",
+        "source_candidate_artifact_path",
+        "adapter_candidate_artifact_path",
+        "adapter_declaration_name",
+        "adapter_kernel_verified",
+        "adapter_candidate_evidence_eligible",
+        "signature_probe_artifact_path",
+        "execution_transcript_path",
+        "proof_body_gate_status",
+        "proof_body_goal_reached",
+        "proof_body_attempted",
+        "proof_body_attempt_count",
+        "proof_body_attempt_success",
+        "premise_name",
+        "premise_target_type",
+        "premise_derivation_gap_kind",
+        "recommended_next_action",
+        "source_to_bridge_premise_derivation_candidate_request_id",
+        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+        "source_to_bridge_premise_derivation_source_candidate_request_id",
+        "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
+        "adapter_instantiation_group_id",
+        "shared_adapter_instantiation_contract",
+        "semantic_anchor_reference_gate",
+    ):
+        value = row.get(key)
+        if value not in (None, "", [], {}):
+            compact[key] = _compact_runtime_learning_field_value(key, value)
     for key in (
         "recommended_proof_obligation_ids",
         "selected_proof_obligation_ids",
@@ -468,13 +891,495 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "formal_gap_target_ids",
         "kernel_verified_theorem_reduction_closure_work_order_ids",
         "kernel_verified_theorem_reduction_closure_target_ids",
+        "kernel_verified_theorem_reduction_closure_declarations",
+        "verified_theorem_reduction_closure_artifact_paths",
+        "kernel_verified_theorem_reduction_closure_signature_excerpts",
         "kernel_verified_theorem_reduction_closure_goal_ids",
+        "kernel_verified_source_theorem_semantic_definition_ids",
+        "kernel_verified_source_theorem_proof_body_adapter_ids",
+        "verified_source_theorem_proof_body_adapter_artifact_paths",
+        "verified_source_theorem_proof_body_adapter_declarations",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "kernel_verified_source_theorem_semantic_primitive_ids",
+        "candidate_registered_obligation_ids",
+        "search_targets",
+        "source_lookup_hits",
+        "semantic_alignment_blockers",
+        "semantic_alignment_constraints",
+        "candidate_source_declarations",
+        "candidate_source_references",
+        "required_next_checks",
+        "forbidden_placeholder_matches",
+        "semantic_definition_risks",
+        "local_lean_diagnostics",
         "verified_bridge_obligation_ids",
+        "proof_body_attempt_summaries",
+        "proof_body_goal_excerpt",
+        "exact_goal_shape_obligation_ids",
+        "exact_goal_shape_obligations",
+        "diagnostics",
+        "precheck_errors",
+        "prototypes",
+        "generated_simulation_prototypes",
+        "metric_gate_errors",
+        "safety_errors",
+        "premise_names",
+        "source_to_bridge_premise_names",
+        "premise_semantic_anchor_binder_names",
+        "premise_semantic_anchor_binders",
+        "exact_source_theorem_binders",
+        "required_semantic_anchor_reference_names",
+        "required_bridge_premise_names_for_shared_instantiation",
+        "adapter_object_names_requiring_source_instantiation",
+        "source_to_bridge_adapter_object_names_requiring_source_instantiation",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
-            compact[key] = [str(item) for item in values if str(item).strip()]
+            if key in {"prototypes", "generated_simulation_prototypes"}:
+                compact[key] = [
+                    _compact_runtime_learning_sandbox_prototype(item)
+                    for item in values[:5]
+                    if isinstance(item, Mapping)
+                ]
+                continue
+            compact[key] = [
+                _compact_runtime_learning_value(item)
+                for item in values
+                if str(item).strip()
+            ]
+    for key in (
+        "source_to_bridge_premise_derivation_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
+        "source_to_bridge_premise_derivation_source_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+    ):
+        value = row.get(key)
+        if isinstance(value, Mapping):
+            compact[key] = _compact_source_to_bridge_premise_request(value)
+    value = row.get("candidate_definition_request")
+    if isinstance(value, Mapping):
+        compact["candidate_definition_request"] = (
+            _compact_candidate_definition_request(value)
+        )
+    input_summary = compact.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        for key in (
+            "adapter_candidate_artifact_path",
+            "adapter_declaration_name",
+            "adapter_kernel_verified",
+            "source_theorem_proof_body_adapter_kernel_verified",
+            "verified_source_theorem_proof_body_adapter_artifact_paths",
+            "verified_source_theorem_proof_body_adapter_declarations",
+            "adapter_candidate_evidence_eligible",
+            "source_candidate_artifact_path",
+            "execution_status",
+            "source_execution_status",
+            "source_execution_result_id",
+            "source_lean_repair_task_id",
+            "authoring_trigger",
+            "authoring_mode",
+            "source_to_bridge_premise_derivation_candidate_request_id",
+            "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+            "source_to_bridge_premise_derivation_source_candidate_request_id",
+            "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
+        ):
+            if key not in compact and input_summary.get(key) not in (None, "", [], {}):
+                compact[key] = input_summary[key]
+        for key in (
+            "source_to_bridge_premise_derivation_candidate_request",
+            "source_to_bridge_grouped_premise_derivation_candidate_request",
+            "source_to_bridge_premise_derivation_source_candidate_request",
+            "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+        ):
+            value = input_summary.get(key)
+            if key not in compact and isinstance(value, Mapping):
+                compact[key] = _compact_source_to_bridge_premise_request(value)
+        value = input_summary.get("candidate_definition_request")
+        if (
+            "candidate_definition_request" not in compact
+            and isinstance(value, Mapping)
+        ):
+            compact["candidate_definition_request"] = (
+                _compact_candidate_definition_request(value)
+            )
     return compact
+
+
+def _compact_runtime_learning_sandbox_prototype(
+    value: Mapping[str, object],
+) -> dict[str, object]:
+    keys = (
+        "estimator_id",
+        "simulation_id",
+        "prototype_status",
+        "executor",
+        "smoke_passed",
+        "execution_smoke_passed",
+        "metric_gate_errors",
+        "safety_errors",
+        "script_path",
+        "code_excerpt",
+        "stderr_summary",
+        "reason",
+    )
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = value.get(key)
+        if child in (None, "", [], {}):
+            continue
+        if isinstance(child, list):
+            compact[key] = [
+                _compact_runtime_learning_value(item) for item in child[:5]
+            ]
+        else:
+            compact[key] = _compact_runtime_learning_field_value(key, child)
+    return compact
+
+
+def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact: dict[str, object] = {}
+    scalar_keys = (
+        "trigger",
+        "owner_subsystem",
+        "agenda_id",
+        "work_order_id",
+        "semantic_primitive_id",
+        "target_theorem_name",
+        "placeholder_symbol",
+        "lookup_id",
+        "lookup_status",
+        "runtime_queue_status",
+        "verification_status",
+        "execution_status",
+        "source_execution_status",
+        "source_execution_result_id",
+        "source_lean_repair_task_id",
+        "provider_name",
+        "n_feedback_rows",
+        "attempt_status",
+        "lean_lsp_mcp_live_called",
+        "authoring_trigger",
+        "authoring_mode",
+        "failure_classification",
+        "candidate_artifact_path",
+        "source_candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "execution_transcript_path",
+        "proof_audit_manifest",
+        "source_theorem_kernel_verified",
+        "artifact_kernel_verified",
+        "source_theorem_proof_body_adapter_kernel_verified",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
+        "semantic_definition_typecheck_evidence_status",
+        "proof_body_attempted",
+        "proof_body_attempt_source",
+        "proof_body_attempt_count",
+        "proof_body_attempt_success",
+        "proof_body_gate_status",
+        "proof_body_goal_reached",
+        "simulation_passed",
+        "algorithm_n_executed",
+        "support_level",
+        "semantic_closure_status",
+        "placeholder_definition_status",
+        "source_theorem_ready_for_exact_proof_body",
+        "source_theorem_semantic_support_only",
+        "source_semantic_alignment_review_required",
+        "source_theorem_target_identity_status",
+        "action_type",
+        "replacement_strategy",
+        "next_step_kind",
+        "definition_candidate_status",
+        "review_status",
+        "forbidden_placeholder_detected",
+        "semantic_definition_risk_detected",
+        "ready_for_definition_lean_check",
+        "candidate_synthesis_status",
+        "definition_candidate_review_mode",
+        "replacement_applied",
+        "semantic_risk",
+        "source_theorem_kernel_evidence_eligible",
+        "adapter_candidate_artifact_path",
+        "adapter_declaration_name",
+        "adapter_kernel_verified",
+        "adapter_candidate_evidence_eligible",
+        "synthesized_candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "premise_name",
+        "premise_target_type",
+        "premise_derivation_gap_kind",
+        "recommended_next_action",
+        "source_to_bridge_premise_derivation_candidate_request_id",
+        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+        "source_to_bridge_premise_derivation_source_candidate_request_id",
+        "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
+        "adapter_instantiation_group_id",
+        "shared_adapter_instantiation_contract",
+        "semantic_anchor_reference_gate",
+    )
+    list_keys = (
+        "target_ids",
+        "target_theorem_goal_ids",
+        "selected_proof_obligation_ids",
+        "selected_unverified_proof_obligation_ids",
+        "kernel_verified_proof_obligation_ids",
+        "kernel_verified_source_theorem_semantic_primitive_ids",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "kernel_verified_source_theorem_semantic_definition_ids",
+        "kernel_verified_source_theorem_proof_body_adapter_ids",
+        "verified_source_theorem_proof_body_adapter_artifact_paths",
+        "verified_source_theorem_proof_body_adapter_declarations",
+        "kernel_verified_theorem_reduction_closure_work_order_ids",
+        "kernel_verified_theorem_reduction_closure_target_ids",
+        "kernel_verified_theorem_reduction_closure_declarations",
+        "verified_theorem_reduction_closure_artifact_paths",
+        "kernel_verified_theorem_reduction_closure_signature_excerpts",
+        "kernel_verified_theorem_reduction_closure_goal_ids",
+        "source_theorem_semantic_primitive_work_order_ids",
+        "semantic_primitive_ids",
+        "candidate_registered_obligation_ids",
+        "search_targets",
+        "source_lookup_hits",
+        "semantic_alignment_constraints",
+        "semantic_alignment_blockers",
+        "candidate_source_declarations",
+        "candidate_source_references",
+        "required_next_checks",
+        "forbidden_placeholder_matches",
+        "semantic_definition_risks",
+        "local_lean_diagnostics",
+        "formal_gap_target_ids",
+        "formal_environment_placeholder_symbols",
+        "missing_formal_symbols",
+        "formal_environment_typeclass_blockers",
+        "typeclass_blockers",
+        "recommended_proof_obligation_ids",
+        "proof_body_attempt_summaries",
+        "proof_body_goal_excerpt",
+        "exact_goal_shape_obligation_ids",
+        "exact_goal_shape_obligations",
+        "diagnostics",
+        "residual_goals",
+        "requested_tools",
+        "executed_tools",
+        "tool_call_trace",
+        "premise_names",
+        "source_to_bridge_premise_names",
+        "premise_semantic_anchor_binder_names",
+        "premise_semantic_anchor_binders",
+        "exact_source_theorem_binders",
+        "required_semantic_anchor_reference_names",
+        "required_bridge_premise_names_for_shared_instantiation",
+        "adapter_object_names_requiring_source_instantiation",
+        "source_to_bridge_adapter_object_names_requiring_source_instantiation",
+    )
+    mapping_keys = (
+        "formalization_counts",
+        "retrieval_counts",
+        "source_theorem_target_provenance",
+        "definition_contract",
+        "candidate_definition_request",
+        "source_to_bridge_premise_derivation_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
+        "source_to_bridge_premise_derivation_source_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+    )
+    for key in scalar_keys:
+        if key in value and value[key] not in (None, "", [], {}):
+            compact[key] = _compact_runtime_learning_field_value(key, value[key])
+    for key in list_keys:
+        items = value.get(key)
+        if isinstance(items, list):
+            limit = 4 if key in {"diagnostics", "proof_body_goal_excerpt", "proof_body_attempt_summaries"} else 12
+            compact[key] = [
+                _compact_runtime_learning_value(item)
+                for item in items[:limit]
+                if str(item).strip()
+            ]
+    for key in mapping_keys:
+        child = value.get(key)
+        if isinstance(child, Mapping):
+            if key in {
+                "source_to_bridge_premise_derivation_candidate_request",
+                "source_to_bridge_grouped_premise_derivation_candidate_request",
+            }:
+                compact[key] = _compact_source_to_bridge_premise_request(child)
+            elif key == "candidate_definition_request":
+                compact[key] = _compact_candidate_definition_request(child)
+            else:
+                compact[key] = {
+                    str(child_key): _compact_runtime_learning_value(child_value)
+                    for child_key, child_value in list(child.items())[:12]
+                    if child_value not in (None, "", [], {})
+                }
+    live_request = value.get("candidate_live_proof_state_request")
+    if isinstance(live_request, Mapping):
+        goal_excerpt = live_request.get("proof_body_goal_excerpt", [])
+        if isinstance(goal_excerpt, list) and goal_excerpt and "proof_body_goal_excerpt" not in compact:
+            compact["proof_body_goal_excerpt"] = [
+                _compact_runtime_learning_value(item)
+                for item in goal_excerpt[:8]
+                if str(item).strip()
+            ]
+        lean_multi_attempt = live_request.get("lean_multi_attempt", {})
+        if (
+            isinstance(lean_multi_attempt, Mapping)
+            and isinstance(lean_multi_attempt.get("attempts"), list)
+            and "proof_body_attempt_summaries" not in compact
+        ):
+            summaries: list[object] = []
+            for attempt in lean_multi_attempt.get("attempts", [])[:4]:
+                if not isinstance(attempt, Mapping):
+                    continue
+                status = str(attempt.get("status", "") or "").strip()
+                proof_body = str(attempt.get("proof_body", "") or "").strip()
+                if status or proof_body:
+                    summaries.append(
+                        {
+                            "status": status,
+                            "proof_body": proof_body[:240],
+                        }
+                    )
+            if summaries:
+                compact["proof_body_attempt_summaries"] = summaries
+    checks = value.get("semantic_primitive_checks")
+    if isinstance(checks, list):
+        compact["semantic_primitive_checks"] = [
+            {
+                sub_key: _compact_runtime_learning_value(check.get(sub_key))
+                for sub_key in (
+                    "placeholder_symbol",
+                    "semantic_primitive_id",
+                    "target_theorem_name",
+                    "work_order_id",
+                    "kernel_verified_registered_obligation_ids",
+                    "target_theorem_goal_ids",
+                )
+                if isinstance(check, Mapping)
+                and check.get(sub_key) not in (None, "", [], {})
+            }
+            for check in checks[:4]
+            if isinstance(check, Mapping)
+        ]
+    return compact
+
+
+def _compact_source_to_bridge_premise_request(value: Mapping[str, object]) -> dict[str, object]:
+    keys = (
+        "candidate_request_id",
+        "grouped_candidate_request_id",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "premise_name",
+        "premise_names",
+        "premise_target_type",
+        "premise_candidate_declaration_name",
+        "premise_candidate_declaration_names",
+        "adapter_instantiation_group_id",
+        "required_bridge_premise_names_for_shared_instantiation",
+        "adapter_object_names_requiring_source_instantiation",
+        "bridge_object_instantiation_policy",
+        "shared_adapter_instantiation_contract",
+        "exact_source_theorem_binders",
+        "premise_semantic_anchor_binders",
+        "premise_semantic_anchor_binder_names",
+        "required_semantic_anchor_reference_names",
+        "semantic_anchor_reference_gate",
+        "candidate_contract",
+        "forbidden_actions",
+        "proof_evidence_status",
+    )
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = value.get(key)
+        if child not in (None, "", [], {}):
+            compact[key] = _compact_runtime_learning_value(child)
+    return compact
+
+
+def _compact_candidate_definition_request(value: Mapping[str, object]) -> dict[str, object]:
+    keys = (
+        "request_kind",
+        "target_theorem_name",
+        "placeholder_symbol",
+        "semantic_goal",
+        "required_anchor_names",
+        "available_anchor_names",
+        "missing_required_anchor_names",
+        "required_binders",
+        "required_adapter_object_names",
+        "available_adapter_object_names",
+        "missing_required_adapter_object_names",
+        "source_to_bridge_adapter_instantiation_group_id",
+        "required_bridge_premise_names_for_shared_instantiation",
+        "forbidden_shortcuts",
+        "local_lean_gate",
+        "proof_evidence_status",
+    )
+    keep_empty_list_keys = {
+        "missing_required_anchor_names",
+        "missing_required_adapter_object_names",
+    }
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = value.get(key)
+        if key in keep_empty_list_keys and isinstance(child, list):
+            compact[key] = _compact_candidate_definition_request_value(key, child)
+            continue
+        if child not in (None, "", [], {}):
+            compact[key] = _compact_candidate_definition_request_value(key, child)
+    return compact
+
+
+def _compact_candidate_definition_request_value(key: str, value: object) -> object:
+    """Compact semantic-definition request fields without dropping source anchors."""
+
+    if isinstance(value, list):
+        limit = 16 if key.endswith("_names") else 12
+        return [_compact_runtime_learning_value(item) for item in value[:limit]]
+    return _compact_runtime_learning_value(value)
+
+
+def _compact_runtime_learning_value(value: object) -> object:
+    if isinstance(value, str):
+        return value if len(value) <= 320 else value[:317] + "..."
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    if isinstance(value, list):
+        return [_compact_runtime_learning_value(item) for item in value[:8]]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_runtime_learning_value(child)
+            for key, child in list(value.items())[:8]
+            if child not in (None, "", [], {})
+        }
+    return str(value)[:320]
+
+
+def _compact_runtime_learning_field_value(key: str, value: object) -> object:
+    if isinstance(value, str) and _runtime_learning_key_is_path_like(key):
+        return value
+    return _compact_runtime_learning_value(value)
+
+
+def _runtime_learning_key_is_path_like(key: str) -> bool:
+    normalized = key.lower()
+    return normalized.endswith(
+        (
+            "_path",
+            "_paths",
+            "_jsonl",
+            "_manifest",
+            "_dir",
+            "_file",
+            "_root",
+        )
+    )
 
 
 def _proof_audit_learning_export(args: argparse.Namespace) -> int:
@@ -628,7 +1533,7 @@ def _build_theory_generator_backend(
     if provider_name == "anthropic":
         return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds), "anthropic"
     if provider_name == "openai":
-        return OpenAIResponsesGeneratorBackend(), "openai"
+        return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds), "openai"
     raise ValueError(f"unknown theory provider: {provider_name}")
 
 
@@ -900,19 +1805,47 @@ def _proof_verifier_from_args(args: argparse.Namespace):
 
 
 def _proof_state_provider_from_args(args: argparse.Namespace):
-    if not getattr(args, "local_lean", False):
-        return None
-    lean_project = getattr(args, "lean_project", None) or getattr(
-        args,
-        "local_lean_project",
-        None,
+    local_lean_enabled = bool(getattr(args, "local_lean", False))
+    formalizer_candidate_local_lean_enabled = bool(
+        getattr(args, "formalizer_candidate_local_lean", False)
     )
-    lean_timeout = getattr(
-        args,
-        "lean_timeout",
-        getattr(args, "local_lean_timeout", 90),
-    ) or getattr(args, "local_lean_timeout", 90)
-    return LocalLeanProofStateFeedbackProvider(
+    formalizer_candidate_lean_lsp_mcp_enabled = bool(
+        getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+    )
+    formalizer_candidate_local_lean_enabled = (
+        formalizer_candidate_local_lean_enabled
+        or formalizer_candidate_lean_lsp_mcp_enabled
+    )
+    if not local_lean_enabled and not formalizer_candidate_local_lean_enabled:
+        return None
+    lean_project = (
+        (
+            getattr(args, "formalizer_candidate_lean_project", None)
+            if formalizer_candidate_local_lean_enabled
+            else None
+        )
+        or getattr(args, "lean_project", None)
+        or getattr(args, "local_lean_project", None)
+    )
+    lean_timeout = (
+        (
+            getattr(args, "formalizer_candidate_lean_timeout", None)
+            if formalizer_candidate_local_lean_enabled
+            else None
+        )
+        or getattr(
+            args,
+            "lean_timeout",
+            getattr(args, "local_lean_timeout", 90),
+        )
+        or getattr(args, "local_lean_timeout", 90)
+    )
+    provider_cls = (
+        LeanLspMcpProofStateFeedbackProvider
+        if formalizer_candidate_lean_lsp_mcp_enabled
+        else LocalLeanProofStateFeedbackProvider
+    )
+    return provider_cls(
         project_root=lean_project,
         timeout_s=lean_timeout,
     )
@@ -1045,6 +1978,536 @@ def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) ->
         f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
     )
     print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    return 0
+
+
+def _source_theorem_semantic_primitive_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        proof_body_executor_dir=(
+            Path(args.proof_body_executor_dir)
+            if args.proof_body_executor_dir
+            else None
+        ),
+        question_id=str(args.question_id or ""),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+        proof_audit_manifest=(
+            Path(args.proof_audit_manifest) if args.proof_audit_manifest else None
+        ),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-Theorem Semantic-Primitive ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"registered_candidates={bridge_manifest['n_registered_candidate_obligations']} "
+        f"kernel_verified_candidates="
+        f"{bridge_manifest['n_kernel_verified_registered_candidate_obligations']} "
+        f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
+    )
+    if bridge_manifest.get("source_proof_audit_manifest"):
+        print(
+            "proof audit manifest used: "
+            f"{Path(str(bridge_manifest['source_proof_audit_manifest'])).resolve()}"
+        )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    return 0
+
+
+def _source_theorem_proof_body_adapter_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        question_id=str(args.question_id or ""),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-Theorem Proof-Body Adapter ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"adapter_rows={bridge_manifest['n_adapter_check_rows']} "
+        f"adapter_kernel_verified={bridge_manifest['n_adapter_kernel_verified']} "
+        f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_to_bridge_premise_derivation_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        adapter_bridge_dir=(
+            Path(args.adapter_bridge_dir) if args.adapter_bridge_dir else None
+        ),
+        question_id=str(args.question_id or ""),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-to-Bridge Premise Derivation ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"premise_rows={bridge_manifest['n_premise_derivation_check_rows']} "
+        "premise_kernel_verified="
+        f"{bridge_manifest['n_premise_derivation_kernel_verified']} "
+        f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_formal_environment_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        question_id=str(args.question_id or ""),
+        run_signature_probes=bool(getattr(args, "run_signature_probes", False)),
+        lean_project=Path(args.lean_project) if getattr(args, "lean_project", "") else None,
+        lean_timeout=int(getattr(args, "lean_timeout", 90)),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-Theorem Formal-Environment ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"repair_packets={bridge_manifest['n_repair_packets']} "
+        f"missing_symbols={bridge_manifest['n_missing_formal_symbols']} "
+        f"typeclass_blockers={bridge_manifest['n_typeclass_blockers']}"
+    )
+    print(f"repair packets written to {Path(str(bridge_manifest['repair_packets_jsonl'])).resolve()}")
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    if bridge_manifest.get("signature_probe_manifest"):
+        print(
+            "signature probe manifest written to "
+            f"{Path(str(bridge_manifest['signature_probe_manifest'])).resolve()}"
+        )
+    if bridge_manifest.get("proof_body_work_orders_jsonl"):
+        print(
+            "proof-body work orders written to "
+            f"{Path(str(bridge_manifest['proof_body_work_orders_jsonl'])).resolve()}"
+        )
+    if bridge_manifest.get("proof_body_execution_queue_jsonl"):
+        print(
+            "proof-body execution queue written to "
+            f"{Path(str(bridge_manifest['proof_body_execution_queue_jsonl'])).resolve()}"
+        )
+    print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_source_lookup(
+    args: argparse.Namespace,
+) -> int:
+    source_roots = [Path(value) for value in args.source_root or []]
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=Path(args.out),
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        source_roots=source_roots,
+        max_hits_per_work_order=int(args.max_hits_per_work_order),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Source Lookup")
+    print("=" * 72)
+    print(
+        f"work_orders={manifest['n_work_orders']} "
+        f"rows_with_hits={manifest['n_rows_with_source_hits']} "
+        f"source_hits={manifest['n_source_lookup_hits']} "
+        f"learning={manifest['n_runtime_learning_rows']}"
+    )
+    print(
+        "lookup rows written to "
+        f"{Path(str(manifest['lookup_rows_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_closure_review(
+    args: argparse.Namespace,
+) -> int:
+    manifest = run_source_theorem_exact_semantic_definition_closure_review(
+        out_dir=Path(args.out),
+        review_packets_jsonl=(
+            Path(args.review_packets_jsonl)
+            if args.review_packets_jsonl
+            else None
+        ),
+        lookup_manifest=Path(args.lookup_manifest) if args.lookup_manifest else None,
+        candidate_artifact_path=(
+            Path(args.candidate_artifact) if args.candidate_artifact else None
+        ),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Closure Review")
+    print("=" * 72)
+    print(
+        f"review_packets={manifest['n_review_packets']} "
+        f"review_results={manifest['n_review_results']} "
+        f"forbidden_placeholders={manifest['n_forbidden_placeholder_definitions']} "
+        f"ready_for_lean={manifest['n_ready_for_definition_lean_check']}"
+    )
+    print(
+        "review results written to "
+        f"{Path(str(manifest['review_results_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    manifest = run_source_theorem_exact_semantic_definition_proofengineer_bridge(
+        out_dir=Path(args.out),
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        lookup_manifest=Path(args.lookup_manifest) if args.lookup_manifest else None,
+        review_packets_jsonl=(
+            Path(args.review_packets_jsonl)
+            if args.review_packets_jsonl
+            else None
+        ),
+        question_id=str(args.question_id or ""),
+    )
+    print("\nAI Statistician Exact Semantic-Definition ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"review_packets={manifest['n_review_packets']} "
+        f"repair_packets={manifest['n_repair_packets']} "
+        f"lean_repair_tasks={manifest['n_lean_repair_tasks']} "
+        f"import_candidates={manifest['n_import_candidate_declaration_packets']} "
+        f"synthesize_from_refs={manifest['n_synthesize_from_references_packets']}"
+    )
+    print(
+        "repair packets written to "
+        f"{Path(str(manifest['repair_packets_jsonl'])).resolve()}"
+    )
+    print(
+        "Lean repair tasks written to "
+        f"{Path(str(manifest['lean_repair_tasks_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_lean_repair_executor(
+    args: argparse.Namespace,
+) -> int:
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=Path(args.out),
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        bridge_manifest=Path(args.bridge_manifest) if args.bridge_manifest else None,
+        materializer_manifest=(
+            Path(args.materializer_manifest) if args.materializer_manifest else None
+        ),
+        tasks_jsonl=Path(args.tasks_jsonl) if args.tasks_jsonl else None,
+        source_roots=tuple(Path(value) for value in (args.source_root or [])),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Lean Repair Executor")
+    print("=" * 72)
+    print(
+        f"tasks={manifest['n_tasks']} "
+        f"results={manifest['n_results']} "
+        f"source_files_resolved={manifest['n_candidate_source_files_resolved']} "
+        f"local_lean_checked={manifest['n_local_lean_checked']} "
+        f"local_lean_compiled={manifest['n_local_lean_compiled']} "
+        f"authoring_tasks={manifest.get('n_exact_semantic_definition_authoring_tasks', 0)}"
+    )
+    print(
+        "execution results written to "
+        f"{Path(str(manifest['execution_results_jsonl'])).resolve()}"
+    )
+    if manifest.get("exact_semantic_definition_authoring_tasks_jsonl"):
+        print(
+            "definition authoring tasks written to "
+            f"{Path(str(manifest['exact_semantic_definition_authoring_tasks_jsonl'])).resolve()}"
+        )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_authoring_worker(
+    args: argparse.Namespace,
+) -> int:
+    _load_dotenv(Path(args.env_file))
+    provider_name = str(args.provider or "none")
+    provider = None
+    if provider_name != "none" and not bool(args.dry_run):
+        provider, provider_name = _build_theory_generator_backend(
+            provider_name=provider_name,
+            static_response_file=str(args.static_response_file or ""),
+            llm_timeout_seconds=float(args.llm_timeout_seconds),
+        )
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=Path(args.out),
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        repair_executor_manifest=(
+            Path(args.repair_executor_manifest)
+            if args.repair_executor_manifest
+            else None
+        ),
+        authoring_tasks_jsonl=(
+            Path(args.authoring_tasks_jsonl)
+            if args.authoring_tasks_jsonl
+            else None
+        ),
+        provider=provider,
+        config=AuthoringWorkerConfig(
+            provider_name=provider_name,
+            model=str(args.llm_model or ""),
+            model_tier=str(args.model_tier or "sonnet"),
+            max_tokens=int(args.max_tokens),
+            temperature=float(args.temperature),
+            max_repair_attempts=int(args.max_repair_attempts),
+            dry_run=bool(args.dry_run or provider is None),
+            max_tasks=int(args.max_tasks),
+            placeholder_symbols=tuple(args.placeholder_symbol or ()),
+            allow_external_export=bool(args.allow_external_export),
+            external_export_mode=str(args.external_export_mode or "full"),
+            external_export_approval_manifest=str(
+                args.external_export_approval_manifest or ""
+            ),
+        ),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Authoring Worker")
+    print("=" * 72)
+    print(
+        f"tasks={manifest['n_authoring_tasks']} "
+        f"prompt_packets={manifest['n_prompt_packets']} "
+        f"llm_attempted={manifest['n_llm_attempted']} "
+        f"candidate_packets={manifest['n_candidate_packets']} "
+        f"candidate_ok={manifest['n_candidate_packets_ok']}"
+    )
+    print(
+        "prompt packets written to "
+        f"{Path(str(manifest['authoring_prompt_packets_jsonl'])).resolve()}"
+    )
+    print(
+        "candidate packets written to "
+        f"{Path(str(manifest['authoring_candidate_packets_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_authoring_candidate_materialize(
+    args: argparse.Namespace,
+) -> int:
+    manifest = (
+        run_source_theorem_exact_semantic_definition_authoring_candidate_materializer(
+            out_dir=Path(args.out),
+            authoring_worker_manifest=(
+                Path(args.authoring_worker_manifest)
+                if args.authoring_worker_manifest
+                else None
+            ),
+            candidate_packets_jsonl=(
+                Path(args.candidate_packets_jsonl)
+                if args.candidate_packets_jsonl
+                else None
+            ),
+            config=AuthoringCandidateMaterializerConfig(
+                max_candidates=int(args.max_candidates),
+                include_source_comments=not bool(args.no_source_comments),
+            ),
+        )
+    )
+    print("\nAI Statistician Exact Semantic-Definition Candidate Materializer")
+    print("=" * 72)
+    print(
+        f"candidate_packets={manifest['n_candidate_packets']} "
+        f"materialized={manifest['n_materialized_definition_only_candidates']} "
+        f"lean_repair_tasks={manifest['n_materialized_lean_repair_tasks']} "
+        f"blocked={manifest['n_blocked_candidates']}"
+    )
+    print(
+        "materialization rows written to "
+        f"{Path(str(manifest['materialization_rows_jsonl'])).resolve()}"
+    )
+    print(
+        "materialized Lean repair tasks written to "
+        f"{Path(str(manifest['materialized_lean_repair_tasks_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_lean_environment_repair_executor(
+    args: argparse.Namespace,
+) -> int:
+    manifest = (
+        run_source_theorem_exact_semantic_definition_lean_environment_repair_executor(
+            out_dir=Path(args.out),
+            runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+            repair_executor_manifest=(
+                Path(args.repair_executor_manifest)
+                if args.repair_executor_manifest
+                else None
+            ),
+            environment_tasks_jsonl=(
+                Path(args.environment_tasks_jsonl)
+                if args.environment_tasks_jsonl
+                else None
+            ),
+        )
+    )
+    print("\nAI Statistician Exact Semantic-Definition Lean Environment Repair")
+    print("=" * 72)
+    print(
+        f"tasks={manifest['n_tasks']} "
+        f"results={manifest['n_results']} "
+        f"dependency_fetch_required={manifest['n_dependency_fetch_required']} "
+        f"ready_to_rerun={manifest['n_ready_to_rerun_lean_repair']}"
+    )
+    print(
+        "environment results written to "
+        f"{Path(str(manifest['environment_repair_results_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_candidate_synthesis(
+    args: argparse.Namespace,
+) -> int:
+    manifest = run_source_theorem_exact_semantic_definition_candidate_synthesis(
+        out_dir=Path(args.out),
+        review_manifest=Path(args.review_manifest) if args.review_manifest else None,
+        review_results_jsonl=(
+            Path(args.review_results_jsonl)
+            if args.review_results_jsonl
+            else None
+        ),
+        candidate_artifact_path=Path(args.candidate_artifact),
+        proof_body_queue_manifest=(
+            Path(args.proof_body_queue_manifest)
+            if getattr(args, "proof_body_queue_manifest", "")
+            else None
+        ),
+        proof_body_queue_jsonl=(
+            Path(args.proof_body_queue_jsonl)
+            if getattr(args, "proof_body_queue_jsonl", "")
+            else None
+        ),
+        allow_draft_semantic_repair=bool(args.allow_draft_semantic_repair),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Candidate Synthesis")
+    print("=" * 72)
+    print(
+        f"review_results={manifest['n_review_results']} "
+        f"replacements={manifest['n_replacements_applied']} "
+        f"forbidden_after={manifest['n_forbidden_placeholder_definitions_after']} "
+        f"local_lean_compiled={manifest['local_lean_compiled']}"
+    )
+    print(
+        "synthesized artifact written to "
+        f"{Path(str(manifest['synthesized_candidate_artifact_path'])).resolve()}"
+    )
+    print(
+        "synthesis rows written to "
+        f"{Path(str(manifest['candidate_synthesis_results_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    if manifest.get("proof_body_recheck_queue_manifest"):
+        print(
+            "proof-body recheck queue written to "
+            f"{Path(str(manifest['proof_body_recheck_queue_manifest'])).resolve()}"
+        )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
     return 0
 
 
@@ -2591,6 +4054,28 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         formalization_gap_planner_resource_response_ledger_dir=(
             Path(args.formalization_gap_planner_resource_response_ledger_dir)
             if args.formalization_gap_planner_resource_response_ledger_dir
+            else None
+        ),
+        source_theorem_semantic_primitive_bridge_dir=(
+            Path(args.source_theorem_semantic_primitive_bridge_dir)
+            if args.source_theorem_semantic_primitive_bridge_dir
+            else None
+        ),
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            Path(
+                args.source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir
+            )
+            if args.source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir
+            else None
+        ),
+        source_theorem_formal_environment_bridge_dir=(
+            Path(args.source_theorem_formal_environment_bridge_dir)
+            if args.source_theorem_formal_environment_bridge_dir
+            else None
+        ),
+        exact_source_theorem_proof_body_executor_dir=(
+            Path(args.exact_source_theorem_proof_body_executor_dir)
+            if args.exact_source_theorem_proof_body_executor_dir
             else None
         ),
         formalization_gap_planner_refinement_evidence_dir=(
@@ -4762,6 +6247,98 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier(
     return 0 if payload["all_ok"] else 1
 
 
+def _exact_source_theorem_proof_body_executor(args: argparse.Namespace) -> int:
+    queue_dir = (
+        Path(args.exact_source_theorem_proof_body_execution_queue_dir)
+        if args.exact_source_theorem_proof_body_execution_queue_dir
+        else None
+    )
+    generated_queue_payload: Mapping[str, object] | None = None
+    if args.proof_body_repair_work_orders_jsonl:
+        generated_queue_payload = (
+            export_exact_source_theorem_proof_body_repair_execution_queue(
+                proof_body_repair_work_orders_jsonl=Path(
+                    args.proof_body_repair_work_orders_jsonl
+                ),
+                out_dir=Path(args.out)
+                / "exact_source_theorem_proof_body_repair_execution_queue",
+            )
+        )
+        queue_dir = Path(
+            str(generated_queue_payload["proof_body_execution_queue_manifest"])
+        ).parent
+    if queue_dir is None:
+        raise SystemExit(
+            "exact-source-theorem-proof-body-executor requires either "
+            "--exact-source-theorem-proof-body-execution-queue-dir or "
+            "--proof-body-repair-work-orders-jsonl"
+        )
+    payload = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        Path(args.out),
+        overwrite=bool(args.overwrite),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistical Theory Lab Exact Source Theorem Proof-Body Executor")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_execution_result_rows']} "
+        f"materialized={payload['n_materialized_candidate_artifacts']} "
+        f"checked={payload['n_local_lean_checked']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"placeholder_env_blockers={payload['n_placeholder_environment_blockers']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    if generated_queue_payload is not None:
+        print(
+            "direct proof-body repair execution queue written to "
+            f"{Path(str(generated_queue_payload['proof_body_execution_queue_manifest'])).resolve()}"
+        )
+    print(
+        "exact source proof-body executor manifest written to "
+        f"{(Path(args.out) / 'exact_source_theorem_proof_body_execution_result_manifest.json').resolve()}"
+    )
+    print(f"proof_evidence_status={payload['proof_evidence_status']}")
+    return 0 if payload["all_ok"] else 1
+
+
+def _runtime_source_theorem_promotion_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
+        seed_queue_dir=Path(args.seed_queue_dir),
+        out_dir=Path(args.out),
+        local_lean=not bool(args.no_local_lean),
+        overwrite_artifacts=bool(args.overwrite),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistical Theory Lab Runtime Source-Theorem ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"materialized={payload['n_materialized_artifacts']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"formal_env_work_orders={payload['n_source_theorem_formal_environment_work_orders']} "
+        f"ready_source_integration={payload['n_ready_for_source_theorem_integration']} "
+        f"source_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"local_lean_skipped={payload['local_lean_skipped_reason'] or 'no'}"
+    )
+    print(
+        f"\nbridge manifest written to "
+        f"{(Path(args.out) / 'runtime_source_theorem_promotion_proofengineer_bridge_manifest.json').resolve()}"
+    )
+    if payload.get("source_theorem_formal_environment_work_order_manifest"):
+        print(
+            f"formal-environment work-order manifest written to "
+            f"{Path(str(payload['source_theorem_formal_environment_work_order_manifest'])).resolve()}"
+        )
+    print(f"proof evidence status: {payload['proof_evidence_status']}")
+    return 0
+
+
 def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     args: argparse.Namespace,
 ) -> int:
@@ -6189,6 +7766,16 @@ def _list(args: argparse.Namespace) -> int:
 def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
+    questions, missing_question_ids = _select_questions_by_id(
+        questions,
+        getattr(args, "question_id", []) or [],
+    )
+    if missing_question_ids:
+        print("\nAI Statistician Research Architect rejected question ids")
+        print("=" * 72)
+        for question_id in missing_question_ids:
+            print(f"- unknown question_id: {question_id}")
+        return 2
     if args.max_questions:
         questions = questions[: args.max_questions]
     provider, provider_name = _build_theory_generator_backend(
@@ -6209,6 +7796,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,
+            max_repair_attempts=args.max_repair_attempts,
         ),
     )
     architect = ResearchArchitectAgent(
@@ -6233,6 +7821,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
 
 def _research_agent_runtime(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
+    _apply_research_agent_runtime_capability_eval_preset(args)
     if getattr(args, "capability_eval", False):
         config_errors = _research_agent_runtime_capability_config_errors(args)
         if config_errors:
@@ -6243,9 +7832,49 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             return 2
     verifier = _proof_verifier_from_args(args)
     proof_state_provider = _proof_state_provider_from_args(args)
+    resume_initial_tasks: dict[str, AgentTask] = {}
+    resume_blackboard_artifacts: dict[str, dict[str, Any]] = {}
+    resume_question_id = ""
+    if getattr(args, "resume_runtime_manifest", ""):
+        try:
+            (
+                resume_question_id,
+                resume_task,
+                resume_artifacts,
+            ) = _load_runtime_resume_task_from_manifest(Path(args.resume_runtime_manifest))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print("\nAI Statistician Agent Runtime rejected resume manifest")
+            print("=" * 72)
+            print(f"- {exc}")
+            return 2
+        resume_initial_tasks[resume_question_id] = resume_task
+        resume_blackboard_artifacts[resume_question_id] = resume_artifacts
     questions = load_open_research_questions(Path(args.question_file))
+    requested_question_ids = list(getattr(args, "question_id", []) or [])
+    if resume_question_id and not requested_question_ids:
+        requested_question_ids = [resume_question_id]
+    questions, missing_question_ids = _select_questions_by_id(
+        questions,
+        requested_question_ids,
+    )
+    if missing_question_ids:
+        print("\nAI Statistician Agent Runtime rejected question ids")
+        print("=" * 72)
+        for question_id in missing_question_ids:
+            print(f"- unknown question_id: {question_id}")
+        return 2
     if args.max_questions:
         questions = questions[: args.max_questions]
+    if resume_question_id and (
+        len(questions) != 1 or str(getattr(questions[0], "id", "") or "") != resume_question_id
+    ):
+        print("\nAI Statistician Agent Runtime rejected resume selection")
+        print("=" * 72)
+        print(
+            "- --resume-runtime-manifest must run exactly the pending question id: "
+            f"{resume_question_id}"
+        )
+        return 2
     provider, provider_name = _build_theory_generator_backend(
         provider_name=args.provider,
         static_response_file=args.static_response_file,
@@ -6264,6 +7893,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,
+            max_repair_attempts=args.theory_max_repair_attempts,
         ),
     )
     architect_coordinator = _build_architect_coordinator_agent_from_args(args, default_model=model)
@@ -6283,12 +7913,20 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         proof_verifier=verifier,
         proof_state_provider=proof_state_provider,
         architect_context=context,
+        initial_task_overrides=resume_initial_tasks,
+        initial_blackboard_artifacts=resume_blackboard_artifacts,
         config=ResearchAgentRuntimeConfig(
             n_runs=args.runs,
             seed=args.seed,
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
+            formal_verification_policy=str(
+                getattr(args, "formal_verification_policy", "optional") or "optional"
+            ),
+            recommended_research_path=str(
+                getattr(args, "recommended_research_path", "") or ""
+            ),
             proof_obligation_ids=tuple(args.proof_obligation_id or ()),
             max_proof_obligations=args.max_proof_obligations,
             llm_timeout_seconds=args.llm_timeout_seconds,
@@ -6296,6 +7934,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 "capability_eval"
                 if getattr(args, "capability_eval", False)
                 else "debug"
+            ),
+            formalizer_candidate_local_lean=bool(
+                getattr(args, "formalizer_candidate_local_lean", False)
+                or getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+            ),
+            formalizer_candidate_lean_project=str(
+                getattr(args, "formalizer_candidate_lean_project", "")
+                or getattr(args, "lean_project", "")
+                or ""
+            ),
+            formalizer_candidate_lean_timeout=int(
+                getattr(args, "formalizer_candidate_lean_timeout", 30)
             ),
             theorem_closure_proofengineer_bridge=bool(
                 getattr(args, "theorem_closure_proofengineer_bridge", False)
@@ -6321,6 +7971,114 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             source_semantic_proofengineer_lean_timeout=int(
                 getattr(args, "source_semantic_proofengineer_lean_timeout", 90)
             ),
+            source_theorem_proof_body_adapter_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_theorem_proof_body_adapter_proofengineer_bridge",
+                    False,
+                )
+            ),
+            source_theorem_proof_body_adapter_proofengineer_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_proof_body_adapter_proofengineer_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_proof_body_adapter_proofengineer_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_proof_body_adapter_proofengineer_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_proof_body_adapter_proofengineer_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_proof_body_adapter_proofengineer_lean_timeout",
+                    90,
+                )
+            ),
+            source_to_bridge_premise_derivation_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_to_bridge_premise_derivation_proofengineer_bridge",
+                    False,
+                )
+            ),
+            source_to_bridge_premise_derivation_proofengineer_local_lean=bool(
+                getattr(
+                    args,
+                    "source_to_bridge_premise_derivation_proofengineer_local_lean",
+                    False,
+                )
+            ),
+            source_to_bridge_premise_derivation_proofengineer_lean_project=str(
+                getattr(
+                    args,
+                    "source_to_bridge_premise_derivation_proofengineer_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_to_bridge_premise_derivation_proofengineer_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_to_bridge_premise_derivation_proofengineer_lean_timeout",
+                    90,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_bridge",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_signature_probes=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_signature_probes",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_execute_proof_body=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_execute_proof_body",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_proof_body_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_formal_environment_proofengineer_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_lean_timeout",
+                    90,
+                )
+            ),
             source_theorem_promotion_proofengineer_bridge=bool(
                 getattr(
                     args,
@@ -6332,6 +8090,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "source_theorem_promotion_proofengineer_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_promotion_proofengineer_overwrite_artifacts=bool(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_overwrite_artifacts",
                     False,
                 )
             ),
@@ -6350,8 +8115,176 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     90,
                 )
             ),
+            source_theorem_exact_semantic_definition_source_lookup=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_source_lookup",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_source_roots=tuple(
+                str(value)
+                for value in (
+                    getattr(
+                        args,
+                        "source_theorem_exact_semantic_definition_source_root",
+                        [],
+                    )
+                    or []
+                )
+                if str(value).strip()
+            ),
+            source_theorem_exact_semantic_definition_source_lookup_max_hits=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_source_lookup_max_hits",
+                    8,
+                )
+            ),
+            source_theorem_exact_semantic_definition_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_proofengineer_bridge",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_lean_repair_executor=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_lean_repair_executor",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_lean_repair_executor_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_lean_repair_executor_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout",
+                    90,
+                )
+            ),
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_provider=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_provider",
+                    "none",
+                )
+                or "none"
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_static_response_file=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_static_response_file",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_model=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_model",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_max_tasks=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_max_tasks",
+                    0,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_external_export_mode=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode",
+                    "redacted",
+                )
+                or "redacted"
+            ),
+            source_theorem_exact_semantic_definition_closure_review=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_closure_review",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_candidate_synthesis=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_candidate_synthesis",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_candidate_synthesis_allow_draft_semantic_repair=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_candidate_synthesis_allow_draft_semantic_repair",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_candidate_synthesis_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_exact_semantic_definition_candidate_synthesis_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_candidate_synthesis_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_exact_semantic_definition_candidate_synthesis_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_candidate_synthesis_lean_timeout",
+                    90,
+                )
+            ),
         ),
     )
+    if getattr(args, "run_coding_agent_generated_code_repair_eval", False):
+        manifest = _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
+            args,
+            manifest,
+        )
+    if getattr(args, "run_formalizer_lean_candidate_repair_eval", False):
+        manifest = _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+            args,
+            manifest,
+        )
     print("\nAI Statistician Agent Runtime")
     print("=" * 72)
     print(
@@ -6390,6 +8323,383 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     return 0
 
 
+def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the generated-code repair gate and attach it to a runtime manifest."""
+
+    provider_name = str(
+        getattr(args, "coding_agent_repair_eval_provider", "same") or "same"
+    )
+    if provider_name == "same":
+        provider_name = str(getattr(args, "provider", "anthropic") or "anthropic")
+    out_dir = Path(
+        getattr(args, "coding_agent_repair_eval_out", "")
+        or Path(args.out) / "internal_coding_agent_generated_code_repair_eval"
+    )
+    eval_manifest = run_coding_agent_generated_code_repair_eval(
+        question_file=Path(args.question_file),
+        question_id=(
+            str(getattr(args, "coding_agent_repair_eval_question_id", "") or "")
+            or "conformal_prediction_coverage"
+        ),
+        out_dir=out_dir,
+        provider_name=provider_name,
+        model=str(getattr(args, "coding_agent_repair_eval_model", "") or ""),
+        algorithm_static_response_file=(
+            Path(getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", ""))
+            if getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", "")
+            else None
+        ),
+        simulation_static_response_file=(
+            Path(getattr(args, "coding_agent_repair_eval_simulation_static_response_file", ""))
+            if getattr(args, "coding_agent_repair_eval_simulation_static_response_file", "")
+            else None
+        ),
+        llm_timeout_seconds=float(
+            getattr(
+                args,
+                "coding_agent_repair_eval_llm_timeout_seconds",
+                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+            )
+        ),
+        max_tokens=int(getattr(args, "coding_agent_repair_eval_max_tokens", 4000)),
+        temperature=float(getattr(args, "coding_agent_repair_eval_temperature", 0.1)),
+        n_runs=int(getattr(args, "coding_agent_repair_eval_runs", args.runs)),
+        seed=int(getattr(args, "coding_agent_repair_eval_seed", args.seed)),
+        target_coverage=float(
+            getattr(args, "coding_agent_repair_eval_target_coverage", 0.9)
+        ),
+        max_repair_attempts=int(
+            getattr(args, "coding_agent_repair_eval_max_repair_attempts", 4)
+        ),
+    )
+    attached = {
+        "artifact_kind": "RuntimeAttachedCodingAgentGeneratedCodeRepairEval",
+        "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
+        "provider_name": str(eval_manifest.get("provider_name", "")),
+        "model": str(eval_manifest.get("model", "")),
+        "live_generator": bool(eval_manifest.get("live_generator", False)),
+        "static_or_fixture_only": bool(
+            eval_manifest.get("static_or_fixture_only", False)
+        ),
+        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "capability_evidence_ok": bool(
+            eval_manifest.get("capability_evidence_ok", False)
+        ),
+        "algorithm_capability_evidence_ok": bool(
+            eval_manifest.get("algorithm_capability_evidence_ok", False)
+        ),
+        "simulation_capability_evidence_ok": bool(
+            eval_manifest.get("simulation_capability_evidence_ok", False)
+        ),
+        "algorithm_repair_sequences": int(
+            eval_manifest.get("algorithm_repair_sequences", 0) or 0
+        ),
+        "simulation_repair_sequences": int(
+            eval_manifest.get("simulation_repair_sequences", 0) or 0
+        ),
+        "proof_evidence_status": str(
+            eval_manifest.get(
+                "proof_evidence_status",
+                "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE",
+            )
+        ),
+        "boundary": (
+            "This attached component gate checks generated-code repair capability "
+            "for AlgorithmEngineer and SimulationEngineer. It is not theorem proof, "
+            "not simulation proof, and not a substitute for an integrated "
+            "AgentRuntime research success."
+        ),
+    }
+    manifest["internal_coding_agent_generated_code_repair_eval"] = attached
+    manifest["internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"] = bool(
+        attached["capability_evidence_ok"]
+    )
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
+    ] = bool(attached["static_or_fixture_only"])
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
+    ] = int(attached["algorithm_repair_sequences"])
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
+    ] = int(attached["simulation_repair_sequences"])
+    manifest.setdefault("artifacts", {})[
+        "internal_coding_agent_generated_code_repair_eval_manifest_json"
+    ] = str(attached["manifest_path"])
+    _refresh_runtime_coding_agent_capability_manifest(
+        manifest,
+        runtime_out_dir=Path(args.out),
+    )
+    manifest_path = Path(args.out) / "research_agent_runtime_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
+    return manifest
+
+
+def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the Formalizer Lean-candidate repair gate and attach it to runtime output."""
+
+    provider_name = str(
+        getattr(args, "formalizer_repair_eval_provider", "same") or "same"
+    )
+    if provider_name == "same":
+        provider_name = str(getattr(args, "provider", "anthropic") or "anthropic")
+    out_dir = Path(
+        getattr(args, "formalizer_repair_eval_out", "")
+        or Path(args.out) / "internal_formalizer_lean_candidate_repair_eval"
+    )
+    eval_manifest = run_formalizer_lean_candidate_repair_eval(
+        question_file=Path(args.question_file),
+        question_id=(
+            str(getattr(args, "formalizer_repair_eval_question_id", "") or "")
+            or "conformal_prediction_coverage"
+        ),
+        out_dir=out_dir,
+        provider_name=provider_name,
+        model=str(getattr(args, "formalizer_repair_eval_model", "") or ""),
+        static_response_file=(
+            Path(getattr(args, "formalizer_repair_eval_static_response_file", ""))
+            if getattr(args, "formalizer_repair_eval_static_response_file", "")
+            else None
+        ),
+        llm_timeout_seconds=float(
+            getattr(
+                args,
+                "formalizer_repair_eval_llm_timeout_seconds",
+                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+            )
+        ),
+        max_tokens=int(getattr(args, "formalizer_repair_eval_max_tokens", 4000)),
+        temperature=float(getattr(args, "formalizer_repair_eval_temperature", 0.1)),
+        lean_project=(
+            Path(getattr(args, "formalizer_repair_eval_lean_project", ""))
+            if getattr(args, "formalizer_repair_eval_lean_project", "")
+            else None
+        ),
+        lean_timeout=int(getattr(args, "formalizer_repair_eval_lean_timeout", 15)),
+        max_repair_attempts=int(
+            getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
+        ),
+    )
+    attached = {
+        "artifact_kind": "RuntimeAttachedFormalizerLeanCandidateRepairEval",
+        "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
+        "provider_name": str(eval_manifest.get("provider_name", "")),
+        "model": str(eval_manifest.get("model", "")),
+        "live_generator": bool(eval_manifest.get("live_generator", False)),
+        "static_or_fixture_only": bool(
+            eval_manifest.get("static_or_fixture_only", False)
+        ),
+        "capability_evidence_ok": bool(
+            eval_manifest.get("capability_evidence_ok", False)
+        ),
+        "candidate_kernel_verified": bool(
+            eval_manifest.get("candidate_kernel_verified", False)
+        ),
+        "source_theorem_kernel_verified": bool(
+            eval_manifest.get("source_theorem_kernel_verified", False)
+        ),
+        "full_frontier_theorem_proved": bool(
+            eval_manifest.get("full_frontier_theorem_proved", False)
+        ),
+        "repair_sequences": int(
+            eval_manifest.get(
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        ),
+        "local_lean_checked": int(
+            eval_manifest.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+            or 0
+        ),
+        "local_lean_compiled": int(
+            eval_manifest.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
+            or 0
+        ),
+        "proof_evidence_status": str(
+            eval_manifest.get(
+                "proof_evidence_status",
+                "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE",
+            )
+        ),
+        "boundary": (
+            "This attached component gate checks Formalizer/ProofEngineer "
+            "Lean-candidate repair capability. A compiled helper candidate is "
+            "kernel evidence only for that exact helper artifact; it is not "
+            "source theorem proof and not full frontier theorem closure."
+        ),
+    }
+    manifest["internal_formalizer_lean_candidate_repair_eval"] = attached
+    manifest["internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"] = bool(
+        attached["capability_evidence_ok"]
+    )
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only"
+    ] = bool(attached["static_or_fixture_only"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_repair_sequences"
+    ] = int(attached["repair_sequences"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_checked"
+    ] = int(attached["local_lean_checked"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled"
+    ] = int(attached["local_lean_compiled"])
+    manifest.setdefault("artifacts", {})[
+        "internal_formalizer_lean_candidate_repair_eval_manifest_json"
+    ] = str(attached["manifest_path"])
+    _refresh_runtime_coding_agent_capability_manifest(
+        manifest,
+        runtime_out_dir=Path(args.out),
+    )
+    manifest_path = Path(args.out) / "research_agent_runtime_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
+    return manifest
+
+
+def _refresh_runtime_coding_agent_capability_manifest(
+    manifest: dict[str, Any],
+    *,
+    runtime_out_dir: Path,
+) -> None:
+    """Refresh capability table and learning rows after attached component gates."""
+
+    manifest["runtime_coding_agent_capability"] = (
+        _runtime_coding_agent_capability_table(manifest)
+    )
+    capability_learning_rows = _runtime_coding_agent_capability_learning_rows(
+        manifest=manifest,
+        capability_table=manifest["runtime_coding_agent_capability"],
+    )
+    artifacts = manifest.setdefault("artifacts", {})
+    learning_path_raw = str(artifacts.get("runtime_learning_rows_jsonl", "") or "")
+    if learning_path_raw:
+        learning_path = Path(learning_path_raw)
+    else:
+        learning_path = runtime_out_dir / "runtime_learning_rows.jsonl"
+        artifacts["runtime_learning_rows_jsonl"] = str(learning_path)
+    existing_rows: list[dict[str, Any]] = []
+    if learning_path.exists():
+        for line in learning_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                existing_rows.append(row)
+    retained_rows = [
+        row
+        for row in existing_rows
+        if row.get("learning_task")
+        != "coding_agent_generated_code_capability_feedback"
+    ]
+    refreshed_rows = [*retained_rows, *capability_learning_rows]
+    learning_path.parent.mkdir(parents=True, exist_ok=True)
+    learning_path.write_text(
+        "".join(json.dumps(row, default=str) + "\n" for row in refreshed_rows),
+        encoding="utf-8",
+    )
+    manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
+        capability_learning_rows
+    )
+    manifest["n_runtime_learning_rows"] = len(refreshed_rows)
+
+
+def _apply_research_agent_runtime_capability_eval_preset(
+    args: argparse.Namespace,
+) -> None:
+    """Populate strict live capability-eval defaults without weakening gates."""
+
+    preset = str(getattr(args, "capability_eval_preset", "") or "").strip()
+    if preset in {"", "none"}:
+        return
+    if preset != "minimal-live":
+        raise ValueError(f"unsupported capability eval preset: {preset}")
+
+    if str(getattr(args, "provider", "") or "") not in {"anthropic", "openai"}:
+        args.provider = _default_live_generator_provider()
+    for field_name in (
+        "architect_coordinator_provider",
+        "simulation_engineer_provider",
+        "algorithm_engineer_provider",
+        "formalizer_provider",
+        "critic_evaluator_provider",
+    ):
+        if str(getattr(args, field_name, "") or "") in {"", "none", "static"}:
+            setattr(args, field_name, "same")
+
+    if not bool(getattr(args, "local_lean", False)) and not bool(
+        getattr(args, "real_lean", False)
+    ):
+        args.local_lean = True
+    lean_project = str(getattr(args, "lean_project", "") or "").strip()
+    if not lean_project:
+        default_lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
+        if default_lean_project.exists():
+            args.lean_project = str(default_lean_project)
+            lean_project = str(default_lean_project)
+
+    for field_name in (
+        "formalizer_candidate_local_lean",
+        "theorem_closure_proofengineer_bridge",
+        "theorem_closure_proofengineer_local_lean",
+        "source_semantic_proofengineer_bridge",
+        "source_semantic_proofengineer_local_lean",
+        "source_theorem_promotion_proofengineer_bridge",
+        "source_theorem_promotion_proofengineer_local_lean",
+        "source_theorem_formal_environment_proofengineer_bridge",
+        "source_theorem_formal_environment_proofengineer_signature_probes",
+        "source_theorem_formal_environment_proofengineer_execute_proof_body",
+        "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+        "source_theorem_proof_body_adapter_proofengineer_bridge",
+        "source_theorem_proof_body_adapter_proofengineer_local_lean",
+        "source_to_bridge_premise_derivation_proofengineer_bridge",
+        "source_to_bridge_premise_derivation_proofengineer_local_lean",
+        "source_theorem_exact_semantic_definition_source_lookup",
+        "source_theorem_exact_semantic_definition_proofengineer_bridge",
+        "source_theorem_exact_semantic_definition_lean_repair_executor",
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+        "source_theorem_exact_semantic_definition_closure_review",
+        "source_theorem_exact_semantic_definition_candidate_synthesis",
+        "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
+    ):
+        setattr(args, field_name, True)
+
+    lean_project_fields = (
+        "formalizer_candidate_lean_project",
+        "theorem_closure_proofengineer_lean_project",
+        "source_semantic_proofengineer_lean_project",
+        "source_theorem_proof_body_adapter_proofengineer_lean_project",
+        "source_to_bridge_premise_derivation_proofengineer_lean_project",
+        "source_theorem_formal_environment_proofengineer_lean_project",
+        "source_theorem_promotion_proofengineer_lean_project",
+        "source_theorem_exact_semantic_definition_lean_repair_executor_lean_project",
+        "source_theorem_exact_semantic_definition_candidate_synthesis_lean_project",
+    )
+    if lean_project:
+        for field_name in lean_project_fields:
+            if not str(getattr(args, field_name, "") or "").strip():
+                setattr(args, field_name, lean_project)
+
+    roots = list(
+        getattr(args, "source_theorem_exact_semantic_definition_source_root", [])
+        or []
+    )
+    default_source_root = Path("legacy_sources/ai_statistician")
+    if not roots and default_source_root.exists():
+        roots.append(str(default_source_root))
+    args.source_theorem_exact_semantic_definition_source_root = roots
+
+
 def _research_agent_runtime_capability_config_errors(
     args: argparse.Namespace,
 ) -> list[str]:
@@ -6415,6 +8725,133 @@ def _research_agent_runtime_capability_config_errors(
     if getattr(args, "proof_obligation_id", None):
         errors.append(
             "capability eval must not use --proof-obligation-id; manual proof filters are debug-only"
+        )
+    if str(getattr(args, "recommended_research_path", "") or "").strip():
+        errors.append(
+            "capability eval must not use --recommended-research-path; "
+            "manual path overrides are controlled-smoke/debug-only and cannot "
+            "stand in for live Architect path selection"
+        )
+    proofengineer_required_flags = (
+        (
+            "formalizer_candidate_local_lean",
+            "--formalizer-candidate-local-lean",
+        ),
+        (
+            "theorem_closure_proofengineer_bridge",
+            "--theorem-closure-proofengineer-bridge",
+        ),
+        (
+            "theorem_closure_proofengineer_local_lean",
+            "--theorem-closure-proofengineer-local-lean",
+        ),
+        (
+            "source_semantic_proofengineer_bridge",
+            "--source-semantic-proofengineer-bridge",
+        ),
+        (
+            "source_semantic_proofengineer_local_lean",
+            "--source-semantic-proofengineer-local-lean",
+        ),
+        (
+            "source_theorem_promotion_proofengineer_bridge",
+            "--source-theorem-promotion-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_promotion_proofengineer_local_lean",
+            "--source-theorem-promotion-proofengineer-local-lean",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_bridge",
+            "--source-theorem-formal-environment-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_signature_probes",
+            "--source-theorem-formal-environment-proofengineer-signature-probes",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_execute_proof_body",
+            "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+            "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        ),
+        (
+            "source_theorem_proof_body_adapter_proofengineer_bridge",
+            "--source-theorem-proof-body-adapter-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_proof_body_adapter_proofengineer_local_lean",
+            "--source-theorem-proof-body-adapter-proofengineer-local-lean",
+        ),
+        (
+            "source_to_bridge_premise_derivation_proofengineer_bridge",
+            "--source-to-bridge-premise-derivation-proofengineer-bridge",
+        ),
+        (
+            "source_to_bridge_premise_derivation_proofengineer_local_lean",
+            "--source-to-bridge-premise-derivation-proofengineer-local-lean",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_source_lookup",
+            "--source-theorem-exact-semantic-definition-source-lookup",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_proofengineer_bridge",
+            "--source-theorem-exact-semantic-definition-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_lean_repair_executor",
+            "--source-theorem-exact-semantic-definition-lean-repair-executor",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
+            "--source-theorem-exact-semantic-definition-lean-repair-executor-local-lean",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+            "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_closure_review",
+            "--source-theorem-exact-semantic-definition-closure-review",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_candidate_synthesis",
+            "--source-theorem-exact-semantic-definition-candidate-synthesis",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
+            "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
+        ),
+    )
+    for field_name, flag in proofengineer_required_flags:
+        if not bool(getattr(args, field_name, False)):
+            errors.append(
+                "capability eval requires the internal ProofEngineer proof path; "
+                f"missing {flag}"
+            )
+    if (
+        bool(getattr(args, "formalizer_candidate_local_lean", False))
+        or bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False))
+    ) and not (
+        str(getattr(args, "formalizer_candidate_lean_project", "") or "").strip()
+        or str(getattr(args, "lean_project", "") or "").strip()
+    ):
+        errors.append(
+            "capability eval with --formalizer-candidate-local-lean requires "
+            "--formalizer-candidate-lean-project or --lean-project so Mathlib/"
+            "StatInference imports are available to the local Lean checker"
+        )
+    if not (
+        getattr(args, "source_theorem_exact_semantic_definition_source_root", [])
+        or []
+    ):
+        errors.append(
+            "capability eval requires at least one "
+            "--source-theorem-exact-semantic-definition-source-root for internal "
+            "exact-semantic lookup"
         )
     return errors
 
@@ -6468,6 +8905,315 @@ def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'research_agent_runtime_audit_manifest.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
+
+
+def _algorithm_engineer_generated_code_repair_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    try:
+        manifest = run_algorithm_engineer_generated_code_repair_eval(
+            question_file=Path(args.question_file),
+            question_id=args.question_id,
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            static_response_file=(
+                Path(args.static_response_file)
+                if args.static_response_file
+                else None
+            ),
+            llm_timeout_seconds=args.llm_timeout_seconds,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            n_runs=args.runs,
+            seed=args.seed,
+            target_coverage=args.target_coverage,
+            max_repair_attempts=args.max_repair_attempts,
+        )
+    except Exception as exc:
+        manifest = write_algorithm_engineer_generated_code_repair_eval_failure_manifest(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            question_id=args.question_id,
+            exc=exc,
+        )
+        print("\nAI Statistician AlgorithmEngineer generated-code repair eval failed")
+        print("=" * 72)
+        print(f"- {exc}")
+        print(f"manifest={manifest['artifacts']['manifest_json']}")
+        return 1
+    print("\nAI Statistician AlgorithmEngineer Generated-Code Repair Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(f"result_status={manifest['result_status']}")
+    print(
+        "generated_code_executed="
+        f"{manifest['n_generated_code_sandbox_executed']} "
+        "passed="
+        f"{manifest['n_generated_code_sandbox_passed']} "
+        "metric_gate_failed="
+        f"{manifest['n_generated_code_sandbox_metric_gate_failed']}"
+    )
+    print(
+        "fail_then_pass_repair_sequences="
+        f"{manifest['n_generated_code_sandbox_failed_then_passed_repair_sequences']}"
+    )
+    fixture_plumbing_ok = bool(
+        manifest["static_or_fixture_only"] and manifest["sandbox_clean_after_repair"]
+    )
+    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and fixture_plumbing_ok:
+        return 0
+    return 1
+
+
+def _simulation_engineer_generated_code_repair_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    try:
+        manifest = run_simulation_engineer_generated_code_repair_eval(
+            question_file=Path(args.question_file),
+            question_id=args.question_id,
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            static_response_file=(
+                Path(args.static_response_file)
+                if args.static_response_file
+                else None
+            ),
+            llm_timeout_seconds=args.llm_timeout_seconds,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            n_runs=args.runs,
+            seed=args.seed,
+            target_coverage=args.target_coverage,
+            max_repair_attempts=args.max_repair_attempts,
+        )
+    except Exception as exc:
+        manifest = write_simulation_engineer_generated_code_repair_eval_failure_manifest(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            question_id=args.question_id,
+            exc=exc,
+        )
+        print("\nAI Statistician SimulationEngineer generated-code repair eval failed")
+        print("=" * 72)
+        print(f"- {exc}")
+        print(f"manifest={manifest['artifacts']['manifest_json']}")
+        return 1
+    print("\nAI Statistician SimulationEngineer Generated-Code Repair Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(f"result_status={manifest['result_status']}")
+    print(
+        "generated_simulation_executed="
+        f"{manifest['n_generated_simulation_sandbox_executed']} "
+        "passed="
+        f"{manifest['n_generated_simulation_sandbox_passed']} "
+        "metric_gate_failed="
+        f"{manifest['n_generated_simulation_sandbox_metric_gate_failed']}"
+    )
+    print(
+        "fail_then_pass_repair_sequences="
+        f"{manifest['n_generated_simulation_sandbox_failed_then_passed_repair_sequences']}"
+    )
+    fixture_plumbing_ok = bool(
+        manifest["static_or_fixture_only"] and manifest["sandbox_clean_after_repair"]
+    )
+    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and fixture_plumbing_ok:
+        return 0
+    return 1
+
+
+def _coding_agent_generated_code_repair_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    manifest = run_coding_agent_generated_code_repair_eval(
+        question_file=Path(args.question_file),
+        question_id=args.question_id,
+        out_dir=Path(args.out),
+        provider_name=args.provider,
+        model=args.llm_model,
+        algorithm_static_response_file=(
+            Path(args.algorithm_static_response_file)
+            if args.algorithm_static_response_file
+            else None
+        ),
+        simulation_static_response_file=(
+            Path(args.simulation_static_response_file)
+            if args.simulation_static_response_file
+            else None
+        ),
+        llm_timeout_seconds=args.llm_timeout_seconds,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        n_runs=args.runs,
+        seed=args.seed,
+        target_coverage=args.target_coverage,
+        max_repair_attempts=args.max_repair_attempts,
+    )
+    print("\nAI Statistician Coding-Agent Generated-Code Repair Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(
+        "algorithm_ok="
+        f"{manifest['algorithm_capability_evidence_ok']} "
+        "simulation_ok="
+        f"{manifest['simulation_capability_evidence_ok']}"
+    )
+    print(
+        "repair_sequences="
+        f"algorithm:{manifest['algorithm_repair_sequences']} "
+        f"simulation:{manifest['simulation_repair_sequences']}"
+    )
+    print(f"fixture_plumbing_ok={manifest['fixture_plumbing_ok']}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and manifest["fixture_plumbing_ok"]:
+        return 0
+    return 1
+
+
+def _formalizer_lean_candidate_repair_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    lean_project = (
+        Path(args.lean_project)
+        if getattr(args, "lean_project", "")
+        else None
+    )
+    try:
+        manifest = run_formalizer_lean_candidate_repair_eval(
+            question_file=Path(args.question_file),
+            question_id=args.question_id,
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            static_response_file=(
+                Path(args.static_response_file)
+                if args.static_response_file
+                else None
+            ),
+            llm_timeout_seconds=args.llm_timeout_seconds,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            lean_project=lean_project,
+            lean_timeout=args.lean_timeout,
+            max_repair_attempts=args.max_repair_attempts,
+        )
+    except Exception as exc:
+        manifest = write_formalizer_lean_candidate_repair_eval_failure_manifest(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            question_id=args.question_id,
+            exc=exc,
+        )
+        print("\nAI Statistician Formalizer Lean-Candidate Repair Eval failed")
+        print("=" * 72)
+        print(f"- {exc}")
+        print(f"manifest={manifest['artifacts']['manifest_json']}")
+        return 1
+    print("\nAI Statistician Formalizer Lean-Candidate Repair Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(f"result_status={manifest['result_status']}")
+    print(
+        "lean_candidates="
+        f"{manifest['n_formalizer_lean_candidate_sources']} "
+        "checked="
+        f"{manifest['n_formalizer_lean_candidate_local_lean_checked']} "
+        "compiled="
+        f"{manifest['n_formalizer_lean_candidate_local_lean_compiled']}"
+    )
+    print(
+        "fail_then_pass_repair_sequences="
+        f"{manifest['n_formalizer_lean_candidate_failed_then_passed_repair_sequences']}"
+    )
+    fixture_plumbing_ok = bool(
+        manifest["static_or_fixture_only"]
+        and manifest["candidate_kernel_verified"]
+        and manifest["repair_loop_observed"]
+    )
+    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and fixture_plumbing_ok:
+        return 0
+    return 1
+
+
+def _architect_research_path_policy_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    try:
+        manifest = run_architect_research_path_policy_eval(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            static_response_file=(
+                Path(args.static_response_file)
+                if args.static_response_file
+                else None
+            ),
+            llm_timeout_seconds=args.llm_timeout_seconds,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+        )
+    except Exception as exc:
+        manifest = write_architect_research_path_policy_eval_failure_manifest(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            exc=exc,
+        )
+        print("\nAI Statistician Architect Research-Path Policy Eval failed")
+        print("=" * 72)
+        print(f"- {exc}")
+        print(f"manifest={manifest['artifacts']['manifest_json']}")
+        return 1
+    print("\nAI Statistician Architect Research-Path Policy Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(f"cases_ok={manifest['n_cases_ok']}/{manifest['n_cases']}")
+    print(
+        "long_horizon_fields="
+        f"problem_analysis:{manifest['n_with_problem_analysis']} "
+        f"knowledge_bank:{manifest['n_with_stat_knowledge_bank_plan']} "
+        f"fair_comparison:{manifest['n_with_literature_fair_comparison_plan']}"
+    )
+    fixture_plumbing_ok = bool(
+        manifest["static_or_fixture_only"] and manifest["all_cases_ok"]
+    )
+    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and fixture_plumbing_ok:
+        return 0
+    return 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -6612,6 +9358,778 @@ def build_parser() -> argparse.ArgumentParser:
     )
     theorem_reduction_closure_proofengineer_bridge.set_defaults(
         func=_theorem_reduction_closure_proofengineer_bridge
+    )
+
+    source_theorem_semantic_primitive_proofengineer_bridge = sub.add_parser(
+        "source-theorem-semantic-primitive-proofengineer-bridge",
+        help=(
+            "run the ProofEngineer bridge from AgentRuntime source-theorem "
+            "semantic primitive work orders to runtime learning memory"
+        ),
+    )
+    semantic_bridge_source = (
+        source_theorem_semantic_primitive_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    semantic_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "research_agent_runtime_manifest.json"
+        ),
+    )
+    semantic_bridge_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_semantic_primitive_work_orders.jsonl from "
+            "research-agent-runtime"
+        ),
+    )
+    semantic_bridge_source.add_argument(
+        "--proof-body-executor-dir",
+        help=(
+            "exact-source theorem proof-body executor output directory; the bridge "
+            "will materialize source semantic primitive work orders from its runtime "
+            "learning rows"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_semantic_primitive_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--local-lean",
+        action="store_true",
+        help=(
+            "run local lake env lean for registered semantic-bridge obligations; "
+            "only successful rows become support evidence"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each source-semantic local Lean check",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--proof-audit-manifest",
+        default="",
+        help=(
+            "optional existing proof_audit_manifest.json to reuse instead of "
+            "running a new local Lean audit"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.set_defaults(
+        func=_source_theorem_semantic_primitive_proofengineer_bridge
+    )
+
+    source_theorem_proof_body_adapter_proofengineer_bridge = sub.add_parser(
+        "source-theorem-proof-body-adapter-proofengineer-bridge",
+        help=(
+            "consume AgentRuntime source-theorem proof-body adapter work orders "
+            "and export adapter ProofEngineer feedback/runtime learning rows"
+        ),
+    )
+    adapter_bridge_source = (
+        source_theorem_proof_body_adapter_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    adapter_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
+        ),
+    )
+    adapter_bridge_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_proof_body_adapter_work_orders.jsonl from "
+            "research-agent-runtime"
+        ),
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_proof_body_adapter_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.add_argument(
+        "--local-lean",
+        action="store_true",
+        help=(
+            "run local lake env lean on adapter candidates; only non-vacuous "
+            "compiled adapters become adapter evidence"
+        ),
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each adapter local Lean check",
+    )
+    source_theorem_proof_body_adapter_proofengineer_bridge.set_defaults(
+        func=_source_theorem_proof_body_adapter_proofengineer_bridge
+    )
+
+    source_to_bridge_premise_derivation_proofengineer_bridge = sub.add_parser(
+        "source-to-bridge-premise-derivation-proofengineer-bridge",
+        help=(
+            "consume source-to-bridge premise derivation work orders and export "
+            "ProofEngineer feedback/runtime learning rows"
+        ),
+    )
+    premise_bridge_source = (
+        source_to_bridge_premise_derivation_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    premise_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "runtime_source_to_bridge_premise_derivation_queue_jsonl"
+        ),
+    )
+    premise_bridge_source.add_argument(
+        "--adapter-bridge-dir",
+        help=(
+            "source-theorem-proof-body-adapter-proofengineer-bridge output "
+            "directory containing a source-to-bridge premise derivation queue"
+        ),
+    )
+    premise_bridge_source.add_argument(
+        "--queue-jsonl",
+        help="source_to_bridge_premise_derivation_queue.jsonl to consume directly",
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.add_argument(
+        "--out",
+        default=(
+            "runs/source_to_bridge_premise_derivation_proofengineer_bridge"
+        ),
+        help="bridge output directory",
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.add_argument(
+        "--local-lean",
+        action="store_true",
+        help=(
+            "run local lake env lean on premise-derivation candidates; only "
+            "non-vacuous compiled premise derivations become premise evidence"
+        ),
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each premise-derivation local Lean check",
+    )
+    source_to_bridge_premise_derivation_proofengineer_bridge.set_defaults(
+        func=_source_to_bridge_premise_derivation_proofengineer_bridge
+    )
+
+    source_theorem_formal_environment_proofengineer_bridge = sub.add_parser(
+        "source-theorem-formal-environment-proofengineer-bridge",
+        help=(
+            "convert AgentRuntime source-theorem formal-environment work orders "
+            "into ProofEngineer repair packets and runtime learning rows"
+        ),
+    )
+    env_bridge_source = (
+        source_theorem_formal_environment_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    env_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "research_agent_runtime_manifest.json"
+        ),
+    )
+    env_bridge_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_formal_environment_work_orders.jsonl or "
+            "formal-environment work orders emitted by the source-theorem promotion bridge"
+        ),
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--run-signature-probes",
+        action="store_true",
+        help=(
+            "materialize typecheck-only Lean signature probes from repair packets; "
+            "these probes are diagnostics and not proof evidence"
+        ),
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project used by --run-signature-probes",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each signature-probe local Lean check",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_formal_environment_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.set_defaults(
+        func=_source_theorem_formal_environment_proofengineer_bridge
+    )
+
+    source_theorem_exact_semantic_definition_source_lookup = sub.add_parser(
+        "source-theorem-exact-semantic-definition-source-lookup",
+        help=(
+            "search local Lean sources for exact semantic definitions requested by "
+            "AgentRuntime exact-semantic work orders"
+        ),
+    )
+    exact_definition_lookup_source = (
+        source_theorem_exact_semantic_definition_source_lookup.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_lookup_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "runtime_source_theorem_exact_semantic_definition_work_orders.jsonl"
+        ),
+    )
+    exact_definition_lookup_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_exact_semantic_definition_work_orders.jsonl "
+            "from research-agent-runtime"
+        ),
+    )
+    source_theorem_exact_semantic_definition_source_lookup.add_argument(
+        "--source-root",
+        action="append",
+        default=[],
+        help=(
+            "Lean source root to search; repeat for Mathlib/StatInference/"
+            "EmpiricalProcessLEAN checkouts"
+        ),
+    )
+    source_theorem_exact_semantic_definition_source_lookup.add_argument(
+        "--max-hits-per-work-order",
+        type=int,
+        default=8,
+        help="maximum source text hits retained for each exact-semantic work order",
+    )
+    source_theorem_exact_semantic_definition_source_lookup.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_source_lookup",
+        help="source lookup output directory",
+    )
+    source_theorem_exact_semantic_definition_source_lookup.set_defaults(
+        func=_source_theorem_exact_semantic_definition_source_lookup
+    )
+
+    source_theorem_exact_semantic_definition_closure_review = sub.add_parser(
+        "source-theorem-exact-semantic-definition-closure-review",
+        help=(
+            "review exact semantic-definition closure packets against a candidate "
+            "Lean artifact and reject forbidden placeholder definitions"
+        ),
+    )
+    exact_definition_review_source = (
+        source_theorem_exact_semantic_definition_closure_review.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_review_source.add_argument(
+        "--review-packets-jsonl",
+        help=(
+            "source_theorem_exact_semantic_definition_closure_review_packets.jsonl "
+            "from exact semantic-definition source lookup"
+        ),
+    )
+    exact_definition_review_source.add_argument(
+        "--lookup-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_source_lookup_manifest.json "
+            "listing definition_closure_review_packets_jsonl"
+        ),
+    )
+    source_theorem_exact_semantic_definition_closure_review.add_argument(
+        "--candidate-artifact",
+        default="",
+        help=(
+            "exact source theorem Lean candidate artifact whose placeholder "
+            "definitions should be statically reviewed"
+        ),
+    )
+    source_theorem_exact_semantic_definition_closure_review.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_closure_review",
+        help="closure review output directory",
+    )
+    source_theorem_exact_semantic_definition_closure_review.set_defaults(
+        func=_source_theorem_exact_semantic_definition_closure_review
+    )
+
+    source_theorem_exact_semantic_definition_proofengineer_bridge = sub.add_parser(
+        "source-theorem-exact-semantic-definition-proofengineer-bridge",
+        help=(
+            "turn exact semantic-definition review packets into ProofEngineer "
+            "repair packets and runtime learning rows"
+        ),
+    )
+    exact_definition_bridge_source = (
+        source_theorem_exact_semantic_definition_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing exact "
+            "semantic-definition source lookup artifacts"
+        ),
+    )
+    exact_definition_bridge_source.add_argument(
+        "--lookup-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_source_lookup_manifest.json "
+            "listing definition_closure_review_packets_jsonl"
+        ),
+    )
+    exact_definition_bridge_source.add_argument(
+        "--review-packets-jsonl",
+        help=(
+            "source_theorem_exact_semantic_definition_closure_review_packets.jsonl "
+            "from exact semantic-definition source lookup"
+        ),
+    )
+    source_theorem_exact_semantic_definition_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_exact_semantic_definition_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_exact_semantic_definition_proofengineer_bridge.set_defaults(
+        func=_source_theorem_exact_semantic_definition_proofengineer_bridge
+    )
+
+    source_theorem_exact_semantic_definition_lean_repair_executor = sub.add_parser(
+        "source-theorem-exact-semantic-definition-lean-repair-executor",
+        help=(
+            "consume exact semantic-definition Lean repair tasks, resolve candidate "
+            "source declarations, and optionally run local Lean diagnostics"
+        ),
+    )
+    exact_definition_lean_repair_source = (
+        source_theorem_exact_semantic_definition_lean_repair_executor.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_lean_repair_source.add_argument(
+        "--runtime-dir",
+        help="research-agent-runtime output directory listing Lean repair tasks",
+    )
+    exact_definition_lean_repair_source.add_argument(
+        "--bridge-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_manifest.json "
+            "listing lean_repair_tasks_jsonl"
+        ),
+    )
+    exact_definition_lean_repair_source.add_argument(
+        "--materializer-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_manifest.json "
+            "listing materialized_lean_repair_tasks_jsonl"
+        ),
+    )
+    exact_definition_lean_repair_source.add_argument(
+        "--tasks-jsonl",
+        help="source_theorem_exact_semantic_definition_lean_repair_tasks.jsonl",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.add_argument(
+        "--source-root",
+        action="append",
+        default=[],
+        help="Lean source root used to resolve candidate import declaration paths",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local Lean on resolved import-candidate source files",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project for --local-lean",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for local Lean diagnostics",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_lean_repair_executor",
+        help="Lean repair executor output directory",
+    )
+    source_theorem_exact_semantic_definition_lean_repair_executor.set_defaults(
+        func=_source_theorem_exact_semantic_definition_lean_repair_executor
+    )
+
+    source_theorem_exact_semantic_definition_authoring_worker = sub.add_parser(
+        "source-theorem-exact-semantic-definition-authoring-worker",
+        help=(
+            "prepare or run generator-only authoring for exact semantic "
+            "definitions requested by the Lean repair executor"
+        ),
+    )
+    exact_definition_authoring_source = (
+        source_theorem_exact_semantic_definition_authoring_worker.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_authoring_source.add_argument(
+        "--runtime-dir",
+        help="research-agent-runtime output directory listing authoring tasks",
+    )
+    exact_definition_authoring_source.add_argument(
+        "--repair-executor-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_manifest.json "
+            "listing exact_semantic_definition_authoring_tasks_jsonl"
+        ),
+    )
+    exact_definition_authoring_source.add_argument(
+        "--authoring-tasks-jsonl",
+        help="source_theorem_exact_semantic_definition_authoring_tasks.jsonl",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--provider",
+        choices=("none",) + LIVE_GENERATOR_PROVIDER_CHOICES,
+        default="none",
+        help=(
+            "generator backend for authoring; default none writes prompt packets "
+            "without calling an LLM"
+        ),
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="write prompt packets only even when --provider is set",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--allow-external-export",
+        action="store_true",
+        help=(
+            "allow sending local proof/formalization authoring context to the "
+            "external Anthropic/OpenAI provider; without this flag, external "
+            "providers emit export-review packets instead of making API calls"
+        ),
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--external-export-mode",
+        choices=("full", "redacted"),
+        default="full",
+        help=(
+            "prompt payload mode for external LLM authoring. redacted removes "
+            "local source paths and Lean snippets from source_reference_hints "
+            "while preserving counts and binder/semantic contracts"
+        ),
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--external-export-approval-manifest",
+        default="",
+        help=(
+            "optional JSON/JSONL approval manifest listing exact prompt/review "
+            "packet ids or export payload fingerprints approved for external "
+            "Anthropic/OpenAI authoring calls"
+        ),
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response to replay when --provider static is used",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for the authoring worker; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--model-tier",
+        choices=("haiku", "sonnet", "opus"),
+        default="sonnet",
+        help="Claude cost tier for authoring; default Sonnet because this is proof/formalization work",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+        help="maximum output tokens for live authoring calls",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="authoring worker generation temperature",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=1,
+        help="maximum local JSON validation repair retries for live authoring calls",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help="wall-clock timeout for each live authoring generator request",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--max-tasks",
+        type=int,
+        default=0,
+        help="optional cap on authoring tasks for focused smokes",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--placeholder-symbol",
+        action="append",
+        default=[],
+        help=(
+            "only prepare/run authoring tasks for this placeholder symbol; may "
+            "be repeated for focused ProofEngineer closure runs"
+        ),
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--env-file",
+        default=".env",
+        help="dotenv file used for Anthropic/OpenAI API keys",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_authoring_worker",
+        help="authoring worker output directory",
+    )
+    source_theorem_exact_semantic_definition_authoring_worker.set_defaults(
+        func=_source_theorem_exact_semantic_definition_authoring_worker
+    )
+
+    source_theorem_exact_semantic_definition_authoring_candidate_materialize = (
+        sub.add_parser(
+            "source-theorem-exact-semantic-definition-authoring-candidate-materialize",
+            help=(
+                "materialize validated exact semantic-definition authoring "
+                "candidate packets into definition-only Lean drafts and "
+                "downstream Lean repair tasks"
+            ),
+        )
+    )
+    exact_definition_authoring_candidate_source = (
+        source_theorem_exact_semantic_definition_authoring_candidate_materialize.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_authoring_candidate_source.add_argument(
+        "--authoring-worker-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_authoring_worker_manifest.json "
+            "listing authoring_candidate_packets_jsonl"
+        ),
+    )
+    exact_definition_authoring_candidate_source.add_argument(
+        "--candidate-packets-jsonl",
+        help="source_theorem_exact_semantic_definition_authoring_candidate_packets.jsonl",
+    )
+    source_theorem_exact_semantic_definition_authoring_candidate_materialize.add_argument(
+        "--max-candidates",
+        type=int,
+        default=0,
+        help="optional cap on candidate packets for focused smokes",
+    )
+    source_theorem_exact_semantic_definition_authoring_candidate_materialize.add_argument(
+        "--no-source-comments",
+        action="store_true",
+        help="omit authoring packet comments from generated definition-only Lean files",
+    )
+    source_theorem_exact_semantic_definition_authoring_candidate_materialize.add_argument(
+        "--out",
+        default=(
+            "runs/"
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer"
+        ),
+        help="authoring candidate materializer output directory",
+    )
+    source_theorem_exact_semantic_definition_authoring_candidate_materialize.set_defaults(
+        func=_source_theorem_exact_semantic_definition_authoring_candidate_materialize
+    )
+
+    source_theorem_exact_semantic_definition_lean_environment_repair_executor = (
+        sub.add_parser(
+            "source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+            help=(
+                "preflight exact semantic-definition Lean environment repair tasks "
+                "by inspecting inferred Lake project dependency/cache readiness"
+            ),
+        )
+    )
+    exact_definition_environment_repair_source = (
+        source_theorem_exact_semantic_definition_lean_environment_repair_executor.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_environment_repair_source.add_argument(
+        "--runtime-dir",
+        help="research-agent-runtime output directory listing environment repair tasks",
+    )
+    exact_definition_environment_repair_source.add_argument(
+        "--repair-executor-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_manifest.json "
+            "listing lean_environment_repair_tasks_jsonl"
+        ),
+    )
+    exact_definition_environment_repair_source.add_argument(
+        "--environment-tasks-jsonl",
+        help="source_theorem_exact_semantic_definition_lean_environment_repair_tasks.jsonl",
+    )
+    source_theorem_exact_semantic_definition_lean_environment_repair_executor.add_argument(
+        "--out",
+        default=(
+            "runs/"
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor"
+        ),
+        help="Lean environment repair preflight output directory",
+    )
+    source_theorem_exact_semantic_definition_lean_environment_repair_executor.set_defaults(
+        func=_source_theorem_exact_semantic_definition_lean_environment_repair_executor
+    )
+
+    source_theorem_exact_semantic_definition_candidate_synthesis = sub.add_parser(
+        "source-theorem-exact-semantic-definition-candidate-synthesis",
+        help=(
+            "synthesize non-vacuous exact semantic-definition candidate drafts "
+            "from closure review results and optionally run local Lean diagnostics"
+        ),
+    )
+    exact_definition_synthesis_source = (
+        source_theorem_exact_semantic_definition_candidate_synthesis.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_synthesis_source.add_argument(
+        "--review-manifest",
+        help=(
+            "source_theorem_exact_semantic_definition_closure_review_manifest.json "
+            "listing review_results_jsonl"
+        ),
+    )
+    exact_definition_synthesis_source.add_argument(
+        "--review-results-jsonl",
+        help=(
+            "source_theorem_exact_semantic_definition_closure_review_results.jsonl "
+            "from closure review"
+        ),
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--candidate-artifact",
+        required=True,
+        help="exact source theorem Lean candidate artifact to repair",
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--allow-draft-semantic-repair",
+        action="store_true",
+        help=(
+            "opt in to replacing semantically risky known placeholders with "
+            "non-proof draft definitions; default remains to block and export a "
+            "review queue"
+        ),
+    )
+    exact_definition_synthesis_recheck_source = (
+        source_theorem_exact_semantic_definition_candidate_synthesis.add_mutually_exclusive_group()
+    )
+    exact_definition_synthesis_recheck_source.add_argument(
+        "--proof-body-queue-manifest",
+        default="",
+        help=(
+            "optional exact_source_theorem_proof_body_execution_queue_manifest.json; "
+            "when supplied, emit a diagnostic recheck queue pointing at the synthesized artifact"
+        ),
+    )
+    exact_definition_synthesis_recheck_source.add_argument(
+        "--proof-body-queue-jsonl",
+        default="",
+        help=(
+            "optional exact_source_theorem_proof_body_execution_queue.jsonl; "
+            "when supplied, emit a diagnostic recheck queue pointing at the synthesized artifact"
+        ),
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local Lean on the synthesized candidate artifact as diagnostics",
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project for --local-lean",
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for the local Lean diagnostic check",
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
+        "--out",
+        default="runs/source_theorem_exact_semantic_definition_candidate_synthesis",
+        help="candidate synthesis output directory",
+    )
+    source_theorem_exact_semantic_definition_candidate_synthesis.set_defaults(
+        func=_source_theorem_exact_semantic_definition_candidate_synthesis
     )
 
     proof_audit_learning_export = sub.add_parser(
@@ -8122,6 +11640,34 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-resource-response-ledger-dir",
         help="optional resource-response ledger directory carrying prover residuals",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-semantic-primitive-bridge-dir",
+        help=(
+            "optional source-theorem semantic primitive bridge output directory "
+            "carrying source semantic support checks"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-semantic-primitive-from-proof-body-executor-work-orders-dir",
+        help=(
+            "optional directory or JSONL carrying semantic primitive work orders "
+            "materialized from exact proof-body executor feedback"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-formal-environment-bridge-dir",
+        help=(
+            "optional source-theorem formal-environment bridge output directory "
+            "carrying repair packets for missing symbols/typeclasses"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--exact-source-theorem-proof-body-executor-dir",
+        help=(
+            "optional exact source-theorem proof-body executor output directory "
+            "carrying local Lean execution results"
+        ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-refinement-evidence-dir",
@@ -9893,6 +13439,102 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formal_verifier_agentic_proof_execution_artifact_verifier
     )
 
+    exact_source_theorem_proof_body_executor = sub.add_parser(
+        "exact-source-theorem-proof-body-executor",
+        help=(
+            "consume exact source-theorem proof-body execution queue rows, "
+            "materialize candidate artifacts, and optionally run local Lean"
+        ),
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--exact-source-theorem-proof-body-execution-queue-dir",
+        default="",
+        help=(
+            "directory containing "
+            "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        ),
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--proof-body-repair-work-orders-jsonl",
+        default="",
+        help=(
+            "optional runtime_source_theorem_promotion_work_orders.jsonl containing "
+            "source_theorem_exact_proof_body_repair rows; when set, the CLI first "
+            "materializes an exact source theorem proof-body execution queue"
+        ),
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--out",
+        default="runs/exact_source_theorem_proof_body_executor",
+        help="exact source theorem proof-body executor output directory",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="rewrite existing candidate artifacts instead of reusing them",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local lake env lean/lean on materialized candidate artifacts",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before local Lean proof-body execution check times out",
+    )
+    exact_source_theorem_proof_body_executor.set_defaults(
+        func=_exact_source_theorem_proof_body_executor
+    )
+
+    runtime_source_theorem_promotion_proofengineer_bridge = sub.add_parser(
+        "runtime-source-theorem-promotion-proofengineer-bridge",
+        help=(
+            "materialize source-theorem promotion seeds, run optional local Lean, "
+            "and emit ProofEngineer bridge work orders"
+        ),
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--seed-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_queue_manifest.json",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/runtime_source_theorem_promotion_proofengineer_bridge",
+        help="runtime source-theorem promotion ProofEngineer bridge output directory",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before each local Lean artifact/source-theorem check times out",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--no-local-lean",
+        action="store_true",
+        help="materialize only; skip local Lean artifact and source-theorem checks",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="rewrite existing exact-source candidate artifacts before verification",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.set_defaults(
+        func=_runtime_source_theorem_promotion_proofengineer_bridge
+    )
+
     formal_verifier_agentic_proof_trace_memory = sub.add_parser(
         "formal-verifier-agentic-proof-trace-memory",
         help="summarize agentic proof execution transcripts into reusable search memory",
@@ -11003,6 +14645,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="run Architect -> LLM TheoryDeveloper and persist typed derivation/evidence artifacts",
     )
     research_architect_theory.add_argument("--question-file", default="examples/research_questions.json")
+    research_architect_theory.add_argument(
+        "--question-id",
+        action="append",
+        default=[],
+        help=(
+            "run only the matching question id from --question-file; repeatable "
+            "for targeted live/runtime-learning smokes"
+        ),
+    )
     research_architect_theory.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
     research_architect_theory.add_argument(
         "--provider",
@@ -11034,6 +14685,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_architect_theory.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
     research_architect_theory.add_argument("--temperature", type=float, default=0.2)
+    research_architect_theory.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=ResearchArchitectConfig().max_repair_attempts,
+        help=(
+            "maximum local-validator repair retries for TheoryDeveloper JSON "
+            "packets; set 0 to disable extra provider calls"
+        ),
+    )
     research_architect_theory.add_argument("--out", default="runs/research_architect_theory")
     research_architect_theory.add_argument("--env-file", default=".env")
     research_architect_theory.set_defaults(func=_research_architect_theory_develop)
@@ -11046,6 +14706,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument("--question-file", default="examples/research_questions.json")
+    research_agent_runtime.add_argument(
+        "--question-id",
+        action="append",
+        default=[],
+        help=(
+            "run only the matching question id from --question-file; repeatable "
+            "for targeted live/runtime-learning smokes"
+        ),
+    )
     research_agent_runtime.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
     research_agent_runtime.add_argument(
         "--provider",
@@ -11064,6 +14733,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional Architect context JSON with retrieval/proof/simulation feedback",
     )
     research_agent_runtime.add_argument(
+        "--resume-runtime-manifest",
+        default="",
+        help=(
+            "resume from a prior research-agent-runtime manifest that ended with "
+            "incomplete_pending_next_task; the run starts from that exact AgentTask "
+            "payload instead of restarting at Architect/Retrieval"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--learning-memory-jsonl",
         action="append",
         default=[],
@@ -11077,6 +14755,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
     research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
+    research_agent_runtime.add_argument(
+        "--theory-max-repair-attempts",
+        type=int,
+        default=ResearchArchitectConfig().max_repair_attempts,
+        help=(
+            "maximum local-validator repair retries for TheoryDeveloper JSON "
+            "packets; set 0 to disable extra provider calls"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--llm-timeout-seconds",
         type=float,
@@ -11173,6 +14860,37 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--formalizer-max-tokens", type=int, default=6000)
     research_agent_runtime.add_argument("--formalizer-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
+        "--formalizer-candidate-local-lean",
+        action="store_true",
+        help=(
+            "run local Lean on materialized LLM Formalizer candidate artifacts; "
+            "this checks the generated Lean file itself, not just registered proof-bank subclaims"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-candidate-lean-lsp-mcp",
+        action="store_true",
+        help=(
+            "when --formalizer-candidate-local-lean is enabled, also call Lean LSP MCP "
+            "diagnostic tools on materialized Formalizer candidate artifacts and feed the "
+            "tool trace back to ProofEngineer; diagnostic only, not proof evidence"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-candidate-lean-project",
+        default="",
+        help=(
+            "local Lake project used by --formalizer-candidate-local-lean; "
+            "defaults to --lean-project when omitted"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-candidate-lean-timeout",
+        type=int,
+        default=30,
+        help="timeout seconds for each materialized Formalizer candidate local Lean check",
+    )
+    research_agent_runtime.add_argument(
         "--critic-evaluator-provider",
         choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
         default="same",
@@ -11253,6 +14971,120 @@ def build_parser() -> argparse.ArgumentParser:
         help="timeout seconds for each source-semantic local Lean check",
     )
     research_agent_runtime.add_argument(
+        "--source-theorem-proof-body-adapter-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after source-theorem proof-body adapter work orders are emitted, "
+            "materialize adapter candidates and export ProofEngineer feedback rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-proof-body-adapter-proofengineer-local-lean",
+        action="store_true",
+        help=(
+            "when the proof-body adapter bridge is enabled, run local Lean on "
+            "adapter candidates"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-proof-body-adapter-proofengineer-lean-project",
+        default="",
+        help=(
+            "optional local Lake project used by "
+            "--source-theorem-proof-body-adapter-proofengineer-local-lean"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-proof-body-adapter-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each proof-body adapter local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-to-bridge-premise-derivation-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after source-to-bridge premise derivation work orders are emitted, "
+            "materialize premise derivation candidates and export ProofEngineer "
+            "feedback rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-to-bridge-premise-derivation-proofengineer-local-lean",
+        action="store_true",
+        help=(
+            "when the premise-derivation bridge is enabled, run local Lean on "
+            "premise-derivation candidates"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-to-bridge-premise-derivation-proofengineer-lean-project",
+        default="",
+        help=(
+            "optional local Lake project used by "
+            "--source-to-bridge-premise-derivation-proofengineer-local-lean"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-to-bridge-premise-derivation-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each source-to-bridge premise local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after exact source-theorem environment work orders are emitted, "
+            "export ProofEngineer repair packets and runtime learning rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-signature-probes",
+        action="store_true",
+        help=(
+            "when the formal-environment bridge is enabled, materialize and run "
+            "typecheck-only Lean signature probes; these are diagnostics, not proof evidence"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        action="store_true",
+        help=(
+            "after signature probes reach a proof body, consume the generated "
+            "proof-body execution queue and export ProofEngineer feedback rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        action="store_true",
+        help=(
+            "when proof-body execution is enabled, run local Lean on materialized "
+            "candidate artifacts"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-proof-body-overwrite-artifacts",
+        action="store_true",
+        help=(
+            "when proof-body execution is enabled, rewrite existing candidate "
+            "artifacts before optional local Lean checks"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-lean-project",
+        default="",
+        help=(
+            "optional local Lake project used by formal-environment signature probes"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each formal-environment signature-probe local Lean check",
+    )
+    research_agent_runtime.add_argument(
         "--source-theorem-promotion-proofengineer-bridge",
         action="store_true",
         help=(
@@ -11270,6 +15102,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-overwrite-artifacts",
+        action="store_true",
+        help=(
+            "when the source-theorem promotion ProofEngineer bridge is enabled, "
+            "rewrite existing exact-source candidate artifacts before verification"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--source-theorem-promotion-proofengineer-lean-project",
         default="",
         help=(
@@ -11282,6 +15122,166 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=90,
         help="timeout seconds for each source-theorem promotion artifact Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-source-lookup",
+        action="store_true",
+        help=(
+            "after exact semantic-definition work orders are emitted, search "
+            "configured local Lean source roots and append source-lookup learning rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-source-root",
+        action="append",
+        default=[],
+        help=(
+            "Lean source root searched by the exact semantic-definition lookup stage; "
+            "repeat for Mathlib/StatInference/EmpiricalProcessLEAN checkouts"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-source-lookup-max-hits",
+        type=int,
+        default=8,
+        help="maximum source text hits retained for each exact semantic-definition work order",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after exact semantic-definition source lookup, export "
+            "ProofEngineer repair packets and runtime learning rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-lean-repair-executor",
+        action="store_true",
+        help=(
+            "after the exact semantic-definition ProofEngineer bridge, consume "
+            "Lean repair tasks and append non-proof ProofEngineer feedback rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-lean-repair-executor-local-lean",
+        action="store_true",
+        help=(
+            "when the exact semantic-definition Lean repair executor is enabled, "
+            "run local Lean on resolved import-candidate source files"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-lean-repair-executor-lean-project",
+        default="",
+        help="local Lake project used by exact semantic-definition Lean repair executor",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-lean-repair-executor-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for exact semantic-definition Lean repair executor checks",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+        action="store_true",
+        help=(
+            "after the exact semantic-definition Lean repair executor emits Lake "
+            "environment repair tasks, run the non-proof environment preflight and "
+            "append focused next-action learning rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker",
+        action="store_true",
+        help=(
+            "after the exact semantic-definition Lean repair executor emits "
+            "authoring tasks, stage generator-only authoring prompt packets in the "
+            "runtime trace; use the explicit provider flags for candidate replay"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-provider",
+        choices=("none", "static"),
+        default="none",
+        help=(
+            "generator backend for exact semantic-definition authoring tasks; "
+            "none stages prompt packets only, static replays a reviewed JSON response"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-static-response-file",
+        default="",
+        help=(
+            "JSON authoring response to replay when the exact semantic-definition "
+            "authoring worker provider is static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-model",
+        default="",
+        help=(
+            "model label recorded for exact semantic-definition authoring worker "
+            "candidate packets"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-max-tasks",
+        type=int,
+        default=0,
+        help="optional cap on exact semantic-definition authoring tasks staged by the runtime",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-external-export-mode",
+        choices=("full", "redacted"),
+        default="redacted",
+        help=(
+            "prompt payload mode for staged exact semantic-definition authoring "
+            "packets; redacted is the runtime default"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-closure-review",
+        action="store_true",
+        help=(
+            "after exact semantic-definition source lookup, review the current "
+            "exact source-theorem candidate artifact for forbidden placeholder definitions"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-candidate-synthesis",
+        action="store_true",
+        help=(
+            "after closure review finds placeholder definitions, synthesize a "
+            "draft non-vacuous candidate artifact and append non-proof learning rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-candidate-synthesis-allow-draft-semantic-repair",
+        action="store_true",
+        help=(
+            "opt in to replacing semantically risky known exact-definition "
+            "placeholders with non-proof draft definitions; default remains to "
+            "block and export a semantic-definition repair queue"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
+        action="store_true",
+        help=(
+            "when exact semantic-definition candidate synthesis is enabled, run "
+            "local Lean on the synthesized candidate as diagnostics only"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-candidate-synthesis-lean-project",
+        default="",
+        help="local Lake project used by exact semantic-definition candidate synthesis",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-candidate-synthesis-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for exact semantic-definition candidate synthesis local Lean checks",
     )
     research_agent_runtime.add_argument(
         "--proof-obligation-id",
@@ -11301,6 +15301,27 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--runs", type=int, default=100)
     research_agent_runtime.add_argument("--seed", type=int, default=20260528)
     research_agent_runtime.add_argument("--max-iterations", type=int, default=12)
+    research_agent_runtime.add_argument(
+        "--formal-verification-policy",
+        choices=("required", "optional", "advisory"),
+        default="optional",
+        help=(
+            "research acceptance contract: required blocks final acceptance "
+            "without Lean/AXLE source theorem evidence, optional lets Architect "
+            "choose proof-first/simulation-first/dual-track, and advisory uses "
+            "formal tools only as diagnostics with explicit gap disclosure"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--recommended-research-path",
+        choices=("simulation_first", "proof_first", "dual_track"),
+        default="",
+        help=(
+            "optional runtime research-path request. Leave unset to let the "
+            "Architect choose under --formal-verification-policy=optional; set "
+            "to simulation_first, proof_first, or dual_track for controlled evals"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--max-subsystem-retries",
         type=int,
@@ -11325,6 +15346,185 @@ def build_parser() -> argparse.ArgumentParser:
             "capability scorecard is ready"
         ),
     )
+    research_agent_runtime.add_argument(
+        "--capability-eval-preset",
+        choices=("none", "minimal-live"),
+        default="none",
+        help=(
+            "populate strict live capability-eval defaults without weakening "
+            "the scorecard gates. minimal-live enables live providers and the "
+            "internal Lean/ProofEngineer paths, but does not attach separate "
+            "component gates or turn static fixtures into capability evidence."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--run-coding-agent-generated-code-repair-eval",
+        action="store_true",
+        help=(
+            "after AgentRuntime finishes, run the combined AlgorithmEngineer + "
+            "SimulationEngineer generated-code repair gate and attach its manifest "
+            "to the runtime manifest. This component gate is not theorem proof and "
+            "does not substitute for integrated runtime success."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-provider",
+        choices=("same", "anthropic", "openai", "static"),
+        default="same",
+        help=(
+            "provider for --run-coding-agent-generated-code-repair-eval; same uses "
+            "the runtime --provider"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-model",
+        default="",
+        help="optional model for the attached coding-agent repair eval",
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-question-id",
+        default="conformal_prediction_coverage",
+        help=(
+            "question id for the attached component repair eval; defaults to "
+            "the conformal generated-code repair probe and is intentionally "
+            "separate from the main runtime question selection"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-algorithm-static-response-file",
+        default="",
+        help=(
+            "AlgorithmEngineer static JSON response for the attached repair eval "
+            "when --coding-agent-repair-eval-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-simulation-static-response-file",
+        default="",
+        help=(
+            "SimulationEngineer static JSON response for the attached repair eval "
+            "when --coding-agent-repair-eval-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-max-tokens",
+        type=int,
+        default=4000,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-temperature",
+        type=float,
+        default=0.1,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-runs",
+        type=int,
+        default=24,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-seed",
+        type=int,
+        default=20260623,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-target-coverage",
+        type=float,
+        default=0.9,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-max-repair-attempts",
+        type=int,
+        default=4,
+    )
+    research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-out",
+        default="",
+        help=(
+            "optional output directory for the attached coding-agent repair eval; "
+            "defaults to <runtime-out>/internal_coding_agent_generated_code_repair_eval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--run-formalizer-lean-candidate-repair-eval",
+        action="store_true",
+        help=(
+            "after AgentRuntime finishes, run the Formalizer/ProofEngineer "
+            "Lean-candidate repair gate and attach its manifest to the runtime "
+            "manifest. This component gate is not source theorem proof."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-provider",
+        choices=("same", "anthropic", "openai", "static"),
+        default="same",
+        help=(
+            "provider for --run-formalizer-lean-candidate-repair-eval; same uses "
+            "the runtime --provider"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-model",
+        default="",
+        help="optional model for the attached Formalizer Lean-candidate repair eval",
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-question-id",
+        default="conformal_prediction_coverage",
+        help=(
+            "source question id recorded by the attached Formalizer component "
+            "eval; the eval itself uses a synthetic helper-repair question"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-static-response-file",
+        default="",
+        help=(
+            "Formalizer static JSON response for the attached repair eval when "
+            "--formalizer-repair-eval-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-max-tokens",
+        type=int,
+        default=4000,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-temperature",
+        type=float,
+        default=0.1,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-lean-project",
+        default="",
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-lean-timeout",
+        type=int,
+        default=15,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-max-repair-attempts",
+        type=int,
+        default=3,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-out",
+        default="",
+        help=(
+            "optional output directory for the attached Formalizer repair eval; "
+            "defaults to <runtime-out>/internal_formalizer_lean_candidate_repair_eval"
+        ),
+    )
     research_agent_runtime.add_argument("--out", default="runs/research_agent_runtime")
     research_agent_runtime.add_argument("--env-file", default=".env")
     research_agent_runtime.set_defaults(func=_research_agent_runtime)
@@ -11336,6 +15536,423 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime_audit.add_argument("--runtime-dir", default="runs/research_agent_runtime")
     research_agent_runtime_audit.add_argument("--out", default="runs/research_agent_runtime_audit")
     research_agent_runtime_audit.set_defaults(func=_research_agent_runtime_audit)
+
+    algorithm_engineer_generated_code_repair_eval = sub.add_parser(
+        "algorithm-engineer-generated-code-repair-eval",
+        help=(
+            "component eval for AlgorithmEngineer generated-code repair: inject "
+            "a prior metric-gate failure, call a generator backend, execute the "
+            "new Python sandbox locally, and record fail-then-pass evidence"
+        ),
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--question-file",
+        default="examples/research_questions.json",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--question-id",
+        default="conformal_prediction_coverage",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response to replay when --provider static",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for AlgorithmEngineer; Anthropic defaults to Claude Haiku 4.5",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--runs",
+        type=int,
+        default=24,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--seed",
+        type=int,
+        default=20260623,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--target-coverage",
+        type=float,
+        default=0.9,
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=4,
+        help=(
+            "bounded generated-code repair attempts after the initial proposal; "
+            "default allows validation repair and metric-gate repair"
+        ),
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--out",
+        default="runs/algorithm_engineer_generated_code_repair_eval",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    algorithm_engineer_generated_code_repair_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live generator capability evidence"
+        ),
+    )
+    algorithm_engineer_generated_code_repair_eval.set_defaults(
+        func=_algorithm_engineer_generated_code_repair_eval
+    )
+
+    simulation_engineer_generated_code_repair_eval = sub.add_parser(
+        "simulation-engineer-generated-code-repair-eval",
+        help=(
+            "component eval for SimulationEngineer generated-code repair: inject "
+            "a prior metric-gate failure, call a generator backend, execute the "
+            "new Python stress-test sandbox locally, and record fail-then-pass evidence"
+        ),
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--question-file",
+        default="examples/research_questions.json",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--question-id",
+        default="conformal_prediction_coverage",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response to replay when --provider static",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for SimulationEngineer; Anthropic defaults to Claude Haiku 4.5",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--runs",
+        type=int,
+        default=24,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--seed",
+        type=int,
+        default=20260623,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--target-coverage",
+        type=float,
+        default=0.9,
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=4,
+        help=(
+            "bounded generated-simulation repair attempts after the initial proposal; "
+            "default allows validation repair and metric-gate repair"
+        ),
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--out",
+        default="runs/simulation_engineer_generated_code_repair_eval",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    simulation_engineer_generated_code_repair_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live generator capability evidence"
+        ),
+    )
+    simulation_engineer_generated_code_repair_eval.set_defaults(
+        func=_simulation_engineer_generated_code_repair_eval
+    )
+
+    coding_agent_generated_code_repair_eval = sub.add_parser(
+        "coding-agent-generated-code-repair-eval",
+        help=(
+            "combined coding-agent capability gate: AlgorithmEngineer and "
+            "SimulationEngineer must both show generated-code fail-then-pass repair"
+        ),
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--question-file",
+        default="examples/research_questions.json",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--question-id",
+        default="conformal_prediction_coverage",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--algorithm-static-response-file",
+        default="",
+        help="AlgorithmEngineer JSON response to replay when --provider static",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--simulation-static-response-file",
+        default="",
+        help="SimulationEngineer JSON response to replay when --provider static",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for coding-agent eval; Anthropic defaults to Claude Haiku 4.5",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--runs",
+        type=int,
+        default=24,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--seed",
+        type=int,
+        default=20260623,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--target-coverage",
+        type=float,
+        default=0.9,
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=4,
+        help=(
+            "bounded repair attempts per component after the initial proposal; "
+            "default allows validation repair and metric-gate repair"
+        ),
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--out",
+        default="runs/coding_agent_generated_code_repair_eval",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    coding_agent_generated_code_repair_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires both live generated-code repair capabilities"
+        ),
+    )
+    coding_agent_generated_code_repair_eval.set_defaults(
+        func=_coding_agent_generated_code_repair_eval
+    )
+
+    formalizer_lean_candidate_repair_eval = sub.add_parser(
+        "formalizer-lean-candidate-repair-eval",
+        help=(
+            "component eval for Formalizer/ProofEngineer Lean-candidate repair: "
+            "inject a prior local-Lean failure, call a generator backend, "
+            "materialize the generated Lean candidate, run local Lean, and "
+            "record fail-then-pass evidence"
+        ),
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--question-file",
+        default="examples/research_questions.json",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--question-id",
+        default="conformal_prediction_coverage",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--static-response-file",
+        default="",
+        help="Formalizer JSON response to replay when --provider static",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for Formalizer/ProofEngineer; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project used by local Lean candidate checks",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=15,
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=3,
+        help=(
+            "bounded Formalizer repair attempts after injected local-Lean feedback"
+        ),
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--out",
+        default="runs/formalizer_lean_candidate_repair_eval",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live generator Lean-candidate repair evidence"
+        ),
+    )
+    formalizer_lean_candidate_repair_eval.set_defaults(
+        func=_formalizer_lean_candidate_repair_eval
+    )
+
+    architect_research_path_policy_eval = sub.add_parser(
+        "architect-research-path-policy-eval",
+        help=(
+            "component eval for ArchitectCoordinator evidence-policy routing: "
+            "check required/proof-first, advisory/simulation-first, and optional "
+            "research-path plans from a generator backend"
+        ),
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON object or list of Architect responses to replay when --provider static",
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for ArchitectCoordinator; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--out",
+        default="runs/architect_research_path_policy_eval",
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    architect_research_path_policy_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live generator Architect policy evidence"
+        ),
+    )
+    architect_research_path_policy_eval.set_defaults(
+        func=_architect_research_path_policy_eval
+    )
 
     list_cmd = sub.add_parser("list", help="list registered questions and formal obligations")
     list_cmd.add_argument("--tag", action="append", help="filter obligations by tag")

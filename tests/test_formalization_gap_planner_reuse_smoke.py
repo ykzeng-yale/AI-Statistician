@@ -37,10 +37,11 @@ def _reviewed_primitive_cost(
     }
 
 
-def _reviewed_baseline_boundary_text() -> str:
+def _reviewed_baseline_boundary_text(primitive: str) -> str:
     return (
-        "Current target-intake baseline primitive retained only for AND/OR "
-        "cost comparison; it is not selected by this focused reviewed LLM route."
+        f"Primitive {primitive} is retained only for AND/OR cost comparison; "
+        "it is not selected by this focused reviewed LLM route and remains a "
+        "formal-library search boundary."
     )
 
 
@@ -49,8 +50,8 @@ def _reviewed_baseline_formal_node(primitive: str) -> dict[str, object]:
         "node_id": f"formal:{primitive}_baseline_boundary",
         "primitive": primitive,
         "coverage_bucket": "unknown",
-        "formalization_action": "defer_formal_library_grounding",
-        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+        "formalization_action": "formal_library_search_pending",
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(primitive),
     }
 
 
@@ -61,7 +62,7 @@ def _reviewed_baseline_standalone_primitive(
         "primitive": primitive,
         "coverage_status": "unknown",
         "source_refs": ["conformal_prediction_textbook"],
-        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(primitive),
     }
 
 
@@ -75,9 +76,10 @@ def _reviewed_target_adapter_boundary_residual(
             f"{primitive} before any kernel replay can be claimed."
         ),
         "repair_action": f"run target-prover adapter mapping for {primitive}",
+        "target_primitives": [primitive],
         "formal_gap_boundary": (
-            "Awaiting Rocq adapter mapping is target-prover feedback, not "
-            "source evidence or theorem proof evidence."
+            f"Primitive {primitive} is awaiting Rocq adapter mapping; this is "
+            "target-prover feedback, not source evidence or theorem proof evidence."
         ),
     }
 
@@ -146,6 +148,17 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "semantic_role": "lemma",
             },
         ],
+        "informal_knowledge_dag_edges": [
+            {
+                "source_node_id": "informal:exchangeability",
+                "target_node_id": "informal:rank_uniformity",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The finite-rank uniformity step uses exchangeability of the "
+                    "calibration and test scores."
+                ),
+            }
+        ],
         "lean_realization_dag_nodes": [
             {
                 "node_id": "formal:exchangeability",
@@ -171,6 +184,17 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 _reviewed_baseline_formal_node(primitive)
                 for primitive in baseline_boundary_primitives
             ],
+        ],
+        "formal_realization_dag_edges": [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The rank-uniformity bridge is attempted after checking the "
+                    "available exchangeability declaration."
+                ),
+            }
         ],
         "route_alignment_edges": [
             {
@@ -251,6 +275,12 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
                         "primitive_costs": source_port_option_cost_rows,
+                        "source_port_lemmas": [
+                            (
+                                "rank_uniformity: port the finite-rank uniformity "
+                                "lemma from the conformal prediction source route"
+                            )
+                        ],
                         "cost_rationale": "A source port is broader than the selected bridge.",
                     },
                     {
@@ -334,6 +364,45 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "owner": "lean_lsp_mcp",
                 "action": "attempt a focused rank_uniformity bridge lemma",
             }
+        ],
+        "formal_attempt_queue": [
+            {
+                "attempt_id": "formal_attempt:exchangeability_reuse",
+                "formal_node_id": "formal:exchangeability",
+                "primitive": "exchangeability",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "check whether Probability.exchangeable closes the "
+                    "exchangeability realization node"
+                ),
+                "attempt_kind": "reuse_check",
+                "prerequisite_formal_node_ids": [],
+                "expected_feedback": [
+                    "closed_by_existing_declaration",
+                    "residual_goals",
+                ],
+                "target_primitives": ["exchangeability"],
+            },
+            {
+                "attempt_id": "formal_attempt:rank_uniformity_bridge",
+                "formal_node_id": "formal:rank_uniformity_bridge",
+                "primitive": "rank_uniformity",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "attempt the focused rank_uniformity bridge lemma using "
+                    "the exchangeability realization"
+                ),
+                "attempt_kind": "bridge_proof",
+                "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                "expected_feedback": [
+                    "residual_goals",
+                    "missing_side_conditions",
+                    "wrong_formulation",
+                ],
+                "target_primitives": ["rank_uniformity"],
+            },
         ],
         "standalone_route": {
             "route_id": "llm_rank_route",
@@ -434,6 +503,36 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives"
+        ]
+        == 10
+    )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
         "sonnet": 1
@@ -477,6 +576,42 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == "staged_live_provider_prompt_no_api_call"
     )
     assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 0
+    assert payload["llm_route_planner_provider_usage_summary"]["row_count"] == 0
+    assert payload["llm_route_planner_provider_usage_summary"][
+        "proof_evidence_status"
+    ]
+    assert (
+        payload["n_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["llm_route_planner_model_tier_decision_ledger_summary"][
+            "proof_evidence_status"
+        ]
+    )
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
     assert (
@@ -628,6 +763,54 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_items"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads"
         ]
         == 0
@@ -668,6 +851,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ).read_text(encoding="utf-8")
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
+    assert "LLM route planner provider usage rows/input/output/total" in report_text
+    assert "Evaluation LLM provider usage rows/input/output/total" in report_text
+    assert (
+        "Combined LLM route planner provider usage rows/input/output/total"
+        in report_text
+    )
 
     assert (
         payload["n_llm_route_planner_rows_with_realization_coverage_witness"]
@@ -714,6 +903,78 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_component_resource_registry_resources_in_prompt"] > 0
     assert payload["n_llm_route_planner_component_resource_registry_contracts_in_prompt"] > 0
+    assert (
+        payload[
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        > 0
+    )
     assert payload["n_feedback_llm_route_planner_request_packets"] > 0
     assert payload["feedback_llm_route_planner_model_tier_selection_mode"] == "auto"
     assert (
@@ -722,6 +983,77 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_feedback_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_feedback_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_feedback_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["total_feedback_llm_route_planner_provider_cache_read_input_tokens"]
+        == 0
+    )
+    assert payload["total_feedback_llm_route_planner_provider_total_tokens"] == 0
+    assert (
+        payload["feedback_llm_route_planner_provider_usage_summary"]["row_count"]
+        == 0
+    )
+    assert payload["n_combined_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_combined_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_combined_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_combined_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["total_combined_llm_route_planner_provider_cache_read_input_tokens"]
+        == 0
+    )
+    assert payload["total_combined_llm_route_planner_provider_total_tokens"] == 0
+    assert (
+        payload["combined_llm_route_planner_provider_usage_summary"][
+            "n_planner_runs"
+        ]
+        == 2
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["n_combined_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_llm_route_planner_model_tier_decision_ledger_rows"]
+        + payload["n_feedback_llm_route_planner_model_tier_decision_ledger_rows"]
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["combined_llm_route_planner_model_tier_decision_ledger_summary"][
+            "n_planner_runs"
+        ]
+        == 2
+    )
     assert payload["feedback_llm_route_planner_max_repair_attempts"] == 1
     assert payload["feedback_llm_route_planner_by_request_model_tier"]
     assert (
@@ -1035,6 +1367,201 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        > 0
+    )
+    for bundle_field, raw_field in (
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_component_resource_registry_context",
+            "n_llm_route_planner_requests_with_component_resource_registry_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_component_resource_registry_resources_in_prompt",
+            "n_llm_route_planner_component_resource_registry_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_component_resource_registry_contracts_in_prompt",
+            "n_llm_route_planner_component_resource_registry_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_bridge_context",
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context",
+            "n_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt",
+            "n_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt",
+            "n_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_exact_source_theorem_proof_body_executor_context",
+            "n_llm_route_planner_requests_with_exact_source_theorem_proof_body_executor_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt",
+            "n_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+            "n_llm_route_planner_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_component_resource_registry_context",
+            "n_feedback_llm_route_planner_requests_with_component_resource_registry_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_resources_in_prompt",
+            "n_feedback_llm_route_planner_component_resource_registry_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_contracts_in_prompt",
+            "n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_bridge_context",
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context",
+            "n_feedback_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_exact_source_theorem_proof_body_executor_context",
+            "n_feedback_llm_route_planner_requests_with_exact_source_theorem_proof_body_executor_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt",
+            "n_feedback_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+            "n_feedback_llm_route_planner_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+        ),
+    ):
+        assert payload[bundle_field] == payload[raw_field]
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_request_schema_valid"
         ]
         == payload[
@@ -1098,6 +1625,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked"
         ]
         == 0
     )
@@ -1221,6 +1757,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked"
         ]
         == 0
     )
@@ -1404,6 +1949,35 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_resource_request_frontier_escalation"] > 0
     assert payload["n_resource_request_distinct_resources"] > 0
     assert (
+        payload["n_resource_request_llm_route_planner_residual_interpretations"] >= 0
+    )
+    assert (
+        payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+        >= payload["n_resource_request_llm_route_planner_residual_interpretations"]
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
         payload["n_resource_request_self_contained_payloads"]
         == payload["n_resource_request_rows"]
     )
@@ -1484,6 +2058,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_resource_response_ledger_playbook_grounded"] == 0
     assert payload["n_resource_response_ledger_playbook_grounding_failures"] == 0
     assert payload["n_resource_response_ledger_request_mismatches"] == 0
+    assert (
+        payload["n_resource_response_ledger_llm_residual_context_rows"]
+        >= payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+    )
+    assert (
+        payload[
+            "n_resource_response_ledger_llm_traced_residual_interpretation_rows"
+        ]
+        == payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+    )
     assert payload["n_resource_response_ledger_route_revision_recommended"] == 0
     assert payload["n_resource_response_ledger_rejected"] == 0
     assert (
@@ -1686,7 +2270,65 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["evaluation_realization_missing_primitives_by_route"] == ()
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives"
+        ]
+        == 10
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_model_tier_decision_sonnet_triggers"
+        ]
+        == 6
+    )
+    assert (
+        payload["n_evaluation_rows_with_llm_route_planner_source_feedback_tier_signal"]
+        == 0
+    )
+    assert payload["n_evaluation_llm_route_planner_source_feedback_rows"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_evaluation_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload[
+        "total_evaluation_llm_route_planner_provider_cache_read_input_tokens"
+    ] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_total_tokens"] == 0
+    assert payload["evaluation_llm_route_planner_provider_usage_summary"][
+        "row_count"
+    ] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 0
     assert payload["n_evaluation_llm_route_planner_errors"] == 0
@@ -1700,8 +2342,38 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "mean_delta_precision": 1.0,
             "mean_alignment_coverage": 1.0,
             "n_rows_with_generator_metadata": 0,
+            "n_rows_with_provider_usage": 0,
+            "provider_input_tokens": 0,
+            "provider_output_tokens": 0,
+            "provider_cache_creation_input_tokens": 0,
+            "provider_cache_read_input_tokens": 0,
+            "provider_total_tokens": 0,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
+            "n_sonnet_triggers": 6,
+            "n_source_feedback_rows": 0,
+            "n_source_feedback_proof_body_execution_failures": 0,
+            "n_source_feedback_formal_environment_blockers": 0,
+        }
+    }
+    assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": {
+            "n_rows": 1,
+            "n_ok": 1,
+            "n_matched_ground_truth": 1,
+            "by_model_tier": {"sonnet": 1},
+            "n_sonnet_triggers": 6,
+            "n_source_feedback_rows": 0,
+            "n_source_feedback_proof_body_execution_failures": 0,
+            "n_source_feedback_formal_environment_blockers": 0,
+            "n_rows_with_provider_usage": 0,
+            "provider_input_tokens": 0,
+            "provider_output_tokens": 0,
+            "provider_cache_creation_input_tokens": 0,
+            "provider_cache_read_input_tokens": 0,
+            "provider_total_tokens": 0,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
         }
     }
     assert payload["evaluation_by_llm_route_adoption_status"] == {
@@ -1867,6 +2539,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_route_replan_handoff_seed_target_context_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_route_replan_handoff_seed_target_context_checked"
+        ]
+        == payload["n_route_replan_handoff_rows"]
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_route_replan_handoff_audit_row_schema_valid"
         ]
         == payload[
@@ -1950,6 +2631,25 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_cross_prover_packets_missing_standalone_input_trace"] == 0
     assert payload["n_cross_prover_total_packets_with_replan_metadata_trace"] >= 0
+    formal_attempt_status_counts = payload[
+        "by_cross_prover_packet_formal_attempt_dependency_status"
+    ]
+    assert isinstance(formal_attempt_status_counts, dict)
+    assert sum(formal_attempt_status_counts.values()) == payload[
+        "n_cross_prover_total_packets"
+    ]
+    assert (
+        payload["n_cross_prover_total_packets_with_formal_attempt_dependency"]
+        == payload["n_cross_prover_total_packets_formal_attempt_initial_ready"]
+        + payload["n_cross_prover_total_packets_formal_attempt_waiting"]
+        + payload[
+            "n_cross_prover_total_packets_formal_attempt_missing_prerequisites"
+        ]
+    )
+    assert (
+        payload["n_cross_prover_total_packets_with_formal_attempt_dependency"]
+        <= payload["n_cross_prover_total_packets"]
+    )
     assert payload["n_cross_prover_rejected"] == 0
     assert payload["cross_prover_packet_count_consistent"]
     assert payload["cross_prover_alignment_packet_count_consistent"]
@@ -2056,6 +2756,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_route_stability_row_schema_invalid"] == 0
     assert payload["n_routes_requiring_replan"] > 0
     assert payload["n_replan_seed_routes"] > 0
+    assert (
+        payload["n_route_replan_handoff_routes_with_target_theorem_context_packet"]
+        > 0
+    )
+    assert (
+        payload["n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"]
+        == payload["n_route_replan_handoff_routes_with_target_theorem_context_packet"]
+    )
     assert payload["n_route_replan_handoff_audit_failed"] == 0
     assert (
         payload["n_route_replan_handoff_audit_row_schema_valid"]
@@ -2083,6 +2791,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_route_replan_revised_lean_realization_dag_nodes"
     ]
     assert payload["n_route_replan_unaligned_primitives"] == 0
+    assert (
+        payload["n_route_replan_handoff_seed_residual_goal_contexts"]
+        == payload["n_route_replan_handoff_residual_goal_contexts"]
+    )
+    assert (
+        payload["n_route_replan_handoff_seed_routes_with_residual_goal_contexts"]
+        == payload["n_route_replan_handoff_routes_with_residual_goal_contexts"]
+    )
     assert payload["n_route_replan_roundtrip_alignment_edges"] >= payload["n_replan_seed_routes"]
     assert (
         payload["n_route_replan_roundtrip_standalone_input_traces"]
@@ -2096,9 +2812,43 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_target_theorem_context_packet"
+        ]
+        == payload[
+            "n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_llm_target_theorem_context_packet"
+        ]
+        == payload[
+            "n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_trace_target_theorem_context_target_mismatches"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_route_replan_roundtrip_standalone_input_trace_llm_route_planner_hook_traces"
         ]
         >= 0
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_trace_residual_goal_contexts"
+        ]
+        == payload["n_route_replan_handoff_seed_residual_goal_contexts"]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_residual_goal_contexts"
+        ]
+        == payload["n_route_replan_handoff_seed_routes_with_residual_goal_contexts"]
     )
     assert (
         payload[
@@ -2167,6 +2917,22 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_ablation_row_schema_valid"] == payload["n_ablation_variants"]
     assert payload["n_ablation_row_schema_invalid"] == 0
     assert payload["ablation_best_variant_by_route_recall"] == "full_planner_observed"
+    assert (
+        payload[
+            "ablation_full_planner_observed_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        payload[
+            "ablation_full_planner_observed_route_adoption_precondition_required_response_fields"
+        ]
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+    )
     assert (
         payload["n_publication_bundle_optional_ablation_study_row_schema_valid"]
         == payload["n_publication_bundle_optional_ablation_study_row_schema_checked"]
@@ -2806,6 +3572,27 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     for option in feedback_response["minimal_delta_plan"]["and_or_cost_graph"][
         "route_options"
     ]:
+        if option["route_option_id"] == "route_option:source_port_rank_theory":
+            option["route_cost"] = 9
+            option["cost_rationale"] = (
+                "A source port is broader than the selected bridge and still "
+                "requires the target-prover exchangeability wrapper."
+            )
+            option["wrapper_lemmas"] = [
+                (
+                    "exchangeability: write the target-prover wrapper around "
+                    "the available exchangeability declaration"
+                )
+            ]
+            for cost_row in option.get("primitive_costs", []):
+                if cost_row.get("primitive") == "exchangeability":
+                    cost_row["coverage_bucket"] = "wrapper_needed"
+                    cost_row["base_cost"] = 2
+                    cost_row["total_cost"] = 2
+                    cost_row["cost_rationale"] = (
+                        "The feedback pass requires a target-prover "
+                        "exchangeability wrapper before the source-port route."
+                    )
         if (
             option["route_option_id"]
             == "route_option:current_route_min_delta_baseline"
@@ -2819,7 +3606,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "coverage_status"
     ] = "wrapper_needed"
     feedback_response["residual_interpretations"] = [
-        _reviewed_target_adapter_boundary_residual("rank_uniformity")
+        {
+            "residual_goal": "exchangeability: non-Lean theorem skeleton",
+            "interpretation": (
+                "The feedback pass needs the target-prover exchangeability "
+                "wrapper skeleton before checking reuse."
+            ),
+            "repair_action": "materialize target-prover exchangeability wrapper",
+            "target_primitives": ["exchangeability"],
+            "formal_gap_boundary": (
+                "The missing exchangeability wrapper is a formalization boundary "
+                "reported by the prover-feedback loop, not new source evidence."
+            ),
+        },
+        _reviewed_target_adapter_boundary_residual("rank_uniformity"),
     ]
     feedback_response_path.write_text(
         json.dumps(feedback_response, indent=2),
@@ -2888,6 +3688,54 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_items"
+        ]
+        == 4
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_request_context_errors"
         ]
         == 0
@@ -2921,6 +3769,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 8
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
@@ -2959,6 +3831,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
     assert (
         payload[
+            "n_evaluation_rows_with_llm_route_planner_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 8
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_evaluation_rows_with_llm_route_planner_route_adoption_status"
         ]
         == 1
@@ -2968,7 +3864,54 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["n_evaluation_rows_pending_refinement_before_route_adoption"]
         == 1
     )
-    assert payload["n_evaluation_llm_route_adoption_blockers"] == 6
+    assert payload["n_evaluation_llm_route_adoption_blockers"] == 7
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        len(
+            payload[
+                "evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+            ]
+        )
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        len(
+            payload[
+                "evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+            ]
+        )
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+    )
     assert (
         payload[
             "n_evaluation_llm_route_adoption_pending_quality_control_blockers"
@@ -2985,6 +3928,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "formal_gap_boundaries_require_resolution",
         "omitted_cost_hint_primitives_require_review",
         "planner_next_actions_pending_evidence",
+        "primitive_evidence_matrix_incomplete",
         "search_requests_pending_evidence",
         "semantic_alignment_risks_require_review",
         "uncertainty_flags_require_review",
@@ -2993,6 +3937,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "formal_gap_boundaries_require_resolution": 1,
         "omitted_cost_hint_primitives_require_review": 1,
         "planner_next_actions_pending_evidence": 1,
+        "primitive_evidence_matrix_incomplete": 1,
         "search_requests_pending_evidence": 1,
         "semantic_alignment_risks_require_review": 1,
         "uncertainty_flags_require_review": 1,
@@ -3002,7 +3947,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 6,
+            "n_route_adoption_blockers": 7,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -3270,7 +4215,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_source_grounding_blockers"
         ]
-        == 0
+        == 1
     )
     assert (
         payload[
@@ -3510,6 +4455,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_formal_attempt_queue_items"
+        ]
+        == payload["n_llm_route_planner_formal_attempt_queue_items"]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_rows_with_formal_attempt_queue"
+        ]
+        == payload["n_llm_route_planner_rows_with_formal_attempt_queue"]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_llm_route_planner_summary_accepted_route_plans"
         ]
         == payload["n_llm_route_planner_accepted_route_plans"]
@@ -3530,6 +4489,49 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_route_adoption_preconditions"
+        ]
+        == payload[
+            "n_llm_route_planner_requests_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_request_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields"
+        ]
+        == payload[
+            "n_llm_route_planner_request_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_row_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
     )
     assert (
         payload[
@@ -3831,6 +4833,34 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_formal_attempt_queue_items"
+        ]
+        == payload["n_feedback_llm_route_planner_formal_attempt_queue_items"]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_formal_attempt_queue"
+        ]
+        == payload["n_feedback_llm_route_planner_rows_with_formal_attempt_queue"]
+        == 1
+    )
+    assert payload["n_combined_llm_route_planner_formal_attempt_queue_items"] == 4
+    assert payload["n_combined_llm_route_planner_rows_with_formal_attempt_queue"] == 2
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items"
+        ]
+        == 4
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_rows_with_formal_attempt_queue"
+        ]
+        == 2
+    )
+    assert (
+        payload[
             "n_publication_bundle_feedback_llm_route_planner_summary_accepted_route_plans"
         ]
         == payload["n_feedback_llm_route_planner_accepted_route_plans"]
@@ -3851,6 +4881,51 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_feedback_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_route_adoption_preconditions"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_route_adoption_preconditions"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_rows_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
     )
     assert (
         payload[
@@ -4106,6 +5181,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_valid"
         ]
         == payload[
@@ -4220,6 +5304,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked"
         ]
         == 1
     )
@@ -4492,6 +5585,11 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
                     "provider_failure": True,
                     "exception_type": "TimeoutError",
                     "exception_message": "simulated Anthropic timeout",
+                    "provider_usage": {
+                        "input_tokens": 80,
+                        "output_tokens": 0,
+                        "cache_read_input_tokens": 3,
+                    },
                     "repair_attempt": 0,
                 },
                 "provider_failure": True,
@@ -4522,6 +5620,30 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
@@ -4561,6 +5683,22 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     )
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 1
+    assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 80
+    assert payload["total_evaluation_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_evaluation_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload[
+        "total_evaluation_llm_route_planner_provider_cache_read_input_tokens"
+    ] == 3
+    assert payload["total_evaluation_llm_route_planner_provider_total_tokens"] == 83
+    assert payload["evaluation_llm_route_planner_provider_usage_summary"][
+        "by_provider"
+    ]["anthropic"]["total_tokens"] == 83
     assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 1
     assert payload["n_evaluation_llm_route_planner_errors"] == 1
@@ -4582,12 +5720,42 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert payload["n_llm_route_planner_response_present"] == 0
     assert payload["n_llm_route_planner_provider_failures"] == 1
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
+    assert payload["n_llm_route_planner_rows_with_provider_usage"] == 1
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 80
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 3
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 83
+    assert payload["n_llm_route_planner_model_tier_decision_ledger_rows"] == 1
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload["llm_route_planner_model_tier_decision_ledger_summary"][
+            "provider_failure_rows"
+        ]
+        == 1
+    )
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 1
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_accepted_route_plans"] == 0
     assert payload["n_llm_route_planner_row_schema_valid"] == 1
     assert payload["n_llm_route_planner_row_schema_invalid"] == 0
     assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 1
+    )
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert (
         payload["n_feedback_llm_route_planner_awaiting"]
@@ -4607,7 +5775,14 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert llm_manifest["rows"][0]["generator_metadata"]["exception_type"] == (
         "TimeoutError"
     )
+    assert llm_manifest["provider_usage_summary"]["by_provider"]["anthropic"][
+        "total_tokens"
+    ] == 83
     report = (
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
     assert "provider_failures=1" in report
+    assert (
+        "LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/1"
+        in report
+    )

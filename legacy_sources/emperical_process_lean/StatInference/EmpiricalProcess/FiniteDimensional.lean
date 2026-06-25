@@ -637,11 +637,13 @@ theorem vdVW148_boundedProcess_finiteDimensional_hasLaw
       (fun ω => I.restrict (X ω))
       (μ.map (VdVWEllInfty.finiteRestrict I))
       P := by
-  simpa [Function.comp_def, VdVWEllInfty.finiteRestrict, VdVWEllInfty.processMap]
-    using
-      (vdVW148_ellInfty_finiteDimensional_hasLaw
-        (T := T) (Ω := Ω) (X := VdVWEllInfty.processMap X hbounded)
-        (P := P) (μ := μ) hX I)
+  exact
+    (vdVW148_ellInfty_finiteDimensional_hasLaw
+      (T := T) (Ω := Ω) (X := VdVWEllInfty.processMap X hbounded)
+      (P := P) (μ := μ) hX I).congr
+        (Filter.Eventually.of_forall fun ω => by
+          ext t
+          rfl)
 
 /--
 Single-coordinate law of a bounded raw process, routed through its
@@ -683,13 +685,27 @@ theorem vdVW148_boundedProcess_finiteDimensional_identDistrib
       (fun ω => I.restrict (X ω))
       (fun ω => I.restrict (Y ω))
       P Q := by
-  simpa [Function.comp_def, VdVWEllInfty.finiteRestrict, VdVWEllInfty.processMap]
-    using
-      (vdVW148_ellInfty_finiteDimensional_identDistrib
-        (T := T) (Ω := Ω) (Ω' := Ω')
-        (X := VdVWEllInfty.processMap X hXbounded)
-        (Y := VdVWEllInfty.processMap Y hYbounded)
-        (P := P) (Q := Q) hXY I)
+  have hbase :=
+    vdVW148_ellInfty_finiteDimensional_identDistrib
+      (T := T) (Ω := Ω) (Ω' := Ω')
+      (X := VdVWEllInfty.processMap X hXbounded)
+      (Y := VdVWEllInfty.processMap Y hYbounded)
+      (P := P) (Q := Q) hXY I
+  have hXeq :
+      (VdVWEllInfty.finiteRestrict I ∘ VdVWEllInfty.processMap X hXbounded)
+        =ᵐ[P] fun ω => I.restrict (X ω) :=
+    Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  have hYeq :
+      (VdVWEllInfty.finiteRestrict I ∘ VdVWEllInfty.processMap Y hYbounded)
+        =ᵐ[Q] fun ω => I.restrict (Y ω) :=
+    Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  exact
+    ((IdentDistrib.of_ae_eq hbase.aemeasurable_fst hXeq).symm).trans
+      (hbase.trans (IdentDistrib.of_ae_eq hbase.aemeasurable_snd hYeq))
 
 /--
 Identical `ell_infty(T)` laws of bounded raw processes imply identical
@@ -746,12 +762,18 @@ theorem vdVW148_boundedProcess_finiteDimensional_tendstoInDistribution
       l
       (fun ω => I.restrict (Z ω))
       μ μ' := by
-  simpa [Function.comp_def, VdVWEllInfty.finiteRestrict, VdVWEllInfty.processMap]
-    using
-      (vdVW148_ellInfty_finiteDimensional_tendstoInDistribution
-        (T := T) (Ω := Ω) (Ω' := Ω') (μ := μ) (μ' := μ')
-        (X := fun i => VdVWEllInfty.processMap (X i) (hXbounded i))
-        (Z := VdVWEllInfty.processMap Z hZbounded) (l := l) hX I)
+  refine
+    (vdVW148_ellInfty_finiteDimensional_tendstoInDistribution
+      (T := T) (Ω := Ω) (Ω' := Ω') (μ := μ) (μ' := μ')
+      (X := fun i => VdVWEllInfty.processMap (X i) (hXbounded i))
+      (Z := VdVWEllInfty.processMap Z hZbounded) (l := l) hX I).congr ?_ ?_
+  · intro i
+    exact Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  · exact Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
 
 /--
 Raw-process coordinate form of the forward FDD implication: convergence in
@@ -911,7 +933,9 @@ theorem vdVW148_boundedProcess_hasLaw_of_finiteProduct_hasLaw_finite
     exact
       { aemeasurable := e.symm.continuous.measurable.aemeasurable
         map_eq := rfl }
-  simpa [e, Function.comp_def, VdVWEllInfty.processMap] using hmap
+  exact hmap.congr (Filter.Eventually.of_forall fun ω => by
+    ext t
+    rfl)
 
 /--
 Finite-index law converse without a separate bounded-sample-path hypothesis:
@@ -959,7 +983,19 @@ theorem vdVW148_boundedProcess_identDistrib_of_finiteProduct_identDistrib_finite
   let e := VdVWEllInfty.finiteContinuousLinearEquiv (T := T)
   have hmap : IdentDistrib (e.symm ∘ X) (e.symm ∘ Y) P Q :=
     hXY.comp e.symm.continuous.measurable
-  simpa [e, Function.comp_def, VdVWEllInfty.processMap] using hmap
+  have hXeq :
+      (e.symm ∘ X) =ᵐ[P] VdVWEllInfty.processMap X hXbounded :=
+    Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  have hYeq :
+      (e.symm ∘ Y) =ᵐ[Q] VdVWEllInfty.processMap Y hYbounded :=
+    Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  exact
+    ((IdentDistrib.of_ae_eq hmap.aemeasurable_fst hXeq).symm).trans
+      (hmap.trans (IdentDistrib.of_ae_eq hmap.aemeasurable_snd hYeq))
 
 /--
 Finite-index identical-distribution converse without explicit boundedness
@@ -1013,7 +1049,14 @@ theorem vdVW148_ellInfty_tendstoInDistribution_of_finiteProduct_tendstoInDistrib
   haveI : Nonempty (VdVWEllInfty T) := ⟨0⟩
   let e := VdVWEllInfty.finiteContinuousLinearEquiv (T := T)
   have hback := hX.continuous_comp e.symm.continuous
-  simpa [e, Function.comp_def] using hback
+  refine hback.congr ?_ ?_
+  · intro i
+    exact Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
+  · exact Filter.Eventually.of_forall fun ω => by
+      ext t
+      rfl
 
 /--
 Raw-process finite-index converse: for finite `T`, convergence in distribution
@@ -1050,7 +1093,8 @@ theorem vdVW148_boundedProcess_tendstoInDistribution_of_finiteProduct_tendstoInD
       (T := T) (Ω := Ω) (Ω' := Ω') (μ := μ) (μ' := μ')
       (X := fun i => VdVWEllInfty.processMap (X i) (hXbounded i))
       (Z := VdVWEllInfty.processMap Z hZbounded) (l := l) ?_
-  simpa [Function.comp_def, VdVWEllInfty.processMap] using hX
+  change TendstoInDistribution X l Z μ μ'
+  exact hX
 
 /--
 Raw finite-index converse without explicit boundedness hypotheses: for finite
@@ -1282,8 +1326,9 @@ theorem aemeasurable_fdd_of_aemeasurable_ellInftyProcessMap
         (fun ω => VdVWEllInfty.finiteRestrict I
           (VdVWEllInfty.processMap X hbounded ω)) P :=
     (VdVWEllInfty.measurable_finiteRestrict (T := T) I).comp_aemeasurable hX
-  simpa [Function.comp_def, VdVWEllInfty.finiteRestrict, VdVWEllInfty.processMap]
-    using hcomp
+  exact hcomp.congr (Filter.Eventually.of_forall fun ω => by
+    ext t
+    rfl)
 
 /--
 The finite-dimensional restriction of an `ell_infty(T)` process law is the

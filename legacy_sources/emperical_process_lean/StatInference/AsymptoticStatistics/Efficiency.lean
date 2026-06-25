@@ -866,8 +866,12 @@ theorem Vaart1998LANRegularEstimatorConvolutionTheoremSource.convolutionDisplay_
       (vaart1998_convolutionLimitDisplay S.convolutionSource.efficientLimit
         S.convolutionSource.convolutionNoise)
       EstimatorLimitLaw := by
-  simpa [vaart1998_convolutionLimitDisplay] using
-    S.efficientLimit_aemeasurable.add S.convolutionNoise_aemeasurable
+  change
+    AEMeasurable
+      (fun ω =>
+        S.convolutionSource.efficientLimit ω + S.convolutionSource.convolutionNoise ω)
+      EstimatorLimitLaw
+  exact S.efficientLimit_aemeasurable.add S.convolutionNoise_aemeasurable
 
 /--
 A Chapter 8 convolution-theorem source exposes the convolved local

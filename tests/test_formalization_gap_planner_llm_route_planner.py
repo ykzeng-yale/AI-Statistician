@@ -11,15 +11,20 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    TARGET_THEOREM_CONTEXT_PACKET_KIND,
+    _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _route_adoption_readiness,
@@ -27,6 +32,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
+    llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -63,6 +69,7 @@ from ai_statistician.formalization_gap_planner_route_replan_handoff import (
 )
 from ai_statistician.formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
+    standalone_input_json_schema,
     validate_llm_route_planner_seed_route_selection_payload,
     validate_standalone_input_payload,
 )
@@ -215,6 +222,17 @@ def _llm_response_payload() -> dict[str, object]:
                 "semantic_role": "lemma",
             },
         ],
+        "informal_knowledge_dag_edges": [
+            {
+                "source_node_id": "informal:exchangeability",
+                "target_node_id": "informal:rank_uniformity",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The rank-uniformity lemma uses the exchangeability "
+                    "assumption as its source-backed premise."
+                ),
+            }
+        ],
         "lean_realization_dag_nodes": [
             {
                 "node_id": "formal:exchangeability",
@@ -230,6 +248,17 @@ def _llm_response_payload() -> dict[str, object]:
                 "candidate_declarations": [],
                 "formalization_action": "prove_bridge",
             },
+        ],
+        "formal_realization_dag_edges": [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "bridges",
+                "rationale": (
+                    "The rank-uniformity bridge is proved from the reused "
+                    "exchangeability formal primitive."
+                ),
+            }
         ],
         "route_alignment_edges": [
             {
@@ -308,6 +337,13 @@ def _llm_response_payload() -> dict[str, object]:
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
                         "cost_rationale": "Porting a source theorem costs more than the focused bridge.",
+                        "source_port_lemmas": [
+                            (
+                                "rank_uniformity: port the textbook finite-rank "
+                                "uniformity theorem, including the target-prover "
+                                "tie convention assumptions"
+                            )
+                        ],
                         "primitive_costs": [
                             {
                                 "primitive": "exchangeability",
@@ -382,7 +418,44 @@ def _llm_response_payload() -> dict[str, object]:
             {
                 "owner": "lean_lsp_mcp",
                 "action": "attempt the rank_uniformity bridge lemma",
+                "target_primitives": ["rank_uniformity"],
             }
+        ],
+        "formal_attempt_queue": [
+            {
+                "attempt_id": "attempt:exchangeability_reuse",
+                "formal_node_id": "formal:exchangeability",
+                "primitive": "exchangeability",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "lean_lsp proof-state reuse check for "
+                    "Probability.exchangeable"
+                ),
+                "attempt_kind": "reuse_check",
+                "prerequisite_formal_node_ids": [],
+                "expected_feedback": ["closed_by_existing_declaration"],
+                "target_primitives": ["exchangeability"],
+            },
+            {
+                "attempt_id": "attempt:rank_uniformity_bridge",
+                "formal_node_id": "formal:rank_uniformity_bridge",
+                "primitive": "rank_uniformity",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "lean_lsp proof-state attempt for the rank_uniformity bridge "
+                    "lemma after exchangeability reuse"
+                ),
+                "attempt_kind": "bridge_proof",
+                "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                "expected_feedback": [
+                    "residual_goals",
+                    "missing_side_conditions",
+                    "closed_by_existing_declaration",
+                ],
+                "target_primitives": ["rank_uniformity"],
+            },
         ],
         "standalone_route": {
             "route_id": "rank_route_llm_revision",
@@ -412,6 +485,24 @@ def _llm_response_payload() -> dict[str, object]:
     }
 
 
+def _retarget_formal_attempt_queue(
+    response: dict[str, object],
+    *,
+    target_prover_family: str,
+    owner: str,
+) -> None:
+    for item in response.get("formal_attempt_queue", []):
+        if not isinstance(item, dict):
+            continue
+        primitive = str(item.get("primitive", "")).strip()
+        item["target_prover_family"] = target_prover_family
+        item["owner"] = owner
+        item["action"] = (
+            f"{owner} proof-state attempt for {primitive} on "
+            f"{target_prover_family}"
+        )
+
+
 def _append_bridge_cost(
     response: dict[str, object],
     primitive: str,
@@ -423,6 +514,10 @@ def _append_bridge_cost(
     minimal_delta["route_cost"] = int(minimal_delta["route_cost"]) + total_cost
     primitive_costs = minimal_delta["primitive_costs"]
     assert isinstance(primitive_costs, list)
+    bridge_witness = (
+        f"{primitive}: prove the focused bridge lemma required by the "
+        "augmented route option"
+    )
     primitive_costs.append(
         {
             "primitive": primitive,
@@ -437,6 +532,7 @@ def _append_bridge_cost(
             "cost_rationale": "The added primitive is modeled as one focused bridge lemma.",
         }
     )
+    minimal_delta.setdefault("bridge_lemmas", []).append(bridge_witness)
     graph = minimal_delta["and_or_cost_graph"]
     assert isinstance(graph, dict)
     route_options = graph["route_options"]
@@ -462,6 +558,7 @@ def _append_bridge_cost(
         option_costs = option.get("primitive_costs")
         if isinstance(option_costs, list):
             option_costs.append(dict(added_cost_row))
+            option.setdefault("bridge_lemmas", []).append(bridge_witness)
     edge_primitives_by_option = {
         str(option.get("route_option_id", "")): list(option["selected_primitives"])
         for option in route_options
@@ -482,6 +579,84 @@ def _append_bridge_cost(
                 "requires": option_primitives,
             }
         )
+
+
+def _append_unselected_baseline_primitive(
+    response: dict[str, object],
+    *,
+    primitive: str = "coverage_probability",
+) -> None:
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    primitive_costs = minimal_delta["primitive_costs"]
+    assert isinstance(primitive_costs, list)
+    primitive_costs.append(
+        {
+            "primitive": primitive,
+            "coverage_bucket": "already_exists",
+            "base_cost": 0,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 0,
+            "cost_rationale": (
+                "This request-known baseline primitive is not part of the "
+                "selected route."
+            ),
+        }
+    )
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    option_id = "route_option:current_route_min_delta_baseline"
+    route_options.append(
+        {
+            "route_option_id": option_id,
+            "selected": False,
+            "selected_primitives": [
+                "exchangeability",
+                "rank_uniformity",
+                primitive,
+            ],
+            "route_cost": 4,
+            "cost_rationale": (
+                "The baseline route keeps the request-known primitive visible "
+                "without selecting it for prover execution."
+            ),
+        }
+    )
+    or_nodes = graph["or_nodes"]
+    assert isinstance(or_nodes, list)
+    choices = or_nodes[0]["choices"]
+    assert isinstance(choices, list)
+    choices.append(option_id)
+    and_edges = graph["and_edges"]
+    assert isinstance(and_edges, list)
+    and_edges.append(
+        {
+            "route_option_id": option_id,
+            "requires": ["exchangeability", "rank_uniformity", primitive],
+        }
+    )
+
+
+def _append_request_route_primitive(
+    input_json: Path,
+    *,
+    primitive: str = "coverage_probability",
+) -> None:
+    payload = json.loads(input_json.read_text(encoding="utf-8"))
+    payload["routes"][0]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "exact_exists",
+            "candidate_declarations": ["Probability.coverageProbability"],
+        }
+    )
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
@@ -519,6 +694,13 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     assert isinstance(standalone_rank, dict)
     standalone_rank["coverage_status"] = "near_exists"
     standalone_rank["candidate_declarations"] = ["Probability.exchangeable"]
+    rank_attempt = response["formal_attempt_queue"][1]
+    assert isinstance(rank_attempt, dict)
+    rank_attempt["attempt_kind"] = "reuse_check"
+    rank_attempt["expected_feedback"] = [
+        "closed_by_existing_declaration",
+        "residual_goals",
+    ]
     return response
 
 
@@ -626,6 +808,10 @@ def _make_rank_uniformity_reuse_response(
     standalone_rank["coverage_status"] = "exact_exists"
     standalone_rank.pop("candidate_declarations", None)
     standalone_rank["candidate_declaration_rows"] = [dict(declaration_row)]
+    rank_attempt = response["formal_attempt_queue"][1]
+    assert isinstance(rank_attempt, dict)
+    rank_attempt["attempt_kind"] = "reuse_check"
+    rank_attempt["expected_feedback"] = ["closed_by_existing_declaration"]
     return response
 
 
@@ -638,9 +824,11 @@ def _make_rank_uniformity_omitted_response(
     response["informal_knowledge_dag_nodes"] = [
         response["informal_knowledge_dag_nodes"][0]
     ]
+    response["informal_knowledge_dag_edges"] = []
     response["lean_realization_dag_nodes"] = [
         response["lean_realization_dag_nodes"][0]
     ]
+    response["formal_realization_dag_edges"] = []
     if include_baseline_route_option:
         response["lean_realization_dag_nodes"].append(
             {
@@ -651,6 +839,17 @@ def _make_rank_uniformity_omitted_response(
                 "formalization_action": "prove_bridge",
             }
         )
+        response["formal_realization_dag_edges"] = [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "bridges",
+                "rationale": (
+                    "The baseline rank-uniformity bridge depends on the "
+                    "exchangeability formal primitive."
+                ),
+            }
+        ]
     response["route_alignment_edges"] = [
         {
             "informal_node_id": "informal:exchangeability",
@@ -764,6 +963,14 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
         if isinstance(node, dict):
             node["coverage_bucket"] = "source_port_needed"
             node["formalization_action"] = "port_external_source"
+    for attempt in response.get("formal_attempt_queue", []):
+        if isinstance(attempt, dict):
+            attempt["attempt_kind"] = "source_port_probe"
+            attempt["expected_feedback"] = [
+                "source_port_targets",
+                "residual_goals",
+                "missing_side_conditions",
+            ]
     for edge in response.get("route_alignment_edges", []):
         if isinstance(edge, dict):
             edge["alignment_status"] = "source_port_needed"
@@ -811,6 +1018,16 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
         "The selected replan route carries two source-port obligations."
     )
     route_options[1]["route_cost"] = 16
+    route_options[1]["source_port_lemmas"] = [
+        (
+            "exchangeability: port the alternative source-backed exchangeability "
+            "premise before replaying the rank route"
+        ),
+        (
+            "rank_uniformity: port the alternative source-backed finite-rank "
+            "uniformity theorem with the extra side-condition allowance"
+        ),
+    ]
     route_options[1]["primitive_costs"] = [
         {
             "primitive": "exchangeability",
@@ -999,6 +1216,16 @@ def _write_resource_response_ledger(root: Path) -> Path:
                         "target_primitives": ["rank_uniformity"],
                         "resource_id": "paperclip_mcp",
                         "expected_response_artifact": "source_evidence",
+                        "priority_score": 88,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 90,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=90",
+                        ],
                         "acceptance_gate": "source evidence must satisfy queued contract fields",
                         "response_present": True,
                         "response_contract_minimum_met": True,
@@ -1055,6 +1282,177 @@ def _write_resource_response_ledger(root: Path) -> Path:
         encoding="utf-8",
     )
     return ledger_dir
+
+
+def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
+    provenance = {"source_theorem_route_id": "rank_route"}
+    semantic_bridge_dir = root / "source_theorem_semantic_primitive_bridge"
+    semantic_bridge_dir.mkdir(parents=True, exist_ok=True)
+    (
+        semantic_bridge_dir
+        / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremSemanticPrimitiveProofEngineerBridgeManifest"
+                ),
+                "checks": [
+                    {
+                        "artifact_kind": "SourceTheoremSemanticPrimitiveBridgeCheck",
+                        "work_order_id": "semantic-work:rank_route",
+                        "target_theorem_name": "distribution_free_rank_bound",
+                        "source_theorem_target_provenance": provenance,
+                        "semantic_primitive_id": (
+                            "exchangeability_to_uniform_rank_semantics"
+                        ),
+                        "semantic_primitive_gap": (
+                            "formalize exchangeability-to-uniform-rank semantics"
+                        ),
+                        "candidate_registered_obligation_ids": [
+                            "obligation:rank_uniformity_semantics"
+                        ],
+                        "proof_evidence_status": (
+                            "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
+                        ),
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    semantic_from_executor_dir = (
+        root
+        / "source_theorem_semantic_primitive_from_proof_body_executor_work_orders"
+    )
+    semantic_from_executor_dir.mkdir(parents=True, exist_ok=True)
+    (
+        semantic_from_executor_dir
+        / "runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor.jsonl"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "semantic-from-proof-body:rank_route",
+                "target_theorem_name": "distribution_free_rank_bound",
+                "source_theorem_target_provenance": provenance,
+                "semantic_primitive_id": "order_statistic_quantile_semantics",
+                "semantic_primitive_gap": (
+                    "formalize order-statistic quantile semantics"
+                ),
+                "placeholder_symbol": "OrderStatisticQuantileSemantics",
+                "failure_classification": (
+                    "formal_environment_placeholder_primitives"
+                ),
+                "proof_body_goal_excerpt": [
+                    "|- rank statistic is uniformly distributed"
+                ],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    formal_environment_dir = root / "source_theorem_formal_environment_bridge"
+    formal_environment_dir.mkdir(parents=True, exist_ok=True)
+    repair_packets_path = formal_environment_dir / "repair_packets.jsonl"
+    repair_packets_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremFormalEnvironmentRepairPacket",
+                "work_order_id": "formal-env:rank_route",
+                "target_theorem_name": "distribution_free_rank_bound",
+                "source_theorem_target_provenance": provenance,
+                "missing_formal_symbols": ["OrderStatisticQuantileSemantics"],
+                "typeclass_blockers": ["DecidableEq score"],
+                "formal_environment_typeclass_blockers": ["DecidableEq score"],
+                "proof_evidence_status": (
+                    "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (
+        formal_environment_dir
+        / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremFormalEnvironmentProofEngineerBridgeManifest"
+                ),
+                "repair_packets_jsonl": str(repair_packets_path),
+                "n_repair_packets": 1,
+                "proof_evidence_status": (
+                    "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    proof_body_executor_dir = root / "exact_source_theorem_proof_body_executor"
+    proof_body_executor_dir.mkdir(parents=True, exist_ok=True)
+    (
+        proof_body_executor_dir
+        / "exact_source_theorem_proof_body_execution_result_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionResult",
+                "rows": [
+                    {
+                        "artifact_kind": (
+                            "ExactSourceTheoremProofBodyExecutionResultRow"
+                        ),
+                        "execution_result_id": "proof-body-result:rank_route",
+                        "execution_queue_id": "proof-body-queue:rank_route",
+                        "target_theorem_name": "distribution_free_rank_bound",
+                        "source_theorem_target_provenance": provenance,
+                        "failure_classification": (
+                            "formal_environment_placeholder_primitives"
+                        ),
+                        "formal_environment_placeholder_symbols": [
+                            "OrderStatisticQuantileSemantics"
+                        ],
+                        "candidate_live_proof_state_request": {
+                            "proof_body_goal_excerpt": [
+                                "|- rank statistic is uniformly distributed"
+                            ]
+                        },
+                        "source_theorem_kernel_verified": False,
+                        "proof_evidence_status": (
+                            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    return {
+        "semantic_bridge": semantic_bridge_dir,
+        "semantic_from_executor": semantic_from_executor_dir,
+        "formal_environment": formal_environment_dir,
+        "proof_body_executor": proof_body_executor_dir,
+    }
 
 
 def _write_refinement_evidence(
@@ -1330,6 +1728,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert payload["n_request_route_planning_evidence_gaps"] == 0
+    assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
+    assert payload["n_request_route_planning_source_backed_primitives"] == 1
+    assert payload["n_request_route_planning_formal_supported_primitives"] == 1
     assert payload["legacy_context_field_aliases"] == (
         LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
     )
@@ -1378,6 +1779,14 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     }
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 0
+    assert payload["n_primitive_evidence_matrix_witness_rows"] == 2
+    assert payload["n_primitive_evidence_matrix_unaccounted_primitives"] == 2
+    assert (
+        payload["n_selected_primitives_without_primitive_evidence_matrix_row"]
+        == 0
+    )
     assert payload["standalone_replay_gate_ok"] is False
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 0
@@ -1397,6 +1806,16 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["route_adoption_blocker_counts"] == {
         "llm_route_planner_response_missing": 1
     }
+    assert payload[
+        "n_route_adoption_pending_primitive_evidence_matrix_blockers"
+    ] == 0
+    staged_row = payload["rows"][0]
+    assert staged_row["primitive_evidence_matrix_witness"][
+        "matrix_accounting_complete"
+    ] is False
+    assert staged_row["primitive_evidence_matrix_witness"][
+        "matrix_unaccounted_primitives"
+    ] == ["exchangeability", "rank_uniformity"]
     assert payload["by_route_adoption_blocker"][
         "llm_route_planner_response_missing"
     ]["by_route_adoption_status"] == {
@@ -1438,6 +1857,39 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     ]
     assert len(library_alignment_summary_rows) == 1
     request = payload["request_packets"][0]
+    ledger_schema = llm_route_planner_model_tier_decision_ledger_json_schema()
+    assert (
+        ledger_schema["$id"]
+        == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+    )
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+    ).exists()
+    ledger_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert ledger_rows == list(payload["model_tier_decision_ledger"])
+    assert payload["n_model_tier_decision_ledger_rows"] == 1
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
+    ledger_row = ledger_rows[0]
+    assert ledger_row["request_id"] == request["request_id"]
+    assert ledger_row["operator_requested_model_tier"] == "auto"
+    assert ledger_row["selected_model_tier"] == request["model_tier"]
+    assert ledger_row["effective_model_tier"] == request["model_tier"]
+    assert ledger_row["decision_basis"] == "auto_sonnet_triggers"
+    assert ledger_row["response_present"] is False
+    assert ledger_row["provider_failure"] is False
+    assert ledger_row["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+    )
     assert "LLM route planner" in request["prompt_messages"]["system"]
     assert "required_output_contract" in request["prompt_messages"]["user"]
     assert request["minimal_delta_cost_policy"]["cost_policy_id"] == (
@@ -1447,17 +1899,94 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "primitive_costs" in request["prompt_messages"]["user"]
     context = request["context_packet"]
     assert context["current_route"]["route_id"] == "rank_route"
+    target_context_packet = context["target_theorem_context_packet"]
+    route_planning_brief = context["route_planning_brief"]
+    assert target_context_packet["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert target_context_packet["route_id"] == "rank_route"
+    assert target_context_packet["target_prover_family"] == "lean4"
+    assert target_context_packet["theorem_statement"] == (
+        "A distribution-free rank bound follows from exchangeability."
+    )
+    assert target_context_packet["primitive_candidates"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert target_context_packet["proof_source_refs"] == [
+        "conformal_prediction_textbook"
+    ]
+    assert payload["rows"][0]["target_theorem_context_packet"] == target_context_packet
+    assert payload["rows"][0]["route_planning_brief"] == route_planning_brief
+    fallback_seed_route = payload["standalone_seed"]["routes"][0]
+    assert fallback_seed_route["target_theorem_context_packet"] == (
+        target_context_packet
+    )
+    assert fallback_seed_route["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert fallback_seed_route["replan_metadata"][
+        "target_theorem_context_packet"
+    ] == target_context_packet
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_target_theorem_context_packet"
+    ] == target_context_packet
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
     brief = context["route_planning_brief"]
     assert brief["brief_kind"] == (
         "formalization_gap_planner_llm_route_planner_route_planning_brief"
     )
     assert brief["route_id"] == "rank_route"
     assert brief["target_prover_family"] == "lean4"
+    assert brief["target_context"]["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert brief["target_context"]["primitive_candidates"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
     assert brief["evidence_summary"]["source_ref_count"] == len(
         context["available_source_refs"]
     )
     assert brief["evidence_summary"]["formal_declaration_row_count"] == len(
         context["available_formal_declaration_rows"]
+    )
+    assert brief["evidence_summary"]["primitive_evidence_row_count"] == 2
+    assert brief["evidence_summary"]["primitive_source_backed_count"] == 1
+    assert brief["evidence_summary"]["primitive_formal_supported_count"] == 1
+    assert brief["evidence_summary"]["primitive_needing_source_search_count"] == 1
+    assert brief["evidence_summary"]["primitive_needing_formal_delta_count"] == 1
+    primitive_evidence_by_primitive = {
+        row["primitive"]: row for row in brief["primitive_evidence_matrix"]
+    }
+    assert set(primitive_evidence_by_primitive) == {
+        "exchangeability",
+        "rank_uniformity",
+    }
+    exchangeability_evidence = primitive_evidence_by_primitive["exchangeability"]
+    assert exchangeability_evidence["formal_support_status"] == (
+        "existing_library_reuse_ready"
+    )
+    assert exchangeability_evidence["source_support_status"] == (
+        "source_search_pending"
+    )
+    assert "Probability.exchangeable" in set(
+        exchangeability_evidence["target_compatible_declarations"]
+    )
+    assert "reuse_target_compatible_declarations" in set(
+        exchangeability_evidence["recommended_planner_actions"]
+    )
+    rank_evidence = primitive_evidence_by_primitive["rank_uniformity"]
+    assert rank_evidence["source_support_status"] == "source_backed"
+    assert rank_evidence["formal_support_status"] == "bridge_needed"
+    assert rank_evidence["library_delta_class"] == "bridge"
+    assert rank_evidence["minimum_base_cost"] == 4.0
+    assert rank_evidence["source_refs"] == ["conformal_prediction_textbook"]
+    assert rank_evidence["source_snippet_count"] == 1
+    assert "plan_minimal_formal_delta" in set(
+        rank_evidence["recommended_planner_actions"]
     )
     assert {
         focus["focus_id"] for focus in brief["planner_focus"]
@@ -1496,6 +2025,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert inventory["route_planning_brief_evidence_gap_count"] == len(
         brief["evidence_gaps"]
     )
+    assert inventory["route_planning_brief_primitive_evidence_row_count"] == len(
+        brief["primitive_evidence_matrix"]
+    )
     assert inventory["primitive_cost_hint_count"] == 2
     assert inventory["route_option_cost_hint_count"] == 1
     assert inventory["library_alignment_summary_present"] is True
@@ -1522,6 +2054,12 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert inventory["available_formal_declaration_row_count"] == len(
         declaration_rows
     )
+    assert inventory["target_theorem_context_packet_present"] is True
+    assert inventory["target_theorem_context_object_count"] == 0
+    assert inventory["target_theorem_context_assumption_count"] == 0
+    assert inventory["target_theorem_context_procedure_count"] == 0
+    assert inventory["target_theorem_context_desired_conclusion_count"] == 0
+    assert inventory["target_theorem_context_proof_style_hint_count"] == 0
     assert {
         (row["declaration"], row["target_prover_family"]) for row in declaration_rows
     } >= {("Probability.exchangeable", "lean4")}
@@ -1596,6 +2134,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
     assert "route_planning_brief" in request["prompt_messages"]["user"]
+    assert "primitive_evidence_matrix" in request["prompt_messages"]["user"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_manifest.json"
@@ -1647,6 +2186,60 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.route_planning_brief.evidence_summary.source_ref_count "
         "must match context_packet"
         in validate_llm_route_planner_request(drifted_brief_request)
+    )
+    drifted_matrix_inventory_request = deepcopy(request)
+    drifted_matrix_inventory_request["context_packet"]["context_packet_inventory"][
+        "route_planning_brief_primitive_evidence_row_count"
+    ] = 999
+    assert (
+        "context_packet.context_packet_inventory."
+        "route_planning_brief_primitive_evidence_row_count must match "
+        "context_packet.route_planning_brief"
+        in validate_llm_route_planner_request(drifted_matrix_inventory_request)
+    )
+    drifted_matrix_summary_request = deepcopy(request)
+    drifted_matrix_summary_request["context_packet"]["route_planning_brief"][
+        "evidence_summary"
+    ]["primitive_evidence_row_count"] = 999
+    assert (
+        "context_packet.route_planning_brief.evidence_summary."
+        "primitive_evidence_row_count must match "
+        "context_packet.route_planning_brief.primitive_evidence_matrix"
+        in validate_llm_route_planner_request(drifted_matrix_summary_request)
+    )
+    drifted_target_context_request = deepcopy(request)
+    drifted_target_context_request["context_packet"][
+        "target_theorem_context_packet"
+    ]["route_id"] = "wrong_route"
+    assert (
+        "context_packet.target_theorem_context_packet.route_id must match request route_id"
+        in validate_llm_route_planner_request(drifted_target_context_request)
+    )
+    drifted_target_context_statement_request = deepcopy(request)
+    drifted_target_context_statement_request["context_packet"][
+        "target_theorem_context_packet"
+    ]["theorem_statement"] = (
+        "A central limit theorem for independent sample means follows from "
+        "Lindeberg conditions."
+    )
+    assert (
+        "context_packet.target_theorem_context_packet.theorem_statement "
+        "must match request route or target-intake theorem statement"
+        in validate_llm_route_planner_request(
+            drifted_target_context_statement_request
+        )
+    )
+    drifted_target_context_inventory_request = deepcopy(request)
+    drifted_target_context_inventory_request["context_packet"][
+        "context_packet_inventory"
+    ]["target_theorem_context_proof_style_hint_count"] = 999
+    assert (
+        "context_packet.context_packet_inventory."
+        "target_theorem_context_proof_style_hint_count must match "
+        "target_theorem_context_packet"
+        in validate_llm_route_planner_request(
+            drifted_target_context_inventory_request
+        )
     )
     drifted_alias_request = deepcopy(request)
     drifted_alias_request["context_packet"]["legacy_context_field_aliases"] = {}
@@ -2015,9 +2608,65 @@ def test_llm_route_planner_stages_target_intake_context() -> None:
     assert intake_row["normalized_claim"] == "finite-sample coverage inequality"
     assert intake_row["desired_theorem_shape"] == "finite_sample_rank_coverage"
     assert "rank_uniformity" in intake_row["extracted_primitive_candidates"]
+    target_context_packet = context["target_theorem_context_packet"]
+    assert target_context_packet["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert target_context_packet["theorem_statement"] == (
+        "For exchangeable calibration and test scores, the split "
+        "conformal rank bound has finite-sample coverage."
+    )
+    assert target_context_packet["theorem_skeletons"] == [
+        "theorem split_conformal_rank_bound : ..."
+    ]
+    assert target_context_packet["normalized_objects"] == [
+        "calibration scores",
+        "test score",
+        "rank statistic",
+    ]
+    assert target_context_packet["normalized_assumptions"] == [
+        "exchangeability",
+        "deterministic tie handling",
+    ]
+    assert target_context_packet["normalized_procedures"] == [
+        "split conformal prediction"
+    ]
+    assert target_context_packet["desired_conclusions"] == [
+        "finite-sample coverage inequality"
+    ]
+    assert target_context_packet["desired_theorem_shapes"] == [
+        "finite_sample_rank_coverage"
+    ]
+    assert target_context_packet["proof_style_hints"] == [
+        "desired theorem shape: finite_sample_rank_coverage",
+        "proof-state probe required",
+    ]
+    assert "rank_uniformity" in target_context_packet["primitive_candidates"]
+    assert "conformal_prediction_textbook" in target_context_packet[
+        "proof_source_refs"
+    ]
+    assert context["route_planning_brief"]["target_context"][
+        "normalized_procedures"
+    ] == ["split conformal prediction"]
+    assert context["context_packet_inventory"][
+        "target_theorem_context_assumption_count"
+    ] == 2
+    assert context["context_packet_inventory"][
+        "target_theorem_context_procedure_count"
+    ] == 1
+    assert context["context_packet_inventory"][
+        "target_theorem_context_desired_conclusion_count"
+    ] == 1
+    assert context["context_packet_inventory"][
+        "target_theorem_context_proof_style_hint_count"
+    ] == 2
     prompt_text = request["prompt_messages"]["user"]
     assert "context_packet.target_intake_rows" in prompt_text
+    assert "context_packet.target_theorem_context_packet" in prompt_text
     assert "normalized_assumptions" in prompt_text
+    assert "statistical procedure" in prompt_text
+    assert "desired conclusion" in prompt_text
+    assert "proof-style hints" in prompt_text
     assert "formal_library_grounding_queries" in prompt_text
     assert "legacy alias" in prompt_text
     assert "target intake is not proof evidence" in prompt_text
@@ -2106,6 +2755,75 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert payload["n_component_resource_registry_components_in_prompt"] > 0
     assert payload["n_component_resource_registry_resources_in_prompt"] > 0
     assert payload["n_component_resource_registry_contracts_in_prompt"] > 0
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context"
+    ] == 1
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        == 1
+    )
     request = payload["request_packets"][0]
     registry_context = request["context_packet"][
         "component_resource_registry_context"
@@ -2115,6 +2833,12 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     }
     assert "paperclip_cli_mcp" in resource_ids
     assert "lean_lsp_mcp" in resource_ids
+    assert "source_theorem_semantic_primitive_bridge" in resource_ids
+    assert "source_theorem_semantic_primitive_from_proof_body_executor_bridge" in (
+        resource_ids
+    )
+    assert "source_theorem_formal_environment_bridge" in resource_ids
+    assert "exact_source_theorem_proof_body_executor" in resource_ids
     assert any(
         row["component_id"] == "literature_grounded_route_synthesis"
         for row in registry_context["component_rows"]
@@ -2123,7 +2847,71 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
         row["resource_id"] == "paperclip_cli_mcp"
         for row in registry_context["resource_contract_rows"]
     )
+    semantic_bridge_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "source_theorem_semantic_primitive_bridge"
+    )
+    assert "source_theorem_semantic_primitive_work_orders" in semantic_bridge_contract[
+        "request_contract_fields"
+    ]
+    assert semantic_bridge_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_semantic_primitive_bridge_response"
+    post_proof_body_semantic_bridge_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"]
+        == "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+    )
+    assert "exact_source_theorem_proof_body_execution_feedback_rows" in (
+        post_proof_body_semantic_bridge_contract["request_contract_fields"]
+    )
+    assert "source_theorem_semantic_primitive_work_orders_from_proof_body_executor" in (
+        post_proof_body_semantic_bridge_contract["request_contract_fields"]
+    )
+    assert post_proof_body_semantic_bridge_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_semantic_primitive_from_proof_body_executor_bridge_response"
+    formal_environment_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "source_theorem_formal_environment_bridge"
+    )
+    assert "source_theorem_formal_environment_work_orders" in formal_environment_contract[
+        "request_contract_fields"
+    ]
+    assert formal_environment_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_formal_environment_bridge_response"
+    proof_body_executor_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "exact_source_theorem_proof_body_executor"
+    )
+    assert "exact_source_theorem_proof_body_execution_queue_rows" in proof_body_executor_contract[
+        "request_contract_fields"
+    ]
+    assert proof_body_executor_contract[
+        "output_artifact_kind"
+    ] == "exact_source_theorem_proof_body_execution_response"
     assert "component_resource_registry_context" in request["prompt_messages"]["user"]
+    assert (
+        "source_theorem_semantic_primitive_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "source_theorem_formal_environment_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "exact_source_theorem_proof_body_executor"
+        in request["prompt_messages"]["user"]
+    )
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
 
 
@@ -2174,6 +2962,76 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     )
 
     assert payload["all_ok"]
+    assert (
+        payload["n_requests_with_source_theorem_semantic_primitive_bridge_context"]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        == 0
+    )
     request = payload["request_packets"][0]
     registry_context = request["context_packet"][
         "component_resource_registry_context"
@@ -2190,6 +3048,9 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
         "leanexplore_mcp",
         "lean_blueprint_leanarchitect",
         "local_lake_lean",
+        "source_theorem_semantic_primitive_bridge",
+        "source_theorem_formal_environment_bridge",
+        "exact_source_theorem_proof_body_executor",
         "lean_lsp_mcp",
         "leandojo_reprover",
     }
@@ -2269,6 +3130,40 @@ def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> Non
     row = payload["rows"][0]
     assert row["response_contract_ok"] is True
     assert row["planner_next_actions"][0]["owner"] == "lean_lsp_mcp"
+
+
+def test_llm_route_planner_rejects_unregistered_formal_attempt_queue_resource() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_resource"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][0]["resource_id"] = "invented_prover_mcp"
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[0] references resource_id(s) not present "
+        "in request queue or registry context" in error
+        and "invented_prover_mcp" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_missing_delta_action_witness() -> None:
@@ -2436,6 +3331,10 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         for row in queue_payload["rows"]
         if row.get("hook_kind") == "proof_state_feedback"
         and "lean_lsp_mcp" in row.get("resource_ids", ())
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_planner_next_action_index"
+        )
+        == 0
     )
     assert "residual goals after exchangeability reuse" in " ".join(queue_row["queries"])
     assert tuple(queue_row["target_primitives"]) == ("rank_uniformity",)
@@ -2453,7 +3352,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     adapter_response = next(
         response
         for response in adapter_payload["responses"]
-        if response.get("llm_route_planner_hook_trace")
+        if response.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(adapter_response["target_primitives"]) == ("rank_uniformity",)
     assert adapter_response["llm_route_planner_hook_trace"] == hook_trace
@@ -2468,14 +3367,14 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     evidence_row = next(
         row
         for row in evidence_payload["rows"]
-        if row.get("llm_route_planner_hook_trace")
+        if row.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(evidence_row["target_primitives"]) == ("rank_uniformity",)
     assert evidence_row["llm_route_planner_hook_trace"] == hook_trace
     proposal = next(
         row
         for row in evidence_payload["route_revision_proposals"]
-        if row.get("llm_route_planner_hook_trace")
+        if row.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(proposal["target_primitives"]) == ("rank_uniformity",)
     assert proposal["llm_route_planner_hook_trace"] == hook_trace
@@ -2486,13 +3385,18 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         overlay_dir,
     )
     assert overlay_payload["all_ok"]
-    assert overlay_payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert overlay_payload["n_applied_llm_route_planner_hook_traces"] >= 1
     overlay_row = next(
         row
         for row in overlay_payload["rows"]
         if row.get("applied_llm_route_planner_hook_traces")
     )
-    assert list(overlay_row["applied_llm_route_planner_hook_traces"]) == [hook_trace]
+    applied_hook_traces = list(overlay_row["applied_llm_route_planner_hook_traces"])
+    assert hook_trace in applied_hook_traces
+    assert (
+        overlay_payload["n_applied_llm_route_planner_hook_traces"]
+        == len(applied_hook_traces)
+    )
     handoff_dir = root / "route_replan_handoff_from_action_only_llm_seed"
     handoff_payload = export_formalization_gap_planner_route_replan_handoff(
         plan_dir,
@@ -2500,17 +3404,19 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         handoff_dir,
     )
     assert handoff_payload["all_ok"]
-    assert handoff_payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert handoff_payload["n_applied_llm_route_planner_hook_traces"] == len(
+        applied_hook_traces
+    )
     handoff_row = next(
         row
         for row in handoff_payload["rows"]
         if row.get("applied_llm_route_planner_hook_traces")
     )
-    assert list(handoff_row["applied_llm_route_planner_hook_traces"]) == [hook_trace]
+    assert list(handoff_row["applied_llm_route_planner_hook_traces"]) == applied_hook_traces
     handoff_seed_route = handoff_payload["standalone_seed"]["routes"][0]
     assert handoff_seed_route["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
-    ] == [hook_trace]
+    ] == applied_hook_traces
     replan_prompt_dir = root / "llm_route_planner_from_action_only_handoff"
     replan_prompt_payload = export_formalization_gap_planner_llm_route_planner(
         handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json",
@@ -2523,7 +3429,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         replan_prompt_payload[
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
         ]
-        == 1
+        == len(applied_hook_traces)
     )
     assert (
         replan_prompt_payload[
@@ -2540,14 +3446,184 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         replan_inventory[
             "feedback_loop_summary_prior_llm_route_planner_hook_trace_count"
         ]
-        == 1
+        == len(applied_hook_traces)
     )
     assert replan_feedback_summary["prior_replan_metadata"][
         "applied_llm_route_planner_hook_traces"
-    ] == [hook_trace]
+    ] == applied_hook_traces
     assert (
         "applied_llm_route_planner_hook_traces"
         in replan_request["prompt_messages"]["user"]
+    )
+
+
+def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_formal_attempt_queue_hooks"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_formal_attempt_queue_items"] == 2
+    seed_route = payload["standalone_seed"]["routes"][0]
+    queue_hooks = [
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if "llm_route_planner_formal_attempt_queue_index" in hook
+    ]
+    assert [
+        hook["llm_route_planner_formal_attempt_queue_index"]
+        for hook in queue_hooks
+    ] == [0, 1]
+    assert [hook["formal_node_id"] for hook in queue_hooks] == [
+        "formal:exchangeability",
+        "formal:rank_uniformity_bridge",
+    ]
+    assert queue_hooks[1]["prerequisite_formal_node_ids"] == [
+        "formal:exchangeability"
+    ]
+    assert "residual_goals" in queue_hooks[1]["expected_feedback"]
+    queue_triggers = [
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if "llm_route_planner_formal_attempt_queue_index" in trigger
+    ]
+    assert [
+        trigger["llm_route_planner_formal_attempt_queue_index"]
+        for trigger in queue_triggers
+    ] == [0, 1]
+    assert all(
+        trigger["trigger_kind"] == "blocked_by_formal_side_condition"
+        for trigger in queue_triggers
+    )
+
+    plan_dir = root / "standalone_plan_from_formal_attempt_queue_seed"
+    refinement_queue_dir = root / "refinement_queue_from_formal_attempt_queue_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_rows = [
+        row
+        for row in queue_payload["rows"]
+        if row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_formal_attempt_queue_index"
+        )
+        is not None
+    ]
+    assert len(queue_rows) == 2
+    assert queue_payload["n_formal_attempt_dependency_rows"] == 2
+    assert queue_payload["n_formal_attempt_dependency_initial_ready"] == 1
+    assert queue_payload["n_formal_attempt_dependency_waiting"] == 1
+    assert queue_payload["n_formal_attempt_dependency_missing_prerequisites"] == 0
+    exchangeability_attempt_row = next(
+        row
+        for row in queue_rows
+        if row["llm_route_planner_hook_trace"]["formal_node_id"]
+        == "formal:exchangeability"
+    )
+    rank_attempt_row = next(
+        row
+        for row in queue_rows
+        if row["llm_route_planner_hook_trace"]["formal_node_id"]
+        == "formal:rank_uniformity_bridge"
+    )
+    assert exchangeability_attempt_row["formal_attempt_initial_ready"] is True
+    assert (
+        exchangeability_attempt_row["formal_attempt_dependency_status"]
+        == "ready_no_formal_prerequisites"
+    )
+    assert exchangeability_attempt_row["formal_attempt_queue_index"] == 0
+    assert exchangeability_attempt_row["rank"] < rank_attempt_row["rank"]
+    assert rank_attempt_row["hook_kind"] == "proof_state_feedback"
+    assert tuple(rank_attempt_row["target_primitives"]) == ("rank_uniformity",)
+    assert "lean_lsp_mcp" in rank_attempt_row["resource_ids"]
+    assert rank_attempt_row["formal_attempt_queue_index"] == 1
+    assert rank_attempt_row["formal_attempt_initial_ready"] is False
+    assert (
+        rank_attempt_row["formal_attempt_dependency_status"]
+        == "waiting_for_formal_prerequisite_attempts"
+    )
+    assert rank_attempt_row["llm_route_planner_hook_trace"][
+        "prerequisite_formal_node_ids"
+    ] == ["formal:exchangeability"]
+    assert tuple(rank_attempt_row["formal_attempt_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+    assert tuple(rank_attempt_row["formal_attempt_prerequisite_refinement_item_ids"]) == (
+        exchangeability_attempt_row["refinement_item_id"],
+    )
+    assert tuple(
+        rank_attempt_row["formal_attempt_blocking_prerequisite_formal_node_ids"]
+    ) == ("formal:exchangeability",)
+    assert "expected_feedback: residual_goals" in " ".join(
+        rank_attempt_row["queries"]
+    )
+
+    adapter_dir = root / "adapter_responses_from_formal_attempt_queue_seed"
+    evidence_dir = root / "refinement_evidence_from_formal_attempt_queue_seed"
+    adapter_payload = export_formalization_gap_planner_refinement_adapter_responses(
+        refinement_queue_dir,
+        adapter_dir,
+    )
+    assert adapter_payload["all_ok"]
+    assert adapter_payload["n_formal_attempt_dependency_waiting_responses"] == 1
+    adapter_responses_by_item = {
+        response["refinement_item_id"]: response
+        for response in adapter_payload["responses"]
+    }
+    exchangeability_response = adapter_responses_by_item[
+        exchangeability_attempt_row["refinement_item_id"]
+    ]
+    rank_response = adapter_responses_by_item[rank_attempt_row["refinement_item_id"]]
+    assert exchangeability_response["formal_attempt_queue_index"] == 0
+    assert rank_response["attempt_status"] == "waiting_for_formal_prerequisite_attempts"
+    assert rank_response["prover_attempt_class"] == "formal_attempt_dependency_waiting"
+    assert rank_response["route_revision_recommended"] is False
+    assert tuple(rank_response["formal_attempt_blocking_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        refinement_queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert evidence_payload["all_ok"]
+    evidence_by_item = {
+        row["refinement_item_id"]: row for row in evidence_payload["rows"]
+    }
+    rank_evidence = evidence_by_item[rank_attempt_row["refinement_item_id"]]
+    assert rank_evidence["prover_attempt_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+    assert not any(
+        proposal["refinement_item_id"] == rank_attempt_row["refinement_item_id"]
+        for proposal in evidence_payload["route_revision_proposals"]
     )
 
 
@@ -2782,6 +3858,9 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert payload["n_feedback_loop_summary_replan_required"] == 1
     assert payload["n_feedback_loop_summary_resource_response_admissible"] == 1
     assert payload["n_feedback_loop_summary_resource_response_status_only"] == 0
+    assert payload["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert payload["n_request_resource_feedback_readiness_rows"] == 1
+    assert payload["n_request_resource_feedback_reuse_ready_rows"] == 0
     assert payload["n_feedback_loop_summary_source_snippets"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] >= 2
@@ -2794,6 +3873,15 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     ledger_row = context["resource_response_ledger_rows"][0]
     assert ledger_row["response_present"] is True
     assert ledger_row["response_contract_ok"] is True
+    assert ledger_row["minimal_delta_cost_score"] == 40
+    assert ledger_row["reuse_readiness_score"] == 70
+    assert ledger_row["evidence_readiness_score"] == 90
+    assert ledger_row["priority_rationale"] == [
+        "coverage_status=bridge_needed",
+        "minimal_delta_cost_score=40",
+        "reuse_readiness_score=70",
+        "evidence_readiness_score=90",
+    ]
     assert ledger_row["formal_declaration_hits"] == [
         {
             "declaration": "Probability.rankUniformityBridge",
@@ -2818,6 +3906,15 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     )
     summary = context["feedback_loop_summary"]
     assert summary["summary_kind"] == "formalization_gap_planner_feedback_loop_summary"
+    readiness_summary = context["resource_feedback_readiness_summary"]
+    assert readiness_summary["total_count"] == 1
+    assert readiness_summary["light_bridge_or_wrapper_count"] == 1
+    assert readiness_summary["average_reuse_readiness_score"] == 70
+    assert readiness_summary["average_evidence_readiness_score"] == 90
+    assert readiness_summary["high_priority_rows"][0]["resource_request_id"] == (
+        "resource-request:rank_route"
+    )
+    assert summary["resource_feedback_readiness_summary"] == readiness_summary
     assert summary["residual_goals"] == ["rank_uniformity: deterministic tie handling"]
     assert summary["evidence_counts"]["resource_response_ledger_rows"] == 1
     assert summary["resource_response_admissibility"] == {
@@ -2852,6 +3949,22 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert summary["recommended_next_actions"][0]["acceptance_status"] == (
         "ACCEPTED_WITH_ROUTE_REVISION"
     )
+    assert summary["recommended_next_actions"][0]["minimal_delta_cost_score"] == 40
+    assert summary["recommended_next_actions"][0]["reuse_readiness_score"] == 70
+    route_brief = context["route_planning_brief"]
+    assert route_brief["evidence_summary"]["resource_feedback_readiness_row_count"] == 1
+    assert route_brief["evidence_summary"][
+        "resource_feedback_light_bridge_or_wrapper_count"
+    ] == 1
+    assert route_brief["evidence_summary"][
+        "resource_feedback_average_evidence_readiness_score"
+    ] == 90
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"preserve_resource_feedback_minimal_delta_priority"}
+    assert inventory["resource_feedback_readiness_summary_present"] is True
+    assert inventory["resource_feedback_readiness_row_count"] == 1
+    assert inventory["resource_feedback_readiness_reuse_ready_count"] == 0
     assert summary["admissible_source_refs"] == ["conformal_prediction_textbook"]
     assert summary["admissible_source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -2860,9 +3973,378 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "admissible_source_snippets"
     ][0]["claim"]
     assert "feedback_loop_summary" in request["prompt_messages"]["user"]
+    assert "resource_feedback_readiness_summary" in request["prompt_messages"]["user"]
     assert "status-only; do not use them as residual-goal" in request[
         "prompt_messages"
     ]["user"]
+
+
+def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_rows"
+    ] == 1
+    assert payload["n_request_source_theorem_semantic_primitive_rows"] == 1
+    assert payload[
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert payload[
+        "n_request_proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert payload[
+        "n_requests_with_source_theorem_formal_environment_rows"
+    ] == 1
+    assert payload["n_request_source_theorem_formal_environment_rows"] == 1
+    assert payload[
+        "n_requests_with_source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    assert payload[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] == 1
+
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"][
+        "source_theorem_semantic_primitive_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "source_theorem_formal_environment_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    assert payload["n_request_context_inventory_total_rows"] == inventory[
+        "total_context_rows"
+    ]
+
+    semantic_work_order = context[
+        "proof_body_semantic_primitive_work_order_rows"
+    ][0]
+    assert semantic_work_order["target_theorem_name"] == (
+        "distribution_free_rank_bound"
+    )
+    assert semantic_work_order["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "rank_route"
+    assert semantic_work_order["proof_body_goal_excerpt"] == [
+        "|- rank statistic is uniformly distributed"
+    ]
+    formal_environment_row = context[
+        "source_theorem_formal_environment_rows"
+    ][0]
+    assert formal_environment_row["missing_formal_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    proof_body_row = context[
+        "source_theorem_proof_body_execution_result_rows"
+    ][0]
+    assert proof_body_row["failure_classification"] == (
+        "formal_environment_placeholder_primitives"
+    )
+    assert proof_body_row["source_theorem_kernel_verified"] is False
+    summary = context["feedback_loop_summary"]
+    assert summary["replan_required"] is True
+    assert summary["evidence_counts"]["source_theorem_semantic_primitive_rows"] == 1
+    assert summary["evidence_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert summary["evidence_counts"]["source_theorem_formal_environment_rows"] == 1
+    assert summary["evidence_counts"][
+        "source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    source_theorem_feedback = summary["source_theorem_feedback"]
+    assert source_theorem_feedback["total_count"] == 4
+    assert source_theorem_feedback["unverified_semantic_primitive_row_count"] == 2
+    assert source_theorem_feedback["proof_body_execution_failure_count"] == 1
+    assert source_theorem_feedback["formal_environment_blocker_count"] == 3
+    assert source_theorem_feedback["replan_required"] is True
+    assert source_theorem_feedback["semantic_primitive_ids"] == [
+        "exchangeability_to_uniform_rank_semantics",
+        "order_statistic_quantile_semantics",
+    ]
+    assert source_theorem_feedback["placeholder_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    assert source_theorem_feedback["missing_formal_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    assert source_theorem_feedback["typeclass_blockers"] == ["DecidableEq score"]
+    assert {
+        action["source"] for action in summary["recommended_next_actions"]
+    } >= {
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    }
+    brief = context["route_planning_brief"]
+    assert brief["evidence_summary"]["source_theorem_feedback_row_count"] == 4
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_proof_body_execution_failure_count"
+    ] == 1
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_formal_environment_blocker_count"
+    ] == 3
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_replan_required"
+    ] is True
+    assert "repair_source_theorem_feedback" in {
+        focus["focus_id"] for focus in brief["planner_focus"]
+    }
+    assert "source_theorem_feedback_requires_repair" in {
+        gap["gap_id"] for gap in brief["evidence_gaps"]
+    }
+    decision_evidence = request["model_tier_decision_evidence"]
+    assert decision_evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_feedback_row_count"
+    ] == 4
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_proof_body_execution_failure_count"
+    ] == 1
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_formal_environment_blocker_count"
+    ] == 3
+    assert decision_evidence["source_theorem_feedback_counts"][
+        "proof_body_execution_failure_count"
+    ] == 1
+    assert any(
+        "source-theorem proof-body execution failure" in trigger
+        for trigger in decision_evidence["sonnet_triggers"]
+    )
+    assert any(
+        "source-theorem formal-environment blocker" in trigger
+        for trigger in decision_evidence["sonnet_triggers"]
+    )
+    prompt = request["prompt_messages"]["user"]
+    assert "source_theorem_semantic_primitive_rows" in prompt
+    assert "source_theorem_formal_environment_rows" in prompt
+    assert "proof-body feedback for route repair" in prompt
+    assert "not theorem proof evidence" in prompt
+    assert validate_llm_route_planner_request(request) == []
+
+    drifted_request = deepcopy(request)
+    drifted_request["context_packet"]["context_packet_inventory"]["row_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] = 0
+    assert (
+        "context_packet.context_packet_inventory.row_counts."
+        "proof_body_semantic_primitive_work_order_rows "
+        "must match context_packet."
+        "proof_body_semantic_primitive_work_order_rows"
+        in validate_llm_route_planner_request(drifted_request)
+    )
+
+    drifted_manifest = deepcopy(payload)
+    drifted_manifest[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] = 0
+    assert (
+        "n_request_source_theorem_proof_body_execution_result_rows "
+        "must match request_packets"
+        in validate_llm_route_planner_manifest(drifted_manifest)
+    )
+
+
+def test_llm_route_planner_filters_lean_source_theorem_feedback_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback_rocq"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_rows"
+    ] == 0
+    assert payload["n_request_source_theorem_semantic_primitive_rows"] == 0
+    assert payload[
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows"
+    ] == 0
+    assert (
+        payload["n_request_proof_body_semantic_primitive_work_order_rows"] == 0
+    )
+    assert (
+        payload["n_requests_with_source_theorem_formal_environment_rows"] == 0
+    )
+    assert payload["n_request_source_theorem_formal_environment_rows"] == 0
+    assert (
+        payload[
+            "n_requests_with_source_theorem_proof_body_execution_result_rows"
+        ]
+        == 0
+    )
+    assert payload[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] == 0
+
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert context["target_prover_family"] == "rocq"
+    for field_name in (
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    ):
+        assert not context[field_name]
+        assert context["context_packet_inventory"]["row_counts"][field_name] == 0
+    assert (
+        context["feedback_loop_summary"]
+        .get("source_theorem_feedback", {})
+        .get("total_count", 0)
+        == 0
+    )
+    prompt = request["prompt_messages"]["user"]
+    assert "OrderStatisticQuantileSemantics" not in prompt
+    assert "exchangeability_to_uniform_rank_semantics" not in prompt
+    assert validate_llm_route_planner_request(request) == []
+
+
+def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback_hooks"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
+    row = payload["rows"][0]
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "feedback_loop_replan_required",
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    feedback_hooks = [
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        in {
+            "source_theorem_semantic_primitive_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            "source_theorem_formal_environment_rows",
+            "source_theorem_proof_body_execution_result_rows",
+        }
+    ]
+    hook_kind_by_source = {
+        hook["llm_route_planner_feedback_next_action"]["source"]: hook["hook_kind"]
+        for hook in feedback_hooks
+    }
+    assert hook_kind_by_source == {
+        "source_theorem_semantic_primitive_rows": "proof_state_feedback",
+        "proof_body_semantic_primitive_work_order_rows": "proof_state_feedback",
+        "source_theorem_formal_environment_rows": "formal_library_grounding",
+        "source_theorem_proof_body_execution_result_rows": "route_revision",
+    }
+    assert "literature_discovery" not in set(hook_kind_by_source.values())
+    assert any(
+        "distribution-free rank bound follows from exchangeability"
+        in " ".join(hook.get("queries", []))
+        for hook in feedback_hooks
+        if hook["hook_kind"] == "proof_state_feedback"
+    )
+    trigger_sources = {
+        trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+    }
+    assert trigger_sources >= {
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    }
 
 
 def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
@@ -2915,7 +4397,11 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     row_payload = payload["rows"][0]
     assert row_payload["route_adoption_blockers"] == (
         "feedback_loop_replan_required",
+        ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     )
+    assert row_payload["primitive_evidence_matrix_witness"][
+        "formal_supported_matrix_primitives_missing_reuse"
+    ] == ["rank_uniformity"]
     summary = payload["request_packets"][0]["context_packet"]["feedback_loop_summary"]
     assert summary["replan_required"] is True
     assert summary["recommended_next_actions"] == []
@@ -2990,7 +4476,15 @@ def test_llm_route_planner_materializes_feedback_replan_with_resource_actions() 
 
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch queued rank_uniformity resource response before route replan",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = []
@@ -4203,6 +5697,48 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
     interactive_session_dir = _write_interactive_session(root)
+    interactive_manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    interactive_manifest = json.loads(
+        interactive_manifest_path.read_text(encoding="utf-8")
+    )
+    interactive_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+        ],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+    }
+    interactive_manifest["rows"][0].update(
+        {
+            "session_state": "AWAITING_REFINEMENT_RESPONSES",
+            "route_adoption_preconditions": interactive_preconditions,
+            "route_adoption_precondition_present": True,
+            "route_adoption_precondition_blocked_before_response": True,
+            "route_adoption_precondition_unresolved": True,
+            "route_adoption_precondition_known_blockers": [
+                ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+            ],
+            "route_adoption_precondition_required_response_fields": [
+                "search_requests",
+                "planner_next_actions",
+            ],
+            "route_adoption_precondition_known_blocker_count": 1,
+            "route_adoption_precondition_required_response_field_count": 2,
+        }
+    )
+    interactive_manifest_path.write_text(
+        json.dumps(interactive_manifest, indent=2),
+        encoding="utf-8",
+    )
 
     payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
@@ -4216,6 +5752,30 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     assert payload["n_request_residual_goals"] == 1
     assert payload["n_feedback_loop_summary_interactive_resource_requests"] == 1
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     assert (
         payload[
             "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries"
@@ -4251,7 +5811,38 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
         inventory["interactive_session_resource_request_execution_command_count"]
         == 1
     )
+    assert inventory["interactive_route_adoption_precondition_count"] == 1
+    assert inventory["interactive_unresolved_route_adoption_precondition_count"] == 1
+    assert (
+        inventory[
+            "interactive_route_adoption_precondition_known_blocker_count"
+        ]
+        == 1
+    )
+    assert (
+        inventory[
+            "interactive_route_adoption_precondition_required_response_field_count"
+        ]
+        == 2
+    )
     assert context["feedback_loop_summary"]["needs_more_proof_state_feedback"] is True
+    precondition_summary = context["feedback_loop_summary"][
+        "interactive_route_adoption_preconditions"
+    ]
+    assert precondition_summary["unresolved_count"] == 1
+    assert precondition_summary["known_pre_response_blockers"] == [
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+    ]
+    assert set(precondition_summary["response_required_fields"]) == {
+        "search_requests",
+        "planner_next_actions",
+    }
+    assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in context[
+        "route_adoption_preconditions"
+    ]["known_pre_response_blockers"]
+    assert set(
+        context["route_adoption_preconditions"]["response_required_fields"]
+    ) >= {"search_requests", "planner_next_actions"}
     assert context["feedback_loop_summary"]["interactive_session_resource_requests"][
         "resource_request_ids"
     ] == ["resource-request:rank_route"]
@@ -4270,7 +5861,16 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert context["feedback_loop_summary"]["recommended_next_actions"][0][
         "resource_request_execution_commands"
     ] == ["lean-lsp-mcp goal rank_uniformity"]
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "route_adoption_precondition_unresolved"
+    ] is True
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "route_adoption_precondition_known_blockers"
+    ] == [ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING]
     assert "interactive_decision_policy_rows" in request["prompt_messages"]["user"]
+    assert "interactive_route_adoption_preconditions" in request["prompt_messages"][
+        "user"
+    ]
     assert "resource_request_dispatch_summaries" in request["prompt_messages"]["user"]
 
 
@@ -4290,6 +5890,7 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof-state residual requires explicit finite tie-breaking.",
             "route_repair": "Keep proof-state feedback bounded to the Lean residual before route adoption.",
+            "target_primitives": ["rank_uniformity"],
             "source_refs": ["conformal_prediction_textbook"],
         }
     ]
@@ -4393,6 +5994,10 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         response
         for response in adapter_payload["responses"]
         if response.get("resource_request_bindings")
+        and tuple(
+            response.get("quality_controls", {}).get("resource_contract_ids", [])
+        )
+        == ("lean_lsp:proof_state_feedback",)
     )
     assert tuple(adapter_response["quality_controls"]["resource_contract_ids"]) == (
         "lean_lsp:proof_state_feedback",
@@ -4414,6 +6019,33 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
                     "residual_goals": [
                         "rank_uniformity: missing finite tie-breaking side condition"
                     ],
+                    "residual_goal_context": {
+                        "source_kind": "proof_state_feedback",
+                        "residual_goal": (
+                            "rank_uniformity: missing finite tie-breaking side condition"
+                        ),
+                        "residual_goals": [
+                            "rank_uniformity: missing finite tie-breaking side condition"
+                        ],
+                        "residual_primitives": ["rank_uniformity"],
+                        "target_primitives": ["rank_uniformity"],
+                        "interpretation": (
+                            "The proof-state residual requires explicit finite "
+                            "tie-breaking."
+                        ),
+                        "route_repair": (
+                            "Keep proof-state feedback bounded to the Lean "
+                            "residual before route adoption."
+                        ),
+                        "repair_action": (
+                            "rerun route planning with rank_uniformity "
+                            "side-condition evidence"
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "queries": [
+                            "ask Lean LSP for rank_uniformity residual goals"
+                        ],
+                    },
                 }
             )
     response_jsonl = root / "quality_control_route_revision_responses.jsonl"
@@ -4431,6 +6063,10 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         row
         for row in evidence_payload["rows"]
         if row.get("resource_request_bindings")
+        and tuple(
+            row.get("quality_controls", {}).get("required_quality_signals", [])
+        )
+        == ("diagnostic_signature",)
     )
     assert tuple(evidence_row["quality_controls"]["required_quality_signals"]) == (
         "diagnostic_signature",
@@ -4474,6 +6110,36 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         standalone_route["replan_metadata"]["quality_controls"]["stop_conditions"]
     ) == ("residual interpreted or source search requested",)
     assert not validate_standalone_input_payload(handoff_payload["standalone_seed"])
+    handoff_manifest_path = (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    )
+    handoff_manifest = json.loads(handoff_manifest_path.read_text(encoding="utf-8"))
+    handoff_manifest["rows"][0]["applied_resource_response_traces"] = [
+        {
+            "resource_response_ledger_id": "ledger:rank_uniformity",
+            "resource_request_id": "request:rank_uniformity",
+            "resource_id": "lean_lsp_mcp",
+            "primitive": "rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
+            "priority_score": 91,
+            "minimal_delta_cost_score": 10,
+            "reuse_readiness_score": 95,
+            "evidence_readiness_score": 80,
+            "priority_rationale": [
+                "coverage_status=exact_exists",
+                "minimal_delta_cost_score=10",
+                "reuse_readiness_score=95",
+                "evidence_readiness_score=80",
+            ],
+            "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+            "proof_evidence_boundary": "not theorem proof evidence",
+        }
+    ]
+    handoff_manifest_path.write_text(
+        json.dumps(handoff_manifest, indent=2),
+        encoding="utf-8",
+    )
 
     replan_response = _llm_response_payload()
     replan_response["source_snippets"] = []
@@ -4534,6 +6200,39 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert tuple(replan_context["residual_goals"]) == (
         "rank_uniformity: missing finite tie-breaking side condition",
     )
+    assert replan_payload["n_requests_with_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_context_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_inventory_residual_goal_contexts"] == 1
+    assert (
+        replan_payload["request_packets"][0]["residual_goal_contexts"]
+        == replan_context["residual_goal_contexts"]
+    )
+    assert len(replan_context["residual_goal_contexts"]) == 1
+    residual_context = replan_context["residual_goal_contexts"][0]
+    assert residual_context["residual_goal"] == (
+        "rank_uniformity: missing finite tie-breaking side condition"
+    )
+    assert residual_context["route_repair"].startswith(
+        "Keep proof-state feedback"
+    )
+    assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
+    target_context = replan_context["target_theorem_context_packet"]
+    assert target_context["residual_goal_context_count"] == 1
+    assert target_context["residual_goal_contexts"] == [
+        dict(residual_context)
+    ]
+    route_brief = replan_context["route_planning_brief"]
+    assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"repair_from_residual_goal_contexts"}
+    assert replan_context["context_packet_inventory"][
+        "residual_goal_context_count"
+    ] == 1
+    assert replan_context["context_packet_inventory"][
+        "target_theorem_context_residual_goal_context_count"
+    ] == 1
     handoff_rows = replan_context["route_replan_handoff_rows"]
     assert len(handoff_rows) == 1
     assert handoff_rows[0]["route_replan_handoff_id"].startswith(
@@ -4543,6 +6242,30 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         handoff_row["route_revision_overlay_id"]
     )
     assert handoff_rows[0]["next_commands"]
+    assert handoff_rows[0]["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 10
+    assert replan_payload["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert replan_payload["n_request_resource_feedback_readiness_rows"] == 1
+    assert replan_payload["n_request_resource_feedback_reuse_ready_rows"] == 1
+    replan_readiness_summary = replan_context[
+        "resource_feedback_readiness_summary"
+    ]
+    assert replan_readiness_summary["reuse_ready_count"] == 1
+    assert replan_readiness_summary["average_reuse_readiness_score"] == 95
+    assert replan_context["feedback_loop_summary"][
+        "resource_feedback_readiness_summary"
+    ] == replan_readiness_summary
+    assert replan_context["route_planning_brief"]["evidence_summary"][
+        "resource_feedback_reuse_ready_count"
+    ] == 1
+    assert {
+        focus["focus_id"]
+        for focus in replan_context["route_planning_brief"]["planner_focus"]
+    } >= {"preserve_resource_feedback_minimal_delta_priority"}
+    assert replan_context["context_packet_inventory"][
+        "resource_feedback_readiness_reuse_ready_count"
+    ] == 1
     assert replan_context["feedback_loop_summary"]["residual_goal_count"] == 1
     assert replan_context["feedback_loop_summary"]["evidence_counts"][
         "route_replan_handoff_rows"
@@ -4566,11 +6289,239 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert "route_replan_handoff_rows" in replan_payload["request_packets"][0][
         "prompt_messages"
     ]["user"]
+    assert "resource_feedback_readiness_summary" in replan_payload[
+        "request_packets"
+    ][0]["prompt_messages"]["user"]
+    assert "residual_goal_contexts" in replan_payload["request_packets"][0][
+        "prompt_messages"
+    ]["user"]
     replan_row = replan_payload["rows"][0]
+    assert replan_row["residual_goal_contexts"] == (
+        dict(residual_context),
+    )
+    assert replan_payload["n_rows_with_residual_goal_contexts"] == 1
+    assert replan_payload["n_row_residual_goal_contexts"] == 1
     assert replan_row["response_contract_ok"] is True
     assert replan_row["planner_next_actions"][0]["quality_gates"] == [
         "response_schema_valid"
     ]
+
+
+def test_llm_route_planner_promotes_seed_residual_interpretations_to_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_seed_residual_context"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    residual_context = {
+        "residual_goal": "rank_uniformity: missing finite tie-breaking side condition",
+        "interpretation": (
+            "The previous LLM route repair identified a finite tie-breaking "
+            "side condition that still needs replay."
+        ),
+        "route_repair": (
+            "Carry the finite tie-breaking side condition into the next "
+            "rank_uniformity route before claiming adoption readiness."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "source_refs": ["conformal_prediction_textbook"],
+        "residual_attempt_status": "local_lean_failed",
+        "residual_diagnostic_signature": "prover_diagnostic_signature:tie",
+        "evidence_ids": ["evidence:llm-residual-tie"],
+    }
+    input_payload["routes"][0]["replan_metadata"] = {
+        "llm_route_planner_residual_interpretations": [dict(residual_context)]
+    }
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [dict(residual_context)]
+    response["search_requests"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_residual_goals"] == 1
+    assert payload["n_requests_with_residual_goal_contexts"] == 1
+    assert payload["n_request_residual_goal_contexts"] == 1
+    assert payload["n_request_context_residual_goal_contexts"] == 1
+    assert payload["n_request_inventory_residual_goal_contexts"] == 1
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    request = payload["request_packets"][0]
+    assert request["model_tier"] == "sonnet"
+    assert "1 prover residual goal(s)" in request[
+        "model_tier_decision_evidence"
+    ]["sonnet_triggers"]
+    assert tuple(request["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
+    context_packet = request["context_packet"]
+    assert tuple(context_packet["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
+    contexts = context_packet["residual_goal_contexts"]
+    assert len(contexts) == 1
+    context = contexts[0]
+    assert context["source_kind"] == "llm_route_planner_residual_interpretation"
+    assert context["residual_goal"] == (
+        "rank_uniformity: missing finite tie-breaking side condition"
+    )
+    assert context["route_repair"].startswith("Carry the finite tie-breaking")
+    assert context["source_refs"] == ("conformal_prediction_textbook",)
+    assert context["target_primitives"] == ("rank_uniformity",)
+    assert context["evidence_ids"] == ("evidence:llm-residual-tie",)
+    target_context = context_packet["target_theorem_context_packet"]
+    assert target_context["residual_goal_context_count"] == 1
+    assert target_context["residual_goal_contexts"] == [dict(context)]
+    route_brief = context_packet["route_planning_brief"]
+    assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"repair_from_residual_goal_contexts"}
+    assert "residual_goal_contexts" in request["prompt_messages"]["user"]
+    row = payload["rows"][0]
+    assert row["residual_goal_contexts"] == (dict(context),)
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert "residual_interpretations_require_route_replay" in row[
+        "route_adoption_blockers"
+    ]
+
+
+def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unsourced_seed_residual"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    residual_context = {
+        "residual_goal": "rank_uniformity: missing finite tie-breaking side condition",
+        "interpretation": (
+            "A prior prover residual indicated a finite tie-breaking side "
+            "condition, but no source grounding was attached."
+        ),
+        "route_repair": (
+            "Search the source literature before promoting this side condition "
+            "into the rank_uniformity route."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "residual_attempt_status": "local_lean_failed",
+        "residual_diagnostic_signature": "prover_diagnostic_signature:tie",
+    }
+    input_payload["routes"][0]["replan_metadata"] = {
+        "llm_route_planner_residual_interpretations": [dict(residual_context)]
+    }
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [dict(residual_context)]
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": (
+                "finite tie-breaking side condition rank_uniformity "
+                "exchangeability source"
+            ),
+            "reason": (
+                "The carried residual context is unaccounted and needs bounded "
+                "source grounding before route promotion."
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_residual_goals"] == 1
+    assert payload["n_requests_with_source_grounding_rows"] == 1
+    assert payload["n_request_source_grounding_rows"] == 1
+    assert payload["n_requests_with_source_grounding_obligation_inventory"] == 1
+    assert (
+        payload["n_requests_with_pending_source_grounding_obligation_inventory"]
+        == 1
+    )
+    assert payload["n_request_source_grounding_unresolved_rows"] == 1
+    assert payload["n_request_residual_source_grounding_unresolved_rows"] == 1
+    request = payload["request_packets"][0]
+    context_packet = request["context_packet"]
+    source_rows = context_packet["source_grounding_rows"]
+    assert len(source_rows) == 1
+    assert source_rows[0]["node_source"] == "llm_route_planner_residual_goal_context"
+    assert source_rows[0]["grounding_status"] == "unaccounted"
+    assert source_rows[0]["ok"] is False
+    assert source_rows[0]["residual_goals"] == [
+        "rank_uniformity: missing finite tie-breaking side condition"
+    ]
+    assert source_rows[0]["residual_primitives"] == ["rank_uniformity"]
+    obligations = context_packet["source_grounding_obligations"]
+    assert obligations["present"] is True
+    assert obligations["pending"] is True
+    assert obligations["n_inline_residual_context_rows"] == 1
+    assert obligations["n_residual_unresolved_rows"] == 1
+    assert obligations["unresolved_grounding_statuses"] == ["unaccounted"]
+    assert obligations["residual_unresolved_row_ids"][0].startswith(
+        "inline_residual_context_source_grounding:"
+    )
+    inventory = context_packet["context_packet_inventory"]
+    assert inventory["row_counts"]["source_grounding_rows"] == 1
+    assert inventory["source_grounding_obligation_pending"] is True
+    assert inventory["residual_source_grounding_unresolved_count"] == 1
+    preconditions = context_packet["route_adoption_preconditions"]
+    assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in preconditions[
+        "known_pre_response_blockers"
+    ]
+    assert set(preconditions["response_required_fields"]) >= {
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+    }
+    row = payload["rows"][0]
+    assert row["source_grounding_rows"] == (dict(source_rows[0]),)
+    assert row["source_grounding_obligations"] == obligations
+    assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
+    assert row["response_contract_ok"] is True
+    assert set(row["route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_source_grounding_rows"] == [
+        dict(source_rows[0])
+    ]
+    assert seed_route["llm_route_planner_source_grounding_obligations"] == obligations
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_source_grounding_rows"
+    ] == [dict(source_rows[0])]
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_source_grounding_obligations"
+    ] == obligations
 
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
@@ -4671,6 +6622,202 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     assert primitive_source_ref in row["source_refs"]
 
 
+def test_llm_route_planner_rejects_residual_repair_without_target_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_without_target_primitive"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:tie-side-condition")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["search_requests"] = []
+    bad_response["planner_next_actions"] = []
+    bad_response["uncertainty_flags"] = []
+    bad_response["semantic_alignment_risks"] = []
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The proof route has not fixed deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "source_refs": ["paper:tie-side-condition"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] route repair requires target_primitives"
+        in error
+        and "primitive-prefixed residual_goal" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_prefixed_residual_goal_target_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_prefixed_residual_goal_target"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:tie-side-condition")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rows"][0]["residual_goals"] = [
+        "rank_uniformity: missing finite tie-breaking side condition"
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the tie-breaking residual",
+            "query": "rank_uniformity residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": (
+                "rank_uniformity: missing finite tie-breaking side condition"
+            ),
+            "interpretation": "The proof route has not fixed deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "source_refs": ["paper:tie-side-condition"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
+    seed = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        ).read_text(encoding="utf-8")
+    )
+    replan_metadata = seed["routes"][0]["replan_metadata"]
+    residual_hooks = [
+        hook
+        for hook in replan_metadata["llm_route_planner_interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_residual_interpretation_index") == 0
+    ]
+    assert residual_hooks
+    assert residual_hooks[0]["target_primitives"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_accepts_target_prover_prefixed_residual_goal() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_target_prover_prefixed_residual_goal"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:rocq-adapter-boundary")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rows"][0]["residual_goals"] = [
+        "rocq:rank_uniformity: awaiting prover adapter mapping"
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the adapter-prefixed residual",
+            "query": "rank_uniformity adapter-prefixed residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
+            "interpretation": (
+                "The Rocq route needs an adapter mapping for rank_uniformity "
+                "before kernel replay."
+            ),
+            "route_repair": "run Rocq adapter mapping for rank_uniformity",
+            "source_refs": ["paper:rocq-adapter-boundary"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
+    assert not any("ungrounded target_primitives: rocq" in error for error in row["errors"])
+    seed = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        ).read_text(encoding="utf-8")
+    )
+    replan_metadata = seed["routes"][0]["replan_metadata"]
+    residual_hooks = [
+        hook
+        for hook in replan_metadata["llm_route_planner_interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_residual_interpretation_index") == 0
+    ]
+    assert residual_hooks
+    assert residual_hooks[0]["target_primitives"] == ["rank_uniformity"]
+
+
 def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_residual_repair_pending"
@@ -4687,7 +6834,15 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     interactive_session_dir = _write_interactive_session(root)
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the tie-breaking residual",
+            "query": "rank_uniformity residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = [
@@ -4714,11 +6869,14 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     assert payload["n_route_adoption_pending_refinement"] == 1
     assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert "residual_interpretations_require_route_replay" in row[
+        "route_adoption_blockers"
+    ]
+    assert "planner_next_actions_pending_evidence" in row[
         "route_adoption_blockers"
     ]
     seed_route = payload["standalone_seed"]["routes"][0]
@@ -5103,6 +7261,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert route_option_schema["properties"]["primitive_costs"]["items"] == {
         "$ref": "#/$defs/primitive_cost"
     }
+    assert "source_port_lemmas" in route_option_schema["properties"]
+    assert "bridge_lemmas" in route_option_schema["properties"]
     residual_schema = response_payload_schema["properties"]["residual_interpretations"][
         "items"
     ]
@@ -5148,6 +7308,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert manifest_schema["properties"]["row_schema"]["properties"]["$id"][
         "const"
     ] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
+    assert manifest_schema["properties"]["model_tier_decision_ledger_schema"][
+        "properties"
+    ]["$id"]["const"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
     assert llm_route_planner_manifest_json_schema()["$id"] == (
         LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     )
@@ -5157,19 +7320,130 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_request_route_planning_focus_rows" in manifest_schema["required"]
     assert "n_request_route_planning_evidence_gaps" in manifest_schema["required"]
     assert (
+        "n_request_route_planning_primitive_evidence_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_route_planning_source_backed_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_route_planning_formal_supported_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_rows_with_primitive_evidence_matrix_witness"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_rows_with_complete_primitive_evidence_matrix_accounting"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_unaccounted_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_formal_supported_missing_reuse"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_delta_needed_missing_accounting"
+        in manifest_schema["required"]
+    )
+    assert (
         "n_request_llm_generation_policy_current_claude_tier_source"
         in manifest_schema["required"]
     )
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
+    assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 1
+    assert payload["n_primitive_evidence_matrix_witness_rows"] == 2
+    assert payload["n_primitive_evidence_matrix_accounted_primitives"] == 2
+    assert payload["n_primitive_evidence_matrix_unaccounted_primitives"] == 0
+    assert (
+        payload[
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        ]
+        == 0
+    )
+    assert (
+        payload["n_primitive_evidence_matrix_formal_supported_missing_reuse"]
+        == 0
+    )
+    assert (
+        payload["n_primitive_evidence_matrix_delta_needed_missing_accounting"]
+        == 0
+    )
+    assert (
+        payload["n_selected_primitives_without_primitive_evidence_matrix_row"]
+        == 0
+    )
+    assert payload["n_route_option_action_witness_required_primitives"] == 1
+    assert payload["n_route_option_action_witness_missing_primitives"] == 0
+    assert payload["n_rows_with_route_option_action_witness_obligations"] == 1
+    assert payload["n_rows_with_complete_route_option_action_witness"] == 1
+    route_option_witness = payload["rows"][0]["realization_coverage_witness"]
+    assert route_option_witness["route_option_action_witness_complete"] is True
+    assert route_option_witness[
+        "route_option_action_witness_required_primitives"
+    ] == ["rank_uniformity"]
     assert "repair_attempt_ledger" in manifest_schema["required"]
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
+    assert "model_tier_decision_ledger" in manifest_schema["required"]
+    assert "n_model_tier_decision_ledger_rows" in manifest_schema["required"]
+    assert "provider_usage_rows" in manifest_schema["required"]
+    assert "provider_usage_summary" in manifest_schema["required"]
+    assert "n_rows_with_provider_usage" in manifest_schema["required"]
+    assert "total_provider_input_tokens" in manifest_schema["required"]
+    assert "total_provider_output_tokens" in manifest_schema["required"]
+    assert (
+        "n_model_tier_decision_ledger_rows_with_escalation"
+        in manifest_schema["required"]
+    )
     assert "standalone_replay_gate" in manifest_schema["required"]
     assert "standalone_replay_gate_ok" in manifest_schema["required"]
+    component_resource_manifest_fields = (
+        "n_requests_with_component_resource_registry_context",
+        "n_component_resource_registry_components_in_prompt",
+        "n_component_resource_registry_resources_in_prompt",
+        "n_component_resource_registry_contracts_in_prompt",
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+        "n_requests_with_source_theorem_formal_environment_bridge_context",
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+        "n_requests_with_exact_source_theorem_proof_body_executor_context",
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+    )
+    for field_name in component_resource_manifest_fields:
+        assert field_name in manifest_schema["required"]
+        assert manifest_schema["properties"][field_name]["type"] == "integer"
+        assert manifest_schema["properties"][field_name]["minimum"] == 0
     assert payload["repair_attempt_ledger"] == ()
     assert payload["n_repair_attempt_ledger_rows"] == 0
     assert payload["n_requests_with_repair_attempt_ledger"] == 0
     assert payload["n_repair_attempt_ledger_error_items"] == 0
+    assert payload["n_model_tier_decision_ledger_rows"] == 1
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
+    assert payload["n_model_tier_decision_ledger_provider_failure_rows"] == 0
+    assert payload["n_rows_with_provider_usage"] == 0
+    assert payload["provider_usage_rows"] == []
+    assert payload["provider_usage_summary"]["row_count"] == 0
+    assert payload["total_provider_input_tokens"] == 0
+    assert payload["total_provider_output_tokens"] == 0
+    assert payload["total_provider_total_tokens"] == 0
     assert (
         manifest_schema["properties"]["legacy_context_field_aliases"][
             "properties"
@@ -5228,6 +7502,38 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
             manifest_schema,
         )
     )
+    drifted_tier_ledger_count_manifest = deepcopy(payload)
+    drifted_tier_ledger_count_manifest["n_model_tier_decision_ledger_rows"] = 0
+    assert (
+        "n_model_tier_decision_ledger_rows must match model_tier_decision_ledger"
+        in validate_llm_route_planner_manifest(
+            drifted_tier_ledger_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_tier_ledger_manifest = deepcopy(payload)
+    drifted_tier_ledger_manifest["model_tier_decision_ledger"] = [
+        dict(row) for row in payload["model_tier_decision_ledger"]
+    ]
+    drifted_tier_ledger_manifest["model_tier_decision_ledger"][0]["decision_basis"] = (
+        "wrong"
+    )
+    assert (
+        "model_tier_decision_ledger must match request_packets and rows"
+        in validate_llm_route_planner_manifest(
+            drifted_tier_ledger_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_provider_usage_manifest = deepcopy(payload)
+    drifted_provider_usage_manifest["total_provider_input_tokens"] = 99
+    assert (
+        "total_provider_input_tokens must match provider_usage_summary"
+        in validate_llm_route_planner_manifest(
+            drifted_provider_usage_manifest,
+            manifest_schema,
+        )
+    )
     drifted_replay_gate_manifest = deepcopy(payload)
     drifted_replay_gate_manifest["standalone_replay_gate"] = {
         **drifted_replay_gate_manifest["standalone_replay_gate"],
@@ -5259,6 +7565,39 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_route_planning_brief must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_brief_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_matrix_count_manifest = deepcopy(payload)
+    drifted_matrix_count_manifest[
+        "n_request_route_planning_primitive_evidence_rows"
+    ] = 999
+    assert (
+        "n_request_route_planning_primitive_evidence_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_matrix_count_manifest,
+            manifest_schema,
+        )
+    )
+    missing_component_resource_manifest = deepcopy(payload)
+    missing_component_resource_manifest.pop(
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+    )
+    assert (
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context required"
+        in validate_llm_route_planner_manifest(
+            missing_component_resource_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_component_resource_manifest = deepcopy(payload)
+    drifted_component_resource_manifest[
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+    ] = 1
+    assert (
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_component_resource_manifest,
             manifest_schema,
         )
     )
@@ -5323,7 +7662,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_provider_failures": 0,
     }
     assert payload["n_informal_knowledge_dag_nodes"] == 2
+    assert payload["n_informal_knowledge_dag_edges"] == 1
     assert payload["n_lean_realization_dag_nodes"] == 2
+    assert payload["n_formal_realization_dag_edges"] == 1
     assert (
         payload["legacy_response_field_aliases"]
         == LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
@@ -5332,6 +7673,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_route_alignment_edges"] == 2
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 1
+    assert payload[
+        "n_route_adoption_pending_primitive_evidence_matrix_blockers"
+    ] == 0
     assert payload["n_rows_with_context_packet_inventory"] == 1
     assert payload["n_selected_primitives_missing_formal_realization"] == 0
     assert payload["n_delta_primitives_missing_route_alignment"] == 0
@@ -5354,10 +7700,52 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "uncertainty_flags_require_review",
         "semantic_alignment_risks_require_review",
     }
+    matrix_witness = row["primitive_evidence_matrix_witness"]
+    assert matrix_witness["matrix_accounting_complete"] is True
+    assert matrix_witness["matrix_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_accounted_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_unaccounted_primitives"] == []
+    assert matrix_witness["selected_primitives_without_matrix_row"] == []
+    assert matrix_witness[
+        "source_backed_matrix_primitives_with_response_source_snippet"
+    ] == ["rank_uniformity"]
+    assert (
+        matrix_witness[
+            "source_backed_matrix_primitives_missing_response_source_snippet"
+        ]
+        == []
+    )
+    assert matrix_witness["formal_supported_matrix_primitives_reused"] == [
+        "exchangeability"
+    ]
+    assert matrix_witness["formal_supported_matrix_primitives_missing_reuse"] == []
+    assert matrix_witness["delta_needed_matrix_primitives"] == ["rank_uniformity"]
+    assert matrix_witness["delta_needed_matrix_primitives_accounted"] == [
+        "rank_uniformity"
+    ]
+    assert matrix_witness["delta_needed_matrix_primitives_missing_accounting"] == []
+    assert "minimal_delta.selected_primitives" in set(
+        matrix_witness["accounted_by_primitive"]["rank_uniformity"]
+    )
     assert "conformal_prediction_textbook" in row["source_refs"]
     assert row["context_packet_inventory"] == payload["request_packets"][0][
         "context_packet"
     ]["context_packet_inventory"]
+    assert row["target_theorem_context_packet"] == payload["request_packets"][0][
+        "context_packet"
+    ]["target_theorem_context_packet"]
+    assert row["informal_knowledge_dag_edges"][0]["source_node_id"] == (
+        "informal:exchangeability"
+    )
+    assert row["formal_realization_dag_edges"][0]["target_node_id"] == (
+        "formal:rank_uniformity_bridge"
+    )
     assert row["context_packet_inventory"]["inventory_kind"] == (
         "formalization_gap_planner_llm_route_planner_context_packet_inventory"
     )
@@ -5367,12 +7755,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ) == []
     row_schema = llm_route_planner_row_json_schema()
     assert "formal_realization_dag_nodes" in row_schema["required"]
+    assert "informal_knowledge_dag_edges" in row_schema["required"]
+    assert "formal_realization_dag_edges" in row_schema["required"]
     assert "lean_realization_dag_nodes" not in row_schema["required"]
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
+    assert "primitive_evidence_matrix_witness" in row_schema["required"]
+    assert "target_theorem_context_packet" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
     assert "model_tier_decision_evidence" in row_schema["required"]
     assert row_schema["properties"]["model_tier_decision_evidence"]["type"] == "object"
+    assert row_schema["properties"]["target_theorem_context_packet"]["type"] == "object"
     assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
@@ -5388,8 +7781,29 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "delta_action_witness_required_primitives" in witness_schema["required"]
     assert "delta_action_witness_complete" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
+    assert "route_relevant_dag_endpoint_complete" in witness_schema["required"]
+    assert (
+        "route_relevant_formal_nodes_missing_dag_edge_endpoint"
+        in witness_schema["required"]
+    )
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
+    assert (
+        "n_request_source_theorem_semantic_primitive_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_proof_body_semantic_primitive_work_order_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_source_theorem_formal_environment_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_source_theorem_proof_body_execution_result_rows"
+        in manifest_schema["required"]
+    )
     assert (
         manifest_schema["properties"]["legacy_response_field_aliases"][
             "properties"
@@ -5422,6 +7836,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert witness["delta_action_witness_rows"][0]["matched_action_fields"] == [
         "bridge_lemmas"
     ]
+    assert witness["route_relevant_alignment_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert witness["route_relevant_informal_nodes_missing_dag_edge_endpoint"] == []
+    assert witness["route_relevant_formal_nodes_missing_dag_edge_endpoint"] == []
+    assert witness["route_relevant_dag_endpoint_complete"] is True
+    assert witness["route_option_alignment_complete"] is True
     assert witness["realization_coverage_complete"] is True
     assert row["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -5445,6 +7867,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         missing_generic_row,
         row_schema,
     )
+    missing_target_context_row = dict(row)
+    missing_target_context_row.pop("target_theorem_context_packet", None)
+    assert "target_theorem_context_packet required" in validate_llm_route_planner_row(
+        missing_target_context_row,
+        row_schema,
+    )
+    corrupted_target_context_row = deepcopy(row)
+    corrupted_target_context_row["target_theorem_context_packet"][
+        "route_id"
+    ] = "wrong_route"
+    assert (
+        "target_theorem_context_packet.route_id must match row route_id"
+        in validate_llm_route_planner_row(corrupted_target_context_row, row_schema)
+    )
     corrupted_decision_row = deepcopy(row)
     corrupted_decision_row["model_tier_decision_evidence"][
         "decision_basis"
@@ -5463,6 +7899,39 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         == "distribution_free_rank_bound_llm_revision"
     )
     assert validate_standalone_input_payload(payload["standalone_seed"]) == []
+    drifted_standalone_seed = deepcopy(payload["standalone_seed"])
+    drifted_standalone_seed["routes"][0]["target_theorem_context_packet"] = {
+        **drifted_standalone_seed["routes"][0]["target_theorem_context_packet"],
+        "theorem_statement": "A different theorem is now being planned.",
+    }
+    assert (
+        "routes[0].target_theorem_context_packet must match "
+        "routes[0].replan_metadata.target_theorem_context_packet"
+        in validate_standalone_input_payload(drifted_standalone_seed)
+    )
+    drifted_metadata_seed = deepcopy(payload["standalone_seed"])
+    drifted_metadata_seed["routes"][0]["replan_metadata"][
+        "target_theorem_context_packet"
+    ]["target_prover_family"] = "rocq"
+    assert (
+        "routes[0].replan_metadata.target_theorem_context_packet.target_prover_family "
+        "rocq does not match target_prover_family lean4"
+        in validate_standalone_input_payload(drifted_metadata_seed)
+    )
+    standalone_schema = standalone_input_json_schema()
+    standalone_route_props = standalone_schema["$defs"]["route"]["properties"]
+    standalone_metadata_props = standalone_schema["$defs"]["replan_metadata"][
+        "properties"
+    ]
+    assert standalone_route_props["target_theorem_context_packet"]["type"] == (
+        "object"
+    )
+    assert standalone_metadata_props["target_theorem_context_packet"]["type"] == (
+        "object"
+    )
+    assert standalone_metadata_props[
+        "llm_route_planner_target_theorem_context_packet"
+    ]["type"] == "object"
     seed_selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
@@ -5488,6 +7957,33 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         }
     ]
     metadata = seed_route["replan_metadata"]
+    assert seed_route["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert seed_route["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
+    ]
+    assert seed_route["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
+    ]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
+    ]
+    assert metadata["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert metadata["llm_route_planner_target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert metadata["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
+    ]
+    assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
+    ]
+    assert metadata["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
+    ]
     assert seed_route["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
     )
@@ -5530,9 +8026,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert metadata["llm_route_planner_realization_coverage_witness"] == row[
         "realization_coverage_witness"
     ]
+    assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
+    ]
     assert metadata["revised_informal_knowledge_dag_nodes"][0]["node_source"] == (
         "llm_route_planner_revised_informal_dag"
     )
+    assert seed_route["revised_informal_knowledge_dag_edges"][0][
+        "source_node_id"
+    ] == row["informal_knowledge_dag_edges"][0]["source_node_id"]
+    assert seed_route["revised_formal_realization_dag_edges"][0][
+        "target_node_id"
+    ] == row["formal_realization_dag_edges"][0]["target_node_id"]
+    assert metadata["revised_informal_knowledge_dag_edges"][0][
+        "proof_evidence_status"
+    ] == PROOF_EVIDENCE_STATUS
+    assert metadata["revised_formal_realization_dag_edges"][0][
+        "proof_evidence_status"
+    ] == PROOF_EVIDENCE_STATUS
 
     assert (
         metadata["llm_route_planner_minimal_delta_plan"]["minimality_rationale"]
@@ -5558,6 +8069,60 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert (
         plan_payload[
             "n_standalone_input_traces_with_llm_route_planner_metadata"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_target_theorem_context_packet"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_target_theorem_context_packet"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 0
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_target_theorem_context_target_mismatches"
+        ]
+        == 0
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_target_theorem_context_route_statement_differs"
         ]
         == 1
     )
@@ -5613,6 +8178,71 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     plan_row = plan_payload["rows"][0]
     trace = plan_row["standalone_input_trace"]
     assert trace["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
+    assert trace["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert trace["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
+    ]
+    assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
+    ]
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_accounting_complete"
+        ]
+        is True
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count"
+        ]
+        == 0
+    )
+    assert trace["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
+    ]
+    assert trace["has_target_theorem_context_packet"] is True
+    assert trace["has_llm_route_planner_target_theorem_context_packet"] is True
+    assert trace["has_llm_route_planner_route_planning_brief"] is True
+    assert trace["has_llm_route_planner_route_adoption_preconditions"] is True
+    assert trace["llm_route_adoption_precondition_blocker_count"] == len(
+        row["route_adoption_preconditions"]["known_pre_response_blockers"]
+    )
+    assert trace["llm_route_planning_brief_focus_count"] == len(
+        row["route_planning_brief"]["planner_focus"]
+    )
+    assert trace["target_theorem_context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert trace["target_theorem_context_route_id"] == row["route_id"]
+    assert trace["target_theorem_context_target_prover_family"] == "lean4"
+    assert trace["target_theorem_context_theorem_statement"] == row[
+        "target_theorem_context_packet"
+    ]["theorem_statement"]
+    assert trace["target_theorem_context_theorem_statement"] != seed_route[
+        "theorem_statement"
+    ]
+    assert trace["target_theorem_context_packet_target_mismatch"] is False
+    assert trace["target_theorem_context_route_statement_differs"] is True
     assert trace["llm_route_planner_model_tier"] == row["model_tier"]
     assert trace["llm_route_planner_seed_selected"] is True
     assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is False
@@ -5643,6 +8273,52 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_cost"] == 4
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_blocks_matrix_accounted_route_missing_source_snippet() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_matrix_source_gap")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_payload = _drop_source_snippets(_llm_response_payload())
+    response_json.write_text(json.dumps(response_payload, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["n_rows"] == 1
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    matrix_witness = row["primitive_evidence_matrix_witness"]
+    assert matrix_witness["matrix_accounted_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_unaccounted_primitives"] == []
+    assert matrix_witness[
+        "source_backed_matrix_primitives_missing_response_source_snippet"
+    ] == ["rank_uniformity"]
+    assert matrix_witness["matrix_accounting_complete"] is False
+    assert (
+        payload[
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_route_adoption_pending_primitive_evidence_matrix_blockers"]
+        == 1
+    )
+    assert ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX in row[
+        "route_adoption_blockers"
+    ]
+    assert validate_llm_route_planner_manifest(payload) == []
 
 
 def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> None:
@@ -5677,6 +8353,473 @@ def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> 
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any(
         "response_payload.minimal_delta_plan.and_or_cost_graph required" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_missing_informal_dag_edges() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_missing_informal_edges")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_edges"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_edges must be non-empty" in error
+        and "informal_knowledge_dag_nodes has multiple nodes" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_informal_depends_on_missing_edge() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_depends_on_missing_edge"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:tie_breaking",
+            "claim": "The rank route also needs a deterministic tie-breaking step.",
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "side_condition",
+        }
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_nodes[2].depends_on informal:rank_uniformity "
+        "missing matching informal_knowledge_dag_edges edge "
+        "informal:rank_uniformity -> informal:tie_breaking" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_informal_edge_missing_depends_on() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_edge_missing_depends_on"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"][1]["depends_on"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_edges[0] informal:exchangeability -> "
+        "informal:rank_uniformity missing matching informal_knowledge_dag_nodes "
+        "target depends_on entry" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_cyclic_formal_dag_edges() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_cyclic_formal_edges")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:exchangeability",
+            "edge_kind": "uses",
+            "rationale": "Bad fixture creates a reverse dependency cycle.",
+        }
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_realization_dag_edges must be acyclic" in error
+        and "formal:exchangeability" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_reversed_formal_dag_dependency_alignment() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_reversed_formal_dag_dependency"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_realization_dag_edges"] = [
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:exchangeability",
+            "edge_kind": "uses",
+            "rationale": (
+                "Bad fixture reverses the formal dependency while keeping the "
+                "formal DAG acyclic."
+            ),
+        }
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert not any(
+        "formal_realization_dag_edges must be acyclic" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "route_alignment_edges must preserve informal DAG dependencies" in error
+        and "informal:exchangeability -> informal:rank_uniformity" in error
+        and "formal:exchangeability" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_missing_formal_attempt_queue_node() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_missing_attempt_queue_node"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = [
+        item
+        for item in response["formal_attempt_queue"]
+        if item["formal_node_id"] != "formal:rank_uniformity_bridge"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue missing selected-route formal DAG nodes" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_unselected_route_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unselected_attempt_queue_primitive"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    _append_request_route_primitive(input_json, primitive="coverage_probability")
+    response = _llm_response_payload()
+    _append_unselected_baseline_primitive(
+        response,
+        primitive="coverage_probability",
+    )
+    response["formal_attempt_queue"][0]["target_primitives"] = [
+        "exchangeability",
+        "coverage_probability",
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[0].target_primitives must stay within selected "
+        "minimal_delta_plan primitives or formal_realization_dag_nodes primitives"
+        in error
+        and "coverage_probability" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_attempt_kind_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_kind"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["attempt_kind"] = "reuse_check"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[1].attempt_kind reuse_check is inconsistent "
+        "with formal node formal:rank_uniformity_bridge coverage/action bucket "
+        "bridge" in error
+        and "bridge_proof" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_feedback_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["expected_feedback"] = [
+        "closed_by_existing_declaration"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[1].expected_feedback for attempt_kind "
+        "bridge_proof must include at least one of" in error
+        and "residual_goals" in error
+        and "missing_side_conditions" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_order_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_order"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = list(reversed(response["formal_attempt_queue"]))
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "must appear after prerequisite formal node formal:exchangeability"
+        in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_attempt_queue order must follow formal_realization_dag_edges"
+        in error
+        and "formal:exchangeability before formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_prerequisite_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_prereq"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["prerequisite_formal_node_ids"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[1].prerequisite_formal_node_ids must match "
+        "formal_realization_dag_edges immediate predecessors" in error
+        and "formal:exchangeability" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_aligned_nodes_disconnected_from_dag_edges() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_disconnected_aligned_nodes"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:rank_uniformity_isolated",
+            "claim": "An isolated duplicate rank-uniformity informal step.",
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "lemma",
+            "supported_target_primitives": ["rank_uniformity"],
+        }
+    )
+    response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_uniformity_isolated",
+            "primitive": "rank_uniformity",
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    response["route_alignment_edges"][0]["informal_node_id"] = (
+        "informal:rank_uniformity_isolated"
+    )
+    response["route_alignment_edges"][0]["formal_node_id"] = (
+        "formal:rank_uniformity_isolated"
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    witness = row["realization_coverage_witness"]
+    assert witness["route_relevant_dag_endpoint_complete"] is False
+    assert witness["route_relevant_informal_nodes_missing_dag_edge_endpoint"] == [
+        "informal:rank_uniformity_isolated"
+    ]
+    assert witness["route_relevant_formal_nodes_missing_dag_edge_endpoint"] == [
+        "formal:rank_uniformity_isolated"
+    ]
+    assert any(
+        "informal_knowledge_dag_edges do not connect route-relevant" in error
+        and "informal:rank_uniformity_isolated" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_realization_dag_edges do not connect route-relevant" in error
+        and "formal:rank_uniformity_isolated" in error
         for error in row["errors"]
     )
 
@@ -5744,6 +8887,29 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_request_bound_payloads"] == 0
     assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 0
     assert payload["n_request_bound_payload_context_inventory_total_rows"] == 0
+    assert payload["n_request_bound_payloads_with_route_adoption_preconditions"] == 0
+    assert (
+        payload[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 0
+    assert payload["n_formal_attempt_queue_errors"] == 0
     assert payload["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
@@ -5764,6 +8930,23 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["target_prover_family_consistent"] is True
     assert row["request_context_inventory_present"] is False
     assert row["request_context_inventory_total_rows"] == 0
+    assert row["request_context_route_adoption_precondition_present"] is False
+    assert (
+        row[
+            "request_context_route_adoption_precondition_blocked_before_response"
+        ]
+        is False
+    )
+    assert row["request_context_route_adoption_precondition_known_blocker_count"] == 0
+    assert (
+        row[
+            "request_context_route_adoption_precondition_required_response_field_count"
+        ]
+        == 0
+    )
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 2
+    assert row["n_formal_attempt_queue_errors"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
     row_schema = payload["response_payload_validation_row_schema"]
@@ -5772,6 +8955,9 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row_schema["properties"]["target_prover_family_consistent"][
         "type"
     ] == "boolean"
+    assert row_schema["properties"][
+        "request_context_route_adoption_precondition_present"
+    ]["type"] == "boolean"
     assert (
         validate_llm_route_planner_response_payload_validation_row(
             row,
@@ -5800,6 +8986,26 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert "n_schema_errors must be nonnegative" in (
         validate_llm_route_planner_response_payload_validation_row(
             drifted_negative_row,
+            row_schema,
+        )
+    )
+    drifted_queue_count_row = deepcopy(row)
+    drifted_queue_count_row["payload_formal_attempt_queue_present"] = False
+    assert (
+        "payload_formal_attempt_queue_present must be true when "
+        "payload_formal_attempt_queue_item_count is nonzero"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_queue_count_row,
+            row_schema,
+        )
+    )
+    drifted_queue_error_row = deepcopy(row)
+    drifted_queue_error_row["n_formal_attempt_queue_errors"] = 1
+    assert (
+        "n_formal_attempt_queue_errors must match errors containing "
+        "formal_attempt_queue"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_queue_error_row,
             row_schema,
         )
     )
@@ -5847,6 +9053,16 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "n_payloads_with_declared_target_prover_family must match rows with payload_target_prover_family"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_target_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_queue_items_manifest = deepcopy(payload)
+    drifted_queue_items_manifest["n_payload_formal_attempt_queue_items"] = 0
+    assert (
+        "n_payload_formal_attempt_queue_items must match row "
+        "payload_formal_attempt_queue_item_count sum"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_queue_items_manifest,
             manifest_schema,
         )
     )
@@ -5923,6 +9139,167 @@ def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() 
     ]
 
 
+def test_llm_route_planner_response_payload_validator_counts_formal_attempt_queue_errors() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_bad_attempt_queue"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = [
+        item
+        for item in response["formal_attempt_queue"]
+        if item["formal_node_id"] != "formal:rank_uniformity_bridge"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] >= 1
+    row = payload["rows"][0]
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 1
+    assert row["n_formal_attempt_queue_errors"] >= 1
+    assert row["n_schema_errors"] >= row["n_formal_attempt_queue_errors"]
+    assert any(
+        "formal_attempt_queue missing selected-route formal DAG nodes" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_unselected_attempt_queue_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_unselected_attempt_primitive"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    _append_unselected_baseline_primitive(
+        response,
+        primitive="coverage_probability",
+    )
+    response["formal_attempt_queue"][0]["target_primitives"] = [
+        "exchangeability",
+        "coverage_probability",
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] == 1
+    row = payload["rows"][0]
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 2
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert row["n_schema_errors"] >= row["n_formal_attempt_queue_errors"]
+    assert any(
+        "formal_attempt_queue[0].target_primitives must stay within selected "
+        "minimal_delta_plan primitives or formal_realization_dag_nodes primitives"
+        in error
+        and "coverage_probability" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_attempt_queue_kind_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_attempt_kind_drift"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["attempt_kind"] = "reuse_check"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] == 1
+    row = payload["rows"][0]
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert any(
+        "formal_attempt_queue[1].attempt_kind reuse_check is inconsistent "
+        "with formal node formal:rank_uniformity_bridge coverage/action bucket "
+        "bridge" in error
+        and "bridge_proof" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_attempt_queue_feedback_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_attempt_feedback_drift"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["expected_feedback"] = [
+        "closed_by_existing_declaration"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] == 1
+    row = payload["rows"][0]
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert any(
+        "formal_attempt_queue[1].expected_feedback for attempt_kind "
+        "bridge_proof must include at least one of" in error
+        and "residual_goals" in error
+        and "missing_side_conditions" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schema_only() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_payload_validate_rocq_alias")
     out_dir = root / "out"
@@ -5951,10 +9328,16 @@ def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schem
     assert payload["n_invalid_payloads"] == 1
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "schema_only"
-    assert row["n_schema_errors"] == 1
+    assert row["n_schema_errors"] == 3
     assert row["n_request_context_errors"] == 0
+    assert row["n_formal_attempt_queue_errors"] == 2
     assert any(
         "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_attempt_queue[0].target_prover_family lean4 does not match "
+        "request target_prover_family rocq" in error
         for error in row["errors"]
     )
 
@@ -6373,8 +9756,15 @@ def test_llm_route_planner_response_payload_validator_request_context_rejects_si
     assert not payload["all_ok"]
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "request_bound"
-    assert row["n_schema_errors"] == 0
+    assert row["n_schema_errors"] == 1
     assert row["n_request_context_errors"] >= 1
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert any(
+        "formal_attempt_queue[1].formal_node_id references unknown "
+        "formal_realization_dag_nodes node: formal:rank_uniformity_bridge"
+        in error
+        for error in row["errors"]
+    )
     assert any(
         "baseline route option" in error and "rank_uniformity" in error
         for error in row["errors"]
@@ -6654,6 +10044,98 @@ def test_llm_route_planner_rejects_selected_primitive_without_alignment_edge() -
     assert row["response_contract_ok"] is False
     assert any(
         "minimal_delta_plan.selected_primitives missing route_alignment_edges: "
+        "exchangeability" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_selected_primitive_with_unresolved_alignment_edge() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unresolved_selected_alignment"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    for edge in response["route_alignment_edges"]:
+        if edge.get("formal_node_id") == "formal:exchangeability":
+            edge["alignment_status"] = "missing"
+            edge["alignment_rationale"] = (
+                "The model could not resolve the selected exchangeability "
+                "alignment to a formal declaration."
+            )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "minimal_delta_plan.selected_primitives have unresolved route_alignment_edges: "
+        "exchangeability" in error
+        for error in row["errors"]
+    )
+    assert "exchangeability" not in row["realization_coverage_witness"][
+        "aligned_primitives"
+    ]
+
+
+def test_llm_route_planner_rejects_free_text_alignment_status() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_free_text_alignment_status"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    for edge in response["route_alignment_edges"]:
+        if edge.get("formal_node_id") == "formal:exchangeability":
+            edge["alignment_status"] = "maybe_exact"
+            edge["alignment_rationale"] = (
+                "This free-text status should not be accepted as a resolved "
+                "library alignment."
+            )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "route_alignment_edges[1].alignment_status unsupported: maybe_exact"
+        in error
+        for error in row["errors"]
+    )
+    assert any(
+        "minimal_delta_plan.selected_primitives have unresolved route_alignment_edges: "
         "exchangeability" in error
         for error in row["errors"]
     )
@@ -6946,6 +10428,26 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
             "source_refs": ["conformal_prediction_textbook"],
         }
     ]
+    silent_response_json = root / "silent_response.json"
+    silent_response = deepcopy(response)
+    silent_response_json.write_text(
+        json.dumps(silent_response, indent=2),
+        encoding="utf-8",
+    )
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": (
+                "source-backed measurability side condition for finite rank "
+                "uniformity under exchangeability"
+            ),
+            "reason": (
+                "route_adoption_preconditions require a source-grounding "
+                "follow-up before adopting the repaired route"
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -6966,16 +10468,23 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     )
     assert payload["n_request_source_grounding_unresolved_rows"] == 1
     assert payload["n_request_residual_source_grounding_unresolved_rows"] == 1
+    assert payload["n_requests_with_route_adoption_preconditions"] == 1
+    assert payload["n_request_route_adoption_precondition_known_blockers"] >= 2
+    assert (
+        payload["n_request_route_adoption_precondition_required_response_fields"]
+        >= 3
+    )
     assert payload["n_route_adoption_ready"] == 0
     assert payload["n_route_adoption_pending_refinement"] == 1
     assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
     assert payload["n_route_adoption_pending_source_grounding_blockers"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
         "residual_interpretations_require_route_replay",
         ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     }
@@ -6988,19 +10497,66 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     assert obligations["pending"] is True
     assert obligations["n_unresolved_rows"] == 1
     assert obligations["n_residual_unresolved_rows"] == 1
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["precondition_kind"] == (
+        "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+    )
+    assert preconditions["blocked_before_response"] is True
+    assert set(preconditions["known_pre_response_blockers"]) >= {
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
+    assert set(preconditions["response_required_fields"]) >= {
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+    }
+    assert (
+        row["route_adoption_preconditions"]
+        == context["route_adoption_preconditions"]
+    )
     inventory = context["context_packet_inventory"]
     assert inventory["source_grounding_obligation_pending"] is True
     assert inventory["residual_source_grounding_unresolved_count"] == 1
+    assert inventory["route_adoption_precondition_pending"] is True
+    assert inventory["route_adoption_precondition_known_blocker_count"] == (
+        preconditions["n_known_pre_response_blockers"]
+    )
+    assert "route_adoption_preconditions" in request["prompt_messages"]["user"]
     assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in payload[
         "route_adoption_blocker_values"
     ]
     seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == (
+        preconditions
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == preconditions
     assert set(
         seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
     ) >= {
+        "search_requests_pending_evidence",
         "residual_interpretations_require_route_replay",
         ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     }
+
+    silent_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        root / "llm_route_planner_silent_precondition_response",
+        provider_name="static",
+        static_response_json=silent_response_json,
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+    assert not silent_payload["all_ok"]
+    silent_row = silent_payload["rows"][0]
+    assert silent_row["response_contract_ok"] is False
+    assert silent_row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_adoption_preconditions require at least one nonempty "
+        "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
+    )
 
 
 def test_route_adoption_readiness_uses_current_realization_witness() -> None:
@@ -7022,6 +10578,29 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
 
     assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     assert blockers == ("realization_coverage_incomplete",)
+
+    status, blockers = _route_adoption_readiness(
+        response_present=True,
+        provider_failure=False,
+        response_contract_ok=True,
+        search_requests=(),
+        planner_next_actions=(),
+        uncertainty_flags=(),
+        semantic_alignment_risks=(),
+        residual_interpretations=(),
+        feedback_summary={},
+        realization_coverage_witness={"realization_coverage_complete": True},
+        primitive_evidence_matrix_witness={
+            "matrix_accounting_complete": False,
+            "matrix_unaccounted_primitives": ["rank_uniformity"],
+        },
+        omitted_cost_hint_primitives=(),
+        formal_gap_boundary_obligations=(),
+        quality_control_obligations_pending=False,
+    )
+
+    assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    assert blockers == ("primitive_evidence_matrix_incomplete",)
 
 
 def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
@@ -7091,7 +10670,25 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "collect proof-state feedback with diagnostic_signature before "
+                "adopting the quality-controlled route"
+            ),
+            "query": "rank_uniformity bridge residual goals and diagnostics",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["diagnostic_signature"],
+            "quality_gates": ["response_schema_valid"],
+            "response_validation_signals": [
+                "residual_goals_or_diagnostics_present"
+            ],
+            "stop_conditions": ["residual interpreted or source search requested"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
@@ -7120,12 +10717,24 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_payload["n_request_pending_quality_control_values"] == 5
     assert pending_payload["n_request_discharged_quality_control_fields"] == 0
     assert pending_payload["n_request_discharged_quality_control_values"] == 0
+    assert pending_payload["n_requests_with_route_adoption_preconditions"] == 1
+    assert (
+        pending_payload["n_request_route_adoption_precondition_known_blockers"]
+        == 1
+    )
+    assert (
+        pending_payload[
+            "n_request_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     pending_row = pending_payload["rows"][0]
-    assert pending_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert pending_row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert pending_row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert pending_row["route_adoption_blockers"] == (
+        "planner_next_actions_pending_evidence",
         "quality_control_obligations_pending",
     )
     pending_summary = pending_payload["request_packets"][0]["context_packet"][
@@ -7138,6 +10747,23 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     pending_inventory = pending_payload["request_packets"][0]["context_packet"][
         "context_packet_inventory"
     ]
+    pending_preconditions = pending_payload["request_packets"][0]["context_packet"][
+        "route_adoption_preconditions"
+    ]
+    assert pending_preconditions["blocked_before_response"] is True
+    assert pending_preconditions["known_pre_response_blockers"] == [
+        "quality_control_obligations_pending"
+    ]
+    assert pending_preconditions["response_required_fields"] == [
+        "search_requests",
+        "planner_next_actions",
+    ]
+    assert pending_row["route_adoption_preconditions"] == pending_preconditions
+    assert pending_payload["n_rows_with_route_adoption_preconditions"] == 1
+    assert (
+        pending_payload["n_row_route_adoption_precondition_known_blockers"]
+        == 1
+    )
     assert pending_inventory["quality_control_obligation_present"] is True
     assert pending_inventory["quality_control_obligation_pending"] is True
     assert pending_inventory["quality_control_obligation_discharged"] is False
@@ -7147,6 +10773,8 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_inventory["pending_quality_control_value_count"] == 5
     assert pending_inventory["discharged_quality_control_field_count"] == 0
     assert pending_inventory["discharged_quality_control_value_count"] == 0
+    assert pending_inventory["route_adoption_precondition_pending"] is True
+    assert pending_inventory["route_adoption_precondition_known_blocker_count"] == 1
     drifted_pending_request = deepcopy(pending_payload["request_packets"][0])
     drifted_pending_request["context_packet"]["context_packet_inventory"][
         "pending_quality_control_value_count"
@@ -7160,9 +10788,18 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         pending_payload["standalone_seed"]["routes"][0]["replan_metadata"][
             "llm_route_planner_route_adoption_blockers"
         ]
-        == ["quality_control_obligations_pending"]
+        == [
+            "planner_next_actions_pending_evidence",
+            "quality_control_obligations_pending",
+        ]
     )
     seed_route = pending_payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == (
+        pending_preconditions
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == pending_preconditions
     assert seed_route["replan_metadata"]["quality_controls"] == quality_controls
     assert seed_route["replan_metadata"][
         "llm_route_planner_quality_control_obligations"
@@ -7232,6 +10869,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
             },
             indent=2,
         ),
+        encoding="utf-8",
+    )
+    discharged_response = deepcopy(response)
+    discharged_response["planner_next_actions"] = []
+    response_json.write_text(
+        json.dumps(discharged_response, indent=2),
         encoding="utf-8",
     )
 
@@ -7423,7 +11066,15 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
     resource_request_queue_dir = _write_resource_request_queue(root)
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch queued rank_uniformity literature evidence request",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
@@ -7447,11 +11098,12 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
     assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 0
     assert payload["n_route_adoption_pending_realization_coverage_blockers"] == 0
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) >= {
+        "planner_next_actions_pending_evidence",
         "feedback_summary_actions_pending_resolution",
         "resource_request_queue_pending_response",
     }
@@ -7633,6 +11285,17 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
             "semantic_role": "lemma",
         }
     )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The helper lemma refines the source-backed rank-uniformity "
+                "argument."
+            ),
+        }
+    )
     response["lean_realization_dag_nodes"].append(
         {
             "node_id": "formal:rank_order_statistic",
@@ -7640,6 +11303,17 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
             "coverage_bucket": "already_exists",
             "candidate_declaration_rows": [helper_declaration_row],
             "formalization_action": "reuse",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The reused order-statistic helper supports the formal "
+                "rank-uniformity bridge route."
+            ),
         }
     )
     response["route_alignment_edges"].append(
@@ -7706,6 +11380,23 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
     }
     for edge in minimal_delta["and_or_cost_graph"]["and_edges"]:
         edge["requires"] = option_primitives_by_id[edge["route_option_id"]]
+    response["formal_attempt_queue"].append(
+        {
+            "attempt_id": "attempt:rank_order_statistic_reuse",
+            "formal_node_id": "formal:rank_order_statistic",
+            "primitive": "rank_order_statistic",
+            "target_prover_family": "lean4",
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "lean_lsp proof-state reuse check for "
+                "Probability.rankOrderStatistic after rank_uniformity"
+            ),
+            "attempt_kind": "reuse_check",
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity_bridge"],
+            "expected_feedback": ["closed_by_existing_declaration"],
+            "target_primitives": ["rank_order_statistic"],
+        }
+    )
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -7969,6 +11660,11 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_serapi",
+    )
     response["search_requests"][0] = {
         "request_kind": "prover_feedback",
         "query": "try the Rocq rank_uniformity bridge against Rocq.Probability.exchangeable",
@@ -8101,6 +11797,11 @@ def test_llm_route_planner_target_scopes_lean_search_hooks_for_rocq() -> None:
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="formal_retrieval",
+    )
     response["search_requests"] = [
         {
             "request_kind": "lean_search",
@@ -8222,6 +11923,11 @@ def test_llm_route_planner_accepts_target_filtered_registry_adapter_id() -> None
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_serapi",
+    )
     response["planner_next_actions"] = [
         {
             "owner": "route_revision_overlay",
@@ -8354,6 +12060,11 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
                     "tools_available": False,
                     "schema_supplied": request.schema is not None,
                     "retry_count": 1,
+                    "provider_usage": {
+                        "input_tokens": 123,
+                        "output_tokens": 45,
+                        "cache_read_input_tokens": 7,
+                    },
                 },
             )
 
@@ -8382,6 +12093,25 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["n_response_present"] == 1
     assert payload["n_provider_failures"] == 0
     assert payload["n_rows_with_generator_metadata"] == 1
+    assert payload["n_rows_with_provider_usage"] == 1
+    assert payload["total_provider_input_tokens"] == 123
+    assert payload["total_provider_output_tokens"] == 45
+    assert payload["total_provider_cache_read_input_tokens"] == 7
+    assert payload["total_provider_total_tokens"] == 175
+    assert payload["provider_usage_summary"]["row_count"] == 1
+    assert payload["provider_usage_summary"]["by_model_tier"]["sonnet"][
+        "input_tokens"
+    ] == 123
+    assert payload["provider_usage_summary"]["by_provider"]["anthropic"][
+        "output_tokens"
+    ] == 45
+    usage_row = payload["provider_usage_rows"][0]
+    assert usage_row["provider_name"] == "anthropic"
+    assert usage_row["model_tier"] == "sonnet"
+    assert usage_row["input_tokens"] == 123
+    assert usage_row["output_tokens"] == 45
+    assert usage_row["cache_read_input_tokens"] == 7
+    assert usage_row["total_tokens"] == 175
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
     row = payload["rows"][0]
@@ -8393,6 +12123,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert row["generator_metadata"]["tools_available"] is False
     assert row["generator_metadata"]["schema_supplied"] is True
     assert row["generator_metadata"]["retry_count"] == 1
+    assert row["generator_metadata"]["provider_usage"]["input_tokens"] == 123
     assert "bridge_needed" in row["model_selection_rationale"]
     assert row["model_tier_decision_evidence"]["selected_model_tier"] == "sonnet"
     assert row["model_tier_decision_evidence"]["effective_model_tier"] == "sonnet"
@@ -8404,6 +12135,16 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         "bridge_needed" in trigger
         for trigger in row["model_tier_decision_evidence"]["sonnet_triggers"]
     )
+    tier_ledger_row = payload["model_tier_decision_ledger"][0]
+    assert tier_ledger_row["provider_name"] == "anthropic"
+    assert tier_ledger_row["selected_model_tier"] == "sonnet"
+    assert tier_ledger_row["effective_model_tier"] == "sonnet"
+    assert tier_ledger_row["request_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["response_present"] is True
+    assert tier_ledger_row["response_contract_ok"] is True
+    assert tier_ledger_row["provider_failure"] is False
+    assert "retry_count" in tier_ledger_row["generator_metadata_keys"]
     packet = payload["request_packets"][0]
     assert packet["model"] == "claude-sonnet-4-6"
     assert packet["model_tier"] == "sonnet"
@@ -8429,8 +12170,11 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert "required_output_contract" in request.user_prompt
     assert request.schema["required"] == [
         "informal_knowledge_dag_nodes",
+        "informal_knowledge_dag_edges",
+        "formal_realization_dag_edges",
         "route_alignment_edges",
         "minimal_delta_plan",
+        "formal_attempt_queue",
         "standalone_route",
         "proof_evidence_boundary",
     ]
@@ -8452,8 +12196,12 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         "schema_supplied"
     ] is True
     assert seed_metadata["llm_route_planner_generator_metadata"]["retry_count"] == 1
+    assert seed_metadata["llm_route_planner_generator_metadata"][
+        "provider_usage"
+    ]["output_tokens"] == 45
     assert set(seed_metadata["llm_route_planner_generator_metadata_keys"]) >= {
         "generator_only",
+        "provider_usage",
         "retry_count",
         "schema_supplied",
         "tools_available",
@@ -8581,6 +12329,9 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_resource_request_playbooks": True,
         "no_interactive_resource_requests": True,
         "no_interactive_dispatch_summaries": True,
+        "no_unresolved_interactive_route_adoption_preconditions": True,
+        "no_interactive_route_adoption_blockers": True,
+        "no_source_theorem_feedback": True,
     }
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"
@@ -8591,6 +12342,61 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_unresolved_light_route_alignment() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unresolved_light_route_alignment"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["primitives"][1]["alignment_status"] = "uncertain"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            captured["request"] = request
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FakeAnthropicBackend(),
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert "uncertain" in evidence["coverage_action_markers"]
+    assert "uncertain" in evidence["complex_coverage_action_markers"]
+    assert any("uncertain" in trigger for trigger in evidence["sonnet_triggers"])
+    assert "uncertain" in packet["model_selection_rationale"]
+    request = captured["request"]
+    assert request.model == "claude-sonnet-4-6"
+    assert request.metadata["model_tier"] == "sonnet"
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_dispatch() -> None:
@@ -8730,6 +12536,108 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_dispatch
     )
 
 
+def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_route_interactive_preconditions"
+    )
+    out_dir = root / "llm_route_planner"
+    interactive_session_dir = root / "interactive_session"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    interactive_session_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_interactive_session",
+                "rows": [
+                    {
+                        "interactive_session_row_id": "session:rank_route_light",
+                        "goal_plan_id": "goal:rank_route_light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "session_state": "AWAITING_REFINEMENT_RESPONSES",
+                        "route_adoption_preconditions": {
+                            "precondition_kind": (
+                                "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+                            ),
+                            "status": "PENDING_CONTEXT_OBLIGATIONS",
+                            "blocked_before_response": True,
+                            "known_pre_response_blockers": [
+                                ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+                            ],
+                            "n_known_pre_response_blockers": 1,
+                            "response_required_fields": [
+                                "search_requests",
+                                "planner_next_actions",
+                            ],
+                            "n_response_required_fields": 2,
+                        },
+                        "route_adoption_precondition_present": True,
+                        "route_adoption_precondition_blocked_before_response": True,
+                        "route_adoption_precondition_unresolved": True,
+                        "route_adoption_precondition_known_blockers": [
+                            ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+                        ],
+                        "route_adoption_precondition_required_response_fields": [
+                            "search_requests",
+                            "planner_next_actions",
+                        ],
+                        "route_adoption_precondition_known_blocker_count": 1,
+                        "route_adoption_precondition_required_response_field_count": 2,
+                    }
+                ],
+                "decision_policy_rows": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    evidence = packet["model_tier_decision_evidence"]
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert any(
+        "interactive route-adoption precondition" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert any(
+        "interactive route-adoption blocker" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert evidence["route_signal_counts"][
+        "interactive_unresolved_route_adoption_precondition_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "interactive_route_adoption_precondition_known_blocker_count"
+    ] == 1
+    assert evidence["interactive_route_adoption_precondition_counts"][
+        "required_response_field_count"
+    ] == 2
+    context = packet["context_packet"]
+    assert context["feedback_loop_summary"][
+        "interactive_route_adoption_preconditions"
+    ]["unresolved_count"] == 1
+    assert context["context_packet_inventory"][
+        "interactive_unresolved_route_adoption_precondition_count"
+    ] == 1
+
+
 def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_haiku_sonnet_repair"
@@ -8800,6 +12708,17 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert "auto escalated Claude Haiku repair attempt to Sonnet" in row[
         "model_selection_rationale"
     ]
+    tier_ledger_row = payload["model_tier_decision_ledger"][0]
+    assert tier_ledger_row["operator_requested_model_tier"] == "auto"
+    assert tier_ledger_row["selected_model_tier"] == "haiku"
+    assert tier_ledger_row["effective_model_tier"] == "sonnet"
+    assert tier_ledger_row["request_model"] == "claude-haiku-4-5-20251001"
+    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["model_tier_escalated"] is True
+    assert "Haiku repair attempt to Sonnet" in tier_ledger_row[
+        "model_tier_escalation_reason"
+    ]
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 1
     assert row["repair_error_history"][0]["model_tier"] == "haiku"
     assert row["repair_error_history"][0]["next_repair_model_tier"] == "sonnet"
     repair_ledger_row = row["repair_attempt_ledger"][0]
@@ -9850,6 +13769,313 @@ def test_llm_route_planner_rejects_target_prover_family_drift() -> None:
     )
 
 
+def test_llm_route_planner_rejects_target_prover_family_drift_in_action_rows() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_action_target_drift"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["search_requests"][0]["target_prover_family"] = "rocq"
+    bad_response["planner_next_actions"][0]["target_prover_family"] = "rocq"
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The rank route still has a target-prover side condition.",
+            "route_repair": "Replay the rank_uniformity bridge after resolving the side condition.",
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "target_prover_family": "rocq",
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0].target_prover_family rocq" in error_text
+    assert "planner_next_actions[0].target_prover_family rocq" in error_text
+    assert "residual_interpretations[0].target_prover_family rocq" in error_text
+    assert "does not match request target_prover_family lean4" in error_text
+
+
+def test_llm_route_planner_accepts_matching_target_prover_family_on_action_rows() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_action_target_scope"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["search_requests"][0]["target_prover_family"] = "lean4"
+    response["planner_next_actions"][0]["target_prover_family"] = "lean4"
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The rank route still has a target-prover side condition.",
+            "route_repair": "Replay the rank_uniformity bridge after resolving the side condition.",
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "target_prover_family": "lean4",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
+def test_llm_route_planner_rejects_target_specific_lean_tools_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_lean_tool_for_rocq"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "lean_search",
+            "owner": "leansearch",
+            "query": "rank_uniformity Lean declaration search",
+            "reason": "This incorrectly dispatches a Lean-specific search for Rocq.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt the rank_uniformity bridge lemma",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0] uses target-specific tool/resource" in error_text
+    assert "leansearch targets lean4" in error_text
+    assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
+    assert "lean_lsp_mcp targets lean4" in error_text
+    assert "target_prover_family rocq" in error_text
+
+
+def test_llm_route_planner_accepts_target_specific_rocq_tools_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_rocq_tool_for_rocq"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    response = _llm_response_payload()
+    response["formal_realization_dag_nodes"] = response.pop(
+        "lean_realization_dag_nodes"
+    )
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_lsp_serapi",
+    )
+    response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "rocq_lsp_serapi",
+            "query": "rank_uniformity Rocq declaration search",
+            "reason": "Search the Rocq library adapter for the target primitive.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "rocq_lsp_serapi",
+            "action": "run Rocq proof-state feedback for the rank_uniformity bridge",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
+def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_hol4_tool_for_hol4"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "hol_4"
+    input_payload["library_snapshot_ref"] = "hol4_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    response = _llm_response_payload()
+    response["formal_realization_dag_nodes"] = response.pop(
+        "lean_realization_dag_nodes"
+    )
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="hol_4",
+        owner="hol4_kernel_replay",
+    )
+    response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "hol4_tactic_search",
+            "query": "rank uniformity HOL4 theorem search",
+            "reason": "Search the HOL4 library adapter for the target primitive.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "hol4_kernel_replay",
+            "action": "run HOL4 proof-state feedback for the rank route",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["rows"][0]["target_prover_family"] == "hol_4"
+
+
+def test_llm_route_planner_rejects_target_specific_hol4_tools_for_isabelle_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_hol4_tool_for_isabelle"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "isabelle_hol"
+    input_payload["library_snapshot_ref"] = "isabelle_afp_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "hol4_tactic_search",
+            "query": "rank uniformity HOL4 theorem search",
+            "reason": "This incorrectly dispatches a HOL4-specific search for Isabelle.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "hol4_kernel_replay",
+            "action": "run a HOL4 replay despite the Isabelle target",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0] uses target-specific tool/resource" in error_text
+    assert "hol4_tactic_search targets hol4" in error_text
+    assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
+    assert "hol4_kernel_replay targets hol4" in error_text
+    assert "target_prover_family isabelle_hol" in error_text
+
+
+def test_llm_route_planner_adapter_target_filter_supports_extended_provers() -> None:
+    assert _adapter_targets_match(
+        "hol4_tactic_search",
+        target_prover_family="hol_4",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert not _adapter_targets_match(
+        "hol4_tactic_search",
+        target_prover_family="isabelle_hol",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert _adapter_targets_match(
+        "mizar_mml_search",
+        target_prover_family="mizar",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert not _adapter_targets_match(
+        "set_mm_lookup",
+        target_prover_family="mizar",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+
+
 def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_theorem_drift"
@@ -9878,6 +14104,249 @@ def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
     assert any(
         "theorem_statement appears to target a different theorem" in error
         for error in row["errors"]
+    )
+
+
+def test_response_payload_validation_uses_target_theorem_context_packet_anchor() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_uses_target_context_anchor"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "bad_response.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+    )
+    request = deepcopy(prompt_payload["request_packets"][0])
+    request["target_route"]["theorem_statement"] = ""
+    request["context_packet"]["current_route"]["theorem_statement"] = ""
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+    bad_response = {
+        "request_id": request["request_id"],
+        "route_id": request["route_id"],
+        "response_payload": _llm_response_payload(),
+    }
+    bad_response["response_payload"]["standalone_route"]["theorem_statement"] = (
+        "A central limit theorem for independent sample means follows from "
+        "Lindeberg conditions."
+    )
+    response_json.write_text(json.dumps(bad_response, indent=2), encoding="utf-8")
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["n_payloads"] == 1
+    assert validation_payload["n_valid_payloads"] == 0
+    assert validation_payload["n_request_context_errors"] == 1
+    rows = validation_payload["rows"]
+    assert any(
+        "theorem_statement appears to target a different theorem" in error
+        for error in rows[0]["errors"]
+    )
+
+
+def test_response_payload_validation_enforces_route_adoption_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_route_preconditions"
+    )
+    out_dir = root / "llm_route_planner"
+    source_grounding_dir = root / "source_grounding"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    source_grounding_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    (
+        source_grounding_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_source_grounding_audit",
+                "rows": [
+                    {
+                        "source_grounding_id": "source-grounding:rank-residual",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "node_source": "refinement_evidence_prover_feedback",
+                        "node_id": "residual:rank_uniformity:measurability",
+                        "node_kind": "prover_residual_goal",
+                        "node_label": "Rank bridge residual measurability condition",
+                        "source_refs": [],
+                        "source_snippets": [],
+                        "residual_goals": [
+                            "rank_uniformity: missing measurability side condition"
+                        ],
+                        "residual_primitives": ["rank_uniformity"],
+                        "residual_evidence_ids": ["evidence:rank-lsp"],
+                        "grounding_status": "unaccounted",
+                        "required_next_action": "route_repair_or_source_search",
+                        "ok": False,
+                        "errors": ["residual goal has no source-backed route repair"],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+    request = prompt_payload["request_packets"][0]
+    preconditions = request["context_packet"]["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert set(preconditions["response_required_fields"]) >= {
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+    }
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+
+    valid_payload = _llm_response_payload()
+    valid_payload["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: missing measurability side condition",
+            "interpretation": (
+                "The attempted rank-uniformity bridge exposed a side condition "
+                "that is not yet source-backed."
+            ),
+            "route_repair": (
+                "Keep the measurability side condition as a route-repair "
+                "obligation until source evidence or a formal boundary is added."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    valid_payload["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": (
+                "source-backed measurability side condition for finite rank "
+                "uniformity under exchangeability"
+            ),
+            "reason": (
+                "route_adoption_preconditions require a source-grounding "
+                "follow-up before adopting the repaired route"
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    valid_payload["planner_next_actions"] = []
+    silent_payload = deepcopy(valid_payload)
+    silent_payload["search_requests"] = []
+    silent_payload["planner_next_actions"] = []
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": valid_payload,
+                    },
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": silent_payload,
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 2
+    assert validation_payload["n_valid_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads"] == 2
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == preconditions["n_known_pre_response_blockers"] * 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == preconditions["n_response_required_fields"] * 2
+    )
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
+    valid_row, silent_row = validation_payload["rows"]
+    assert valid_row["ok"] is True
+    assert valid_row["n_request_context_errors"] == 0
+    assert valid_row["request_context_route_adoption_precondition_present"] is True
+    assert (
+        valid_row[
+            "request_context_route_adoption_precondition_blocked_before_response"
+        ]
+        is True
+    )
+    assert (
+        valid_row["request_context_route_adoption_precondition_known_blocker_count"]
+        == preconditions["n_known_pre_response_blockers"]
+    )
+    assert (
+        valid_row[
+            "request_context_route_adoption_precondition_required_response_field_count"
+        ]
+        == preconditions["n_response_required_fields"]
+    )
+    assert silent_row["ok"] is False
+    assert silent_row["n_request_context_errors"] == 1
+    assert any(
+        "route_adoption_preconditions require at least one nonempty "
+        "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
     )
 
 
@@ -9951,6 +14420,42 @@ def test_llm_route_planner_rejects_placeholder_formal_gap_boundary() -> None:
     assert "standalone_route.primitives[0]" in error_text
 
 
+def test_llm_route_planner_rejects_unanchored_formal_gap_boundary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_boundary"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    unanchored_boundary = (
+        "Needs further investigation before adoption by the verification team."
+    )
+    bad_response["lean_realization_dag_nodes"][1][
+        "formal_gap_boundary"
+    ] = unanchored_boundary
+    bad_response["standalone_route"]["primitives"][1][
+        "formal_gap_boundary"
+    ] = unanchored_boundary
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "formal_gap_boundary must name the affected primitive" in error_text
+    assert "formal_realization_dag_nodes[1]" in error_text
+    assert "standalone_route.primitives[1]" in error_text
+
+
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_without_ref")
     response_json = root / "bad_response.json"
@@ -10009,6 +14514,96 @@ def test_llm_route_planner_rejects_source_backed_primitive_without_source_ref() 
     )
 
 
+def test_llm_route_planner_rejects_source_backed_residual_without_source_ref() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_residual_without_ref"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a source-backed residual side condition."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair after checking "
+                "the source route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_search_status": "SOURCE_BACKED",
+        }
+    ]
+    bad_response["search_requests"].append(
+        {
+            "request_kind": "literature",
+            "query": "rank_uniformity residual source route",
+            "reason": "search request alone must not satisfy SOURCE_BACKED residual status",
+            "target_primitives": ["rank_uniformity"],
+        }
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] SOURCE_BACKED requires grounded source_refs"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_source_backed_residual_with_source_ref() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_source_backed_residual"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a source-backed residual side condition."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair after checking "
+                "the source route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
 def test_llm_route_planner_rejects_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_search_status_without_request"
@@ -10038,6 +14633,123 @@ def test_llm_route_planner_rejects_search_requested_without_search_request() -> 
     assert any(
         "SEARCH_REQUESTED requires a matching literature/source search_request"
         in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_source_search_as_literature_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_formal_source_as_literature"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    rank_node = bad_response["informal_knowledge_dag_nodes"][1]
+    rank_node["source_refs"] = []
+    rank_node["source_snippets"] = []
+    rank_node["source_search_status"] = "SEARCH_REQUESTED"
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "formal_source",
+            "query": "rank_uniformity formal source declaration search",
+            "reason": "formal-source search is not literature evidence",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_nodes[1] SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_residual_search_requested_without_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_search_without_request"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a residual side condition that needs "
+                "literature confirmation."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair only after "
+                "source search resolves the residual."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SEARCH_REQUESTED",
+        }
+    ]
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_search_requested_without_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_search_without_request"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["standalone_route"]["source_search_status"] = "SEARCH_REQUESTED"
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "standalone_route SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
         for error in row["errors"]
     )
 
@@ -10490,8 +15202,12 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) == {
-        "omitted_cost_hint_primitives_require_review"
+        ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
+        "omitted_cost_hint_primitives_require_review",
     }
+    assert row["primitive_evidence_matrix_witness"][
+        "delta_needed_matrix_primitives_missing_accounting"
+    ] == ["rank_uniformity"]
     witness = row["realization_coverage_witness"]
     assert witness["selected_primitives"] == ["exchangeability"]
     assert witness["cost_hint_baseline_primitives"] == [
@@ -10509,7 +15225,7 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     )
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
-    ] == ["omitted_cost_hint_primitives_require_review"]
+    ] == list(row["route_adoption_blockers"])
     assert seed_route["replan_metadata"][
         "llm_route_planner_realization_coverage_witness"
     ]["omitted_cost_hint_primitives"] == ["rank_uniformity"]
@@ -10628,6 +15344,69 @@ def test_llm_route_planner_rejects_route_cost_not_matching_primitive_totals() ->
     )
 
 
+def test_llm_route_planner_rejects_placeholder_minimality_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_placeholder_minimality_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["minimal_delta_plan"]["minimality_rationale"] = "minimal"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "minimal_delta_plan.minimality_rationale must be substantive"
+        in error
+        and "placeholder" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_unanchored_minimality_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_minimality_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["minimal_delta_plan"]["minimality_rationale"] = (
+        "This route keeps the proof small while saving effort."
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "minimal_delta_plan.minimality_rationale must mention selected primitives"
+        in error
+        and "selected route option" in error
+        and "actionable delta evidence" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_route_option_cost_without_witness() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_cost_without_witness"
@@ -10658,6 +15437,90 @@ def test_llm_route_planner_rejects_route_option_cost_without_witness() -> None:
         and "primitive_total=4" in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_rejects_route_option_cost_bucket_underpricing_evidence() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_bucket_underpricing"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["primitive_costs"][1] = {
+        "primitive": "rank_uniformity",
+        "coverage_bucket": "exact_exists",
+        "base_cost": 0,
+        "proof_difficulty_cost": 7,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 7,
+        "cost_rationale": (
+            "This corrupted option hides bridge evidence behind proof difficulty."
+        ),
+    }
+    alternative["route_cost"] = 7
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph.route_options[1].primitive_costs[1].coverage_bucket/base_cost underprices"
+        in error
+        and "coverage_bucket=exact_exists" in error
+        and "requires at least 4" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_option_cost_without_action_witness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_cost_without_action_witness"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["route_options"][1].pop("source_port_lemmas", None)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph.route_options[1] primitive rank_uniformity requires actionable route option action witness"
+        in error
+        and "source_port_lemmas" in error
+        and "coverage_bucket=source_port" in error
+        for error in row["errors"]
+    )
+    witness = row["realization_coverage_witness"]
+    assert witness["route_option_action_witness_complete"] is False
+    assert witness["route_option_action_witness_missing_primitives"] == [
+        "rank_uniformity"
+    ]
 
 
 def test_llm_route_planner_rejects_route_option_primitive_without_cost_row() -> None:
@@ -10742,6 +15605,180 @@ def test_llm_route_planner_rejects_route_option_primitive_without_realization_co
         in error_text
     )
     assert "rank_order_statistic" in error_text
+
+
+def test_llm_route_planner_rejects_route_option_primitive_without_alignment() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_primitive_without_alignment"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    primitive = "rank_order_statistic"
+    bad_response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_order_statistic_bridge",
+            "primitive": primitive,
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    bad_response["standalone_route"]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "bridge_needed",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    cost_row = {
+        "primitive": primitive,
+        "coverage_bucket": "bridge_needed",
+        "base_cost": 4,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 4,
+        "cost_rationale": "The alternative route adds an unaligned bridge primitive.",
+    }
+    bad_response["minimal_delta_plan"]["primitive_costs"].append(cost_row)
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["selected_primitives"].append(primitive)
+    alternative["primitive_costs"].append(dict(cost_row))
+    alternative["route_cost"] = 11
+    graph["and_edges"][1]["requires"].append(primitive)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph route option primitives missing route_alignment_edges"
+        in error
+        and primitive in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_aligned_route_option_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_aligned_route_option_primitive"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    primitive = "rank_order_statistic"
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:rank_order_statistic",
+            "claim": (
+                "An alternative rank route may introduce a rank order statistic "
+                "bridge before proving the final bound."
+            ),
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "lemma",
+        }
+    )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The rank-order statistic bridge refines the source-backed "
+                "rank-uniformity route."
+            ),
+        }
+    )
+    response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_order_statistic_bridge",
+            "primitive": primitive,
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:rank_order_statistic_bridge",
+            "edge_kind": "bridges",
+            "rationale": (
+                "The rank-order statistic bridge is downstream of the "
+                "rank-uniformity formal bridge."
+            ),
+        }
+    )
+    response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:rank_order_statistic",
+            "formal_node_id": "formal:rank_order_statistic_bridge",
+            "alignment_status": "bridge_needed",
+            "alignment_rationale": (
+                "The alternative AND/OR branch realizes the source-backed rank "
+                "order statistic step as one bridge lemma."
+            ),
+        }
+    )
+    response["standalone_route"]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "bridge_needed",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    cost_row = {
+        "primitive": primitive,
+        "coverage_bucket": "bridge_needed",
+        "base_cost": 4,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 4,
+        "cost_rationale": "The alternative route adds one aligned bridge primitive.",
+    }
+    response["minimal_delta_plan"]["primitive_costs"].append(cost_row)
+    graph = response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["selected_primitives"].append(primitive)
+    alternative.setdefault("bridge_lemmas", []).append(
+        (
+            "rank_order_statistic: prove the alternative rank-order bridge "
+            "from the source-backed rank uniformity step"
+        )
+    )
+    alternative["primitive_costs"].append(dict(cost_row))
+    alternative["route_cost"] = 11
+    graph["and_edges"][1]["requires"].append(primitive)
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
 
 
 def test_llm_route_planner_rejects_flat_and_or_cost_graph() -> None:
@@ -11229,6 +16266,100 @@ def test_llm_route_planner_rejects_off_scope_residual_target_primitives() -> Non
     )
 
 
+def test_llm_route_planner_rejects_residual_formal_search_without_formal_library_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_formal_without_search"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof-state residual shows the rank route still has an "
+                "unresolved formal side condition."
+            ),
+            "route_repair": (
+                "Search the target-prover library for the side-condition "
+                "declarations before revising the bridge lemma."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "formal_search_status": "needs_search",
+        }
+    ]
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] unknown/formal-library-search-pending repair requires "
+        "a matching formal_library/library search_request" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_residual_formal_search_with_structured_target_primitive_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_residual_formal_search"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof-state residual shows the rank route still has an "
+                "unresolved formal side condition."
+            ),
+            "route_repair": (
+                "Search the target-prover library for the side-condition "
+                "declarations before revising the bridge lemma."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "formal_search_status": "needs_search",
+        }
+    ]
+    response["search_requests"].append(
+        {
+            "request_kind": "formal_library",
+            "query": "search target-prover declarations for the residual side condition",
+            "reason": "resolve the proof-state residual before route repair",
+            "target_primitives": ["rank_uniformity"],
+        }
+    )
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
 def test_llm_route_planner_rejects_ungrounded_candidate_declarations() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_declarations")
     response_json = root / "bad_response.json"
@@ -11691,6 +16822,121 @@ def test_llm_route_planner_rejects_unknown_formal_coverage_without_search_reques
     )
 
 
+def test_llm_route_planner_accepts_formal_source_search_for_formal_coverage() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_formal_source_for_formal_coverage"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["lean_realization_dag_nodes"][1][
+        "formal_search_status"
+    ] = "formal_library_search_pending"
+    response["standalone_route"]["primitives"][1][
+        "formal_search_status"
+    ] = "formal_library_search_pending"
+    response["search_requests"] = [
+        {
+            "request_kind": "formal_source",
+            "query": "rank_uniformity Lean declaration formal source search",
+            "reason": "search the formal source/library before deciding the bridge",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
+def test_llm_route_planner_rejects_unresolved_formal_coverage_masked_by_delta_action_without_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unresolved_formal_masked_by_delta"
+    )
+    shutil.rmtree(root, ignore_errors=True)
+    for marker in ("needs_search", "missing", "search_pending", "uncertain"):
+        marker_root = root / marker
+        response_json = marker_root / "bad_response.json"
+        marker_root.mkdir(parents=True, exist_ok=True)
+        input_json = _write_input(marker_root)
+        bad_response = _llm_response_payload()
+        bad_response["lean_realization_dag_nodes"][1]["coverage_bucket"] = marker
+        bad_response["standalone_route"]["primitives"][1][
+            "coverage_status"
+        ] = marker
+        bad_response["search_requests"] = []
+        response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+        payload = export_formalization_gap_planner_llm_route_planner(
+            input_json,
+            provider_name="static",
+            static_response_json=response_json,
+        )
+
+        assert not payload["all_ok"], marker
+        assert payload["n_rejected"] == 1, marker
+        row = payload["rows"][0]
+        assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+        assert any(
+            "formal_realization_dag_nodes[1] unknown/formal-library-search-pending coverage requires a matching formal_library/library search_request"
+            in error
+            for error in row["errors"]
+        ), marker
+        assert any(
+            "standalone_route.primitives[1] unknown/formal-library-search-pending coverage requires a matching formal_library/library search_request"
+            in error
+            for error in row["errors"]
+        ), marker
+
+
+def test_llm_route_planner_rejects_free_text_formal_coverage_markers() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_free_text_formal_coverage"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["lean_realization_dag_nodes"][1][
+        "coverage_bucket"
+    ] = "probably_reuse"
+    bad_response["standalone_route"]["primitives"][1][
+        "coverage_status"
+    ] = "library_maybe_has_it"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "formal_realization_dag_nodes[1].coverage_bucket unsupported: "
+        "probably_reuse" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "standalone_route.primitives[1].coverage_status unsupported: "
+        "library_maybe_has_it" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_accepts_new_bridge")
     response_json = root / "response.json"
@@ -11708,6 +16954,17 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "semantic_role": "side_condition",
         }
     )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:deterministic_tie_breaking",
+            "edge_kind": "requires",
+            "rationale": (
+                "The deterministic tie-breaking side condition specializes "
+                "the source-backed rank-uniformity route."
+            ),
+        }
+    )
     response["lean_realization_dag_nodes"].append(
         {
             "node_id": "formal:deterministic_tie_breaking_bridge",
@@ -11715,6 +16972,17 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "coverage_bucket": "bridge",
             "candidate_declarations": [],
             "formalization_action": "prove_bridge",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:deterministic_tie_breaking_bridge",
+            "edge_kind": "bridges",
+            "rationale": (
+                "The deterministic tie-breaking bridge is a downstream "
+                "side-condition bridge for the rank-uniformity route."
+            ),
         }
     )
     response["route_alignment_edges"].append(
@@ -11740,6 +17008,23 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "primitive": "deterministic_tie_breaking",
             "coverage_status": "bridge_needed",
             "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    response["formal_attempt_queue"].append(
+        {
+            "attempt_id": "attempt:deterministic_tie_breaking_bridge",
+            "formal_node_id": "formal:deterministic_tie_breaking_bridge",
+            "primitive": "deterministic_tie_breaking",
+            "target_prover_family": "lean4",
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "lean_lsp proof-state attempt for deterministic_tie_breaking "
+                "after rank_uniformity"
+            ),
+            "attempt_kind": "bridge_proof",
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity_bridge"],
+            "expected_feedback": ["residual_goals", "missing_side_conditions"],
+            "target_primitives": ["deterministic_tie_breaking"],
         }
     )
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -11954,6 +17239,67 @@ def test_llm_route_planner_rejects_dangling_alignment_edge_endpoint() -> None:
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any(
         "route_alignment_edges references unknown formal_node_id" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_placeholder_alignment_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_placeholder_alignment_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["route_alignment_edges"][0]["alignment_rationale"] = "ok"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_alignment_edges[0].alignment_rationale must be substantive"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_unanchored_alignment_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_alignment_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["route_alignment_edges"][0]["alignment_rationale"] = (
+        "Asymptotic compactness makes the argument convenient for a proof."
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_alignment_edges[0].alignment_rationale must mention an informal "
+        "claim, formal primitive, declaration, coverage/action, or source-backed "
+        "route anchor" in error
         for error in row["errors"]
     )
 

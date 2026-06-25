@@ -69,6 +69,21 @@ MAPPING_STATUSES = (
     "unsupported_in_target_prover",
     "needs_human_review",
 )
+FORMAL_ATTEMPT_DEPENDENCY_STATUSES = (
+    "not_formal_attempt_queue_item",
+    "ready_no_formal_prerequisites",
+    "waiting_for_formal_prerequisite_attempts",
+    "missing_formal_prerequisite_attempts",
+)
+FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL = (
+    "External prover adapters must execute formal_attempt_queue packets in "
+    "topological order: ready_no_formal_prerequisites packets may be mapped "
+    "immediately; waiting_for_formal_prerequisite_attempts packets may be marked "
+    "ready_for_kernel_attempt only after prerequisite_feedback_satisfied=true and "
+    "prerequisite_response_ids names the prior non-waiting prover-feedback rows; "
+    "missing_formal_prerequisite_attempts packets must request route repair instead "
+    "of kernel replay."
+)
 FORBIDDEN_PLACEHOLDER_RE = re.compile(
     r"\b(sorry|admit|axiom|admitted|undefined|todo|placeholder)\b",
     flags=re.IGNORECASE,
@@ -79,6 +94,26 @@ QUALITY_CONTROL_FIELDS = (
     "quality_gates",
     "response_validation_signals",
     "stop_conditions",
+)
+RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS = (
+    "residual_goals",
+    "residual_primitives",
+    "target_primitives",
+    "source_refs",
+    "queries",
+    "source_search_queries",
+    "literature_queries",
+)
+RESIDUAL_CONTEXT_TEXT_FIELDS = (
+    "source_kind",
+    "residual_goal",
+    "interpretation",
+    "route_repair",
+    "repair_action",
+    "source_search_status",
+    "formal_gap_boundary",
+    "formal_boundary",
+    "source_ref",
 )
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
@@ -103,11 +138,24 @@ class FormalizationGapPlannerProverAdapterPacket:
     portable_work_packet: dict[str, object]
     route_alignment_edge: dict[str, object]
     standalone_input_trace: dict[str, object]
+    residual_goal_contexts: tuple[dict[str, object], ...]
+    n_residual_goal_contexts: int
+    residual_context_source_kinds: tuple[str, ...]
+    n_residual_contexts_with_source_refs: int
+    n_residual_contexts_with_formal_gap_boundary: int
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
     alignment_status: str
     informal_route_node_id: str
     formal_realization_node_id: str
+    formal_attempt_queue_index: int
+    formal_attempt_initial_ready: bool
+    formal_attempt_dependency_status: str
+    formal_attempt_prerequisite_formal_node_ids: tuple[str, ...]
+    formal_attempt_prerequisite_refinement_item_ids: tuple[str, ...]
+    formal_attempt_blocking_prerequisite_formal_node_ids: tuple[str, ...]
+    formal_attempt_missing_prerequisite_formal_node_ids: tuple[str, ...]
+    formal_attempt_dependency_protocol: str
     required_adapter_response_fields: tuple[str, ...]
     acceptance_gate: str
     proof_evidence_status: str
@@ -135,6 +183,9 @@ class FormalizationGapPlannerProverAdapterResponseValidationRow:
     library_snapshot_ref: str
     semantic_alignment_notes: str
     residual_translation_gaps: tuple[str, ...]
+    formal_attempt_dependency_status: str
+    prerequisite_feedback_satisfied: bool
+    prerequisite_response_ids: tuple[str, ...]
     kernel_verified_claimed: bool
     acceptance_status: str
     proof_evidence_status: str
@@ -211,6 +262,9 @@ def export_formalization_gap_planner_prover_adapter_contract(
     }
     by_mapping_status = Counter(row.mapping_status for row in validations)
     by_acceptance_status = Counter(row.acceptance_status for row in validations)
+    by_packet_formal_attempt_dependency_status = Counter(
+        packet.formal_attempt_dependency_status for packet in packets
+    )
     packet_quality_control_fields = _packet_quality_control_fields(packets)
     packet_quality_control_resource_contract_ids = _packet_quality_control_values(
         packets,
@@ -263,6 +317,22 @@ def export_formalization_gap_planner_prover_adapter_contract(
             1
             for packet in packets
             if packet.standalone_input_trace.get("has_replan_metadata")
+        ),
+        "n_packets_with_residual_goal_contexts": sum(
+            1 for packet in packets if packet.residual_goal_contexts
+        ),
+        "n_packet_residual_goal_contexts": sum(
+            packet.n_residual_goal_contexts for packet in packets
+        ),
+        "packet_residual_context_source_kinds": (
+            _packet_residual_context_source_kinds(packets)
+        ),
+        "n_packet_residual_contexts_with_source_refs": sum(
+            packet.n_residual_contexts_with_source_refs for packet in packets
+        ),
+        "n_packet_residual_contexts_with_formal_gap_boundary": sum(
+            packet.n_residual_contexts_with_formal_gap_boundary
+            for packet in packets
         ),
         "n_packets_with_quality_controls": sum(
             1 for packet in packets if _quality_controls_from_packet_trace(packet)
@@ -335,6 +405,33 @@ def export_formalization_gap_planner_prover_adapter_contract(
                 ).items()
             )
         ),
+        "n_packets_with_formal_attempt_dependency": sum(
+            1
+            for packet in packets
+            if packet.formal_attempt_dependency_status
+            != "not_formal_attempt_queue_item"
+        ),
+        "n_packets_formal_attempt_initial_ready": (
+            by_packet_formal_attempt_dependency_status.get(
+                "ready_no_formal_prerequisites",
+                0,
+            )
+        ),
+        "n_packets_formal_attempt_waiting": (
+            by_packet_formal_attempt_dependency_status.get(
+                "waiting_for_formal_prerequisite_attempts",
+                0,
+            )
+        ),
+        "n_packets_formal_attempt_missing_prerequisites": (
+            by_packet_formal_attempt_dependency_status.get(
+                "missing_formal_prerequisite_attempts",
+                0,
+            )
+        ),
+        "by_packet_formal_attempt_dependency_status": dict(
+            sorted(by_packet_formal_attempt_dependency_status.items())
+        ),
         "n_responses": len(response_rows_raw),
         "n_unmatched_adapter_responses": len(unmatched_response_errors),
         "n_response_present": sum(1 for row in validations if row.response_present),
@@ -359,6 +456,17 @@ def export_formalization_gap_planner_prover_adapter_contract(
         ),
         "n_kernel_verified_claims_rejected": sum(
             1 for row in validations if row.kernel_verified_claimed and not row.ok
+        ),
+        "n_response_prerequisite_feedback_satisfied": sum(
+            1 for row in validations if row.prerequisite_feedback_satisfied
+        ),
+        "n_responses_with_prerequisite_response_ids": sum(
+            1 for row in validations if row.prerequisite_response_ids
+        ),
+        "n_rejected_formal_attempt_dependency_gate": sum(
+            1
+            for row in validations
+            if any("formal attempt prerequisite" in error for error in row.errors)
         ),
         "by_mapping_status": dict(sorted(by_mapping_status.items())),
         "by_acceptance_status": dict(sorted(by_acceptance_status.items())),
@@ -458,6 +566,10 @@ def export_formalization_gap_planner_prover_adapter_contract(
 
 def prover_adapter_packet_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {
+        "type": "array",
+        "items": {"type": "object", "additionalProperties": True},
+    }
     quality_controls_def = {
         "type": "object",
         "additionalProperties": True,
@@ -483,6 +595,20 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "quality_controls": quality_controls_def,
             "has_quality_controls": {"type": "boolean"},
             "quality_control_fields": string_array,
+            "residual_goal_contexts": object_array,
+            "has_residual_goal_contexts": {"type": "boolean"},
+            "residual_goal_context_count": {"type": "integer"},
+            "residual_context_source_kinds": string_array,
+            "formal_attempt_queue_index": {"type": "integer"},
+            "formal_attempt_initial_ready": {"type": "boolean"},
+            "formal_attempt_dependency_status": {
+                "enum": list(FORMAL_ATTEMPT_DEPENDENCY_STATUSES)
+            },
+            "formal_attempt_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_prerequisite_refinement_item_ids": string_array,
+            "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_dependency_protocol": {"type": "string"},
         },
     }
     return {
@@ -513,11 +639,24 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet",
             "route_alignment_edge",
             "standalone_input_trace",
+            "residual_goal_contexts",
+            "n_residual_goal_contexts",
+            "residual_context_source_kinds",
+            "n_residual_contexts_with_source_refs",
+            "n_residual_contexts_with_formal_gap_boundary",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
             "alignment_status",
             "informal_route_node_id",
             "formal_realization_node_id",
+            "formal_attempt_queue_index",
+            "formal_attempt_initial_ready",
+            "formal_attempt_dependency_status",
+            "formal_attempt_prerequisite_formal_node_ids",
+            "formal_attempt_prerequisite_refinement_item_ids",
+            "formal_attempt_blocking_prerequisite_formal_node_ids",
+            "formal_attempt_missing_prerequisite_formal_node_ids",
+            "formal_attempt_dependency_protocol",
             "required_adapter_response_fields",
             "acceptance_gate",
             "proof_evidence_status",
@@ -545,11 +684,26 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet": {"type": "object"},
             "route_alignment_edge": {"$ref": "#/$defs/route_alignment_edge"},
             "standalone_input_trace": {"$ref": "#/$defs/standalone_input_trace"},
+            "residual_goal_contexts": object_array,
+            "n_residual_goal_contexts": {"type": "integer"},
+            "residual_context_source_kinds": string_array,
+            "n_residual_contexts_with_source_refs": {"type": "integer"},
+            "n_residual_contexts_with_formal_gap_boundary": {"type": "integer"},
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
             "alignment_status": {"type": "string", "minLength": 1},
             "informal_route_node_id": {"type": "string", "minLength": 1},
             "formal_realization_node_id": {"type": "string", "minLength": 1},
+            "formal_attempt_queue_index": {"type": "integer"},
+            "formal_attempt_initial_ready": {"type": "boolean"},
+            "formal_attempt_dependency_status": {
+                "enum": list(FORMAL_ATTEMPT_DEPENDENCY_STATUSES)
+            },
+            "formal_attempt_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_prerequisite_refinement_item_ids": string_array,
+            "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_dependency_protocol": {"type": "string", "minLength": 1},
             "required_adapter_response_fields": string_array,
             "acceptance_gate": {"type": "string", "minLength": 1},
             "proof_evidence_status": {
@@ -609,8 +763,16 @@ def validate_prover_adapter_packet_row(
             )
         )
         errors.extend(_standalone_trace_quality_control_errors(standalone_input_trace))
+        errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
+        errors.extend(
+            _standalone_trace_formal_attempt_dependency_errors(
+                standalone_input_trace,
+                row,
+            )
+        )
     else:
         errors.append("standalone_input_trace must be an object")
+    errors.extend(_packet_residual_context_field_errors(row))
     return tuple(errors)
 
 
@@ -663,6 +825,21 @@ def prover_adapter_response_json_schema() -> dict[str, object]:
                 "type": "array",
                 "items": {"type": "string"},
             },
+            "prerequisite_feedback_satisfied": {
+                "type": "boolean",
+                "description": (
+                    "Must be true before a waiting formal_attempt_queue packet can "
+                    "be marked ready_for_kernel_attempt."
+                ),
+            },
+            "prerequisite_response_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Prior non-waiting prover-feedback response ids that satisfied "
+                    "the packet's prerequisite formal attempts."
+                ),
+            },
             "kernel_verified": {"const": False},
         },
     }
@@ -699,6 +876,9 @@ def prover_adapter_response_validation_row_json_schema() -> dict[str, object]:
             "library_snapshot_ref",
             "semantic_alignment_notes",
             "residual_translation_gaps",
+            "formal_attempt_dependency_status",
+            "prerequisite_feedback_satisfied",
+            "prerequisite_response_ids",
             "kernel_verified_claimed",
             "acceptance_status",
             "proof_evidence_status",
@@ -727,6 +907,11 @@ def prover_adapter_response_validation_row_json_schema() -> dict[str, object]:
             "library_snapshot_ref": {"type": "string"},
             "semantic_alignment_notes": {"type": "string"},
             "residual_translation_gaps": string_array,
+            "formal_attempt_dependency_status": {
+                "enum": list(FORMAL_ATTEMPT_DEPENDENCY_STATUSES)
+            },
+            "prerequisite_feedback_satisfied": {"type": "boolean"},
+            "prerequisite_response_ids": string_array,
             "kernel_verified_claimed": {"type": "boolean"},
             "acceptance_status": {"type": "string", "minLength": 1},
             "proof_evidence_status": {
@@ -824,6 +1009,11 @@ def _packet_for_work_packet(
             f"route_alignment_edge.{error}"
             for error in validate_route_alignment_edge(alignment_edge)
         )
+    formal_attempt_dependency = _formal_attempt_dependency_for_packet(
+        plan_row,
+        packet,
+        alignment_edge,
+    )
     packet_id = "formalization_gap_planner_prover_adapter_packet:" + stable_hash(
         [goal_plan_id, route_id, primitive, packet_index, target_prover_family]
     )[:20]
@@ -834,6 +1024,7 @@ def _packet_for_work_packet(
         packet_index=packet_index,
         target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
+        formal_attempt_dependency=formal_attempt_dependency,
     )
     errors.extend(
         _standalone_trace_target_errors(
@@ -842,6 +1033,10 @@ def _packet_for_work_packet(
             target_prover_family=target_prover_family,
             target_library_snapshot_ref=library_snapshot_ref,
         )
+    )
+    errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
+    residual_goal_contexts = _residual_goal_contexts_from_trace(
+        standalone_input_trace
     )
     llm_route_adoption_status = str(
         standalone_input_trace.get("llm_route_planner_route_adoption_status", "")
@@ -867,18 +1062,63 @@ def _packet_for_work_packet(
         portable_work_packet=dict(packet),
         route_alignment_edge=alignment_edge,
         standalone_input_trace=standalone_input_trace,
+        residual_goal_contexts=residual_goal_contexts,
+        n_residual_goal_contexts=len(residual_goal_contexts),
+        residual_context_source_kinds=_residual_context_source_kinds(
+            residual_goal_contexts
+        ),
+        n_residual_contexts_with_source_refs=sum(
+            1
+            for context in residual_goal_contexts
+            if _residual_context_has_sources(context)
+        ),
+        n_residual_contexts_with_formal_gap_boundary=sum(
+            1
+            for context in residual_goal_contexts
+            if _residual_context_has_formal_gap_boundary(context)
+        ),
         llm_route_planner_route_adoption_status=llm_route_adoption_status,
         llm_route_planner_route_adoption_blockers=llm_route_adoption_blockers,
         alignment_status=str(alignment_edge.get("alignment_status", "")),
-        informal_route_node_id=str(alignment_edge.get("source", "")),
-        formal_realization_node_id=str(alignment_edge.get("target", "")),
-        required_adapter_response_fields=tuple(
-            prover_adapter_response_json_schema()["required"]  # type: ignore[index]
+        informal_route_node_id=_informal_node_id_from_alignment_edge(alignment_edge),
+        formal_realization_node_id=_formal_node_id_from_alignment_edge(
+            alignment_edge
         ),
-        acceptance_gate=(
-            "target prover adapter may only mark the packet ready for kernel attempt; "
-            "proof promotion requires target-prover kernel verification through a "
-            "separate replay/calibration gate"
+        formal_attempt_queue_index=int(
+            formal_attempt_dependency["formal_attempt_queue_index"]
+        ),
+        formal_attempt_initial_ready=bool(
+            formal_attempt_dependency["formal_attempt_initial_ready"]
+        ),
+        formal_attempt_dependency_status=str(
+            formal_attempt_dependency["formal_attempt_dependency_status"]
+        ),
+        formal_attempt_prerequisite_formal_node_ids=_str_tuple(
+            formal_attempt_dependency[
+                "formal_attempt_prerequisite_formal_node_ids"
+            ]
+        ),
+        formal_attempt_prerequisite_refinement_item_ids=_str_tuple(
+            formal_attempt_dependency[
+                "formal_attempt_prerequisite_refinement_item_ids"
+            ]
+        ),
+        formal_attempt_blocking_prerequisite_formal_node_ids=_str_tuple(
+            formal_attempt_dependency[
+                "formal_attempt_blocking_prerequisite_formal_node_ids"
+            ]
+        ),
+        formal_attempt_missing_prerequisite_formal_node_ids=_str_tuple(
+            formal_attempt_dependency[
+                "formal_attempt_missing_prerequisite_formal_node_ids"
+            ]
+        ),
+        formal_attempt_dependency_protocol=FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+        required_adapter_response_fields=_required_response_fields_for_packet(
+            formal_attempt_dependency
+        ),
+        acceptance_gate=_acceptance_gate_for_packet(
+            formal_attempt_dependency
         ),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
@@ -894,6 +1134,7 @@ def _standalone_input_trace_for_packet(
     packet_index: int,
     target_prover_family: str,
     library_snapshot_ref: str,
+    formal_attempt_dependency: dict[str, object],
 ) -> dict[str, object]:
     existing = plan_row.get("standalone_input_trace", {})
     if isinstance(existing, dict) and existing:
@@ -911,13 +1152,15 @@ def _standalone_input_trace_for_packet(
         trace["target_prover_family"] = target_prover_family
         trace["target_library_snapshot_ref"] = library_snapshot_ref
         trace["trace_target_projection"] = "target_prover_adapter_contract"
+        _attach_formal_attempt_dependency_fields(trace, formal_attempt_dependency)
         _normalize_trace_quality_control_fields(trace)
+        _normalize_trace_residual_context_fields(trace)
         return trace
     replan_metadata = plan_row.get("replan_metadata", {})
     if not isinstance(replan_metadata, dict):
         replan_metadata = {}
     route_revision_triggers = plan_row.get("route_revision_triggers", ())
-    return {
+    trace: dict[str, object] = {
         "trace_source": "formalization_gap_planner_prover_adapter_contract_fallback",
         "goal_plan_id": str(plan_row.get("goal_plan_id", "")),
         "route_id": str(plan_row.get("route_id", "")),
@@ -934,6 +1177,7 @@ def _standalone_input_trace_for_packet(
         "library_snapshot_ref": library_snapshot_ref,
         "target_library_snapshot_ref": library_snapshot_ref,
         "has_replan_metadata": bool(replan_metadata),
+        "replan_metadata": dict(replan_metadata),
         "replan_metadata_keys": tuple(sorted(str(key) for key in replan_metadata)),
         "route_revision_trigger_count": (
             len(route_revision_triggers)
@@ -943,9 +1187,24 @@ def _standalone_input_trace_for_packet(
         "quality_controls": {},
         "has_quality_controls": False,
         "quality_control_fields": [],
+        "residual_goal_contexts": _dict_list(
+            _residual_goal_contexts_from_sources(
+                plan_row.get("residual_goal_context"),
+                plan_row.get("residual_goal_contexts", []),
+                replan_metadata.get("residual_goal_context"),
+                replan_metadata.get("residual_goal_contexts", []),
+                replan_metadata.get("llm_route_planner_residual_goal_contexts", []),
+            )
+        ),
+        "has_residual_goal_contexts": False,
+        "residual_goal_context_count": 0,
+        "residual_context_source_kinds": [],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    _attach_formal_attempt_dependency_fields(trace, formal_attempt_dependency)
+    _normalize_trace_residual_context_fields(trace)
+    return trace
 
 
 def _standalone_trace_target_errors(
@@ -1035,6 +1294,182 @@ def _standalone_trace_quality_control_errors(
     return tuple(errors)
 
 
+def _standalone_trace_residual_context_errors(
+    trace: dict[str, object],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_contexts = trace.get("residual_goal_contexts", [])
+    if "residual_goal_contexts" in trace:
+        if not isinstance(raw_contexts, (list, tuple)):
+            errors.append("standalone_input_trace.residual_goal_contexts must be array")
+            raw_contexts = []
+        else:
+            non_objects = [
+                idx for idx, item in enumerate(raw_contexts) if not isinstance(item, dict)
+            ]
+            if non_objects:
+                errors.append(
+                    "standalone_input_trace.residual_goal_contexts items must be object "
+                    "at indexes "
+                    + ",".join(str(idx) for idx in non_objects)
+                )
+    contexts = _residual_goal_contexts_from_trace(trace)
+    if contexts or "has_residual_goal_contexts" in trace:
+        observed_present = trace.get("has_residual_goal_contexts", False)
+        if not isinstance(observed_present, bool):
+            errors.append("standalone_input_trace.has_residual_goal_contexts must be boolean")
+        elif observed_present != bool(contexts):
+            errors.append(
+                "standalone_input_trace.has_residual_goal_contexts mismatch: "
+                f"observed={observed_present} expected={bool(contexts)}"
+            )
+    if contexts or "residual_goal_context_count" in trace:
+        observed_count = trace.get("residual_goal_context_count", 0)
+        if not isinstance(observed_count, int) or isinstance(observed_count, bool):
+            errors.append(
+                "standalone_input_trace.residual_goal_context_count must be integer"
+            )
+        elif observed_count != len(contexts):
+            errors.append(
+                "standalone_input_trace.residual_goal_context_count mismatch: "
+                f"observed={observed_count} expected={len(contexts)}"
+            )
+    if contexts or "residual_context_source_kinds" in trace:
+        observed_source_kinds = tuple(
+            sorted(_str_tuple(trace.get("residual_context_source_kinds", [])))
+        )
+        expected_source_kinds = _residual_context_source_kinds(contexts)
+        if observed_source_kinds != expected_source_kinds:
+            errors.append(
+                "standalone_input_trace.residual_context_source_kinds mismatch: "
+                f"observed={observed_source_kinds} expected={expected_source_kinds}"
+            )
+    return tuple(errors)
+
+
+def _standalone_trace_formal_attempt_dependency_errors(
+    trace: dict[str, object],
+    packet_row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    int_fields = ("formal_attempt_queue_index",)
+    bool_fields = ("formal_attempt_initial_ready",)
+    string_fields = (
+        "formal_attempt_dependency_status",
+        "formal_attempt_dependency_protocol",
+    )
+    string_array_fields = (
+        "formal_attempt_prerequisite_formal_node_ids",
+        "formal_attempt_prerequisite_refinement_item_ids",
+        "formal_attempt_blocking_prerequisite_formal_node_ids",
+        "formal_attempt_missing_prerequisite_formal_node_ids",
+    )
+    for field_name in int_fields:
+        if field_name in trace and trace.get(field_name) != packet_row.get(field_name):
+            errors.append(
+                f"standalone_input_trace.{field_name} mismatch: "
+                f"{trace.get(field_name)} != {packet_row.get(field_name)}"
+            )
+    for field_name in bool_fields:
+        if field_name in trace and trace.get(field_name) != packet_row.get(field_name):
+            errors.append(
+                f"standalone_input_trace.{field_name} mismatch: "
+                f"{trace.get(field_name)} != {packet_row.get(field_name)}"
+            )
+    for field_name in string_fields:
+        trace_value = str(trace.get(field_name, ""))
+        packet_value = str(packet_row.get(field_name, ""))
+        if trace_value and trace_value != packet_value:
+            errors.append(
+                f"standalone_input_trace.{field_name} mismatch: "
+                f"{trace_value} != {packet_value}"
+            )
+    for field_name in string_array_fields:
+        trace_values = _str_tuple(trace.get(field_name, []))
+        packet_values = _str_tuple(packet_row.get(field_name, []))
+        if trace_values != packet_values:
+            errors.append(
+                f"standalone_input_trace.{field_name} mismatch: "
+                f"{trace_values} != {packet_values}"
+            )
+    return tuple(errors)
+
+
+def _packet_residual_context_field_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    if "residual_goal_contexts" not in row:
+        return tuple(errors)
+    raw_contexts = row.get("residual_goal_contexts", [])
+    if not isinstance(raw_contexts, (list, tuple)):
+        return ("residual_goal_contexts must be array",)
+    non_objects = [
+        idx for idx, item in enumerate(raw_contexts) if not isinstance(item, dict)
+    ]
+    if non_objects:
+        errors.append(
+            "residual_goal_contexts items must be object at indexes "
+            + ",".join(str(idx) for idx in non_objects)
+        )
+    contexts = _dict_tuple(raw_contexts)
+    if "n_residual_goal_contexts" in row:
+        observed_count = row.get("n_residual_goal_contexts", 0)
+        if not isinstance(observed_count, int) or isinstance(observed_count, bool):
+            errors.append("n_residual_goal_contexts must be integer")
+        elif observed_count != len(contexts):
+            errors.append(
+                "n_residual_goal_contexts mismatch: "
+                f"observed={observed_count} expected={len(contexts)}"
+            )
+    if "residual_context_source_kinds" in row:
+        observed_source_kinds = tuple(
+            sorted(_str_tuple(row.get("residual_context_source_kinds", [])))
+        )
+        expected_source_kinds = _residual_context_source_kinds(contexts)
+        if observed_source_kinds != expected_source_kinds:
+            errors.append(
+                "residual_context_source_kinds mismatch: "
+                f"observed={observed_source_kinds} expected={expected_source_kinds}"
+            )
+    if "n_residual_contexts_with_source_refs" in row:
+        observed_with_sources = row.get("n_residual_contexts_with_source_refs", 0)
+        expected_with_sources = sum(
+            1 for context in contexts if _residual_context_has_sources(context)
+        )
+        if not isinstance(observed_with_sources, int) or isinstance(
+            observed_with_sources,
+            bool,
+        ):
+            errors.append("n_residual_contexts_with_source_refs must be integer")
+        elif observed_with_sources != expected_with_sources:
+            errors.append(
+                "n_residual_contexts_with_source_refs mismatch: "
+                f"observed={observed_with_sources} expected={expected_with_sources}"
+            )
+    if "n_residual_contexts_with_formal_gap_boundary" in row:
+        observed_with_boundary = row.get(
+            "n_residual_contexts_with_formal_gap_boundary",
+            0,
+        )
+        expected_with_boundary = sum(
+            1
+            for context in contexts
+            if _residual_context_has_formal_gap_boundary(context)
+        )
+        if not isinstance(observed_with_boundary, int) or isinstance(
+            observed_with_boundary,
+            bool,
+        ):
+            errors.append(
+                "n_residual_contexts_with_formal_gap_boundary must be integer"
+            )
+        elif observed_with_boundary != expected_with_boundary:
+            errors.append(
+                "n_residual_contexts_with_formal_gap_boundary mismatch: "
+                f"observed={observed_with_boundary} expected={expected_with_boundary}"
+            )
+    return tuple(errors)
+
+
 def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
     controls = _quality_controls_from_trace(trace)
     trace["quality_controls"] = {
@@ -1042,6 +1477,16 @@ def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
     }
     trace["has_quality_controls"] = bool(controls)
     trace["quality_control_fields"] = sorted(controls)
+
+
+def _normalize_trace_residual_context_fields(trace: dict[str, object]) -> None:
+    contexts = _residual_goal_contexts_from_trace(trace)
+    trace["residual_goal_contexts"] = _dict_list(contexts)
+    trace["has_residual_goal_contexts"] = bool(contexts)
+    trace["residual_goal_context_count"] = len(contexts)
+    trace["residual_context_source_kinds"] = list(
+        _residual_context_source_kinds(contexts)
+    )
 
 
 def _quality_controls_from_packet_trace(
@@ -1115,6 +1560,139 @@ def _packet_quality_control_field_summary(
     return summary
 
 
+def _residual_goal_contexts_from_trace(
+    trace: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    containers: list[dict[str, object]] = [trace]
+    for container in list(containers):
+        for nested_key in ("replan_metadata", "request_payload", "context_packet"):
+            nested = container.get(nested_key, {})
+            if isinstance(nested, dict):
+                containers.append(nested)
+    for trace_list_key in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+        "applied_route_revision_traces",
+        "resource_response_traces",
+    ):
+        containers.extend(_dict_tuple(trace.get(trace_list_key, [])))
+    raw_values: list[Any] = []
+    for container in containers:
+        raw_values.extend(
+            [
+                container.get("residual_goal_context"),
+                container.get("residual_goal_contexts", []),
+                container.get("llm_route_planner_residual_goal_contexts", []),
+            ]
+        )
+    return _residual_goal_contexts_from_sources(*raw_values)
+
+
+def _residual_goal_contexts_from_sources(
+    *values: Any,
+) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    for value in values:
+        for raw_context in _dict_tuple(value):
+            context = _normalize_residual_goal_context(raw_context)
+            if context:
+                contexts.append(context)
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for context in contexts:
+        key = stable_hash(context)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(context)
+    return tuple(deduped)
+
+
+def _normalize_residual_goal_context(
+    context: dict[str, object],
+) -> dict[str, object]:
+    normalized: dict[str, object] = {
+        str(field_name): value
+        for field_name, value in context.items()
+        if str(field_name)
+    }
+    for field_name in RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS:
+        if field_name in normalized:
+            normalized[field_name] = _str_tuple(normalized.get(field_name, []))
+    for field_name in RESIDUAL_CONTEXT_TEXT_FIELDS:
+        if field_name in normalized:
+            normalized[field_name] = str(normalized.get(field_name, "")).strip()
+    if "source_snippets" in normalized:
+        normalized["source_snippets"] = tuple(
+            _normalize_dict(snippet)
+            for snippet in _dict_tuple(normalized.get("source_snippets", []))
+        )
+    return {
+        field_name: value
+        for field_name, value in normalized.items()
+        if _residual_context_value_present(value)
+    }
+
+
+def _normalize_dict(value: dict[str, object]) -> dict[str, object]:
+    return {
+        str(field_name): item
+        for field_name, item in value.items()
+        if str(field_name) and _residual_context_value_present(item)
+    }
+
+
+def _residual_context_value_present(value: object) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, (list, tuple, set, dict)) and not value:
+        return False
+    return True
+
+
+def _residual_context_source_kinds(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(context.get("source_kind", "")).strip()
+                for context in contexts
+                if str(context.get("source_kind", "")).strip()
+            }
+        )
+    )
+
+
+def _packet_residual_context_source_kinds(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+) -> tuple[str, ...]:
+    return _residual_context_source_kinds(
+        tuple(
+            context
+            for packet in packets
+            for context in packet.residual_goal_contexts
+        )
+    )
+
+
+def _residual_context_has_sources(context: dict[str, object]) -> bool:
+    return bool(
+        _str_tuple(context.get("source_refs", []))
+        or _dict_tuple(context.get("source_snippets", []))
+        or str(context.get("source_ref", "")).strip()
+    )
+
+
+def _residual_context_has_formal_gap_boundary(context: dict[str, object]) -> bool:
+    return bool(
+        str(
+            context.get("formal_gap_boundary", "")
+            or context.get("formal_boundary", "")
+        ).strip()
+    )
+
+
 def _alignment_edge_for_primitive(
     plan_row: dict[str, Any],
     primitive: str,
@@ -1125,6 +1703,307 @@ def _alignment_edge_for_primitive(
         if str(edge.get("primitive", "")) == primitive:
             return dict(edge)
     return {}
+
+
+def _informal_node_id_from_alignment_edge(edge: dict[str, object]) -> str:
+    return str(
+        edge.get("source", "")
+        or edge.get("informal_node_id", "")
+        or edge.get("source_node_id", "")
+    )
+
+
+def _formal_node_id_from_alignment_edge(edge: dict[str, object]) -> str:
+    return str(
+        edge.get("target", "")
+        or edge.get("formal_node_id", "")
+        or edge.get("target_node_id", "")
+    )
+
+
+def _formal_attempt_dependency_for_packet(
+    plan_row: dict[str, Any],
+    packet: dict[str, Any],
+    alignment_edge: dict[str, object],
+) -> dict[str, object]:
+    if _has_formal_attempt_dependency_fields(packet):
+        return _formal_attempt_dependency_from_candidate(packet, plan_row)
+
+    primitive = str(packet.get("primitive", "")).strip()
+    formal_node_id = _formal_node_id_from_alignment_edge(alignment_edge)
+    for hook in _formal_attempt_hook_rows(plan_row):
+        if _formal_attempt_candidate_matches(
+            hook,
+            primitive=primitive,
+            formal_node_id=formal_node_id,
+        ):
+            return _formal_attempt_dependency_from_candidate(hook, plan_row)
+    for attempt in _formal_attempt_queue_rows(plan_row):
+        if _formal_attempt_candidate_matches(
+            attempt,
+            primitive=primitive,
+            formal_node_id=formal_node_id,
+        ):
+            return _formal_attempt_dependency_from_candidate(attempt, plan_row)
+    return _formal_attempt_dependency_default()
+
+
+def _has_formal_attempt_dependency_fields(row: dict[str, Any]) -> bool:
+    return any(
+        field_name in row
+        for field_name in (
+            "formal_attempt_queue_index",
+            "llm_route_planner_formal_attempt_queue_index",
+            "formal_attempt_dependency_status",
+            "formal_attempt_prerequisite_formal_node_ids",
+            "prerequisite_formal_node_ids",
+        )
+    )
+
+
+def _formal_attempt_dependency_from_candidate(
+    row: dict[str, Any],
+    plan_row: dict[str, Any],
+) -> dict[str, object]:
+    nested_attempt = _nested_formal_attempt(row)
+    queue_index = _int_value(
+        row.get(
+            "formal_attempt_queue_index",
+            row.get(
+                "llm_route_planner_formal_attempt_queue_index",
+                nested_attempt.get(
+                    "formal_attempt_queue_index",
+                    nested_attempt.get(
+                        "llm_route_planner_formal_attempt_queue_index",
+                        -1,
+                    ),
+                ),
+            ),
+        ),
+        default=-1,
+    )
+    prerequisites = (
+        _str_tuple(row.get("formal_attempt_prerequisite_formal_node_ids", []))
+        or _str_tuple(row.get("prerequisite_formal_node_ids", []))
+        or _str_tuple(nested_attempt.get("prerequisite_formal_node_ids", []))
+    )
+    prerequisite_item_ids = (
+        _str_tuple(row.get("formal_attempt_prerequisite_refinement_item_ids", []))
+        or _str_tuple(row.get("prerequisite_refinement_item_ids", []))
+    )
+    missing = _str_tuple(
+        row.get("formal_attempt_missing_prerequisite_formal_node_ids", [])
+    )
+    known_formal_node_ids = set(_formal_attempt_known_formal_node_ids(plan_row))
+    if prerequisites and known_formal_node_ids:
+        missing = tuple(
+            prerequisite
+            for prerequisite in prerequisites
+            if prerequisite not in known_formal_node_ids
+        )
+    status = str(row.get("formal_attempt_dependency_status", "")).strip()
+    if status not in FORMAL_ATTEMPT_DEPENDENCY_STATUSES or (
+        status == "not_formal_attempt_queue_item" and queue_index >= 0
+    ):
+        status = _formal_attempt_dependency_status(
+            queue_index=queue_index,
+            prerequisites=prerequisites,
+            missing=missing,
+        )
+    blockers = _str_tuple(
+        row.get("formal_attempt_blocking_prerequisite_formal_node_ids", [])
+    )
+    if not blockers:
+        if status == "missing_formal_prerequisite_attempts":
+            blockers = missing
+        elif status == "waiting_for_formal_prerequisite_attempts":
+            blockers = prerequisites
+    return {
+        "formal_attempt_queue_index": queue_index,
+        "formal_attempt_initial_ready": status == "ready_no_formal_prerequisites",
+        "formal_attempt_dependency_status": status,
+        "formal_attempt_prerequisite_formal_node_ids": prerequisites,
+        "formal_attempt_prerequisite_refinement_item_ids": prerequisite_item_ids,
+        "formal_attempt_blocking_prerequisite_formal_node_ids": blockers,
+        "formal_attempt_missing_prerequisite_formal_node_ids": missing,
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+    }
+
+
+def _formal_attempt_dependency_status(
+    *,
+    queue_index: int,
+    prerequisites: tuple[str, ...],
+    missing: tuple[str, ...],
+) -> str:
+    if queue_index < 0 and not prerequisites and not missing:
+        return "not_formal_attempt_queue_item"
+    if missing:
+        return "missing_formal_prerequisite_attempts"
+    if prerequisites:
+        return "waiting_for_formal_prerequisite_attempts"
+    return "ready_no_formal_prerequisites"
+
+
+def _formal_attempt_dependency_default() -> dict[str, object]:
+    return {
+        "formal_attempt_queue_index": -1,
+        "formal_attempt_initial_ready": False,
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "formal_attempt_prerequisite_formal_node_ids": (),
+        "formal_attempt_prerequisite_refinement_item_ids": (),
+        "formal_attempt_blocking_prerequisite_formal_node_ids": (),
+        "formal_attempt_missing_prerequisite_formal_node_ids": (),
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+    }
+
+
+def _formal_attempt_hook_rows(
+    plan_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    metadata = _dict_value(plan_row.get("replan_metadata", {}))
+    rows = [
+        *_dict_tuple(plan_row.get("interactive_refinement_hooks", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_interactive_refinement_hooks", [])),
+    ]
+    return tuple(row for row in rows if _has_formal_attempt_dependency_fields(row))
+
+
+def _formal_attempt_queue_rows(
+    plan_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    metadata = _dict_value(plan_row.get("replan_metadata", {}))
+    rows: list[dict[str, object]] = []
+    for source_rows in (
+        _dict_tuple(plan_row.get("formal_attempt_queue", [])),
+        _dict_tuple(metadata.get("llm_route_planner_formal_attempt_queue", [])),
+    ):
+        for index, row in enumerate(source_rows):
+            candidate = dict(row)
+            candidate.setdefault("llm_route_planner_formal_attempt_queue_index", index)
+            rows.append(candidate)
+    return tuple(rows)
+
+
+def _formal_attempt_known_formal_node_ids(
+    plan_row: dict[str, Any],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                formal_node_id
+                for row in (
+                    *_formal_attempt_hook_rows(plan_row),
+                    *_formal_attempt_queue_rows(plan_row),
+                )
+                for formal_node_id in [_formal_attempt_candidate_formal_node_id(row)]
+                if formal_node_id
+            }
+        )
+    )
+
+
+def _formal_attempt_candidate_matches(
+    row: dict[str, object],
+    *,
+    primitive: str,
+    formal_node_id: str,
+) -> bool:
+    candidate_formal_node_id = _formal_attempt_candidate_formal_node_id(row)
+    if formal_node_id and candidate_formal_node_id == formal_node_id:
+        return True
+    target_primitives = _formal_attempt_candidate_target_primitives(row)
+    if primitive and primitive in target_primitives:
+        return True
+    candidate_primitive = _formal_attempt_candidate_primitive(row)
+    return bool(primitive and candidate_primitive == primitive)
+
+
+def _formal_attempt_candidate_formal_node_id(row: dict[str, object]) -> str:
+    nested_attempt = _nested_formal_attempt(row)
+    return str(
+        row.get("formal_node_id", "")
+        or row.get("formal_realization_node_id", "")
+        or nested_attempt.get("formal_node_id", "")
+        or nested_attempt.get("formal_realization_node_id", "")
+    ).strip()
+
+
+def _formal_attempt_candidate_primitive(row: dict[str, object]) -> str:
+    nested_attempt = _nested_formal_attempt(row)
+    return str(row.get("primitive", "") or nested_attempt.get("primitive", "")).strip()
+
+
+def _formal_attempt_candidate_target_primitives(
+    row: dict[str, object],
+) -> tuple[str, ...]:
+    nested_attempt = _nested_formal_attempt(row)
+    return (
+        _str_tuple(row.get("target_primitives", []))
+        or _str_tuple(nested_attempt.get("target_primitives", []))
+    )
+
+
+def _nested_formal_attempt(row: dict[str, object]) -> dict[str, object]:
+    nested = row.get("llm_route_planner_formal_attempt", {})
+    return dict(nested) if isinstance(nested, dict) else {}
+
+
+def _attach_formal_attempt_dependency_fields(
+    container: dict[str, object],
+    dependency: dict[str, object],
+) -> None:
+    for field_name in (
+        "formal_attempt_queue_index",
+        "formal_attempt_initial_ready",
+        "formal_attempt_dependency_status",
+        "formal_attempt_prerequisite_formal_node_ids",
+        "formal_attempt_prerequisite_refinement_item_ids",
+        "formal_attempt_blocking_prerequisite_formal_node_ids",
+        "formal_attempt_missing_prerequisite_formal_node_ids",
+        "formal_attempt_dependency_protocol",
+    ):
+        value = dependency.get(field_name)
+        if isinstance(value, tuple):
+            container[field_name] = list(value)
+        else:
+            container[field_name] = value
+
+
+def _required_response_fields_for_packet(
+    dependency: dict[str, object],
+) -> tuple[str, ...]:
+    required = list(prover_adapter_response_json_schema()["required"])  # type: ignore[index]
+    if (
+        str(dependency.get("formal_attempt_dependency_status", ""))
+        == "waiting_for_formal_prerequisite_attempts"
+    ):
+        required.extend(["prerequisite_feedback_satisfied", "prerequisite_response_ids"])
+    return tuple(dict.fromkeys(required))
+
+
+def _acceptance_gate_for_packet(dependency: dict[str, object]) -> str:
+    status = str(dependency.get("formal_attempt_dependency_status", ""))
+    if status == "waiting_for_formal_prerequisite_attempts":
+        return (
+            "target prover adapter may mark this formal-attempt packet ready for "
+            "kernel attempt only after prerequisite_feedback_satisfied=true and "
+            "prerequisite_response_ids names prior non-waiting prover feedback; "
+            "proof promotion still requires target-prover kernel verification "
+            "through a separate replay/calibration gate"
+        )
+    if status == "missing_formal_prerequisite_attempts":
+        return (
+            "target prover adapter must not mark this formal-attempt packet ready "
+            "for kernel attempt while prerequisite formal attempts are missing; "
+            "route repair or human review must add the missing attempt before "
+            "the separate kernel verification gate can run"
+        )
+    return (
+        "target prover adapter may only mark the packet ready for kernel attempt; "
+        "proof promotion requires target-prover kernel verification through a "
+        "separate replay/calibration gate"
+    )
 
 
 def _validate_response(
@@ -1151,6 +2030,9 @@ def _validate_response(
             library_snapshot_ref="",
             semantic_alignment_notes="",
             residual_translation_gaps=(),
+            formal_attempt_dependency_status=packet.formal_attempt_dependency_status,
+            prerequisite_feedback_satisfied=False,
+            prerequisite_response_ids=(),
             kernel_verified_claimed=False,
             acceptance_status="AWAITING_PROVER_ADAPTER_MAPPING",
             proof_evidence_status="AWAITING_RESPONSE_NOT_PROOF_EVIDENCE",
@@ -1171,6 +2053,15 @@ def _validate_response(
     library_snapshot_ref = str(response.get("library_snapshot_ref", ""))
     semantic_alignment_notes = str(response.get("semantic_alignment_notes", ""))
     residual_translation_gaps = _str_tuple(response.get("residual_translation_gaps", []))
+    prerequisite_feedback_raw = response.get("prerequisite_feedback_satisfied", False)
+    prerequisite_feedback_satisfied = (
+        prerequisite_feedback_raw
+        if isinstance(prerequisite_feedback_raw, bool)
+        else False
+    )
+    prerequisite_response_ids = _str_tuple(
+        response.get("prerequisite_response_ids", [])
+    )
     kernel_verified = bool(response.get("kernel_verified", False))
     for field_name, value in (
         ("target_prover_family", target_prover_family),
@@ -1216,6 +2107,34 @@ def _validate_response(
     if mapping_status == "ready_for_kernel_attempt" and not translated_imports:
         errors.append("translated_imports required when ready_for_kernel_attempt")
     if (
+        packet.formal_attempt_dependency_status
+        == "waiting_for_formal_prerequisite_attempts"
+        and mapping_status == "ready_for_kernel_attempt"
+    ):
+        if not prerequisite_feedback_satisfied:
+            errors.append(
+                "ready_for_kernel_attempt requires formal attempt prerequisite "
+                "feedback: prerequisite_feedback_satisfied=true"
+            )
+        if not prerequisite_response_ids:
+            errors.append(
+                "ready_for_kernel_attempt requires formal attempt prerequisite "
+                "feedback: prerequisite_response_ids must name prior responses"
+            )
+    if (
+        packet.formal_attempt_dependency_status
+        == "missing_formal_prerequisite_attempts"
+        and mapping_status == "ready_for_kernel_attempt"
+    ):
+        missing = ", ".join(
+            packet.formal_attempt_missing_prerequisite_formal_node_ids
+        )
+        suffix = f": {missing}" if missing else ""
+        errors.append(
+            "ready_for_kernel_attempt requires formal attempt prerequisite "
+            f"queue entries to exist{suffix}"
+        )
+    if (
         mapping_status == "ready_for_kernel_attempt"
         and packet.llm_route_planner_route_adoption_status
         and packet.llm_route_planner_route_adoption_status
@@ -1237,6 +2156,16 @@ def _validate_response(
         errors.append("residual_translation_gaps required unless ready_for_kernel_attempt")
     if not isinstance(response.get("kernel_verified", False), bool):
         errors.append("kernel_verified must be boolean")
+    if "prerequisite_feedback_satisfied" in response and not isinstance(
+        response.get("prerequisite_feedback_satisfied"),
+        bool,
+    ):
+        errors.append("prerequisite_feedback_satisfied must be boolean")
+    if "prerequisite_response_ids" in response and not isinstance(
+        response.get("prerequisite_response_ids"),
+        (list, tuple),
+    ):
+        errors.append("prerequisite_response_ids must be a list")
     if kernel_verified:
         errors.append("kernel_verified=true is outside this adapter-mapping contract")
     forbidden_text = " ".join([translated_statement, verifier_command])
@@ -1266,6 +2195,9 @@ def _validate_response(
         library_snapshot_ref=library_snapshot_ref,
         semantic_alignment_notes=semantic_alignment_notes,
         residual_translation_gaps=residual_translation_gaps,
+        formal_attempt_dependency_status=packet.formal_attempt_dependency_status,
+        prerequisite_feedback_satisfied=prerequisite_feedback_satisfied,
+        prerequisite_response_ids=prerequisite_response_ids,
         kernel_verified_claimed=kernel_verified,
         acceptance_status=acceptance_status,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
@@ -1539,6 +2471,33 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
 
 
+def _int_value(value: Any, *, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _dict_value(value: Any) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
+    if isinstance(values, dict):
+        return (dict(values),)
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(item) for item in values if isinstance(item, dict))
+
+
+def _dict_list(values: tuple[dict[str, object], ...]) -> list[dict[str, object]]:
+    return [dict(value) for value in values]
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Prover Adapter Contract",
@@ -1550,6 +2509,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with standalone trace: {payload.get('n_packets_with_standalone_input_trace')}",
         f"- Packets missing standalone trace: {payload.get('n_packets_missing_standalone_input_trace')}",
         f"- Packets with replan metadata trace: {payload.get('n_packets_with_replan_metadata_trace')}",
+        f"- Packets with residual goal contexts: {payload.get('n_packets_with_residual_goal_contexts')}",
+        f"- Residual goal contexts: {payload.get('n_packet_residual_goal_contexts')}",
+        f"- Residual context source kinds: {payload.get('packet_residual_context_source_kinds')}",
         f"- Packets with quality controls: {payload.get('n_packets_with_quality_controls')}",
         f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         "- LLM route-adoption pending quality-control blockers: "

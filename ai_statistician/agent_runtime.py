@@ -119,12 +119,14 @@ class RuntimeIterationTrace:
     produced_artifact_ids: tuple[str, ...] = ()
     evidence_ids: tuple[str, ...] = ()
     next_task_id: str = ""
+    next_task: AgentTask | None = None
     failure_classification: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_json(self) -> dict[str, Any]:
         row = asdict(self)
         row["task"] = asdict(self.task)
+        row["next_task"] = asdict(self.next_task) if self.next_task is not None else None
         row["observations"] = [asdict(obs) for obs in self.observations]
         row["tool_calls"] = [asdict(call) for call in self.tool_calls]
         return row
@@ -315,6 +317,7 @@ class AgentRuntime:
                 produced_artifact_ids=tuple(result.produced_artifacts.keys()),
                 evidence_ids=tuple(row.evidence_id for row in result.evidence_entries),
                 next_task_id=result.next_task.task_id if result.next_task is not None else "",
+                next_task=result.next_task,
                 failure_classification=result.failure_classification,
             )
             traces.append(trace)
@@ -394,12 +397,13 @@ def _is_transient_subsystem_exception(exc: Exception) -> bool:
     module = type(exc).__module__.lower()
     text = str(exc).lower()
     haystack = f"{module}.{name} {text}"
+    if "timeout" in haystack or "timed out" in haystack:
+        return False
     retry_markers = (
         "apiconnectionerror",
         "api_connection_error",
         "ratelimiterror",
         "rate_limit_error",
-        "timeout",
         "connection",
         "temporarily unavailable",
         "server error",

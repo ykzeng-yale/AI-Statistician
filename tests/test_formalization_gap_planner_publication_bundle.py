@@ -42,6 +42,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -81,6 +82,7 @@ from ai_statistician.formalization_gap_planner_proof_state_triage import (
     proof_state_triage_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
+    FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
     prover_adapter_packet_json_schema,
     prover_adapter_response_json_schema,
     prover_adapter_response_validation_row_json_schema,
@@ -205,11 +207,22 @@ def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
                         "depends_on": [],
                         "source_refs": ["fixture_source"],
                         "source_search_status": "SOURCE_BACKED",
-                    }
-                ],
-                "lean_realization_dag_nodes": [
-                    {
-                        "node_id": "formal:rank_uniformity_bridge",
+                        }
+                    ],
+                    "informal_knowledge_dag_edges": [],
+                    "formal_realization_dag_nodes": [
+                        {
+                            "node_id": "formal:rank_uniformity_bridge",
+                            "primitive": "rank_uniformity",
+                            "coverage_bucket": "bridge_needed",
+                            "formalization_action": "prove_bridge",
+                            "target_prover_family": "lean4",
+                        }
+                    ],
+                    "formal_realization_dag_edges": [],
+                    "lean_realization_dag_nodes": [
+                        {
+                            "node_id": "formal:rank_uniformity_bridge",
                         "primitive": "rank_uniformity",
                         "coverage_bucket": "bridge_needed",
                         "formalization_action": "prove_bridge",
@@ -221,9 +234,23 @@ def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
                         "formal_node_id": "formal:rank_uniformity_bridge",
                         "alignment_status": "bridge_needed",
                         "alignment_rationale": "One bridge lemma is enough.",
-                    }
-                ],
-                "minimal_delta_plan": {
+                        }
+                    ],
+                    "formal_attempt_queue": [
+                        {
+                            "attempt_id": "attempt:rank_uniformity_bridge",
+                            "formal_node_id": "formal:rank_uniformity_bridge",
+                            "primitive": "rank_uniformity",
+                            "target_prover_family": "lean4",
+                            "owner": "lean_lsp",
+                            "action": "attempt the rank-uniformity bridge lemma",
+                            "attempt_kind": "bridge_proof",
+                            "prerequisite_formal_node_ids": [],
+                            "expected_feedback": ["residual_goals"],
+                            "target_primitives": ["rank_uniformity"],
+                        }
+                    ],
+                    "minimal_delta_plan": {
                     "selected_primitives": ["rank_uniformity"],
                     "cost_model_version": "formalization_gap_planner_minimal_delta_cost_policy:1",
                     "route_cost": 4,
@@ -297,7 +324,28 @@ def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
     return out_dir
 
 
+def _fixture_residual_goal_context() -> dict[str, object]:
+    return {
+        "source_kind": "proof_state_feedback",
+        "residual_goal": "rank_uniformity requires an explicit bridge lemma",
+        "residual_goals": ["rank_uniformity"],
+        "residual_primitives": ["rank_uniformity"],
+        "source_refs": ["fixture-source"],
+        "source_snippets": [
+            {
+                "source_ref": "fixture-source",
+                "text": "Fixture source backs the residual bridge obligation.",
+            }
+        ],
+        "formal_gap_boundary": (
+            "Formal boundary: residual context guides adapter mapping but is "
+            "not kernel proof evidence."
+        ),
+    }
+
+
 def _fixture_prover_adapter_packet() -> dict[str, object]:
+    residual_context = _fixture_residual_goal_context()
     return {
         "schema_version": 1,
         "prover_adapter_packet_id": "packet:fixture",
@@ -334,8 +382,25 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
+            "residual_goal_contexts": [residual_context],
+            "has_residual_goal_contexts": True,
+            "residual_goal_context_count": 1,
+            "residual_context_source_kinds": ["proof_state_feedback"],
             "applied_hook_kinds": ["resource_response_ledger"],
+            "formal_attempt_queue_index": -1,
+            "formal_attempt_initial_ready": False,
+            "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+            "formal_attempt_prerequisite_formal_node_ids": [],
+            "formal_attempt_prerequisite_refinement_item_ids": [],
+            "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+            "formal_attempt_missing_prerequisite_formal_node_ids": [],
+            "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         },
+        "residual_goal_contexts": [residual_context],
+        "n_residual_goal_contexts": 1,
+        "residual_context_source_kinds": ["proof_state_feedback"],
+        "n_residual_contexts_with_source_refs": 1,
+        "n_residual_contexts_with_formal_gap_boundary": 1,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -343,6 +408,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "formal_attempt_queue_index": -1,
+        "formal_attempt_initial_ready": False,
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "formal_attempt_prerequisite_formal_node_ids": [],
+        "formal_attempt_prerequisite_refinement_item_ids": [],
+        "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+        "formal_attempt_missing_prerequisite_formal_node_ids": [],
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -399,6 +472,9 @@ def _fixture_prover_adapter_response_validation_row(
         "library_snapshot_ref": "",
         "semantic_alignment_notes": "",
         "residual_translation_gaps": [],
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "prerequisite_feedback_satisfied": False,
+        "prerequisite_response_ids": [],
         "kernel_verified_claimed": False,
         "acceptance_status": "AWAITING_PROVER_ADAPTER_MAPPING",
         "proof_evidence_status": "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE",
@@ -434,6 +510,11 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_missing_target_library_snapshot_trace": 0,
         "n_packets_target_library_snapshot_mismatch": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_residual_goal_contexts": 1,
+        "n_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_packet_residual_contexts_with_source_refs": 1,
+        "n_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_packets_with_quality_controls": 1,
         "n_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -484,6 +565,13 @@ def _fixture_cross_prover_matrix_row(
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_packets_with_formal_attempt_dependency": 0,
+        "n_packets_formal_attempt_initial_ready": 0,
+        "n_packets_formal_attempt_waiting": 0,
+        "n_packets_formal_attempt_missing_prerequisites": 0,
+        "by_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -516,6 +604,11 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_missing_target_library_snapshot_trace": 0,
         "n_total_packets_target_library_snapshot_mismatch": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_residual_goal_contexts": 1,
+        "n_total_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_total_packet_residual_contexts_with_source_refs": 1,
+        "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_total_packets_with_quality_controls": 1,
         "n_total_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -566,6 +659,13 @@ def _fixture_cross_prover_target_summary(
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -578,6 +678,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_missing_target_library_snapshot_trace": 0,
                 "n_packets_target_library_snapshot_mismatch": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_residual_goal_contexts": 1,
+                "n_packet_residual_goal_contexts": 1,
+                "packet_residual_context_source_kinds": [
+                    "proof_state_feedback"
+                ],
+                "n_packet_residual_contexts_with_source_refs": 1,
+                "n_packet_residual_contexts_with_formal_gap_boundary": 1,
                 "n_packets_with_quality_controls": 1,
                 "n_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
@@ -629,6 +736,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
+                "n_packets_with_formal_attempt_dependency": 0,
+                "n_packets_formal_attempt_initial_ready": 0,
+                "n_packets_formal_attempt_waiting": 0,
+                "n_packets_formal_attempt_missing_prerequisites": 0,
+                "by_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
                 },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (
@@ -844,6 +958,52 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_requests_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert manifest["llm_route_planner_summary"]["n_rows_with_provider_usage"] == 0
+    assert manifest["llm_route_planner_summary"]["total_provider_input_tokens"] == 0
+    assert manifest["llm_route_planner_summary"]["total_provider_output_tokens"] == 0
+    assert manifest["llm_route_planner_summary"]["total_provider_total_tokens"] == 0
+    assert (
+        manifest["llm_route_planner_summary"]["provider_usage_summary"][
+            "row_count"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_quality_control_obligation_inventory"
         ]
         == 0
@@ -863,6 +1023,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["llm_route_planner_summary"][
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
         ]
         == 0
     )
@@ -959,6 +1143,14 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "n_lean_realization_dag_nodes"
     ] == 0
     assert manifest["llm_route_planner_summary"]["n_route_alignment_edges"] == 0
+    assert (
+        manifest["llm_route_planner_summary"]["n_formal_attempt_queue_items"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_rows_with_formal_attempt_queue"]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"]["n_accepted_route_plans"] == 0
     assert (
         manifest["llm_route_planner_summary"][
@@ -994,6 +1186,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_rows_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
     assert (
@@ -1013,6 +1217,70 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_request_library_alignment_route_options"
         ]
         >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_provider_usage"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "total_provider_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "total_provider_output_tokens"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "total_provider_total_tokens"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"]["provider_usage_summary"][
+            "row_count"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    report = (
+        out_dir / "formalization_gap_planner_publication_bundle.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/0"
+        in report
+    )
+    assert (
+        "Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/0"
+        in report
+    )
+    assert (
+        "LLM formal-attempt queues primary/feedback: primary_items=0 "
+        "primary_rows=0 feedback_items=0 feedback_rows=0"
+        in report
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
@@ -1049,6 +1317,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_quality_control_obligation_inventory"
         ]
         == 0
@@ -1071,6 +1357,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 0
+    )
     assert manifest["feedback_llm_route_planner_summary"]["n_rows"] == 1
     assert manifest["feedback_llm_route_planner_summary"][
         "n_informal_knowledge_dag_nodes"
@@ -1086,6 +1396,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     ] == 0
     assert (
         manifest["feedback_llm_route_planner_summary"]["n_route_alignment_edges"]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_formal_attempt_queue_items"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_formal_attempt_queue"
+        ]
         == 0
     )
     assert (
@@ -1127,6 +1449,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
             "n_generated_responses_haiku_to_sonnet_escalated"
         ]
         == 0
@@ -1144,14 +1478,42 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert validation_summary["n_payloads"] == 1
     assert validation_summary["n_valid_payloads"] == 1
     assert validation_summary["n_invalid_payloads"] == 0
-    assert validation_summary["n_payloads_with_declared_target_prover_family"] == 0
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert validation_summary["n_payloads_with_formal_attempt_queue"] == 1
+    assert validation_summary["n_payload_formal_attempt_queue_items"] == 1
+    assert validation_summary["n_payloads_with_formal_attempt_queue_errors"] == 0
+    assert validation_summary["n_formal_attempt_queue_errors"] == 0
+    assert validation_summary["n_payloads_with_declared_target_prover_family"] == 1
     assert (
         validation_summary[
             "n_request_bound_payloads_with_target_prover_family_mismatch"
         ]
         == 0
     )
-    assert validation_summary["by_payload_target_prover_family"] == {}
+    assert validation_summary["by_payload_target_prover_family"] == {"lean4": 1}
     assert validation_summary["by_request_context_target_prover_family"] == {}
     assert (
         out_dir
@@ -1397,8 +1759,22 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_provider": "",
         "llm_route_planner_model": "",
         "llm_route_planner_model_tier": "",
+        "llm_route_planner_model_tier_decision_basis": "",
+        "llm_route_planner_model_tier_decision_sonnet_triggers": [],
+        "llm_route_planner_model_tier_decision_sonnet_trigger_count": 0,
+        "llm_route_planner_source_feedback_row_count": 0,
+        "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": 0,
+        "llm_route_planner_source_feedback_proof_body_execution_failure_count": 0,
+        "llm_route_planner_source_feedback_formal_environment_blocker_count": 0,
         "llm_route_planner_route_adoption_status": "",
         "llm_route_planner_route_adoption_blockers": [],
+        "llm_route_planner_route_adoption_preconditions": {},
+        "llm_route_planner_route_adoption_precondition_present": False,
+        "llm_route_planner_route_adoption_precondition_blocked_before_response": False,
+        "llm_route_planner_route_adoption_precondition_known_blockers": [],
+        "llm_route_planner_route_adoption_precondition_required_response_fields": [],
+        "llm_route_planner_route_adoption_precondition_known_blocker_count": 0,
+        "llm_route_planner_route_adoption_precondition_required_response_field_count": 0,
         "llm_route_planner_acceptance_status": "",
         "llm_route_planner_model_selection_rationale": "",
         "llm_route_planner_has_generator_metadata": False,
@@ -2050,11 +2426,18 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_total_packets_missing_alignment": 0,
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
-                "n_total_packets_with_target_library_snapshot_trace": 1,
-                "n_total_packets_missing_target_library_snapshot_trace": 0,
-                "n_total_packets_target_library_snapshot_mismatch": 0,
-                "n_total_packets_with_replan_metadata_trace": 1,
-                "n_total_packets_with_quality_controls": 1,
+                    "n_total_packets_with_target_library_snapshot_trace": 1,
+                    "n_total_packets_missing_target_library_snapshot_trace": 0,
+                    "n_total_packets_target_library_snapshot_mismatch": 0,
+                    "n_total_packets_with_replan_metadata_trace": 1,
+                    "n_total_packets_with_residual_goal_contexts": 1,
+                    "n_total_packet_residual_goal_contexts": 1,
+                    "packet_residual_context_source_kinds": [
+                        "proof_state_feedback"
+                    ],
+                    "n_total_packet_residual_contexts_with_source_refs": 1,
+                    "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
+                    "n_total_packets_with_quality_controls": 1,
                 "n_total_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
                     "required_quality_signals",
@@ -2106,12 +2489,20 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "by_total_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
+                "n_total_packets_with_formal_attempt_dependency": 0,
+                "n_total_packets_formal_attempt_initial_ready": 0,
+                "n_total_packets_formal_attempt_waiting": 0,
+                "n_total_packets_formal_attempt_missing_prerequisites": 0,
+                "by_total_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
-                "standalone_input_trace_packet_count_consistent": True,
-                "target_library_snapshot_trace_packet_count_consistent": True,
-                "quality_control_packet_count_consistent": True,
-                "all_ok": True,
+                    "standalone_input_trace_packet_count_consistent": True,
+                    "target_library_snapshot_trace_packet_count_consistent": True,
+                    "quality_control_packet_count_consistent": True,
+                    "residual_context_packet_count_consistent": True,
+                    "all_ok": True,
             },
             indent=2,
         ),
@@ -2287,12 +2678,88 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["evaluation_summary"]["n_llm_route_adoption_blockers"] == 0
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == ()
+    )
+    assert (
+        payload["evaluation_summary"][
+            "llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == ()
+    )
     assert payload["evaluation_summary"]["llm_route_adoption_blockers"] == ()
     assert payload["evaluation_summary"]["llm_route_adoption_blocker_counts"] == {}
     assert payload["evaluation_summary"]["llm_route_adoption_status_counts"] == {}
     assert (
         payload["evaluation_summary"]["evaluation_by_llm_route_adoption_blocker"]
         == {}
+    )
+    assert (
+        payload["evaluation_summary"]["llm_route_planner_provider_usage_summary"]
+        == {}
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_provider_usage"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_output_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_cache_read_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_total_tokens"
+        ]
+        == 0
     )
     assert payload["evaluation_summary"]["n_rows_with_quality_controls"] == 0
     assert payload["evaluation_summary"]["n_quality_control_fields"] == 0
@@ -2303,6 +2770,37 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == ()
     )
     assert payload["evaluation_summary"]["quality_control_stop_conditions"] == ()
+    cross_prover_attempt_summary = payload[
+        "cross_prover_formal_attempt_dependency_summary"
+    ]
+    assert cross_prover_attempt_summary["requested"] is True
+    assert cross_prover_attempt_summary["n_total_packets"] == 1
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_with_formal_attempt_dependency"
+        ]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_formal_attempt_initial_ready"
+        ]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary["n_total_packets_formal_attempt_waiting"]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_formal_attempt_missing_prerequisites"
+        ]
+        == 0
+    )
+    assert cross_prover_attempt_summary[
+        "by_total_packet_formal_attempt_dependency_status"
+    ] == {"not_formal_attempt_queue_item": 1}
+    assert cross_prover_attempt_summary["target_summary_consistent"] is True
     assert payload["llm_route_planner_summary"]["requested"] is False
     assert payload["llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["llm_route_planner_summary"]["n_rows"] == 0
@@ -2677,6 +3175,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_response_payload_validation_summary"
         in publication_bundle_manifest_schema_payload["required"]
     )
+    assert (
+        "cross_prover_formal_attempt_dependency_summary"
+        in publication_bundle_manifest_schema_payload["required"]
+    )
+    llm_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["llm_route_planner_summary"]
+    assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
+    assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
     validation_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_response_payload_validation_summary"]
@@ -2684,6 +3191,38 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "n_request_bound_payloads_with_target_prover_family_mismatch"
         in validation_summary_schema["required"]
     )
+    assert (
+        "n_request_bound_payloads_with_route_adoption_preconditions"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        in validation_summary_schema["required"]
+    )
+    assert "n_payloads_with_formal_attempt_queue" in validation_summary_schema[
+        "required"
+    ]
+    assert "n_payload_formal_attempt_queue_items" in validation_summary_schema[
+        "required"
+    ]
+    assert "n_payloads_with_formal_attempt_queue_errors" in validation_summary_schema[
+        "required"
+    ]
+    assert "n_formal_attempt_queue_errors" in validation_summary_schema["required"]
+    cross_prover_attempt_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["cross_prover_formal_attempt_dependency_summary"]
+    assert (
+        "n_total_packets_formal_attempt_waiting"
+        in cross_prover_attempt_summary_schema["required"]
+    )
+    assert (
+        "by_total_packet_formal_attempt_dependency_status"
+        in cross_prover_attempt_summary_schema["required"]
+    )
+    assert "target_summary_consistent" in cross_prover_attempt_summary_schema[
+        "required"
+    ]
     assert "path" in publication_bundle_manifest_schema_payload["properties"][
         "core_artifacts"
     ]["items"]["required"]
@@ -2905,6 +3444,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
     assert (
+        "llm_route_planner_model_tier_decision_ledger_schema"
+        in schema_catalog_entry_names
+    )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_model_tier_decision_ledger_schema"
+    ]["schema_id"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+    assert (
         "llm_route_planner_seed_route_selection_schema"
         in schema_catalog_entry_names
     )
@@ -3108,7 +3654,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
-        == "2026-06-12"
+        == "2026-06-17"
     )
     assert llm_model_policy["source_evidence"] == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     assert llm_model_policy["source_evidence"][
@@ -3512,6 +4058,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

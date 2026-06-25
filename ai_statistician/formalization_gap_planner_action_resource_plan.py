@@ -76,6 +76,10 @@ ACTION_KIND_COMPONENT_IDS: dict[str, tuple[str, ...]] = {
         "formal_library_coverage_mapping",
         "route_revision_handoff",
     ),
+    "route_revision": (
+        "route_revision_handoff",
+        "prover_feedback_refinement",
+    ),
 }
 
 
@@ -91,6 +95,11 @@ class FormalizationGapPlannerActionResourcePlanRow:
     primitive: str
     coverage_bucket: str
     queue_action_kind: str
+    priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     target_prover_family: str
     library_snapshot_ref: str
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -231,6 +240,24 @@ def export_formalization_gap_planner_action_resource_plan(
             1 for row in rows if row.actionable_work_items
         ),
         "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
+        ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "n_target_prover_replay": by_action_kind.get("target_prover_replay", 0),
@@ -316,6 +343,11 @@ def action_resource_plan_row_json_schema() -> dict[str, object]:
         "primitive",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "candidate_declaration_rows",
@@ -371,6 +403,11 @@ def action_resource_plan_row_json_schema() -> dict[str, object]:
             "primitive": {"type": "string", "minLength": 1},
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "enum": list(QUEUE_ACTION_KINDS)},
+            "priority_score": {"type": "integer"},
+            "minimal_delta_cost_score": {"type": "integer"},
+            "reuse_readiness_score": {"type": "integer"},
+            "evidence_readiness_score": {"type": "integer"},
+            "priority_rationale": string_array,
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "candidate_declaration_rows": {
@@ -476,6 +513,16 @@ def validate_action_resource_plan_row(
                 "candidate_declaration_rows"
                 f"[{index}].target_prover_family must match row target_prover_family"
             )
+    for field_name in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -719,6 +766,15 @@ def _action_resource_plan_row(
         primitive=str(action_row.get("primitive", "")),
         coverage_bucket=str(action_row.get("coverage_bucket", "")),
         queue_action_kind=action_kind,
+        priority_score=_bounded_int(action_row.get("priority_score", 0)),
+        minimal_delta_cost_score=_bounded_int(
+            action_row.get("minimal_delta_cost_score", 100)
+        ),
+        reuse_readiness_score=_bounded_int(action_row.get("reuse_readiness_score", 0)),
+        evidence_readiness_score=_bounded_int(
+            action_row.get("evidence_readiness_score", 0)
+        ),
+        priority_rationale=_str_tuple(action_row.get("priority_rationale", [])),
         target_prover_family=target_prover_family,
         library_snapshot_ref=str(action_row.get("library_snapshot_ref", "")),
         candidate_declaration_rows=_candidate_declaration_rows(action_row),
@@ -890,6 +946,21 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = lower
+    return max(lower, min(upper, parsed))
+
+
+def _average_int(values: Any) -> int:
+    items = [int(value) for value in values]
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _candidate_declaration_rows(
     action_row: dict[str, object],
 ) -> tuple[dict[str, object], ...]:
@@ -998,6 +1069,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Frontier escalation coverage: {payload.get('n_with_frontier_escalation_resources')}",
         f"- Resource-contract coverage: {payload.get('n_with_resource_contracts')}",
         f"- Rows with actionable work items: {payload.get('n_with_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_resource_plan_rows')}"

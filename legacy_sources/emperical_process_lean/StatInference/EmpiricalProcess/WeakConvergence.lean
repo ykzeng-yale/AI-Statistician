@@ -4162,7 +4162,7 @@ theorem vdVWProbabilityMeasuresTight_range_of_tendsto_limsup_norm_tail
       exact ⟨n, rfl⟩
     · rintro ⟨n, rfl⟩
       exact ⟨μ n, ⟨n, rfl⟩, rfl⟩
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_of_tendsto_limsup_measure_norm_gt
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure S) : Measure S)) h)
 
@@ -4191,7 +4191,7 @@ theorem vdVWProbabilityMeasuresTight_range_iff_tendsto_limsup_norm_tail
       exact ⟨n, rfl⟩
     · rintro ⟨n, rfl⟩
       exact ⟨μ n, ⟨n, rfl⟩, rfl⟩
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_iff_tendsto_limsup_measure_norm_gt
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure S) : Measure S)))
 
@@ -4271,7 +4271,7 @@ theorem vdVWProbabilityMeasuresTight_range_of_tendsto_limsup_inner
       exact ⟨n, rfl⟩
     · rintro ⟨n, rfl⟩
       exact ⟨μ n, ⟨n, rfl⟩, rfl⟩
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_of_tendsto_limsup_inner (𝕜 := 𝕜)
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure E) : Measure E)) h)
 
@@ -4304,7 +4304,7 @@ theorem vdVWProbabilityMeasuresTight_range_iff_tendsto_limsup_inner
       exact ⟨n, rfl⟩
     · rintro ⟨n, rfl⟩
       exact ⟨μ n, ⟨n, rfl⟩, rfl⟩
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_iff_tendsto_limsup_inner (𝕜 := 𝕜)
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure E) : Measure E)))
 
@@ -4340,7 +4340,7 @@ theorem vdVWProbabilityMeasuresTight_range_of_tendsto_limsup_inner_of_norm_eq_on
       exact ⟨n, rfl⟩
     · rintro ⟨n, rfl⟩
       exact ⟨μ n, ⟨n, rfl⟩, rfl⟩
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_of_tendsto_limsup_inner_of_norm_eq_one
       (𝕜 := 𝕜)
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure E) : Measure E)) h)
@@ -4382,7 +4382,7 @@ theorem
       ∀ᶠ n in atTop,
         (((μ n : ProbabilityMeasure E) : Measure E) Set.univ) ≤ (1 : ENNReal) :=
     Eventually.of_forall (fun n => by simp)
-  simpa [VdVWProbabilityMeasuresTight, hset] using
+  simpa [VdVWProbabilityMeasuresTight, hset, Set.range] using
     (MeasureTheory.isTightMeasureSet_range_of_tendsto_limsup_measureReal_inner_of_norm_eq_one
       (𝕜 := 𝕜)
       (μ := fun n : ℕ => ((μ n : ProbabilityMeasure E) : Measure E)) h
@@ -4418,7 +4418,11 @@ theorem vdVWWeakConvergenceProbabilityMeasures_iff_levyProkhorovDist_tendsto_zer
       Tendsto (fun i => levyProkhorovDist (μs i : Measure S) (μ : Measure S)) l (𝓝 0) := by
   change Tendsto μs l (𝓝 μ) ↔ _
   rw [(LevyProkhorov.probabilityMeasureHomeomorph (Ω := S)).isEmbedding.tendsto_nhds_iff]
-  simpa [LevyProkhorov.dist_probabilityMeasure_def] using
+  change
+    Tendsto (fun i => LevyProkhorov.ofMeasure (μs i)) l
+        (𝓝 (LevyProkhorov.ofMeasure μ)) ↔
+      Tendsto (fun i => levyProkhorovDist (μs i : Measure S) (μ : Measure S)) l (𝓝 0)
+  simpa [LevyProkhorov.dist_probabilityMeasure_def, Function.comp_def] using
     (tendsto_iff_dist_tendsto_zero :
       Tendsto (fun i => LevyProkhorov.ofMeasure (μs i)) l
         (𝓝 (LevyProkhorov.ofMeasure μ)) ↔

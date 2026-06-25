@@ -12,6 +12,28 @@ PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
 
 
+class PacketValidationError(ValueError):
+    """Structured packet validation failure for runtime learning feedback."""
+
+    def __init__(
+        self,
+        *,
+        validation_label: str,
+        attempts: int,
+        errors: list[str],
+        history: list[dict[str, Any]],
+    ) -> None:
+        self.validation_label = validation_label
+        self.attempts = attempts
+        self.errors = [str(error) for error in errors]
+        self.history = [dict(row) for row in history]
+        super().__init__(
+            f"{validation_label} failed validation after {attempts} attempt(s): "
+            + "; ".join(self.errors)
+            + _failure_history_suffix(self.history)
+        )
+
+
 def generate_validated_json_packet(
     *,
     provider: GeneratorBackend,
@@ -54,7 +76,7 @@ def generate_validated_json_packet(
             packet = build_packet(payload, response, raw_text)
             errors = validate_packet(packet)
         except Exception as exc:
-            errors = [f"{type(exc).__name__}: {exc}"]
+            errors = [_format_generation_error(exc, raw_text)]
         last_errors = [str(error) for error in errors]
         history.append(
             {
@@ -64,6 +86,8 @@ def generate_validated_json_packet(
                 "ok": not last_errors,
                 "errors": last_errors,
                 "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
+                "response_text_chars": len(raw_text),
+                "response_metadata": _compact_response_metadata(response.metadata),
             }
         )
         if packet is not None and not last_errors:
@@ -79,10 +103,79 @@ def generate_validated_json_packet(
                 errors=last_errors,
                 validation_label=validation_label,
             )
-    raise ValueError(
-        f"{validation_label} failed validation after {attempts} attempt(s): "
-        + "; ".join(last_errors)
+    raise PacketValidationError(
+        validation_label=validation_label,
+        attempts=attempts,
+        errors=last_errors,
+        history=history,
     )
+
+
+def _failure_history_suffix(history: list[dict[str, Any]]) -> str:
+    if not history:
+        return ""
+    last = {
+        key: history[-1].get(key)
+        for key in (
+            "attempt_index",
+            "provider",
+            "model",
+            "response_text_chars",
+            "response_metadata",
+            "raw_response_fingerprint",
+        )
+        if history[-1].get(key) not in (None, "", [], {})
+    }
+    return "; last_attempt_summary=" + json.dumps(last, sort_keys=True, default=str)[:1200]
+
+
+def _format_generation_error(exc: Exception, raw_text: str) -> str:
+    message = f"{type(exc).__name__}: {exc}"
+    if isinstance(exc, json.JSONDecodeError):
+        excerpt = _single_line_excerpt(raw_text, center=exc.pos, radius=320)
+        if excerpt:
+            message += f"; response_excerpt_around_error={excerpt!r}"
+    return message
+
+
+def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    keep_keys = (
+        "provider_stop_reason",
+        "provider_stop_sequence",
+        "provider_status",
+        "provider_incomplete_details",
+        "provider_usage",
+        "retry_count",
+        "timeout_seconds",
+        "requested_model",
+        "provider_reported_model",
+        "request_model_tier",
+        "provider_reported_model_tier",
+        "provider_reported_model_tier_mismatch",
+        "requested_model_tier_mismatch",
+    )
+    compact: dict[str, Any] = {}
+    for key in keep_keys:
+        value = metadata.get(key)
+        if value not in (None, "", [], {}):
+            compact[key] = _compact_metadata_value(value)
+    return compact
+
+
+def _compact_metadata_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= 400 else value[:397] + "..."
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_metadata_value(child)
+            for key, child in list(value.items())[:12]
+            if child not in (None, "", [], {})
+        }
+    if isinstance(value, list):
+        return [_compact_metadata_value(item) for item in value[:8]]
+    return str(value)[:400]
 
 
 def _repair_prompt(
@@ -98,8 +191,11 @@ def _repair_prompt(
         "invalid_response_excerpt": bad_response[:2000],
         "repair_instructions": [
             "Return only a single JSON object.",
+            "Rewrite the full JSON object from scratch; do not continue or patch the invalid response.",
             "Satisfy the original required_output_contract exactly.",
             "Keep all fields concise so the corrected JSON finishes within the response budget.",
+            "Use exactly one item for required arrays unless the original contract explicitly requires more.",
+            "Keep string fields under 240 characters and avoid multiline derivation essays.",
             "Preserve all evidence boundaries.",
             "Do not claim tool execution, simulation execution, production promotion, Lean proof, or kernel verification.",
         ],
@@ -110,6 +206,18 @@ def _repair_prompt(
         "Repair the packet. Return ONLY corrected JSON.\n\n"
         + json.dumps(payload, indent=2, default=str)
     )
+
+
+def _single_line_excerpt(text: str, *, center: int, radius: int) -> str:
+    raw = str(text or "")
+    if not raw:
+        return ""
+    start = max(0, center - max(0, radius))
+    end = min(len(raw), center + max(0, radius))
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(raw) else ""
+    excerpt = raw[start:end].replace("\n", "\\n")
+    return prefix + excerpt + suffix
 
 
 def extract_json_object(text: str, *, label: str = "LLM response") -> dict[str, Any]:

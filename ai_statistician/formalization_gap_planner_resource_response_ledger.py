@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 9
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 11
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:9"
+    "formalization-gap-planner-resource-response-ledger-row:11"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -59,6 +59,11 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
+    priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     target_prover_family: str
     library_snapshot_ref: str
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -79,6 +84,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     llm_route_planner_hook_kind: str
     llm_route_planner_queries: tuple[str, ...]
     llm_route_planner_source_item: dict[str, object]
+    residual_goal_context: dict[str, object]
     llm_route_planner_response_trace_grounded: bool
     llm_route_planner_response_trace_mismatches: tuple[str, ...]
     response_present: bool
@@ -280,6 +286,14 @@ def export_formalization_gap_planner_resource_response_ledger(
             and not row.llm_route_planner_response_trace_grounded
             and not row.llm_route_planner_response_trace_mismatches
         ),
+        "n_llm_route_planner_residual_context_rows": sum(
+            1 for row in rows if row.residual_goal_context
+        ),
+        "n_llm_route_planner_traced_residual_interpretation_rows": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_source_kind == "residual_interpretation"
+        ),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
         ),
@@ -310,6 +324,24 @@ def export_formalization_gap_planner_resource_response_ledger(
         ),
         "n_actionable_work_items": sum(
             len(row.actionable_work_items) for row in rows
+        ),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
         ),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
@@ -440,6 +472,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "llm_route_planner_source_kind": {"type": "string"},
             "llm_route_planner_source_index": {"type": "integer"},
             "llm_route_planner_hook_kind": {"type": "string"},
+            "residual_goal_context": {"type": "object"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -481,6 +514,11 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "candidate_declaration_rows",
@@ -501,6 +539,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "llm_route_planner_hook_kind",
         "llm_route_planner_queries",
         "llm_route_planner_source_item",
+        "residual_goal_context",
         "llm_route_planner_response_trace_grounded",
         "llm_route_planner_response_trace_mismatches",
         "response_present",
@@ -563,6 +602,27 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
+            "priority_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "minimal_delta_cost_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "reuse_readiness_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "evidence_readiness_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "priority_rationale": string_array,
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "candidate_declaration_rows": {
@@ -586,6 +646,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "llm_route_planner_hook_kind": {"type": "string"},
             "llm_route_planner_queries": string_array,
             "llm_route_planner_source_item": {"type": "object"},
+            "residual_goal_context": {"type": "object"},
             "llm_route_planner_response_trace_grounded": {"type": "boolean"},
             "llm_route_planner_response_trace_mismatches": string_array,
             "response_present": {"type": "boolean"},
@@ -699,6 +760,16 @@ def validate_resource_response_ledger_row(
             "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
             "resource response rows must use formal_declaration_hits only"
         )
+    for field_name in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -939,6 +1010,17 @@ def _ledger_row(
         actionable_work_items=actionable_work_items,
         coverage_bucket=str(request_row.get("coverage_bucket", "")),
         queue_action_kind=str(request_row.get("queue_action_kind", "")),
+        priority_score=_bounded_int(request_row.get("priority_score", 0)),
+        minimal_delta_cost_score=_bounded_int(
+            request_row.get("minimal_delta_cost_score", 100)
+        ),
+        reuse_readiness_score=_bounded_int(
+            request_row.get("reuse_readiness_score", 0)
+        ),
+        evidence_readiness_score=_bounded_int(
+            request_row.get("evidence_readiness_score", 0)
+        ),
+        priority_rationale=_str_tuple(request_row.get("priority_rationale", [])),
         target_prover_family=target_prover_family,
         library_snapshot_ref=str(request_row.get("library_snapshot_ref", "")),
         candidate_declaration_rows=_candidate_declaration_rows(
@@ -961,6 +1043,7 @@ def _ledger_row(
         llm_route_planner_hook_kind=str(llm_trace["hook_kind"]),
         llm_route_planner_queries=_str_tuple(llm_trace["queries"]),
         llm_route_planner_source_item=_dict_value(llm_trace, "source_item"),
+        residual_goal_context=_dict_value(llm_trace, "residual_goal_context"),
         llm_route_planner_response_trace_grounded=llm_trace_grounded,
         llm_route_planner_response_trace_mismatches=llm_trace_mismatches,
         response_present=response_present,
@@ -1039,8 +1122,15 @@ def _llm_route_planner_trace_from_request(
         _dict_value(request_payload, "llm_route_planner_source_item")
         or _dict_value(request_playbook, "llm_route_planner_source_item")
     )
+    residual_goal_context = _residual_goal_context_value(
+        _dict_value(request_payload, "residual_goal_context")
+        or _dict_value(request_playbook, "residual_goal_context")
+        or _dict_value(playbook_summary, "residual_goal_context")
+    )
     return {
-        "trace_present": bool(row_id or source_kind or hook_kind or source_item),
+        "trace_present": bool(
+            row_id or source_kind or hook_kind or source_item or residual_goal_context
+        ),
         "row_id": row_id,
         "request_id": request_id,
         "source_kind": source_kind,
@@ -1048,7 +1138,39 @@ def _llm_route_planner_trace_from_request(
         "hook_kind": hook_kind,
         "queries": queries,
         "source_item": source_item,
+        "residual_goal_context": residual_goal_context,
     }
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+        "source_search_queries",
+        "literature_queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    if "source_snippets" in context:
+        context["source_snippets"] = _dict_tuple(context.get("source_snippets", []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+        "source_search_status",
+        "formal_gap_boundary",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
 
 
 def _llm_route_planner_response_trace_status(
@@ -1629,6 +1751,26 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = lower
+    return max(lower, min(upper, parsed))
+
+
+def _average_int(values: Any) -> int:
+    items: list[int] = []
+    for value in values:
+        try:
+            items.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if isinstance(values, dict):
         return (values,)
@@ -1788,6 +1930,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_ledger_rows')}"
         ),
         f"- Actionable work items: {payload.get('n_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         f"- Contract minimum met: {payload.get('n_response_contract_minimum_met')}",
         f"- Contract OK: {payload.get('n_response_contract_ok')}",
         (
@@ -1805,6 +1965,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM route-planner response trace mismatches: "
             f"{payload.get('n_llm_route_planner_response_trace_mismatches')}"
+        ),
+        (
+            f"- LLM route-planner residual context rows: "
+            f"{payload.get('n_llm_route_planner_residual_context_rows')} "
+            f"residual_interpretation={payload.get('n_llm_route_planner_traced_residual_interpretation_rows')}"
         ),
         f"- Formal declaration hits: {payload.get('n_formal_declaration_hits')}",
         f"- Rows with missing contract fields: {payload.get('n_missing_response_contract_field_rows')}",

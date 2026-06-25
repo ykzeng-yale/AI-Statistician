@@ -476,6 +476,186 @@ def _suite_rows(
             and not bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
             else ("no passing source-withheld fresh holdout frontier suite is currently present",),
         ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S10_live_coding_agent_generated_repair",
+            exercised=bool(artifacts.get("coding_agent_generated_code_repair_eval")),
+            status="OK"
+            if bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
+            else "CAPACITY_GAP",
+            evidence_paths=(
+                str(artifacts.get("coding_agent_generated_code_repair_eval", "")),
+                "runs/coding_agent_generated_code_repair_eval/coding_agent_generated_code_repair_eval_manifest.json",
+            ),
+            key_counts={
+                "coding_agent_generated_code_repair_capability_evidence_ok": counts.get(
+                    "coding_agent_generated_code_repair_capability_evidence_ok"
+                ),
+                "coding_agent_algorithm_capability_evidence_ok": counts.get(
+                    "coding_agent_algorithm_capability_evidence_ok"
+                ),
+                "coding_agent_simulation_capability_evidence_ok": counts.get(
+                    "coding_agent_simulation_capability_evidence_ok"
+                ),
+                "coding_agent_algorithm_repair_sequences": counts.get(
+                    "coding_agent_algorithm_repair_sequences"
+                ),
+                "coding_agent_simulation_repair_sequences": counts.get(
+                    "coding_agent_simulation_repair_sequences"
+                ),
+            },
+            honesty_boundary=(
+                "Static fixture plumbing and registered templates do not count as coding-agent "
+                "capacity. This suite checks generated implementation/simulation repair only; "
+                "it is not theorem proof evidence."
+            ),
+            issues=()
+            if bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
+            else (
+                "no live Claude/OpenAI combined AlgorithmEngineer+SimulationEngineer generated-code fail-then-pass repair evidence is present",
+            ),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S11_live_formalizer_lean_candidate_repair",
+            exercised=bool(artifacts.get("formalizer_lean_candidate_repair_eval")),
+            status="OK"
+            if bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
+            else "CAPACITY_GAP",
+            evidence_paths=(
+                str(artifacts.get("formalizer_lean_candidate_repair_eval", "")),
+                "runs/formalizer_lean_candidate_repair_eval/formalizer_lean_candidate_repair_eval_manifest.json",
+            ),
+            key_counts={
+                "formalizer_lean_candidate_repair_capability_evidence_ok": counts.get(
+                    "formalizer_lean_candidate_repair_capability_evidence_ok"
+                ),
+                "formalizer_lean_candidate_repair_sequences": counts.get(
+                    "formalizer_lean_candidate_repair_sequences"
+                ),
+                "formalizer_lean_candidate_repair_local_lean_checked": counts.get(
+                    "formalizer_lean_candidate_repair_local_lean_checked"
+                ),
+                "formalizer_lean_candidate_repair_local_lean_compiled": counts.get(
+                    "formalizer_lean_candidate_repair_local_lean_compiled"
+                ),
+                "formalizer_lean_candidate_repair_candidate_kernel_verified": counts.get(
+                    "formalizer_lean_candidate_repair_candidate_kernel_verified"
+                ),
+                "formalizer_lean_candidate_repair_source_theorem_kernel_verified": counts.get(
+                    "formalizer_lean_candidate_repair_source_theorem_kernel_verified"
+                ),
+            },
+            honesty_boundary=(
+                "This suite checks live Formalizer/ProofEngineer response to local Lean "
+                "candidate diagnostics. A compiled candidate is kernel evidence only "
+                "for that exact helper artifact; it is not source theorem proof and "
+                "static fixture plumbing cannot count as capability."
+            ),
+            issues=()
+            if bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
+            else (
+                "no live Claude/OpenAI Formalizer Lean-candidate fail-then-pass repair evidence is present",
+            ),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S12_live_architect_research_path_policy",
+            exercised=bool(artifacts.get("architect_research_path_policy_eval")),
+            status="OK"
+            if bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
+            else "CAPACITY_GAP",
+            evidence_paths=(
+                str(artifacts.get("architect_research_path_policy_eval", "")),
+                "runs/architect_research_path_policy_eval/architect_research_path_policy_eval_manifest.json",
+            ),
+            key_counts={
+                "architect_research_path_policy_capability_evidence_ok": counts.get(
+                    "architect_research_path_policy_capability_evidence_ok"
+                ),
+                "architect_research_path_policy_cases": counts.get(
+                    "architect_research_path_policy_cases"
+                ),
+                "architect_research_path_policy_cases_ok": counts.get(
+                    "architect_research_path_policy_cases_ok"
+                ),
+                "architect_research_path_policy_problem_analysis": counts.get(
+                    "architect_research_path_policy_problem_analysis"
+                ),
+                "architect_research_path_policy_knowledge_bank_plan": counts.get(
+                    "architect_research_path_policy_knowledge_bank_plan"
+                ),
+                "architect_research_path_policy_literature_fair_comparison_plan": counts.get(
+                    "architect_research_path_policy_literature_fair_comparison_plan"
+                ),
+            },
+            honesty_boundary=(
+                "This suite checks live Architect evidence-policy and research-path "
+                "planning only. It does not execute downstream agents, run "
+                "simulations, or prove theorems; static replay cannot count as "
+                "Architect capability."
+            ),
+            issues=()
+            if bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
+            else (
+                "no live Claude/OpenAI Architect research-path policy evidence is present",
+            ),
+        ),
+        BenchmarkSuiteGuidanceRow(
+            suite_id="S13_live_integrated_agent_runtime_capability",
+            exercised=bool(counts.get("research_agent_runtime_audit_requested"))
+            or bool(artifacts.get("research_agent_runtime_audit")),
+            status="OK"
+            if bool(counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician"))
+            else "CAPACITY_GAP",
+            evidence_paths=(
+                str(artifacts.get("research_agent_runtime_audit", "")),
+                "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json",
+            ),
+            key_counts={
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": counts.get(
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician"
+                ),
+                "research_agent_runtime_capability_status": counts.get(
+                    "research_agent_runtime_capability_status"
+                ),
+                "research_agent_runtime_architect_enabled": counts.get(
+                    "research_agent_runtime_architect_enabled"
+                ),
+                "research_agent_runtime_live_generator_agents_enabled": counts.get(
+                    "research_agent_runtime_live_generator_agents_enabled"
+                ),
+                "research_agent_runtime_generated_code_sandbox_executed": counts.get(
+                    "research_agent_runtime_generated_code_sandbox_executed"
+                ),
+                "research_agent_runtime_generated_simulation_sandbox_executed": counts.get(
+                    "research_agent_runtime_generated_simulation_sandbox_executed"
+                ),
+                "research_agent_runtime_formalizer_lean_candidate_local_lean_checked": counts.get(
+                    "research_agent_runtime_formalizer_lean_candidate_local_lean_checked"
+                ),
+                "research_agent_runtime_formalizer_lean_candidate_local_lean_compiled": counts.get(
+                    "research_agent_runtime_formalizer_lean_candidate_local_lean_compiled"
+                ),
+                "research_agent_runtime_formal_gaps": counts.get(
+                    "research_agent_runtime_formal_gaps"
+                ),
+                "research_agent_runtime_full_frontier_theorem_proved": counts.get(
+                    "research_agent_runtime_full_frontier_theorem_proved"
+                ),
+                "research_agent_runtime_capability_gaps": counts.get(
+                    "research_agent_runtime_capability_gaps"
+                ),
+            },
+            honesty_boundary=(
+                "This is the integrated live AgentRuntime gate. Component gates "
+                "S10/S11/S12 do not imply this suite passes. Static/no-Architect/"
+                "template-only runs cannot count, and this suite still separates "
+                "runtime capability from full theorem proof."
+            ),
+            issues=()
+            if bool(counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician"))
+            else (
+                "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard",
+            ),
+        ),
     ]
     return tuple(rows)
 
@@ -539,12 +719,64 @@ def _top_actions(
         },
     ]
     if (
+        rows_by_id.get("S13_live_integrated_agent_runtime_capability", None) is not None
+        and rows_by_id["S13_live_integrated_agent_runtime_capability"].status != "OK"
+    ):
+        actions.append(
+            {
+                "rank": len(actions) + 1,
+                "owner_suite": "S13_live_integrated_agent_runtime_capability",
+                "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, and internal ProofEngineer handoffs in the same run.",
+                "why": "S10/S11/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution.",
+                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, and explicit theorem-proof boundary fields.",
+            }
+        )
+    if (
+        rows_by_id.get("S10_live_coding_agent_generated_repair", None) is not None
+        and rows_by_id["S10_live_coding_agent_generated_repair"].status != "OK"
+    ):
+        actions.append(
+            {
+                "rank": 4,
+                "owner_suite": "S10_live_coding_agent_generated_repair",
+                "action": "Run the combined live coding-agent generated-code repair gate with Claude/OpenAI and require both AlgorithmEngineer and SimulationEngineer fail-then-pass repair evidence.",
+                "why": "Static fixtures and registered templates are plumbing/baseline evidence only; the system still needs live generated-code repair evidence for autonomous implementation and simulation capacity.",
+                "success_metric": "coding_agent_generated_code_repair_capability_evidence_ok=true with nonzero algorithm and simulation repair sequences from a live provider.",
+            }
+        )
+    if (
+        rows_by_id.get("S11_live_formalizer_lean_candidate_repair", None) is not None
+        and rows_by_id["S11_live_formalizer_lean_candidate_repair"].status != "OK"
+    ):
+        actions.append(
+            {
+                "rank": len(actions) + 1,
+                "owner_suite": "S11_live_formalizer_lean_candidate_repair",
+                "action": "Run the live Formalizer Lean-candidate repair gate with Claude/OpenAI and require local Lean fail-then-pass repair evidence.",
+                "why": "Formalizer/ProofEngineer candidate materialization and local Lean feedback are plumbing unless a live generator repairs a failed candidate into a locally checked one.",
+                "success_metric": "formalizer_lean_candidate_repair_capability_evidence_ok=true with a nonzero repair sequence and local_lean_compiled > 0 from a live provider.",
+            }
+        )
+    if (
+        rows_by_id.get("S12_live_architect_research_path_policy", None) is not None
+        and rows_by_id["S12_live_architect_research_path_policy"].status != "OK"
+    ):
+        actions.append(
+            {
+                "rank": len(actions) + 1,
+                "owner_suite": "S12_live_architect_research_path_policy",
+                "action": "Run the live Architect research-path policy gate with Claude/OpenAI and require required/advisory/optional cases to produce valid evidence contracts.",
+                "why": "Architect prompt contracts are not enough unless a live generator can actually choose and preserve proof-first, simulation-first, and optional evidence policies.",
+                "success_metric": "architect_research_path_policy_capability_evidence_ok=true with all cases OK and problem-analysis/knowledge-bank/fair-comparison fields present.",
+            }
+        )
+    if (
         rows_by_id.get("S8_adversarial_unsupported_intake", None) is not None
         and rows_by_id["S8_adversarial_unsupported_intake"].status != "OK"
     ):
         actions.append(
             {
-                "rank": 4,
+                "rank": len(actions) + 1,
                 "owner_suite": "S8_adversarial_unsupported_intake",
                 "action": "Wire adversarial unsupported-intake and prompt-leakage cases into the release audit.",
                 "why": "The current benchmark stack has no dedicated guardrail suite for vague, contradictory, or gold-leaking frontier prompts.",

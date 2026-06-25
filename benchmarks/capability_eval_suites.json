@@ -13,8 +13,8 @@
     "core_research_simulation_flagged": "0/10",
     "adaptive_mc_rerun_rows_resolved": "4/4",
     "research_system_all_gates_passed": true,
-    "proof_bank_kernel_verified_release": "122/122",
-    "proof_bank_fingerprint": "ef1bca1b50c4f5794aded10ba8cb7ce17fc2a9ba1bf6278a99acf587d9979929",
+    "proof_bank_kernel_verified_release": "128/128",
+    "proof_bank_fingerprint": "4ea1594752b40746bec7c6e0b43c9e2bf0c27208d40e9f1be7d39bd5719b11a7",
     "proof_search_kernel_verified_release": "12/12",
     "vetted_research_algorithms": "33/33",
     "formal_gaps": 20,
@@ -139,7 +139,7 @@
         "runs/release_local_kernel_audit/proof_search_audit/proof_search_audit_manifest.json",
         "runs/release_local_kernel_audit/proof_training_export/proof_training_manifest.json"
       ],
-      "current_proof_bank_size": 122,
+      "current_proof_bank_size": 128,
       "current_search_size": 12,
       "release_floor": [
         "proof-bank obligations verified",
@@ -237,6 +237,139 @@
         "reported separately from training/tuning corpora",
         "manual gold review for theorem target and limitation grading"
       ]
+    },
+    {
+      "id": "S10_live_coding_agent_generated_repair",
+      "name": "Live Coding-Agent Generated-Code Repair Suite",
+      "capability": "Claude/OpenAI AlgorithmEngineer and SimulationEngineer write generated Python, execute locally, consume failure/metric feedback, and repair",
+      "primary_artifacts": [
+        "runs/coding_agent_generated_code_repair_eval/coding_agent_generated_code_repair_eval_manifest.json",
+        "runs/coding_agent_generated_code_repair_eval/algorithm_engineer/algorithm_engineer_generated_code_repair_eval_manifest.json",
+        "runs/coding_agent_generated_code_repair_eval/simulation_engineer/simulation_engineer_generated_code_repair_eval_manifest.json"
+      ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli coding-agent-generated-code-repair-eval --provider anthropic --question-id conformal_prediction_coverage --out runs/coding_agent_generated_code_repair_eval"
+      ],
+      "release_floor": [
+        "provider is anthropic or openai, not static",
+        "AlgorithmEngineer has a generated-code fail-then-pass repair sequence",
+        "SimulationEngineer has a generated-code fail-then-pass repair sequence",
+        "capability_evidence_ok is true only when both live generated-code repair gates pass"
+      ],
+      "current_status": "live Anthropic Claude Haiku evidence present in runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard: AlgorithmEngineer and SimulationEngineer each have one generated-code fail-then-pass repair sequence; this is coding-agent implementation/simulation evidence only",
+      "current_live_evidence": {
+        "manifest": "runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard/coding_agent_generated_code_repair_eval_manifest.json",
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "capability_evidence_ok": true,
+        "algorithm_repair_sequences": 1,
+        "simulation_repair_sequences": 1,
+        "proof_evidence_status": "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE"
+      },
+      "honesty_boundary": "Static fixture plumbing and registered templates do not count as coding-agent capability; this suite is implementation/simulation capability evidence, not theorem proof evidence."
+    },
+    {
+      "id": "S11_live_formalizer_lean_candidate_repair",
+      "name": "Live Formalizer Lean-Candidate Repair Suite",
+      "capability": "Claude/OpenAI Formalizer/ProofEngineer consumes local Lean diagnostics, generates a repaired Lean candidate, and gets that exact candidate checked locally",
+      "primary_artifacts": [
+        "runs/formalizer_lean_candidate_repair_eval/formalizer_lean_candidate_repair_eval_manifest.json",
+        "runs/formalizer_lean_candidate_repair_eval/formalizer_lean_candidate_repair_eval_result.json"
+      ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli formalizer-lean-candidate-repair-eval --provider anthropic --question-id conformal_prediction_coverage --out runs/formalizer_lean_candidate_repair_eval"
+      ],
+      "release_floor": [
+        "provider is anthropic or openai, not static",
+        "Formalizer/ProofEngineer has a Lean-candidate fail-then-pass repair sequence",
+        "local Lean checked at least one generated candidate",
+        "local Lean compiled at least one generated candidate",
+        "source_theorem_kernel_verified remains false unless the exact source theorem is separately checked"
+      ],
+      "current_status": "live Anthropic Claude Sonnet evidence present in runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair: Formalizer repaired a prior local-Lean failure into one locally compiled Lean candidate; this is helper-candidate capability evidence only",
+      "current_live_evidence": {
+        "manifest": "runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair/formalizer_lean_candidate_repair_eval_manifest.json",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "capability_evidence_ok": true,
+        "candidate_kernel_verified": true,
+        "source_theorem_kernel_verified": false,
+        "repair_sequences": 1,
+        "local_lean_checked": 1,
+        "local_lean_compiled": 1,
+        "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+      },
+      "honesty_boundary": "Static fixture plumbing does not count as Formalizer/ProofEngineer capability; local Lean compile verifies only the exact generated helper candidate, not source theorem proof and not semantic faithfulness."
+    },
+    {
+      "id": "S12_live_architect_research_path_policy",
+      "name": "Live Architect Research-Path Policy Suite",
+      "capability": "Claude/OpenAI ArchitectCoordinator emits valid evidence contracts and chooses proof-first, simulation-first, or optional research paths across representative statistical tasks",
+      "primary_artifacts": [
+        "runs/architect_research_path_policy_eval/architect_research_path_policy_eval_manifest.json",
+        "runs/architect_research_path_policy_eval/architect_research_path_policy_eval_result.json"
+      ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli architect-research-path-policy-eval --provider anthropic --out runs/architect_research_path_policy_eval"
+      ],
+      "release_floor": [
+        "provider is anthropic or openai, not static",
+        "required finite-sample proof case routes to required/proof-first or dual-track with formal_required_for_final=true",
+        "advisory algorithmic exploration case routes to advisory/simulation-first with formal_required_for_final=false",
+        "optional mixed-evidence case returns a valid policy/path",
+        "problem_analysis, stat_knowledge_bank_plan, and literature_fair_comparison_plan are present in every case"
+      ],
+      "current_status": "live Anthropic Claude Sonnet evidence present in runs/architect_research_path_policy_eval_live_20260623_sonnet: Architect returned valid policy/path contracts for all 3 cases with problem-analysis, knowledge-bank, and fair-comparison fields present",
+      "current_live_evidence": {
+        "manifest": "runs/architect_research_path_policy_eval_live_20260623_sonnet/architect_research_path_policy_eval_manifest.json",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "capability_evidence_ok": true,
+        "n_cases": 3,
+        "n_cases_ok": 3,
+        "n_with_problem_analysis": 3,
+        "n_with_stat_knowledge_bank_plan": 3,
+        "n_with_literature_fair_comparison_plan": 3,
+        "proof_evidence_status": "ARCHITECT_RESEARCH_PATH_POLICY_EVAL_NOT_PROOF_EVIDENCE"
+      },
+      "honesty_boundary": "This suite is Architect planning capability evidence only; it does not execute tools, validate simulations, or prove theorems, and static replay cannot count as capability."
+    },
+    {
+      "id": "S13_live_integrated_agent_runtime_capability",
+      "name": "Live Integrated AgentRuntime Capability Suite",
+      "capability": "A single live Claude/OpenAI AgentRuntime run keeps Architect control, generated implementation/simulation repair, Formalizer local Lean feedback, runtime learning, and ProofEngineer handoffs in the same loop",
+      "primary_artifacts": [
+        "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json",
+        "runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json"
+      ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --architect-coordinator-provider same --simulation-engineer-provider same --algorithm-engineer-provider same --formalizer-provider same --critic-evaluator-provider same --local-lean --formalizer-candidate-local-lean --theorem-closure-proofengineer-bridge --theorem-closure-proofengineer-local-lean --source-semantic-proofengineer-bridge --source-semantic-proofengineer-local-lean --source-theorem-promotion-proofengineer-bridge --source-theorem-promotion-proofengineer-local-lean --source-theorem-formal-environment-proofengineer-bridge --source-theorem-formal-environment-proofengineer-signature-probes --source-theorem-formal-environment-proofengineer-execute-proof-body --source-theorem-formal-environment-proofengineer-proof-body-local-lean --source-theorem-proof-body-adapter-proofengineer-bridge --source-theorem-proof-body-adapter-proofengineer-local-lean --source-to-bridge-premise-derivation-proofengineer-bridge --source-to-bridge-premise-derivation-proofengineer-local-lean --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-closure-review --source-theorem-exact-semantic-definition-candidate-synthesis --source-theorem-exact-semantic-definition-candidate-synthesis-local-lean --source-theorem-exact-semantic-definition-source-root legacy_sources/emperical_process_lean --out runs/live_integrated_agent_runtime_capability_eval"
+      ],
+      "release_floor": [
+        "runtime_evaluation_mode is capability_eval",
+        "provider is anthropic or openai and all core subsystems are live generator-backed",
+        "ArchitectCoordinator is enabled and its evidence contract propagates to downstream artifacts",
+        "generated algorithm code has a local fail-then-pass repair sequence",
+        "generated simulation code has a local fail-then-pass repair sequence",
+        "Formalizer/ProofEngineer generated Lean candidate is checked locally",
+        "internal ProofEngineer handoffs run or are explicitly not required",
+        "static replay, no-Architect routing, registered-template-only success, and manual path override do not count",
+        "source theorem proof is claimed only when exact local Lean/AXLE source-theorem verification succeeds"
+      ],
+      "current_status": "latest inspected runtime audit is a capacity gap: generated algorithm/simulation and Formalizer local Lean feedback are present, but ArchitectCoordinator is disabled in that audited run, no generated algorithm repair sequence was observed, formal gaps remain, and full source theorem proof is absent",
+      "current_live_evidence": {
+        "manifest": "runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json",
+        "capability_ready_for_full_ai_statistician": false,
+        "n_requirements": 42,
+        "n_passed": 33,
+        "n_failed": 9,
+        "architect_coordinator_enabled": false,
+        "generated_algorithm_code_executed": true,
+        "generated_simulation_code_executed": true,
+        "formalizer_lean_candidate_local_check_attempted": true,
+        "full_frontier_theorem_kernel_proved": false
+      },
+      "honesty_boundary": "This is the integrated live runtime gate. Passing S10, S11, and S12 separately does not imply S13 passes; S13 is still capability evidence, not theorem proof unless the exact source theorem is kernel verified."
     }
   ],
   "recommended_next_gate_stack": [
@@ -244,6 +377,10 @@
     "S1_core_method_e2e",
     "S3_frontier_blind_theory_target_on_all_60",
     "S4_formal_primitive_ladder_top_10",
-    "S7_feedback_loop_repair_with_seeded_failures"
+    "S7_feedback_loop_repair_with_seeded_failures",
+    "S10_live_coding_agent_generated_repair",
+    "S11_live_formalizer_lean_candidate_repair",
+    "S12_live_architect_research_path_policy",
+    "S13_live_integrated_agent_runtime_capability"
   ]
 }

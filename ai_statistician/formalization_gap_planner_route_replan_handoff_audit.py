@@ -137,6 +137,55 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_traces_with_target_theorem_context_packet": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_llm_target_theorem_context_packet": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_route_planning_brief",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_blockers": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_route_adoption_precondition_blockers",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_required_response_fields": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_target_theorem_context_target_mismatches": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_target_theorem_context_target_mismatches",
+                0,
+            )
+            or 0
+        ),
         "n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces": int(
             roundtrip_payload.get(
                 "n_standalone_input_trace_llm_route_planner_hook_traces",
@@ -147,6 +196,20 @@ def audit_formalization_gap_planner_route_replan_handoff(
         "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces": int(
             roundtrip_payload.get(
                 "n_standalone_input_traces_with_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_residual_goal_contexts": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_residual_goal_contexts",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_residual_goal_contexts": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_residual_goal_contexts",
                 0,
             )
             or 0
@@ -554,6 +617,24 @@ def _row_checks(
         )
         checks.append(
             _check(
+                f"row_{idx}_seed_route_llm_route_planning_brief",
+                "provenance",
+                "seed route and replan metadata preserve the LLM route-planning brief",
+                _seed_route_planning_brief_observed(row, seed_route),
+                _seed_route_planning_brief_ok(row, seed_route),
+            )
+        )
+        checks.append(
+            _check(
+                f"row_{idx}_seed_route_llm_route_adoption_preconditions",
+                "provenance",
+                "seed route and replan metadata preserve LLM route-adoption preconditions",
+                _seed_route_adoption_preconditions_observed(row, seed_route),
+                _seed_route_adoption_preconditions_ok(row, seed_route),
+            )
+        )
+        checks.append(
+            _check(
                 f"row_{idx}_next_command",
                 "rows",
                 "standalone-plan command present",
@@ -675,6 +756,33 @@ def _roundtrip_checks(
             _roundtrip_trace_ok(roundtrip_payload, seed),
         ),
         _check(
+            "roundtrip_target_theorem_context_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve target theorem context packets",
+            _roundtrip_target_context_observed(roundtrip_payload, seed),
+            _roundtrip_target_context_ok(roundtrip_payload, seed),
+        ),
+        _check(
+            "roundtrip_llm_route_planning_brief_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve LLM route-planning briefs",
+            _roundtrip_route_planning_brief_observed(roundtrip_payload, seed),
+            _roundtrip_route_planning_brief_ok(roundtrip_payload, seed),
+        ),
+        _check(
+            "roundtrip_llm_route_adoption_preconditions_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve LLM route-adoption preconditions",
+            _roundtrip_route_adoption_preconditions_observed(
+                roundtrip_payload,
+                seed,
+            ),
+            _roundtrip_route_adoption_preconditions_ok(
+                roundtrip_payload,
+                seed,
+            ),
+        ),
+        _check(
             "roundtrip_llm_route_planner_hook_trace",
             "roundtrip",
             "roundtrip standalone-input traces preserve applied LLM route-planner hook traces",
@@ -773,6 +881,34 @@ def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:
             "n_standalone_input_traces_with_replan_metadata",
             0,
         ),
+        "n_standalone_input_traces_with_target_theorem_context_packet": payload.get(
+            "n_standalone_input_traces_with_target_theorem_context_packet",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_target_theorem_context_packet": payload.get(
+            "n_standalone_input_traces_with_llm_target_theorem_context_packet",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_route_planning_brief": payload.get(
+            "n_standalone_input_traces_with_llm_route_planning_brief",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_route_adoption_preconditions": payload.get(
+            "n_standalone_input_traces_with_llm_route_adoption_preconditions",
+            0,
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_blockers": payload.get(
+            "n_standalone_input_trace_llm_route_adoption_precondition_blockers",
+            0,
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields": payload.get(
+            "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields",
+            0,
+        ),
+        "n_standalone_input_trace_target_theorem_context_target_mismatches": payload.get(
+            "n_standalone_input_trace_target_theorem_context_target_mismatches",
+            0,
+        ),
         "n_standalone_input_trace_llm_route_planner_hook_traces": payload.get(
             "n_standalone_input_trace_llm_route_planner_hook_traces",
             0,
@@ -862,6 +998,301 @@ def _roundtrip_trace_observed(payload: dict[str, Any], seed: dict[str, Any]) -> 
         f"trace_routes={matched}/{len(seed_routes)} "
         f"trace_with_replan_metadata={with_metadata}"
     )
+
+
+def _roundtrip_target_context_ok(payload: dict[str, Any], seed: dict[str, Any]) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    seed_routes = {
+        str(route.get("route_id", "")): route
+        for route in seed.get("routes", [])
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    }
+    expected_routes = {
+        route_id: _dict_value(route.get("target_theorem_context_packet", {}))
+        for route_id, route in seed_routes.items()
+        if _dict_value(route.get("target_theorem_context_packet", {}))
+    }
+    if not expected_routes:
+        return True
+    if (
+        int(
+            payload.get(
+                "n_standalone_input_traces_with_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        )
+        < len(expected_routes)
+    ):
+        return False
+    if int(
+        payload.get(
+            "n_standalone_input_trace_target_theorem_context_target_mismatches",
+            0,
+        )
+        or 0
+    ):
+        return False
+    for route_id, expected_packet in expected_routes.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if _dict_value(trace.get("target_theorem_context_packet", {})) != expected_packet:
+            return False
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if _dict_value(metadata.get("target_theorem_context_packet", {})) != expected_packet:
+            return False
+    return True
+
+
+def _roundtrip_target_context_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    seed_routes = [
+        route
+        for route in seed.get("routes", [])
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    ]
+    expected = sum(
+        1
+        for route in seed_routes
+        if _dict_value(route.get("target_theorem_context_packet", {}))
+    )
+    return (
+        f"seed_routes_with_packet={expected}; "
+        "roundtrip_traces_with_packet="
+        f"{payload.get('n_standalone_input_traces_with_target_theorem_context_packet', 0)}; "
+        "roundtrip_traces_with_llm_packet="
+        f"{payload.get('n_standalone_input_traces_with_llm_target_theorem_context_packet', 0)}; "
+        "target_mismatches="
+        f"{payload.get('n_standalone_input_trace_target_theorem_context_target_mismatches', 0)}"
+    )
+
+
+def _roundtrip_route_planning_brief_ok(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    expected_routes = _seed_route_planning_briefs(seed)
+    if not expected_routes:
+        return True
+    if (
+        int(
+            payload.get(
+                "n_standalone_input_traces_with_llm_route_planning_brief",
+                0,
+            )
+            or 0
+        )
+        < len(expected_routes)
+    ):
+        return False
+    for route_id, expected_brief in expected_routes.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if (
+            _dict_value(trace.get("llm_route_planner_route_planning_brief", {}))
+            != expected_brief
+        ):
+            return False
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(metadata.get("llm_route_planner_route_planning_brief", {}))
+            != expected_brief
+        ):
+            return False
+    return True
+
+
+def _roundtrip_route_planning_brief_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    expected = _seed_route_planning_briefs(seed)
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    trace_matches = 0
+    metadata_matches = 0
+    for route_id, expected_brief in expected.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            continue
+        if (
+            _dict_value(trace.get("llm_route_planner_route_planning_brief", {}))
+            == expected_brief
+        ):
+            trace_matches += 1
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(metadata.get("llm_route_planner_route_planning_brief", {}))
+            == expected_brief
+        ):
+            metadata_matches += 1
+    return (
+        f"seed_routes_with_brief={len(expected)}; "
+        f"roundtrip_traces_with_brief="
+        f"{payload.get('n_standalone_input_traces_with_llm_route_planning_brief', 0)}; "
+        f"trace_matches={trace_matches}; metadata_matches={metadata_matches}"
+    )
+
+
+def _roundtrip_route_adoption_preconditions_ok(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    expected_routes = _seed_route_adoption_preconditions(seed)
+    if not expected_routes:
+        return True
+    if (
+        int(
+            payload.get(
+                "n_standalone_input_traces_with_llm_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        )
+        < len(expected_routes)
+    ):
+        return False
+    for route_id, expected_preconditions in expected_routes.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if (
+            _dict_value(
+                trace.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+            != expected_preconditions
+        ):
+            return False
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(
+                metadata.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+            != expected_preconditions
+        ):
+            return False
+    return True
+
+
+def _roundtrip_route_adoption_preconditions_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    expected = _seed_route_adoption_preconditions(seed)
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    trace_matches = 0
+    metadata_matches = 0
+    expected_blockers = 0
+    expected_required_fields = 0
+    for route_id, expected_preconditions in expected.items():
+        expected_blockers += len(
+            _str_tuple(expected_preconditions.get("known_pre_response_blockers", []))
+        )
+        expected_required_fields += len(
+            _str_tuple(expected_preconditions.get("response_required_fields", []))
+        )
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            continue
+        if (
+            _dict_value(
+                trace.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+            == expected_preconditions
+        ):
+            trace_matches += 1
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(
+                metadata.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+            == expected_preconditions
+        ):
+            metadata_matches += 1
+    return (
+        f"seed_routes_with_preconditions={len(expected)}; "
+        "roundtrip_traces_with_preconditions="
+        f"{payload.get('n_standalone_input_traces_with_llm_route_adoption_preconditions', 0)}; "
+        f"trace_matches={trace_matches}; metadata_matches={metadata_matches}; "
+        f"expected_blockers={expected_blockers}; "
+        "roundtrip_blockers="
+        f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_blockers', 0)}; "
+        f"expected_required_fields={expected_required_fields}; "
+        "roundtrip_required_fields="
+        f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields', 0)}"
+    )
+
+
+def _seed_route_planning_briefs(seed: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for route in seed.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", ""))
+        if not route_id:
+            continue
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        brief = _dict_value(
+            route.get("llm_route_planner_route_planning_brief", {})
+        ) or _dict_value(
+            metadata.get("llm_route_planner_route_planning_brief", {})
+        )
+        if brief:
+            result[route_id] = brief
+    return result
+
+
+def _seed_route_adoption_preconditions(
+    seed: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for route in seed.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", ""))
+        if not route_id:
+            continue
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        preconditions = _dict_value(
+            route.get("llm_route_planner_route_adoption_preconditions", {})
+        ) or _dict_value(
+            metadata.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        if preconditions:
+            result[route_id] = preconditions
+    return result
 
 
 def _roundtrip_llm_hook_trace_ok(payload: dict[str, Any], seed: dict[str, Any]) -> bool:
@@ -1005,13 +1436,37 @@ def _trace_metadata_fields_ok(
         trace.get("applied_llm_route_planner_hook_traces", [])
     ) != _object_hashes(metadata.get("applied_llm_route_planner_hook_traces", [])):
         return False
+    if _object_hashes(trace.get("residual_goal_contexts", [])) != _object_hashes(
+        metadata.get("residual_goal_contexts", [])
+    ):
+        return False
     trace_metadata = trace.get("replan_metadata", {})
     if not isinstance(trace_metadata, dict):
+        return False
+    if _object_hashes(
+        trace_metadata.get("residual_goal_contexts", [])
+    ) != _object_hashes(metadata.get("residual_goal_contexts", [])):
         return False
     if _object_hashes(
         trace_metadata.get("applied_llm_route_planner_hook_traces", [])
     ) != _object_hashes(metadata.get("applied_llm_route_planner_hook_traces", [])):
         return False
+    expected_brief = _dict_value(
+        metadata.get("llm_route_planner_route_planning_brief", {})
+    )
+    if expected_brief:
+        if (
+            _dict_value(trace.get("llm_route_planner_route_planning_brief", {}))
+            != expected_brief
+        ):
+            return False
+        if (
+            _dict_value(
+                trace_metadata.get("llm_route_planner_route_planning_brief", {})
+            )
+            != expected_brief
+        ):
+            return False
     if _quality_controls_from_payload(
         trace_metadata.get("quality_controls", {})
     ) != _quality_controls_from_payload(metadata.get("quality_controls", {})):
@@ -1385,6 +1840,117 @@ def _seed_quality_controls_observed(
     )
 
 
+def _seed_route_planning_brief_ok(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> bool:
+    row_brief = _dict_value(row.get("route_planning_brief", {}))
+    if not row_brief:
+        return True
+    if not isinstance(seed_route, dict):
+        return False
+    metadata = seed_route.get("replan_metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    return (
+        _dict_value(seed_route.get("llm_route_planner_route_planning_brief", {}))
+        == row_brief
+        and _dict_value(
+            metadata.get("llm_route_planner_route_planning_brief", {})
+        )
+        == row_brief
+    )
+
+
+def _seed_route_planning_brief_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    if not isinstance(seed_route, dict):
+        return "missing seed route"
+    metadata = seed_route.get("replan_metadata", {})
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_brief = _dict_value(row.get("route_planning_brief", {}))
+    route_brief = _dict_value(
+        seed_route.get("llm_route_planner_route_planning_brief", {})
+    )
+    metadata_brief = _dict_value(
+        metadata.get("llm_route_planner_route_planning_brief", {})
+    )
+    return (
+        f"row={bool(row_brief)} route={route_brief == row_brief if row_brief else bool(route_brief)} "
+        f"metadata={metadata_brief == row_brief if row_brief else bool(metadata_brief)} "
+        f"focus={len(_dict_tuple(row_brief.get('planner_focus', [])))} "
+        f"evidence_gaps={len(_dict_tuple(row_brief.get('evidence_gaps', [])))}"
+    )
+
+
+def _seed_route_adoption_preconditions_ok(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> bool:
+    row_preconditions = _dict_value(row.get("route_adoption_preconditions", {}))
+    if not row_preconditions:
+        if not isinstance(seed_route, dict):
+            return True
+        metadata = seed_route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        return not (
+            _dict_value(
+                seed_route.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+            or _dict_value(
+                metadata.get("llm_route_planner_route_adoption_preconditions", {})
+            )
+        )
+    if not isinstance(seed_route, dict):
+        return False
+    metadata = seed_route.get("replan_metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    return (
+        _dict_value(
+            seed_route.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        == row_preconditions
+        and _dict_value(
+            metadata.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        == row_preconditions
+    )
+
+
+def _seed_route_adoption_preconditions_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    if not isinstance(seed_route, dict):
+        return "missing seed route"
+    metadata = seed_route.get("replan_metadata", {})
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_preconditions = _dict_value(row.get("route_adoption_preconditions", {}))
+    route_preconditions = _dict_value(
+        seed_route.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    metadata_preconditions = _dict_value(
+        metadata.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    blockers = _str_tuple(
+        row_preconditions.get("known_pre_response_blockers", [])
+    )
+    required_fields = _str_tuple(
+        row_preconditions.get("response_required_fields", [])
+    )
+    return (
+        f"row={bool(row_preconditions)} "
+        "route="
+        f"{route_preconditions == row_preconditions if row_preconditions else bool(route_preconditions)} "
+        "metadata="
+        f"{metadata_preconditions == row_preconditions if row_preconditions else bool(metadata_preconditions)} "
+        f"blockers={len(blockers)} required_fields={len(required_fields)}"
+    )
+
+
 def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict):
         return {}
@@ -1466,6 +2032,10 @@ def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(values, (list, tuple, set)):
         return tuple()
     return tuple(dict(item) for item in values if isinstance(item, dict))
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:
@@ -1618,6 +2188,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Handoff rows: {payload.get('n_handoff_rows')}",
         f"- Seed routes: {payload.get('n_seed_routes')}",
         f"- Roundtrip plans: {payload.get('n_roundtrip_goal_plans')}",
+        f"- Roundtrip traces with target theorem context: {payload.get('n_roundtrip_standalone_input_traces_with_target_theorem_context_packet')}",
+        f"- Roundtrip traces with LLM route-planning brief: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_planning_brief')}",
+        f"- Roundtrip traces with LLM route-adoption preconditions: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions')}",
         f"- Roundtrip OK: {payload.get('roundtrip_all_ok')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

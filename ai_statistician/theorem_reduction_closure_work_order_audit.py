@@ -110,6 +110,7 @@ def _audit_one_work_order(
         "work_order_id": work_order_id,
         "question_id": str(row.get("question_id", "") or ""),
         "source_formal_target_id": str(row.get("source_formal_target_id", "") or ""),
+        "target_lean_declaration": _lean_declaration_name(lean_statement_sketch),
         "target_theorem_goal_ids": list(row.get("target_theorem_goal_ids", []) or []),
         "verified_bridge_obligation_ids": list(row.get("verified_bridge_obligation_ids", []) or []),
         "lean_export_path": "",
@@ -230,6 +231,15 @@ def _lean_export_content(row: Mapping[str, Any], lean_statement_sketch: str) -> 
 
 def _looks_like_lean_declaration(content: str) -> bool:
     return bool(re.search(r"\b(theorem|lemma|example|def|abbrev)\b", content))
+
+
+def _lean_declaration_name(content: str) -> str:
+    match = re.search(
+        r"(?m)^\s*(?:noncomputable\s+)?(?:private\s+)?"
+        r"(?:theorem|lemma|def|abbrev)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+        content,
+    )
+    return match.group(1) if match else ""
 
 
 def _resolve_lean_project(project: Path | None) -> Path | None:

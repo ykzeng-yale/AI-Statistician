@@ -13,6 +13,7 @@ from .formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
 )
@@ -102,12 +103,40 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_provider: str
     llm_route_planner_model: str
     llm_route_planner_model_tier: str
+    llm_route_planner_model_tier_decision_basis: str
+    llm_route_planner_model_tier_decision_sonnet_triggers: tuple[str, ...]
+    llm_route_planner_model_tier_decision_sonnet_trigger_count: int
+    llm_route_planner_source_feedback_row_count: int
+    llm_route_planner_source_feedback_unverified_semantic_primitive_row_count: int
+    llm_route_planner_source_feedback_proof_body_execution_failure_count: int
+    llm_route_planner_source_feedback_formal_environment_blocker_count: int
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
+    llm_route_planner_primitive_evidence_matrix_witness_present: bool
+    llm_route_planner_primitive_evidence_matrix_accounting_complete: bool
+    llm_route_planner_primitive_evidence_matrix_repair_obligation_count: int
+    llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count: int
+    llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count: int
+    llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count: int
+    llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count: int
+    llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count: int
+    llm_route_planner_route_adoption_preconditions: dict[str, object]
+    llm_route_planner_route_adoption_precondition_present: bool
+    llm_route_planner_route_adoption_precondition_blocked_before_response: bool
+    llm_route_planner_route_adoption_precondition_known_blockers: tuple[str, ...]
+    llm_route_planner_route_adoption_precondition_required_response_fields: tuple[str, ...]
+    llm_route_planner_route_adoption_precondition_known_blocker_count: int
+    llm_route_planner_route_adoption_precondition_required_response_field_count: int
     llm_route_planner_acceptance_status: str
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
     llm_route_planner_generator_metadata_keys: tuple[str, ...]
+    llm_route_planner_has_provider_usage: bool
+    llm_route_planner_provider_input_tokens: int
+    llm_route_planner_provider_output_tokens: int
+    llm_route_planner_provider_cache_creation_input_tokens: int
+    llm_route_planner_provider_cache_read_input_tokens: int
+    llm_route_planner_provider_total_tokens: int
     llm_route_planner_request_contract_blocked: bool
     llm_route_planner_errors: tuple[str, ...]
     llm_route_planner_generation_errors: tuple[str, ...]
@@ -180,6 +209,15 @@ def evaluate_formalization_gap_planner(
     for row in evaluation_rows:
         by_ok[row.ok] = by_ok.get(row.ok, 0) + 1
     by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
+    by_llm_model_tier_decision_basis = (
+        _llm_model_tier_decision_basis_summary(evaluation_rows)
+    )
+    llm_route_planner_provider_usage_rows = _llm_provider_usage_rows(
+        evaluation_rows
+    )
+    llm_route_planner_provider_usage_summary = _llm_provider_usage_summary(
+        llm_route_planner_provider_usage_rows
+    )
     by_llm_route_adoption_status = _llm_route_adoption_status_summary(evaluation_rows)
     by_llm_route_adoption_blocker = _llm_route_adoption_blocker_summary(
         evaluation_rows
@@ -190,6 +228,14 @@ def evaluate_formalization_gap_planner(
     llm_route_adoption_blockers = _unique_row_attr_strings(
         evaluation_rows,
         "llm_route_planner_route_adoption_blockers",
+    )
+    llm_route_adoption_precondition_blockers = _unique_row_attr_strings(
+        evaluation_rows,
+        "llm_route_planner_route_adoption_precondition_known_blockers",
+    )
+    llm_route_adoption_precondition_required_fields = _unique_row_attr_strings(
+        evaluation_rows,
+        "llm_route_planner_route_adoption_precondition_required_response_fields",
     )
     quality_control_fields = _unique_row_attr_strings(
         evaluation_rows,
@@ -282,6 +328,38 @@ def evaluate_formalization_gap_planner(
         "n_rows_with_llm_route_planner_model_tier": sum(
             1 for row in evaluation_rows if row.llm_route_planner_model_tier
         ),
+        "n_rows_with_llm_route_planner_model_tier_decision_basis": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_model_tier_decision_basis
+        ),
+        "n_llm_route_planner_model_tier_decision_sonnet_triggers": sum(
+            row.llm_route_planner_model_tier_decision_sonnet_trigger_count
+            for row in evaluation_rows
+        ),
+        "n_rows_with_llm_route_planner_source_feedback_tier_signal": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_source_feedback_row_count
+        ),
+        "n_llm_route_planner_source_feedback_rows": sum(
+            row.llm_route_planner_source_feedback_row_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_source_feedback_unverified_semantic_primitive_rows": (
+            sum(
+                row.llm_route_planner_source_feedback_unverified_semantic_primitive_row_count
+                for row in evaluation_rows
+            )
+        ),
+        "n_llm_route_planner_source_feedback_proof_body_execution_failures": sum(
+            row.llm_route_planner_source_feedback_proof_body_execution_failure_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_source_feedback_formal_environment_blockers": sum(
+            row.llm_route_planner_source_feedback_formal_environment_blocker_count
+            for row in evaluation_rows
+        ),
         "n_rows_with_llm_route_planner_route_adoption_status": sum(
             1
             for row in evaluation_rows
@@ -327,6 +405,70 @@ def evaluate_formalization_gap_planner(
             if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
             in row.llm_route_planner_route_adoption_blockers
         ),
+        "n_llm_route_adoption_pending_primitive_evidence_matrix_blockers": sum(
+            1
+            for row in evaluation_rows
+            if ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX
+            in row.llm_route_planner_route_adoption_blockers
+        ),
+        "n_rows_with_llm_route_planner_primitive_evidence_matrix_witness": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_primitive_evidence_matrix_witness_present
+        ),
+        "n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_primitive_evidence_matrix_accounting_complete
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_repair_obligations": sum(
+            row.llm_route_planner_primitive_evidence_matrix_repair_obligation_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives": sum(
+            row.llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_selected_without_matrix_rows": sum(
+            row.llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets": sum(
+            row.llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse": sum(
+            row.llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting": sum(
+            row.llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count
+            for row in evaluation_rows
+        ),
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_precondition_present
+        ),
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_adoption_precondition_blocked_before_response
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": sum(
+            row.llm_route_planner_route_adoption_precondition_known_blocker_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": sum(
+            row.llm_route_planner_route_adoption_precondition_required_response_field_count
+            for row in evaluation_rows
+        ),
+        "llm_route_planner_route_adoption_precondition_known_blockers": (
+            llm_route_adoption_precondition_blockers
+        ),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (
+            llm_route_adoption_precondition_required_fields
+        ),
         "llm_route_adoption_blockers": llm_route_adoption_blockers,
         "llm_route_adoption_blocker_counts": llm_route_adoption_blocker_counts,
         "evaluation_by_llm_route_adoption_status": by_llm_route_adoption_status,
@@ -335,6 +477,38 @@ def evaluate_formalization_gap_planner(
             1
             for row in evaluation_rows
             if row.llm_route_planner_has_generator_metadata
+        ),
+        "llm_route_planner_provider_usage_rows": (
+            llm_route_planner_provider_usage_rows
+        ),
+        "llm_route_planner_provider_usage_summary": (
+            llm_route_planner_provider_usage_summary
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            llm_route_planner_provider_usage_summary.get("row_count", 0) or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get("input_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            llm_route_planner_provider_usage_summary.get("output_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_creation_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_read_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            llm_route_planner_provider_usage_summary.get("total_tokens", 0) or 0
         ),
         "n_rows_with_llm_route_planner_request_contract_blocked": sum(
             1
@@ -351,6 +525,9 @@ def evaluate_formalization_gap_planner(
             len(row.llm_route_planner_generation_errors) for row in evaluation_rows
         ),
         "evaluation_by_llm_model_tier": by_llm_model_tier,
+        "evaluation_by_llm_model_tier_decision_basis": (
+            by_llm_model_tier_decision_basis
+        ),
         "n_rows_with_quality_controls": sum(
             1 for row in evaluation_rows if row.quality_controls_present
         ),
@@ -570,8 +747,22 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_provider",
             "llm_route_planner_model",
             "llm_route_planner_model_tier",
+            "llm_route_planner_model_tier_decision_basis",
+            "llm_route_planner_model_tier_decision_sonnet_triggers",
+            "llm_route_planner_model_tier_decision_sonnet_trigger_count",
+            "llm_route_planner_source_feedback_row_count",
+            "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count",
+            "llm_route_planner_source_feedback_proof_body_execution_failure_count",
+            "llm_route_planner_source_feedback_formal_environment_blocker_count",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
+            "llm_route_planner_route_adoption_preconditions",
+            "llm_route_planner_route_adoption_precondition_present",
+            "llm_route_planner_route_adoption_precondition_blocked_before_response",
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
+            "llm_route_planner_route_adoption_precondition_known_blocker_count",
+            "llm_route_planner_route_adoption_precondition_required_response_field_count",
             "llm_route_planner_acceptance_status",
             "llm_route_planner_model_selection_rationale",
             "llm_route_planner_has_generator_metadata",
@@ -656,12 +847,108 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_provider": {"type": "string"},
             "llm_route_planner_model": {"type": "string"},
             "llm_route_planner_model_tier": {"type": "string"},
+            "llm_route_planner_model_tier_decision_basis": {"type": "string"},
+            "llm_route_planner_model_tier_decision_sonnet_triggers": (
+                string_array
+            ),
+            "llm_route_planner_model_tier_decision_sonnet_trigger_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_source_feedback_row_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_source_feedback_proof_body_execution_failure_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_source_feedback_formal_environment_blocker_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
+            "llm_route_planner_primitive_evidence_matrix_witness_present": {
+                "type": "boolean"
+            },
+            "llm_route_planner_primitive_evidence_matrix_accounting_complete": {
+                "type": "boolean"
+            },
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_adoption_preconditions": {"type": "object"},
+            "llm_route_planner_route_adoption_precondition_present": {
+                "type": "boolean"
+            },
+            "llm_route_planner_route_adoption_precondition_blocked_before_response": {
+                "type": "boolean"
+            },
+            "llm_route_planner_route_adoption_precondition_known_blockers": (
+                string_array
+            ),
+            "llm_route_planner_route_adoption_precondition_required_response_fields": (
+                string_array
+            ),
+            "llm_route_planner_route_adoption_precondition_known_blocker_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_adoption_precondition_required_response_field_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_acceptance_status": {"type": "string"},
             "llm_route_planner_model_selection_rationale": {"type": "string"},
             "llm_route_planner_has_generator_metadata": {"type": "boolean"},
             "llm_route_planner_generator_metadata_keys": string_array,
+            "llm_route_planner_has_provider_usage": {"type": "boolean"},
+            "llm_route_planner_provider_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_output_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_cache_creation_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_cache_read_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_total_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_request_contract_blocked": {"type": "boolean"},
             "llm_route_planner_errors": string_array,
             "llm_route_planner_generation_errors": string_array,
@@ -867,11 +1154,91 @@ def _evaluate_row(
         llm_route_planner_provider=str(llm_trace["provider"]),
         llm_route_planner_model=str(llm_trace["model"]),
         llm_route_planner_model_tier=str(llm_trace["model_tier"]),
+        llm_route_planner_model_tier_decision_basis=str(
+            llm_trace["model_tier_decision_basis"]
+        ),
+        llm_route_planner_model_tier_decision_sonnet_triggers=_str_tuple(
+            llm_trace["model_tier_decision_sonnet_triggers"]
+        ),
+        llm_route_planner_model_tier_decision_sonnet_trigger_count=int(
+            llm_trace["model_tier_decision_sonnet_trigger_count"]
+        ),
+        llm_route_planner_source_feedback_row_count=int(
+            llm_trace["source_feedback_row_count"]
+        ),
+        llm_route_planner_source_feedback_unverified_semantic_primitive_row_count=int(
+            llm_trace["source_feedback_unverified_semantic_primitive_row_count"]
+        ),
+        llm_route_planner_source_feedback_proof_body_execution_failure_count=int(
+            llm_trace["source_feedback_proof_body_execution_failure_count"]
+        ),
+        llm_route_planner_source_feedback_formal_environment_blocker_count=int(
+            llm_trace["source_feedback_formal_environment_blocker_count"]
+        ),
         llm_route_planner_route_adoption_status=str(
             llm_trace["route_adoption_status"]
         ),
         llm_route_planner_route_adoption_blockers=_str_tuple(
             llm_trace["route_adoption_blockers"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_witness_present=bool(
+            llm_trace["primitive_evidence_matrix_witness_present"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_accounting_complete=bool(
+            llm_trace["primitive_evidence_matrix_accounting_complete"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_repair_obligation_count=int(
+            llm_trace["primitive_evidence_matrix_repair_obligation_count"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count=int(
+            llm_trace["primitive_evidence_matrix_unaccounted_primitive_count"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_selected_without_matrix_row_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_source_backed_missing_response_source_snippet_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_formal_supported_missing_reuse_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_delta_needed_missing_accounting_count"
+            ]
+        ),
+        llm_route_planner_route_adoption_preconditions=dict(
+            llm_trace["route_adoption_preconditions"]
+        ),
+        llm_route_planner_route_adoption_precondition_present=bool(
+            llm_trace["route_adoption_precondition_present"]
+        ),
+        llm_route_planner_route_adoption_precondition_blocked_before_response=bool(
+            llm_trace["route_adoption_precondition_blocked_before_response"]
+        ),
+        llm_route_planner_route_adoption_precondition_known_blockers=_str_tuple(
+            llm_trace["route_adoption_precondition_known_blockers"]
+        ),
+        llm_route_planner_route_adoption_precondition_required_response_fields=(
+            _str_tuple(
+                llm_trace[
+                    "route_adoption_precondition_required_response_fields"
+                ]
+            )
+        ),
+        llm_route_planner_route_adoption_precondition_known_blocker_count=int(
+            llm_trace["route_adoption_precondition_known_blocker_count"]
+        ),
+        llm_route_planner_route_adoption_precondition_required_response_field_count=int(
+            llm_trace[
+                "route_adoption_precondition_required_response_field_count"
+            ]
         ),
         llm_route_planner_acceptance_status=str(llm_trace["acceptance_status"]),
         llm_route_planner_model_selection_rationale=str(
@@ -882,6 +1249,24 @@ def _evaluate_row(
         ),
         llm_route_planner_generator_metadata_keys=_str_tuple(
             llm_trace["generator_metadata_keys"]
+        ),
+        llm_route_planner_has_provider_usage=bool(
+            llm_trace["has_provider_usage"]
+        ),
+        llm_route_planner_provider_input_tokens=int(
+            llm_trace["provider_input_tokens"]
+        ),
+        llm_route_planner_provider_output_tokens=int(
+            llm_trace["provider_output_tokens"]
+        ),
+        llm_route_planner_provider_cache_creation_input_tokens=int(
+            llm_trace["provider_cache_creation_input_tokens"]
+        ),
+        llm_route_planner_provider_cache_read_input_tokens=int(
+            llm_trace["provider_cache_read_input_tokens"]
+        ),
+        llm_route_planner_provider_total_tokens=int(
+            llm_trace["provider_total_tokens"]
         ),
         llm_route_planner_request_contract_blocked=bool(
             llm_trace["request_contract_blocked"]
@@ -1291,24 +1676,261 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     )
     if not generator_keys:
         generator_keys = tuple(sorted(str(key) for key in generator_metadata))
+    provider_usage = _llm_provider_usage_from_trace(trace, generator_metadata)
     row_id = str(trace.get("llm_route_planner_row_id", "")).strip()
     provider = str(trace.get("llm_route_planner_provider", "")).strip()
     model = str(trace.get("llm_route_planner_model", "")).strip()
     model_tier = str(trace.get("llm_route_planner_model_tier", "")).strip()
+    model_tier_decision_evidence = _dict_value(
+        trace,
+        "llm_route_planner_model_tier_decision_evidence",
+    )
+    route_signal_counts = _dict_value(
+        model_tier_decision_evidence,
+        "route_signal_counts",
+    )
+    source_feedback_counts = _dict_value(
+        model_tier_decision_evidence,
+        "source_theorem_feedback_counts",
+    )
+    sonnet_triggers = _str_tuple(
+        trace.get(
+            "llm_route_planner_model_tier_decision_sonnet_triggers",
+            model_tier_decision_evidence.get("sonnet_triggers", []),
+        )
+    )
     route_adoption_status = str(
         trace.get("llm_route_planner_route_adoption_status", "")
     ).strip()
+    route_adoption_preconditions = _dict_value(
+        trace,
+        "llm_route_planner_route_adoption_preconditions",
+    )
+    if not route_adoption_preconditions:
+        route_adoption_preconditions = _dict_value(
+            trace,
+            "route_adoption_preconditions",
+        )
+    precondition_known_blockers = _str_tuple(
+        route_adoption_preconditions.get("known_pre_response_blockers", [])
+    )
+    precondition_required_fields = _str_tuple(
+        route_adoption_preconditions.get("response_required_fields", [])
+    )
+    precondition_known_count = _int_value(
+        route_adoption_preconditions.get(
+            "n_known_pre_response_blockers",
+            trace.get(
+                "llm_route_adoption_precondition_blocker_count",
+                len(precondition_known_blockers),
+            ),
+        )
+    )
+    if not precondition_known_count:
+        precondition_known_count = len(precondition_known_blockers)
+    precondition_required_count = _int_value(
+        route_adoption_preconditions.get(
+            "n_response_required_fields",
+            trace.get(
+                "llm_route_adoption_precondition_required_response_field_count",
+                len(precondition_required_fields),
+            ),
+        )
+    )
+    if not precondition_required_count:
+        precondition_required_count = len(precondition_required_fields)
+    primitive_matrix_witness = _dict_value(
+        trace,
+        "llm_route_planner_primitive_evidence_matrix_witness",
+    )
+    matrix_unaccounted_primitives = _str_tuple(
+        primitive_matrix_witness.get("matrix_unaccounted_primitives", [])
+    )
+    matrix_selected_without_row = _str_tuple(
+        primitive_matrix_witness.get(
+            "selected_primitives_without_matrix_row",
+            [],
+        )
+    )
+    matrix_source_missing = _str_tuple(
+        primitive_matrix_witness.get(
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            [],
+        )
+    )
+    matrix_formal_missing_reuse = _str_tuple(
+        primitive_matrix_witness.get(
+            "formal_supported_matrix_primitives_missing_reuse",
+            [],
+        )
+    )
+    matrix_delta_missing_accounting = _str_tuple(
+        primitive_matrix_witness.get(
+            "delta_needed_matrix_primitives_missing_accounting",
+            [],
+        )
+    )
+    matrix_unaccounted_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count",
+            len(matrix_unaccounted_primitives),
+        )
+    )
+    matrix_selected_without_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count",
+            len(matrix_selected_without_row),
+        )
+    )
+    matrix_source_missing_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count",
+            len(matrix_source_missing),
+        )
+    )
+    matrix_formal_missing_reuse_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count",
+            len(matrix_formal_missing_reuse),
+        )
+    )
+    matrix_delta_missing_accounting_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count",
+            len(matrix_delta_missing_accounting),
+        )
+    )
+    matrix_repair_obligation_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count",
+            matrix_unaccounted_count
+            + matrix_selected_without_count
+            + matrix_source_missing_count
+            + matrix_formal_missing_reuse_count
+            + matrix_delta_missing_accounting_count,
+        )
+    )
     return {
         "trace_present": bool(
-            row_id or provider or model or model_tier or route_adoption_status
+            row_id
+            or provider
+            or model
+            or model_tier
+            or route_adoption_status
+            or route_adoption_preconditions
+            or provider_usage
         ),
         "row_id": row_id,
         "provider": provider,
         "model": model,
         "model_tier": model_tier,
+        "model_tier_decision_basis": str(
+            trace.get(
+                "llm_route_planner_model_tier_decision_basis",
+                model_tier_decision_evidence.get("decision_basis", ""),
+            )
+        ).strip(),
+        "model_tier_decision_sonnet_triggers": sonnet_triggers,
+        "model_tier_decision_sonnet_trigger_count": _int_value(
+            trace.get(
+                "llm_route_planner_model_tier_decision_sonnet_trigger_count",
+                len(sonnet_triggers),
+            )
+        ),
+        "source_feedback_row_count": _int_value(
+            trace.get(
+                "llm_route_planner_source_feedback_row_count",
+                source_feedback_counts.get(
+                    "total_count",
+                    route_signal_counts.get(
+                        "source_theorem_feedback_row_count",
+                        0,
+                    ),
+                ),
+            )
+        ),
+        "source_feedback_unverified_semantic_primitive_row_count": _int_value(
+            trace.get(
+                "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count",
+                source_feedback_counts.get(
+                    "unverified_semantic_primitive_row_count",
+                    route_signal_counts.get(
+                        "source_theorem_unverified_semantic_primitive_row_count",
+                        0,
+                    ),
+                ),
+            )
+        ),
+        "source_feedback_proof_body_execution_failure_count": _int_value(
+            trace.get(
+                "llm_route_planner_source_feedback_proof_body_execution_failure_count",
+                source_feedback_counts.get(
+                    "proof_body_execution_failure_count",
+                    route_signal_counts.get(
+                        "source_theorem_proof_body_execution_failure_count",
+                        0,
+                    ),
+                ),
+            )
+        ),
+        "source_feedback_formal_environment_blocker_count": _int_value(
+            trace.get(
+                "llm_route_planner_source_feedback_formal_environment_blocker_count",
+                source_feedback_counts.get(
+                    "formal_environment_blocker_count",
+                    route_signal_counts.get(
+                        "source_theorem_formal_environment_blocker_count",
+                        0,
+                    ),
+                ),
+            )
+        ),
         "route_adoption_status": route_adoption_status,
         "route_adoption_blockers": _str_tuple(
             trace.get("llm_route_planner_route_adoption_blockers", [])
+        ),
+        "primitive_evidence_matrix_witness_present": bool(
+            primitive_matrix_witness
+            or trace.get("has_llm_route_planner_primitive_evidence_matrix_witness")
+        ),
+        "primitive_evidence_matrix_accounting_complete": bool(
+            trace.get(
+                "llm_route_planner_primitive_evidence_matrix_accounting_complete",
+                primitive_matrix_witness.get("matrix_accounting_complete", False),
+            )
+        ),
+        "primitive_evidence_matrix_repair_obligation_count": (
+            matrix_repair_obligation_count
+        ),
+        "primitive_evidence_matrix_unaccounted_primitive_count": (
+            matrix_unaccounted_count
+        ),
+        "primitive_evidence_matrix_selected_without_matrix_row_count": (
+            matrix_selected_without_count
+        ),
+        "primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": (
+            matrix_source_missing_count
+        ),
+        "primitive_evidence_matrix_formal_supported_missing_reuse_count": (
+            matrix_formal_missing_reuse_count
+        ),
+        "primitive_evidence_matrix_delta_needed_missing_accounting_count": (
+            matrix_delta_missing_accounting_count
+        ),
+        "route_adoption_preconditions": route_adoption_preconditions,
+        "route_adoption_precondition_present": bool(route_adoption_preconditions),
+        "route_adoption_precondition_blocked_before_response": bool(
+            route_adoption_preconditions.get("blocked_before_response", False)
+        ),
+        "route_adoption_precondition_known_blockers": precondition_known_blockers,
+        "route_adoption_precondition_required_response_fields": (
+            precondition_required_fields
+        ),
+        "route_adoption_precondition_known_blocker_count": (
+            precondition_known_count
+        ),
+        "route_adoption_precondition_required_response_field_count": (
+            precondition_required_count
         ),
         "acceptance_status": str(
             trace.get("llm_route_planner_acceptance_status", "")
@@ -1321,6 +1943,18 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or generator_metadata
         ),
         "generator_metadata_keys": generator_keys,
+        "has_provider_usage": bool(provider_usage),
+        "provider_input_tokens": provider_usage.get("input_tokens", 0),
+        "provider_output_tokens": provider_usage.get("output_tokens", 0),
+        "provider_cache_creation_input_tokens": provider_usage.get(
+            "cache_creation_input_tokens",
+            0,
+        ),
+        "provider_cache_read_input_tokens": provider_usage.get(
+            "cache_read_input_tokens",
+            0,
+        ),
+        "provider_total_tokens": provider_usage.get("total_tokens", 0),
         "request_contract_blocked": bool(
             trace.get("llm_route_planner_request_contract_blocked", False)
         ),
@@ -1329,6 +1963,198 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             trace.get("llm_route_planner_generation_errors", [])
         ),
     }
+
+
+def _llm_provider_usage_from_trace(
+    trace: dict[str, Any],
+    generator_metadata: dict[str, Any],
+) -> dict[str, int]:
+    usage = _dict_value(trace, "llm_route_planner_provider_usage")
+    if not usage:
+        usage = _dict_value(trace, "provider_usage")
+    if not usage:
+        usage = _dict_value(generator_metadata, "provider_usage")
+    if not usage:
+        usage = {
+            "input_tokens": trace.get(
+                "llm_route_planner_provider_input_tokens",
+                trace.get("provider_input_tokens", 0),
+            ),
+            "output_tokens": trace.get(
+                "llm_route_planner_provider_output_tokens",
+                trace.get("provider_output_tokens", 0),
+            ),
+            "cache_creation_input_tokens": trace.get(
+                "llm_route_planner_provider_cache_creation_input_tokens",
+                trace.get("provider_cache_creation_input_tokens", 0),
+            ),
+            "cache_read_input_tokens": trace.get(
+                "llm_route_planner_provider_cache_read_input_tokens",
+                trace.get("provider_cache_read_input_tokens", 0),
+            ),
+            "total_tokens": trace.get(
+                "llm_route_planner_provider_total_tokens",
+                trace.get("provider_total_tokens", 0),
+            ),
+        }
+    return _llm_provider_usage_from_mapping(usage)
+
+
+def _llm_provider_usage_from_mapping(usage: dict[str, Any]) -> dict[str, int]:
+    input_tokens = _nonnegative_int(
+        usage.get("input_tokens", usage.get("prompt_tokens", 0))
+    )
+    output_tokens = _nonnegative_int(
+        usage.get("output_tokens", usage.get("completion_tokens", 0))
+    )
+    cache_creation_tokens = _nonnegative_int(
+        usage.get("cache_creation_input_tokens", 0)
+    )
+    cache_read_tokens = _nonnegative_int(usage.get("cache_read_input_tokens", 0))
+    total_tokens = _nonnegative_int(usage.get("total_tokens", 0))
+    if total_tokens == 0:
+        total_tokens = (
+            input_tokens
+            + output_tokens
+            + cache_creation_tokens
+            + cache_read_tokens
+        )
+    parsed = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_creation_input_tokens": cache_creation_tokens,
+        "cache_read_input_tokens": cache_read_tokens,
+        "total_tokens": total_tokens,
+    }
+    if not any(parsed.values()):
+        return {}
+    return parsed
+
+
+def _llm_provider_usage_rows(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> tuple[dict[str, object], ...]:
+    usage_rows: list[dict[str, object]] = []
+    for row in rows:
+        if not row.llm_route_planner_has_provider_usage:
+            continue
+        usage_row = {
+            "usage_row_id": (
+                "formalization_gap_planner_evaluation_llm_provider_usage:"
+                + stable_hash(
+                    [
+                        row.evaluation_id,
+                        row.goal_plan_id,
+                        row.route_id,
+                        row.llm_route_planner_row_id,
+                        row.llm_route_planner_provider,
+                        row.llm_route_planner_model,
+                        row.llm_route_planner_model_tier,
+                        row.llm_route_planner_provider_total_tokens,
+                    ]
+                )[:20]
+            ),
+            "evaluation_id": row.evaluation_id,
+            "goal_plan_id": row.goal_plan_id,
+            "route_id": row.route_id,
+            "display_name": row.display_name,
+            "llm_route_planner_row_id": row.llm_route_planner_row_id,
+            "provider_name": row.llm_route_planner_provider,
+            "model": row.llm_route_planner_model,
+            "model_tier": row.llm_route_planner_model_tier,
+            "matched_ground_truth": row.matched_ground_truth,
+            "ok": row.ok,
+            "route_recall": row.route_recall,
+            "delta_precision": row.delta_precision,
+            "route_adoption_status": row.llm_route_planner_route_adoption_status,
+            "input_tokens": row.llm_route_planner_provider_input_tokens,
+            "output_tokens": row.llm_route_planner_provider_output_tokens,
+            "cache_creation_input_tokens": (
+                row.llm_route_planner_provider_cache_creation_input_tokens
+            ),
+            "cache_read_input_tokens": (
+                row.llm_route_planner_provider_cache_read_input_tokens
+            ),
+            "total_tokens": row.llm_route_planner_provider_total_tokens,
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        usage_rows.append(usage_row)
+    return tuple(usage_rows)
+
+
+def _llm_provider_usage_summary(
+    usage_rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model_tier: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
+    totals = _empty_provider_usage_bucket()
+    for row in usage_rows:
+        _add_provider_usage_to_bucket(totals, row)
+        _add_provider_usage_to_bucket(
+            by_provider.setdefault(
+                str(row.get("provider_name", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model_tier.setdefault(
+                str(row.get("model_tier", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model.setdefault(
+                str(row.get("model", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_evaluation_llm_provider_usage_summary"
+        ),
+        "row_count": len(usage_rows),
+        **totals,
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_model_tier": dict(sorted(by_model_tier.items())),
+        "by_model": dict(sorted(by_model.items())),
+        "usage_boundary": (
+            "Provider token usage is runtime/cost accounting metadata, not "
+            "mathematical or theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _empty_provider_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _add_provider_usage_to_bucket(
+    bucket: dict[str, int],
+    row: dict[str, object],
+) -> None:
+    bucket["n_rows"] = int(bucket.get("n_rows", 0) or 0) + 1
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 
 
 def _llm_route_adoption_status_summary(
@@ -1452,6 +2278,26 @@ def _llm_model_tier_summary(
             "n_rows_with_generator_metadata": sum(
                 1 for row in tier_rows if row.llm_route_planner_has_generator_metadata
             ),
+            "n_rows_with_provider_usage": sum(
+                1 for row in tier_rows if row.llm_route_planner_has_provider_usage
+            ),
+            "provider_input_tokens": sum(
+                row.llm_route_planner_provider_input_tokens for row in tier_rows
+            ),
+            "provider_output_tokens": sum(
+                row.llm_route_planner_provider_output_tokens for row in tier_rows
+            ),
+            "provider_cache_creation_input_tokens": sum(
+                row.llm_route_planner_provider_cache_creation_input_tokens
+                for row in tier_rows
+            ),
+            "provider_cache_read_input_tokens": sum(
+                row.llm_route_planner_provider_cache_read_input_tokens
+                for row in tier_rows
+            ),
+            "provider_total_tokens": sum(
+                row.llm_route_planner_provider_total_tokens for row in tier_rows
+            ),
             "n_rows_with_request_contract_blocked": sum(
                 1
                 for row in tier_rows
@@ -1460,10 +2306,104 @@ def _llm_model_tier_summary(
             "n_rows_with_errors": sum(
                 1 for row in tier_rows if row.llm_route_planner_errors
             ),
+            "n_sonnet_triggers": sum(
+                row.llm_route_planner_model_tier_decision_sonnet_trigger_count
+                for row in tier_rows
+            ),
+            "n_source_feedback_rows": sum(
+                row.llm_route_planner_source_feedback_row_count
+                for row in tier_rows
+            ),
+            "n_source_feedback_proof_body_execution_failures": sum(
+                row.llm_route_planner_source_feedback_proof_body_execution_failure_count
+                for row in tier_rows
+            ),
+            "n_source_feedback_formal_environment_blockers": sum(
+                row.llm_route_planner_source_feedback_formal_environment_blocker_count
+                for row in tier_rows
+            ),
         }
         for tier in tiers
         for tier_rows in [
             [row for row in rows if row.llm_route_planner_model_tier == tier]
+        ]
+    }
+
+
+def _llm_model_tier_decision_basis_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, dict[str, object]]:
+    bases = sorted(
+        {
+            row.llm_route_planner_model_tier_decision_basis
+            for row in rows
+            if row.llm_route_planner_model_tier_decision_basis
+        }
+    )
+    return {
+        basis: {
+            "n_rows": len(basis_rows),
+            "n_ok": sum(1 for row in basis_rows if row.ok),
+            "n_matched_ground_truth": sum(
+                1 for row in basis_rows if row.matched_ground_truth
+            ),
+            "by_model_tier": dict(
+                Counter(
+                    row.llm_route_planner_model_tier
+                    for row in basis_rows
+                    if row.llm_route_planner_model_tier
+                )
+            ),
+            "n_sonnet_triggers": sum(
+                row.llm_route_planner_model_tier_decision_sonnet_trigger_count
+                for row in basis_rows
+            ),
+            "n_source_feedback_rows": sum(
+                row.llm_route_planner_source_feedback_row_count
+                for row in basis_rows
+            ),
+            "n_source_feedback_proof_body_execution_failures": sum(
+                row.llm_route_planner_source_feedback_proof_body_execution_failure_count
+                for row in basis_rows
+            ),
+            "n_source_feedback_formal_environment_blockers": sum(
+                row.llm_route_planner_source_feedback_formal_environment_blocker_count
+                for row in basis_rows
+            ),
+            "n_rows_with_provider_usage": sum(
+                1 for row in basis_rows if row.llm_route_planner_has_provider_usage
+            ),
+            "provider_input_tokens": sum(
+                row.llm_route_planner_provider_input_tokens for row in basis_rows
+            ),
+            "provider_output_tokens": sum(
+                row.llm_route_planner_provider_output_tokens for row in basis_rows
+            ),
+            "provider_cache_creation_input_tokens": sum(
+                row.llm_route_planner_provider_cache_creation_input_tokens
+                for row in basis_rows
+            ),
+            "provider_cache_read_input_tokens": sum(
+                row.llm_route_planner_provider_cache_read_input_tokens
+                for row in basis_rows
+            ),
+            "provider_total_tokens": sum(
+                row.llm_route_planner_provider_total_tokens for row in basis_rows
+            ),
+            "mean_route_recall": _mean(
+                row.route_recall for row in basis_rows if row.matched_ground_truth
+            ),
+            "mean_delta_precision": _mean(
+                row.delta_precision for row in basis_rows if row.matched_ground_truth
+            ),
+        }
+        for basis in bases
+        for basis_rows in [
+            [
+                row
+                for row in rows
+                if row.llm_route_planner_model_tier_decision_basis == basis
+            ]
         ]
     }
 
@@ -1714,6 +2654,26 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(sorted(dict.fromkeys(str(item) for item in values if str(item))))
 
 
+def _dict_value(row: Any, key: str) -> dict[str, Any]:
+    if not isinstance(row, dict):
+        return {}
+    value = row.get(key, {})
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _int_value(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _nonnegative_int(value: Any) -> int:
+    return max(0, _int_value(value))
+
+
 def _ratio(numerator: int, denominator: int, *, empty_value: float) -> float:
     if denominator == 0:
         return empty_value
@@ -1821,9 +2781,28 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
         f"- Rows with LLM request-contract blocks: {payload.get('n_rows_with_llm_route_planner_request_contract_blocked')}",
         f"- LLM route-planner errors: {payload.get('n_llm_route_planner_errors')}",
+        (
+            f"- LLM provider usage rows/input/output/cache-read/total: "
+            f"{payload.get('n_rows_with_llm_route_planner_provider_usage')}/"
+            f"{payload.get('total_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_cache_read_input_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_total_tokens')}"
+        ),
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
+        f"- Evaluation by LLM model-tier decision basis: {payload.get('evaluation_by_llm_model_tier_decision_basis')}",
+        f"- LLM source-feedback tier rows: {payload.get('n_llm_route_planner_source_feedback_rows')}",
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
+        f"- Rows with LLM route-adoption preconditions: {payload.get('n_rows_with_llm_route_planner_route_adoption_preconditions')}",
+        (
+            f"- LLM primitive matrix complete/repair/source/reuse/delta gaps: "
+            f"{payload.get('n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_repair_obligations')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting')}"
+        ),
         f"- Rows with quality controls: {payload.get('n_rows_with_quality_controls')}",
         f"- Quality control fields: {payload.get('quality_control_fields')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",

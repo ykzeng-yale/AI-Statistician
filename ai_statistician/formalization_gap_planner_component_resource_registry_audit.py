@@ -52,11 +52,18 @@ REQUIRED_RESOURCE_IDS = (
     "loogle_leansearch",
     "leanexplore_mcp",
     "local_lake_lean",
+    "source_theorem_semantic_primitive_bridge",
+    "source_theorem_formal_environment_bridge",
+    "exact_source_theorem_proof_body_executor",
     "lean_lsp_mcp",
     "leandojo_reprover",
     "rocq_lsp_serapi",
     "isabelle_sledgehammer_afp",
     "agda_search_auto",
+    "hol4_tactic_kernel_tools",
+    "hol_light_tactic_search",
+    "mizar_mml_search",
+    "metamath_set_mm",
     "publication_bundle_audit",
 )
 

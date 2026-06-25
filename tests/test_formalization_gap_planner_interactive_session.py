@@ -383,7 +383,7 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
             {
                 "component_name": "formalization_gap_planner_resource_request_queue",
                 "resource_request_queue_row_schema": {
-                    "$id": "urn:ai-statistician:schemas:formalization-gap-planner-resource-request-queue-row:5"
+                    "$id": "urn:ai-statistician:schemas:formalization-gap-planner-resource-request-queue-row:6"
                 },
                 "rows": resource_request_rows,
             },
@@ -448,6 +448,24 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     )
     assert by_route["route:revise"]["next_interaction_kind"] == "route_replan"
     assert by_route["route:revise"]["replan_required"]
+    assert "formalization_gap_planner_llm_route_planner" in by_route[
+        "route:revise"
+    ]["next_tools"]
+    assert "anthropic_claude_api" in by_route["route:revise"]["next_tools"]
+    assert any(
+        "formalization-gap-planner-llm-route-planner" in command
+        and "--provider anthropic" in command
+        and "--model-tier auto" in command
+        and "--invoke-provider" not in command
+        for command in by_route["route:revise"]["next_commands"]
+    )
+    assert any(
+        "formalization-gap-planner-llm-route-planner" in command
+        and "--provider anthropic" in command
+        and "--model-tier auto" in command
+        and "--invoke-provider" in command
+        for command in by_route["route:revise"]["next_commands"]
+    )
     assert "target-prover LSP/MCP adapter" in by_route["route:revise"]["next_tools"]
     assert (
         by_route["route:revise"]["prover_triage_class"]
@@ -548,6 +566,18 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     assert (
         "formalization_gap_planner_route_replan_handoff_row.schema.json"
         in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_request.schema.json"
+        in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+        in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "LLM route-planner prompt packet is staged before live provider invocation"
+        in policy_by_route["route:revise"]["stop_conditions"]
     )
     assert "route_revision_handoff" in policy_by_route["route:revise"][
         "component_ids"
@@ -790,6 +820,136 @@ def test_interactive_session_surfaces_resource_response_request_ids() -> None:
         "formalization_gap_planner_resource_response_ledger_row.schema.json"
         in policy_by_route["route:rejected"]["required_tool_contracts"]
     )
+
+
+def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_interactive_session_route_preconditions"
+    )
+    plan_dir = root / "plan"
+    stability_dir = root / "stability"
+    out_dir = root / "session"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "source_grounding_obligations_pending"
+        ],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+    }
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:precondition",
+                        "route_id": "route:precondition",
+                        "display_name": "route-adoption precondition route",
+                        "selected_primitives": ["rank_uniformity"],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:precondition",
+                        "route_id": "route:precondition",
+                        "display_name": "route-adoption precondition route",
+                        "stability_decision": "AWAITING_REFINEMENT_RESPONSES",
+                        "stable_under_current_evidence_bound": False,
+                        "needs_route_replanning": False,
+                        "needs_more_literature": False,
+                        "needs_more_formal_grounding": False,
+                        "needs_more_lean_grounding": False,
+                        "needs_more_proof_state_feedback": False,
+                        "responded_hook_kinds": ["literature_discovery"],
+                        "awaiting_hook_kinds": [],
+                        "rejected_hook_kinds": [],
+                        "resource_response_awaiting_request_ids": [],
+                        "resource_response_rejected_request_ids": [],
+                        "llm_route_planner_route_adoption_status": (
+                            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                        ),
+                        "route_adoption_preconditions": route_adoption_preconditions,
+                        "route_adoption_precondition_present": True,
+                        "route_adoption_precondition_blocked_before_response": True,
+                        "route_adoption_precondition_unresolved": True,
+                        "route_adoption_precondition_known_blockers": [
+                            "source_grounding_obligations_pending"
+                        ],
+                        "route_adoption_precondition_required_response_fields": [
+                            "search_requests",
+                            "planner_next_actions",
+                        ],
+                        "route_adoption_precondition_known_blocker_count": 1,
+                        "route_adoption_precondition_required_response_field_count": 2,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_interactive_session(
+        plan_dir,
+        out_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_waiting_for_adapter_responses"] == 1
+    assert payload["n_rows_with_route_adoption_preconditions"] == 1
+    assert payload["n_rows_with_blocking_route_adoption_preconditions"] == 1
+    assert payload["n_rows_with_unresolved_route_adoption_preconditions"] == 1
+    assert payload["n_route_adoption_precondition_known_blockers"] == 1
+    assert payload["n_route_adoption_precondition_required_response_fields"] == 2
+    row = payload["rows"][0]
+    assert row["session_state"] == "AWAITING_REFINEMENT_RESPONSES"
+    assert row["next_interaction_kind"] == "await_refinement_response"
+    assert row["route_adoption_preconditions"] == route_adoption_preconditions
+    assert row["route_adoption_precondition_unresolved"]
+    assert row["route_adoption_precondition_known_blockers"] == (
+        "source_grounding_obligations_pending",
+    )
+    assert row["route_adoption_precondition_required_response_fields"] == (
+        "search_requests",
+        "planner_next_actions",
+    )
+    assert "resource_response_ledger" in row["next_tools"]
+    assert "formalization_gap_planner_resource_request_queue" in row["next_tools"]
+    assert any(
+        "materialize LLM route-adoption precondition responses" in command
+        for command in row["next_commands"]
+    )
+    assert row["evidence_summary"]["route_adoption_precondition_unresolved"] == 1
+    assert (
+        row["evidence_summary"]["route_adoption_precondition_known_blockers"]
+        == 1
+    )
+    policy = payload["decision_policy_rows"][0]
+    assert "route_adoption_precondition_unresolved" in policy["trigger_signals"]
+    assert "route_adoption_preconditions" in policy["evidence_inputs"]
 
 
 def test_interactive_session_keeps_rocq_declaration_hits_portable() -> None:

@@ -50,9 +50,8 @@ theorem vaart1998_simpleLogLikelihoodRatioStatistic_measurable
     (alternativeLaw nullLaw : Measure Omega) :
     Measurable
       (vaart1998_simpleLogLikelihoodRatioStatistic alternativeLaw nullLaw) := by
-  simpa [vaart1998_simpleLogLikelihoodRatioStatistic,
-    vaart1998_logLikelihoodRatio] using
-    MeasureTheory.measurable_llr alternativeLaw nullLaw
+  change Measurable (MeasureTheory.llr alternativeLaw nullLaw)
+  exact MeasureTheory.measurable_llr alternativeLaw nullLaw
 
 /--
 The Chapter 16 likelihood-ratio statistic in log-supremum form:

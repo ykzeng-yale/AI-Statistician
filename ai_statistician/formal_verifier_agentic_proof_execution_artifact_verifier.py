@@ -47,6 +47,7 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     artifact_kernel_verified: bool
     source_theorem_kernel_verified: bool
     source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
     verifier: str
     verification_strength: str
     lean_command: tuple[str, ...]
@@ -54,6 +55,7 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     lean_timeout: int
     returncode: int
     diagnostics: tuple[str, ...]
+    failure_classification: str
     forbidden_tokens_found: tuple[str, ...]
     verification_status: str
     proof_evidence_status: str
@@ -118,6 +120,15 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         ),
         "n_forbidden_token_failures": sum(
             1 for row in rows if row.forbidden_tokens_found
+        ),
+        "by_failure_classification": dict(
+            sorted(
+                Counter(
+                    row.failure_classification
+                    for row in rows
+                    if row.failure_classification
+                ).items()
+            )
         ),
         "n_execution_transcript_paths": sum(
             1 for row in rows if row.execution_transcript_path
@@ -199,6 +210,28 @@ def _verifier_row(
     source_theorem_target_known = bool(
         row.get("source_theorem_target_known", False)
     )
+    source_theorem_target_provenance = (
+        dict(row.get("source_theorem_target_provenance", {}))
+        if isinstance(row.get("source_theorem_target_provenance", {}), dict)
+        else {}
+    )
+    if source_theorem_target_known:
+        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if target_lean_declaration:
+        source_theorem_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_lean_declaration,
+        )
+    if materialization_id:
+        source_theorem_target_provenance.setdefault(
+            "materialization_id",
+            materialization_id,
+        )
+    if execution_queue_id:
+        source_theorem_target_provenance.setdefault(
+            "execution_queue_id",
+            execution_queue_id,
+        )
     (
         live_request_id,
         live_request_valid,
@@ -263,9 +296,22 @@ def _verifier_row(
         )
         if not compiled:
             errors.append("local Lean artifact check failed")
+    failure_classification = (
+        ""
+        if compiled
+        else _classify_local_lean_failure(
+            diagnostics,
+            source=source,
+            lean_project=lean_project,
+        )
+    )
     artifact_verification_id = (
         "formal_verifier_agentic_proof_execution_artifact_verifier:"
         + stable_hash([materialization_id, artifact_path, lean_command])[:16]
+    )
+    source_theorem_target_provenance.setdefault(
+        "artifact_verification_id",
+        artifact_verification_id,
     )
     execution_transcript_event_id = (
         "agentic_artifact_verifier_event:"
@@ -289,10 +335,12 @@ def _verifier_row(
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=verifier,
         verification_strength=verification_strength,
         returncode=returncode,
         diagnostics=diagnostics,
+        failure_classification=failure_classification,
     )
     return FormalVerifierAgenticProofExecutionArtifactVerifierRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_ARTIFACT_VERIFIER_SCHEMA_VERSION,
@@ -319,6 +367,7 @@ def _verifier_row(
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=verifier,
         verification_strength=verification_strength,
         lean_command=lean_command,
@@ -326,6 +375,7 @@ def _verifier_row(
         lean_timeout=lean_timeout,
         returncode=returncode,
         diagnostics=diagnostics,
+        failure_classification=failure_classification,
         forbidden_tokens_found=forbidden_tokens_found,
         verification_status=status,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
@@ -354,10 +404,12 @@ def _append_verifier_transcript_event(
     artifact_kernel_verified: bool,
     source_theorem_kernel_verified: bool,
     source_theorem_target_known: bool,
+    source_theorem_target_provenance: dict[str, object],
     verifier: str,
     verification_strength: str,
     returncode: int,
     diagnostics: tuple[str, ...],
+    failure_classification: str,
 ) -> bool:
     if path is None:
         return False
@@ -390,10 +442,12 @@ def _append_verifier_transcript_event(
             "artifact_kernel_verified": artifact_kernel_verified,
             "source_theorem_kernel_verified": source_theorem_kernel_verified,
             "source_theorem_target_known": source_theorem_target_known,
+            "source_theorem_target_provenance": source_theorem_target_provenance,
             "verifier": verifier,
             "verification_strength": verification_strength,
             "returncode": returncode,
             "diagnostics": diagnostics,
+            "failure_classification": failure_classification,
             "proof_evidence_status": PROOF_EVIDENCE_STATUS,
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         }
@@ -490,6 +544,38 @@ def _run_local_lean(
         if line.strip()
     )
     return proc.returncode == 0, int(proc.returncode), diagnostics
+
+
+def _classify_local_lean_failure(
+    diagnostics: tuple[str, ...],
+    *,
+    source: str,
+    lean_project: Path | None,
+) -> str:
+    text = "\n".join(diagnostics).lower()
+    if "timed out" in text or "timeout" in text:
+        return "local_lean_timeout"
+    if "lean executable not found" in text:
+        return "local_lean_unavailable"
+    if "unknown module prefix" in text or "no directory" in text or ".olean" in text:
+        return "lean_import_environment_missing"
+    if "unknown identifier" in text or "unknown constant" in text:
+        return "formal_environment_symbol_missing"
+    if "failed to synthesize" in text:
+        return "formal_environment_instance_missing"
+    if "invalid 'import' command" in text:
+        return "lean_syntax_or_import_environment_gap"
+    if "unexpected token" in text and ("expected '=>'" in text or "expected term" in text):
+        if "import " in source and lean_project is None:
+            return "lean_project_or_import_environment_missing"
+        return "lean_syntax_or_import_environment_gap"
+    if "unsolved goals" in text:
+        return "proof_body_incomplete"
+    if "candidate artifact contains forbidden tokens" in text:
+        return "static_artifact_policy_failure"
+    if diagnostics:
+        return "local_lean_failed_unclassified"
+    return "local_lean_not_run"
 
 
 def _lean_command(lean_project: Path | None) -> tuple[str, ...]:

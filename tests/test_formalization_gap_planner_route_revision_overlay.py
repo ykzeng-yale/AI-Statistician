@@ -200,6 +200,25 @@ def test_route_revision_overlay_applies_adapter_evidence_to_plan() -> None:
     assert overlay_row["applied_prover_diagnostic_signatures"] == (
         "prover_diagnostic_signature:test",
     )
+    assert overlay_row["applied_llm_route_planner_hook_traces"]
+    derived_context_traces = [
+        trace
+        for trace in overlay_row["applied_llm_route_planner_hook_traces"]
+        if trace.get("trace_source") == "refinement_evidence"
+        and trace.get("residual_goal_context")
+    ]
+    assert derived_context_traces
+    derived_context = derived_context_traces[0]["residual_goal_context"]
+    assert derived_context["source_kind"] == "proof_state_feedback"
+    assert derived_context["prover_attempt_status"] == (
+        "failed_with_residual_goals"
+    )
+    assert derived_context["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_NOT_PROOF_EVIDENCE"
+    )
+    assert "conditional_mean_residual_zero" in " ".join(
+        derived_context["residual_goals"]
+    )
     assert len(overlay_row["revised_lean_realization_dag_nodes"]) >= 4
     assert overlay_row["revised_formal_realization_dag_nodes"] == overlay_row[
         "revised_lean_realization_dag_nodes"
@@ -587,7 +606,7 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 9,
+                        "schema_version": 11,
                         "resource_response_ledger_id": "ledger:rocq_exchangeability",
                         "resource_request_id": "request:rocq_exchangeability",
                         "goal_plan_id": "goal:rocq_ledger",
@@ -865,7 +884,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 9,
+                        "schema_version": 11,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -881,6 +900,16 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                         ],
                         "coverage_bucket": "bridge_needed",
                         "queue_action_kind": "prove_bridge_lemma",
+                        "priority_score": 82,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 75,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=75",
+                        ],
                         "target_prover_family": "lean4",
                         "library_snapshot_ref": "snapshot:test",
                         "candidate_declaration_rows": [
@@ -934,6 +963,28 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                             ),
                             "resource_id": "lean_lsp_mcp",
                             "target_primitives": ["rank_uniformity"],
+                        },
+                        "residual_goal_context": {
+                            "source_kind": "planner_next_action",
+                            "residual_goal": "prove finite denominator is nonzero",
+                            "residual_goals": ["prove finite denominator is nonzero"],
+                            "residual_primitives": ["rank_uniformity"],
+                            "target_primitives": ["rank_uniformity"],
+                            "interpretation": (
+                                "Lean feedback exposed a finite-rank denominator "
+                                "side condition"
+                            ),
+                            "route_repair": (
+                                "add the finite-denominator side condition to "
+                                "the rank_uniformity bridge route"
+                            ),
+                            "repair_action": "revise the rank_uniformity bridge route",
+                            "source_refs": [
+                                "Vovk-Gammerman-Shafer conformal prediction"
+                            ],
+                            "queries": [
+                                "ask Lean LSP for residual goals on rank_uniformity"
+                            ],
                         },
                         "llm_route_planner_response_trace_grounded": True,
                         "llm_route_planner_response_trace_mismatches": [],
@@ -1015,6 +1066,24 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert overlay_payload["n_resource_response_ledger_status_rows"] == 1
     assert overlay_payload["n_resource_response_ledger_awaiting"] == 0
     assert overlay_payload["n_resource_response_ledger_rejected"] == 0
+    assert (
+        overlay_payload[
+            "n_applied_resource_response_traces_with_minimal_delta_priority"
+        ]
+        == 1
+    )
+    assert (
+        overlay_payload[
+            "average_applied_resource_response_reuse_readiness_score"
+        ]
+        == 70
+    )
+    assert (
+        overlay_payload[
+            "average_applied_resource_response_evidence_readiness_score"
+        ]
+        == 75
+    )
     assert overlay_payload["n_route_revision_proposals"] == 1
     assert overlay_payload["n_routes_with_revision"] == 1
     assert overlay_payload["n_source_snippets"] == 1
@@ -1045,6 +1114,16 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["actionable_work_items"] == (
         "rank_uniformity: prove finite rank uniformity from exchangeability",
     )
+    assert trace["priority_score"] == 82
+    assert trace["minimal_delta_cost_score"] == 40
+    assert trace["reuse_readiness_score"] == 70
+    assert trace["evidence_readiness_score"] == 75
+    assert set(trace["priority_rationale"]) == {
+        "coverage_status=bridge_needed",
+        "minimal_delta_cost_score=40",
+        "reuse_readiness_score=70",
+        "evidence_readiness_score=75",
+    }
     assert trace["quality_controls"]["resource_contract_ids"] == (
         "lean_lsp:proof_state_feedback",
     )
@@ -1074,6 +1153,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["llm_route_planner_hook_kind"] == "proof_state_feedback"
     assert trace["llm_route_planner_response_trace_grounded"] is True
     assert trace["llm_route_planner_response_trace_mismatches"] == ()
+    assert trace["residual_goal_context"]["residual_goal"] == (
+        "prove finite denominator is nonzero"
+    )
     assert overlay_row["applied_llm_route_planner_hook_traces"]
     llm_trace = overlay_row["applied_llm_route_planner_hook_traces"][0]
     assert llm_trace["trace_source"] == "resource_response_ledger"
@@ -1082,6 +1164,10 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert llm_trace["actionable_work_items"] == (
         "rank_uniformity: prove finite rank uniformity from exchangeability",
     )
+    assert llm_trace["minimal_delta_cost_score"] == 40
+    assert llm_trace["reuse_readiness_score"] == 70
+    assert llm_trace["evidence_readiness_score"] == 75
+    assert llm_trace["priority_rationale"] == trace["priority_rationale"]
     assert llm_trace["llm_route_planner_row_id"] == "llm_route_row:rank"
     assert llm_trace["llm_route_planner_request_id"] == "llm_route_request:rank"
     assert llm_trace["llm_route_planner_source_kind"] == "planner_next_action"
@@ -1094,6 +1180,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
         "lean_lsp_mcp"
     )
     assert llm_trace["llm_route_planner_response_trace_grounded"] is True
+    assert llm_trace["residual_goal_context"]["residual_primitives"] == (
+        "rank_uniformity",
+    )
     assert overlay_row["source_refs"] == (
         "Vovk-Gammerman-Shafer conformal prediction",
     )

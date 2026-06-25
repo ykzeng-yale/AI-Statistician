@@ -47,6 +47,7 @@ def test_theorem_reduction_closure_work_order_audit_exports_without_proof_claim(
     check = manifest["checks"][0]
     assert check["status"] == "QUEUED_NOT_CHECKED"
     assert check["kernel_verified"] is False
+    assert check["target_lean_declaration"] == "closure_smoke"
     assert "not proof evidence" in check["boundary"]
     assert Path(check["lean_export_path"]).exists()
     assert Path(str(manifest["checks_jsonl"])).exists()

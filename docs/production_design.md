@@ -27,7 +27,7 @@ used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-06-12 Anthropic Models overview and Model
+as CLI-created agents. As of the 2026-06-17 Anthropic Models overview and Model
 IDs/versioning source check, the pinned default Claude API IDs are Haiku
 `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
 `claude-opus-4-8`. The policy also records official API aliases by tier, but
@@ -47,6 +47,11 @@ on Anthropic and `ai_statistician doctor` emits a provider-override warning
 instead of silently treating the agent as a pure generator; generic global model
 overrides such as `AI_STATISTICIAN_LLM_MODEL=gpt-*` are ignored for that
 fallback so they cannot be sent to the Anthropic API by accident.
+Formalization gap planner auto-tiering records source-theorem/proof-body
+feedback counts in each request's model-tier decision evidence; semantic
+primitive gaps, exact proof-body execution failures, and formal-environment
+blockers are Sonnet triggers, while small source-backed reuse/wrapper routes
+without residuals or feedback can remain on Haiku.
 `ai_statistician doctor` and runtime topology
 manifests separately report same-tier freshness warnings when a resolved Claude
 tier does not match the current source-checked API ID, so stale Sonnet/Haiku
@@ -59,7 +64,19 @@ requirements, proof-state probes, complex theorem shape, many generic
 Sonnet. When a live Anthropic Haiku route-plan response fails local response
 validation and a repair attempt remains, the repair request escalates to Sonnet
 and records the requested/effective tiers in generator metadata and the repair
-ledger.
+ledger. The planner also writes a model-tier decision ledger JSONL that binds
+each request to selected/effective tier, resolved model, decision basis,
+source-feedback counts, provider-failure status, and Haiku-to-Sonnet repair
+escalation evidence, so cost-control claims can be evaluated without parsing
+raw model completions. Shared generator metadata also preserves compact provider
+stop reasons, incomplete-response details, and token usage, so failed live JSON
+packets can be repaired and benchmarked without treating provider internals as
+proof evidence. Interactive route-replan rows now also surface the LLM
+route-planner request/response/decision-ledger schemas plus prompt-only and
+explicit live Anthropic `--model-tier auto` commands even when a handoff
+manifest is older or manually authored. That makes prover residual feedback
+feed back into source-grounded route synthesis before the system exports a new
+target-prover replay path.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.
@@ -235,9 +252,38 @@ side of the same contract: it runs queued skeleton probes through local Lean
 when available, blocks `sorry`/`admit`/`axiom` probes, classifies non-Lean
 skeletons as statement-materialization gaps, and merges diagnostics and
 residual goals into the validator JSONL without treating them as proof evidence.
+LLM route-planner residual interpretations now enter the same dispatch path as
+search requests and planner next actions: the resource-request queue materializes
+them as route-revision work by default, preserves the residual goal and repair
+context in the request payload/playbook, and only routes them to literature,
+formal-library, or prover resources when the repair text explicitly asks for
+that evidence class. The resource-response ledger carries that same
+`residual_goal_context` into accepted/rejected response rows and the
+route-revision overlay propagates it through applied resource-response and LLM
+hook traces, so later replans can distinguish residual-driven route repair from
+generic search or handoff activity. Route-replan handoff rows aggregate those
+contexts as `residual_goal_contexts`, copy them into the replayable standalone
+seed metadata, and the standalone planner exposes them in the roundtrip input
+trace used by the next LLM route-planner prompt. Refinement-evidence responses
+preserve the same field in route-revision proposals, and the next LLM
+route-planner request exposes the resulting contexts both top-level and inside
+`context_packet.residual_goal_contexts`, with target-context, route-brief, and
+inventory counts. If proof-state feedback supplies residual goals but omits
+`residual_goal_context`, refinement evidence derives a conservative
+`proof_state_feedback` context from the residuals, diagnostics, target
+primitives, and route-revision reasons while preserving the not-proof-evidence
+boundary. The source-grounding audit reads residual contexts as well as
+top-level residual rows: context source refs/snippets can source-back a residual,
+context queries create bounded source-search obligations, and substantive
+formal-gap boundaries remain explicit blockers rather than proof evidence.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.
+Those adapter packets now carry normalized `residual_goal_contexts` as
+first-class contract fields, and the cross-prover matrix/target summary reports
+their counts, source kinds, source-ref coverage, and formal-gap-boundary counts.
+This keeps proof-state repair evidence available to non-Lean prover adapters
+without depending on opaque standalone trace internals.
 The publication bundle packages the portable schema, contract, route-truth
 benchmark, adapter registry, docs, and optional run artifacts as the reusable
 research-output boundary for external prover adapters and paper supplements.
@@ -1292,6 +1338,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   bounds for every rank event, this bridge restricts those bounds to the finite
   bad-rank set. It is kernel-checkable glue for the `hRank` premise, not a proof
   of exchangeability or uniform-rank distribution.
+- `prob_measure_univ`: a probability-measure semantic primitive used to replace
+  generated `MeasureProbability` placeholders with Mathlib
+  `Measure`/`IsProbabilityMeasure` semantics. It is kernel-checkable support for
+  probability-measure normalization, not a full source-theorem proof.
 - `split_conformal_bad_rank_reduction_bridge`: a theorem-level reduction bridge
   for live split-conformal closure work orders. Once the coverage event is
   identified with the complement of a finite bad-rank event and the bad-rank

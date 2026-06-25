@@ -20,10 +20,10 @@ from .formalization_gap_planner_action_resource_plan import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 5
+FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 6
 RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-request-queue-row:5"
+    "formalization-gap-planner-resource-request-queue-row:6"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_NOT_PROOF_EVIDENCE"
@@ -53,6 +53,11 @@ class FormalizationGapPlannerResourceRequestQueueRow:
     actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
+    priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     target_prover_family: str
     library_snapshot_ref: str
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -203,6 +208,11 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in llm_route_planner_rows
             if _dict_tuple(row.get("planner_next_actions", []))
         ),
+        "n_llm_route_planner_rows_with_residual_interpretations": sum(
+            1
+            for row in llm_route_planner_rows
+            if _dict_tuple(row.get("residual_interpretations", []))
+        ),
         "n_llm_route_planner_search_requests": sum(
             len(_dict_tuple(row.get("search_requests", [])))
             for row in llm_route_planner_rows
@@ -211,7 +221,31 @@ def export_formalization_gap_planner_resource_request_queue(
             len(_dict_tuple(row.get("planner_next_actions", [])))
             for row in llm_route_planner_rows
         ),
+        "n_llm_route_planner_residual_interpretations": sum(
+            len(_dict_tuple(row.get("residual_interpretations", [])))
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_rows_with_route_adoption_preconditions": sum(
+            1 for row in llm_route_planner_rows if _llm_route_adoption_preconditions(row)
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": sum(
+            _route_adoption_precondition_known_blocker_count(
+                _llm_route_adoption_preconditions(row)
+            )
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": sum(
+            _route_adoption_precondition_required_response_field_count(
+                _llm_route_adoption_preconditions(row)
+            )
+            for row in llm_route_planner_rows
+        ),
         "n_llm_route_planner_resource_request_rows": len(llm_resource_request_rows),
+        "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": sum(
+            1
+            for row in llm_resource_request_rows
+            if _llm_request_payload_route_adoption_preconditions(row.request_payload)
+        ),
         "n_llm_route_planner_search_request_rows": sum(
             1
             for row in llm_resource_request_rows
@@ -223,6 +257,12 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "planner_next_action"
+        ),
+        "n_llm_route_planner_residual_interpretation_rows": sum(
+            1
+            for row in llm_resource_request_rows
+            if row.request_payload.get("llm_route_planner_source_kind")
+            == "residual_interpretation"
         ),
         "n_resource_request_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -246,6 +286,24 @@ def export_formalization_gap_planner_resource_request_queue(
             1 for row in rows if row.actionable_work_items
         ),
         "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
+        ),
         "n_dispatch_spec_identity_valid": n_dispatch_spec_identity_valid,
         "n_dispatch_spec_identity_mismatches": len(rows)
         - n_dispatch_spec_identity_valid,
@@ -334,6 +392,11 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "candidate_declaration_rows",
@@ -388,6 +451,11 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
             "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
+            "priority_score": {"type": "integer"},
+            "minimal_delta_cost_score": {"type": "integer"},
+            "reuse_readiness_score": {"type": "integer"},
+            "evidence_readiness_score": {"type": "integer"},
+            "priority_rationale": string_array,
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "candidate_declaration_rows": {
@@ -482,6 +550,11 @@ def validate_resource_request_queue_row(
             "target_primitives",
             "actionable_work_items",
             "queue_action_kind",
+            "priority_score",
+            "minimal_delta_cost_score",
+            "reuse_readiness_score",
+            "evidence_readiness_score",
+            "priority_rationale",
             "target_prover_family",
             "library_snapshot_ref",
             "candidate_declaration_rows",
@@ -505,6 +578,16 @@ def validate_resource_request_queue_row(
         errors.extend(_request_payload_identity_errors(row))
         errors.extend(_dispatch_spec_identity_errors(row))
     errors.extend(_request_playbook_identity_errors(row))
+    for field_name in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -525,6 +608,10 @@ def _llm_route_planner_resource_request_rows(
             (
                 "planner_next_action",
                 _dict_tuple(planner_row.get("planner_next_actions", [])),
+            ),
+            (
+                "residual_interpretation",
+                _dict_tuple(planner_row.get("residual_interpretations", [])),
             ),
         ):
             for source_index, source_item in enumerate(source_items):
@@ -604,6 +691,18 @@ def _llm_route_planner_action_row(
         )
         for resource_id in resource_ids
     }
+    route_adoption_preconditions = _llm_route_adoption_preconditions(planner_row)
+    precondition_request_fields = (
+        ("llm_route_planner_route_adoption_preconditions",)
+        if route_adoption_preconditions
+        else tuple()
+    )
+    request_contracts = {
+        resource_id: tuple(
+            dict.fromkeys((*fields, *precondition_request_fields))
+        )
+        for resource_id, fields in request_contracts.items()
+    }
     target_primitives = _llm_target_primitives(
         planner_row,
         source_item,
@@ -673,6 +772,15 @@ def _llm_route_planner_action_row(
         ),
         "coverage_bucket": "llm_route_planner_pending_evidence",
         "queue_action_kind": _llm_queue_action_kind(hook_kind),
+        "priority_score": 80,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 25,
+        "evidence_readiness_score": 60 if queries else 35,
+        "priority_rationale": (
+            f"llm_route_planner_source_kind={source_kind}",
+            f"llm_route_planner_hook_kind={hook_kind}",
+            "planner follow-up request preserves route-revision context",
+        ),
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "candidate_declaration_rows": _llm_candidate_declaration_rows(
@@ -764,6 +872,11 @@ def _action_resource_plan_projection(action_row: dict[str, Any]) -> dict[str, An
             "actionable_work_items",
             "coverage_bucket",
             "queue_action_kind",
+            "priority_score",
+            "minimal_delta_cost_score",
+            "reuse_readiness_score",
+            "evidence_readiness_score",
+            "priority_rationale",
             "target_prover_family",
             "library_snapshot_ref",
             "candidate_declaration_rows",
@@ -809,6 +922,7 @@ def _with_llm_route_planner_trace(
     request_payload = dict(row.request_payload)
     request_playbook = dict(row.request_playbook)
     input_summary = dict(request_playbook.get("input_summary", {}))
+    route_adoption_preconditions = _llm_route_adoption_preconditions(planner_row)
     input_summary.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -819,6 +933,16 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_queries": queries,
         }
     )
+    residual_goal_context = _llm_residual_goal_context(
+        source_item,
+        source_kind=source_kind,
+    )
+    if route_adoption_preconditions:
+        input_summary["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
+    if residual_goal_context:
+        input_summary["residual_goal_context"] = residual_goal_context
     request_playbook.update(
         {
             "input_summary": input_summary,
@@ -830,6 +954,24 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_source_item": dict(source_item),
         }
     )
+    if route_adoption_preconditions:
+        request_playbook["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
+        request_playbook["acceptance_checklist"] = tuple(
+            dict.fromkeys(
+                (
+                    *_str_tuple(request_playbook.get("acceptance_checklist", [])),
+                    (
+                        "response addresses "
+                        "llm_route_planner_route_adoption_preconditions before "
+                        "route adoption"
+                    ),
+                )
+            )
+        )
+    if residual_goal_context:
+        request_playbook["residual_goal_context"] = residual_goal_context
     request_payload.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -842,6 +984,12 @@ def _with_llm_route_planner_trace(
             "request_playbook": request_playbook,
         }
     )
+    if route_adoption_preconditions:
+        request_payload["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
+    if residual_goal_context:
+        request_payload["residual_goal_context"] = residual_goal_context
     return replace(
         row,
         request_payload=request_payload,
@@ -854,6 +1002,59 @@ def _llm_hook_kind(
     *,
     source_kind: str,
 ) -> str:
+    if source_kind == "residual_interpretation":
+        residual_directive = _text_key(
+            " ".join(
+                [
+                    *_str_tuple(item.get("request_kind", "")),
+                    *_str_tuple(item.get("kind", "")),
+                    *_str_tuple(item.get("route_repair", "")),
+                    *_str_tuple(item.get("repair_action", "")),
+                    *_str_tuple(item.get("interpretation", "")),
+                    *_str_tuple(item.get("recommended_next_action", "")),
+                    *_flatten_llm_strings(item.get("resource_id", [])),
+                    *_flatten_llm_strings(item.get("resource_ids", [])),
+                    *_flatten_llm_strings(item.get("tool_owner_ids", [])),
+                ]
+            )
+        )
+        if any(
+            token in residual_directive
+            for token in ("literature", "source", "paper", "paperclip", "paperqa")
+        ):
+            return "literature_discovery"
+        if any(
+            token in residual_directive
+            for token in (
+                "lean_search",
+                "leansearch",
+                "leanfinder",
+                "loogle",
+                "mathlib",
+            )
+        ):
+            return "lean_library_grounding"
+        if any(
+            token in residual_directive
+            for token in ("formal_library", "formal_source", "declaration", "library")
+        ):
+            return "formal_library_grounding"
+        if any(
+            token in residual_directive
+            for token in (
+                "proof_state",
+                "prover",
+                "diagnostic",
+                "lean_lsp",
+                "lsp",
+                "lake",
+                "serapi",
+                "sledgehammer",
+                "agda",
+            )
+        ):
+            return "proof_state_feedback"
+        return "route_revision"
     text = _text_key(
         " ".join(
             [
@@ -968,6 +1169,8 @@ def _llm_queue_action_kind(hook_kind: str) -> str:
         return "rerun_library_alignment"
     if hook_kind == "proof_state_feedback":
         return "prove_bridge_lemma"
+    if hook_kind == "route_revision":
+        return "route_revision"
     return "rerun_library_alignment"
 
 
@@ -1009,7 +1212,9 @@ def _llm_request_contract_fields_for_hook(
     if hook_kind == "proof_state_feedback":
         fields.extend(["candidate_declaration_rows", "residual_goal_context"])
     if hook_kind == "route_revision":
-        fields.extend(["minimal_delta_plan", "route_revision_trigger"])
+        fields.extend(
+            ["minimal_delta_plan", "route_revision_trigger", "residual_goal_context"]
+        )
     if resource_id:
         fields.append("resource_id")
     return tuple(dict.fromkeys(fields))
@@ -1051,12 +1256,54 @@ def _llm_response_contract_fields_for_hook(
     )
 
 
+def _llm_route_adoption_preconditions(planner_row: dict[str, Any]) -> dict[str, object]:
+    preconditions = _dict_value(planner_row, "route_adoption_preconditions")
+    if not preconditions:
+        preconditions = _dict_value(
+            planner_row,
+            "llm_route_planner_route_adoption_preconditions",
+        )
+    return preconditions
+
+
+def _llm_request_payload_route_adoption_preconditions(
+    request_payload: dict[str, object],
+) -> dict[str, object]:
+    return _dict_value(
+        request_payload,
+        "llm_route_planner_route_adoption_preconditions",
+    )
+
+
+def _route_adoption_precondition_known_blocker_count(
+    preconditions: dict[str, object],
+) -> int:
+    return int(
+        preconditions.get(
+            "n_known_pre_response_blockers",
+            len(_str_tuple(preconditions.get("known_pre_response_blockers", []))),
+        )
+        or 0
+    )
+
+
+def _route_adoption_precondition_required_response_field_count(
+    preconditions: dict[str, object],
+) -> int:
+    return len(_str_tuple(preconditions.get("response_required_fields", [])))
+
+
 def _llm_target_primitives(
     planner_row: dict[str, Any],
     source_item: dict[str, object],
 ) -> tuple[str, ...]:
     primitives: list[str] = []
-    for field_name in ("target_primitives", "primitives", "primitive"):
+    for field_name in (
+        "target_primitives",
+        "residual_primitives",
+        "primitives",
+        "primitive",
+    ):
         primitives.extend(_str_tuple(source_item.get(field_name, [])))
     minimal_delta_plan = planner_row.get("minimal_delta_plan", {})
     if isinstance(minimal_delta_plan, dict):
@@ -1133,9 +1380,51 @@ def _llm_query_tuple(item: dict[str, object]) -> tuple[str, ...]:
         "action",
         "next_action",
         "description",
+        "residual_goal",
+        "residual_goals",
+        "route_repair",
+        "repair_action",
+        "interpretation",
+        "recommended_next_action",
+        "source_search_queries",
+        "formal_library_queries",
+        "prover_feedback_queries",
     ):
         values.append(item.get(field_name, []))
     return _str_tuple(_flatten_llm_strings(values))
+
+
+def _llm_residual_goal_context(
+    source_item: dict[str, object],
+    *,
+    source_kind: str,
+) -> dict[str, object]:
+    if source_kind != "residual_interpretation" and not any(
+        key in source_item
+        for key in (
+            "residual_goal",
+            "residual_goals",
+            "residual_primitives",
+            "route_repair",
+            "repair_action",
+        )
+    ):
+        return {}
+    return {
+        "source_kind": source_kind,
+        "residual_goal": str(source_item.get("residual_goal", "") or ""),
+        "residual_goals": _str_tuple(source_item.get("residual_goals", [])),
+        "residual_primitives": _str_tuple(source_item.get("residual_primitives", [])),
+        "target_primitives": _str_tuple(source_item.get("target_primitives", [])),
+        "interpretation": str(source_item.get("interpretation", "") or ""),
+        "route_repair": str(source_item.get("route_repair", "") or ""),
+        "repair_action": str(source_item.get("repair_action", "") or ""),
+        "source_refs": _str_tuple(source_item.get("source_refs", [])),
+        "source_snippets": _dict_tuple(source_item.get("source_snippets", [])),
+        "source_search_status": str(source_item.get("source_search_status", "") or ""),
+        "formal_gap_boundary": str(source_item.get("formal_gap_boundary", "") or ""),
+        "queries": _llm_query_tuple(source_item),
+    }
 
 
 def _llm_actionable_work_items(
@@ -1308,6 +1597,17 @@ def _resource_request_rows(
                 actionable_work_items=actionable_work_items,
                 coverage_bucket=str(action_row.get("coverage_bucket", "")),
                 queue_action_kind=str(action_row.get("queue_action_kind", "")),
+                priority_score=_bounded_int(action_row.get("priority_score", 0)),
+                minimal_delta_cost_score=_bounded_int(
+                    action_row.get("minimal_delta_cost_score", 100)
+                ),
+                reuse_readiness_score=_bounded_int(
+                    action_row.get("reuse_readiness_score", 0)
+                ),
+                evidence_readiness_score=_bounded_int(
+                    action_row.get("evidence_readiness_score", 0)
+                ),
+                priority_rationale=_str_tuple(action_row.get("priority_rationale", [])),
                 target_prover_family=str(action_row.get("target_prover_family", "")),
                 library_snapshot_ref=str(action_row.get("library_snapshot_ref", "")),
                 candidate_declaration_rows=_candidate_declaration_rows(
@@ -1385,6 +1685,15 @@ def _request_payload(
         ),
         "coverage_bucket": str(action_row.get("coverage_bucket", "")),
         "queue_action_kind": str(action_row.get("queue_action_kind", "")),
+        "priority_score": _bounded_int(action_row.get("priority_score", 0)),
+        "minimal_delta_cost_score": _bounded_int(
+            action_row.get("minimal_delta_cost_score", 100)
+        ),
+        "reuse_readiness_score": _bounded_int(action_row.get("reuse_readiness_score", 0)),
+        "evidence_readiness_score": _bounded_int(
+            action_row.get("evidence_readiness_score", 0)
+        ),
+        "priority_rationale": _str_tuple(action_row.get("priority_rationale", [])),
         "target_prover_family": str(action_row.get("target_prover_family", "")),
         "library_snapshot_ref": str(action_row.get("library_snapshot_ref", "")),
         "candidate_declaration_rows": _candidate_declaration_rows(
@@ -1561,6 +1870,11 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "resource_id",
@@ -2008,6 +2322,21 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = lower
+    return max(lower, min(upper, parsed))
+
+
+def _average_int(values: Any) -> int:
+    items = [int(value) for value in values]
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _candidate_declaration_rows(values: object) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     for item in _dict_tuple(values):
@@ -2061,6 +2390,11 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     return tuple(value for value in values if isinstance(value, dict))
 
 
+def _dict_value(mapping: Any, key: str) -> dict[str, object]:
+    value = mapping.get(key, {}) if isinstance(mapping, dict) else {}
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _formal_declaration_key(value: object) -> str:
     return re.sub(r"\s+", " ", str(value).strip()).lower()
 
@@ -2109,6 +2443,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM planner next actions: "
             f"{payload.get('n_llm_route_planner_planner_next_actions')}"
         ),
+        (
+            f"- LLM residual interpretations: "
+            f"{payload.get('n_llm_route_planner_residual_interpretations')}"
+        ),
+        (
+            f"- LLM route-adoption preconditions rows/blockers/required-fields/request-packets: "
+            f"{payload.get('n_llm_route_planner_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_required_response_fields')}/"
+            f"{payload.get('n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions')}"
+        ),
         f"- Target prover family: {payload.get('target_prover_family')}",
         f"- Target prover families: {payload.get('n_target_prover_families')}",
         f"- Local-first requests: {payload.get('n_local_first_requests')}",
@@ -2120,6 +2465,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_request_rows')}"
         ),
         f"- Actionable work items: {payload.get('n_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_resource_request_rows')}"

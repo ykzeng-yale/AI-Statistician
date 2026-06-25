@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Mapping
 
@@ -34,9 +35,26 @@ def export_theorem_reduction_closure_learning_from_manifest(
         for row in verified_checks
         if str(row.get("source_formal_target_id", "")).strip()
     ]
+    declaration_names: list[str] = []
+    artifact_paths: list[str] = []
+    signature_excerpts: list[str] = []
     goal_ids: list[str] = []
     bridge_ids: list[str] = []
     for row in verified_checks:
+        declaration = str(row.get("target_lean_declaration", "") or "").strip()
+        artifact_path = str(row.get("lean_export_path", "") or "").strip()
+        if not declaration and artifact_path:
+            declaration = _lean_declaration_name_from_artifact(Path(artifact_path))
+        if declaration and declaration not in declaration_names:
+            declaration_names.append(declaration)
+        if artifact_path and artifact_path not in artifact_paths:
+            artifact_paths.append(artifact_path)
+        signature_excerpt = _lean_declaration_signature_excerpt_from_artifact(
+            Path(artifact_path),
+            declaration=declaration,
+        )
+        if signature_excerpt and signature_excerpt not in signature_excerpts:
+            signature_excerpts.append(signature_excerpt)
         for goal_id in row.get("target_theorem_goal_ids", []) or []:
             text = str(goal_id).strip()
             if text and text not in goal_ids:
@@ -55,6 +73,9 @@ def export_theorem_reduction_closure_learning_from_manifest(
             "theorem_reduction_closure_audit_manifest": str(manifest_path),
             "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
             "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+            "kernel_verified_theorem_reduction_closure_declarations": declaration_names,
+            "verified_theorem_reduction_closure_artifact_paths": artifact_paths,
+            "kernel_verified_theorem_reduction_closure_signature_excerpts": signature_excerpts,
             "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
             "verified_bridge_obligation_ids": bridge_ids,
             "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
@@ -63,6 +84,9 @@ def export_theorem_reduction_closure_learning_from_manifest(
         },
         "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
         "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+        "kernel_verified_theorem_reduction_closure_declarations": declaration_names,
+        "verified_theorem_reduction_closure_artifact_paths": artifact_paths,
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": signature_excerpts,
         "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
         "verified_bridge_obligation_ids": bridge_ids,
         "target_behavior": (
@@ -91,6 +115,9 @@ def export_theorem_reduction_closure_learning_from_manifest(
         "n_kernel_verified_theorem_reduction_closure_work_order_ids": len(work_order_ids),
         "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
         "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+        "kernel_verified_theorem_reduction_closure_declarations": declaration_names,
+        "verified_theorem_reduction_closure_artifact_paths": artifact_paths,
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": signature_excerpts,
         "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
         "verified_bridge_obligation_ids": bridge_ids,
         "boundary": row["boundary"],
@@ -103,3 +130,52 @@ def export_theorem_reduction_closure_learning_from_manifest(
         "runtime_learning_rows_jsonl": learning_path,
         "export_manifest_path": manifest_out,
     }
+
+
+def _lean_declaration_name_from_artifact(path: Path) -> str:
+    try:
+        text = path.expanduser().read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    match = re.search(
+        r"(?m)^\s*(?:noncomputable\s+)?(?:private\s+)?"
+        r"(?:theorem|lemma|def|abbrev)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+        text,
+    )
+    return match.group(1) if match else ""
+
+
+def _lean_declaration_signature_excerpt_from_artifact(
+    path: Path,
+    *,
+    declaration: str = "",
+    max_lines: int = 40,
+    max_chars: int = 2000,
+) -> str:
+    try:
+        text = path.expanduser().read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    wanted = str(declaration or "").strip()
+    lines = text.splitlines()
+    start = -1
+    declaration_pattern = (
+        rf"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
+        rf"{re.escape(wanted)}\b"
+        if wanted
+        else r"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
+    )
+    for index, line in enumerate(lines):
+        if re.search(declaration_pattern, line):
+            start = index
+            break
+    if start < 0:
+        return ""
+    excerpt_lines: list[str] = []
+    for line in lines[start : start + max_lines]:
+        if ":= by" in line:
+            before, _sep, _after = line.partition(":= by")
+            excerpt_lines.append(before.rstrip())
+            break
+        excerpt_lines.append(line.rstrip())
+    return "\n".join(excerpt_lines).strip()[:max_chars]

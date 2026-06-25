@@ -414,7 +414,7 @@ theorem vdVWUniformDeviationBadEvent_nullMeasurableSet_of_countable_of_aemeasura
     vdVWUniformDeviationBadEvent_nullMeasurableSet_of_countable_of_coordinate
       (h_count := h_count)
   intro index hindex
-  simpa using
+  simpa [Set.preimage, Set.mem_setOf_eq] using
     (h_coordinate index hindex).nullMeasurableSet_preimage
       (measurableSet_Ioi : MeasurableSet (Set.Ioi tolerance))
 

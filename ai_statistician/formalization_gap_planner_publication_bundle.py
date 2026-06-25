@@ -59,6 +59,7 @@ from .formalization_gap_planner_library_coverage_map import (
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -73,6 +74,7 @@ from .formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_REJECTED_STATUS,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
+    llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_request_json_schema,
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
@@ -196,6 +198,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
@@ -203,6 +206,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -214,6 +218,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
@@ -221,6 +226,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -552,6 +558,9 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_manifest_schema = llm_route_planner_manifest_json_schema()
     llm_route_planner_row_schema = llm_route_planner_row_json_schema()
+    llm_route_planner_model_tier_decision_ledger_schema = (
+        llm_route_planner_model_tier_decision_ledger_json_schema()
+    )
     llm_route_planner_seed_route_selection_schema = (
         llm_route_planner_seed_route_selection_json_schema()
     )
@@ -673,6 +682,10 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_row_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    llm_route_planner_model_tier_decision_ledger_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
     )
     route_adoption_blocker_taxonomy_schema_path = (
         contract_dir
@@ -882,6 +895,13 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_row_schema_path.write_text(
         json.dumps(llm_route_planner_row_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_model_tier_decision_ledger_schema_path.write_text(
+        json.dumps(
+            llm_route_planner_model_tier_decision_ledger_schema,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     route_adoption_blocker_taxonomy_schema_path.write_text(
@@ -1460,6 +1480,13 @@ def export_formalization_gap_planner_publication_bundle(
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
         },
         {
+            "artifact_name": "llm_route_planner_model_tier_decision_ledger_schema",
+            "path": str(llm_route_planner_model_tier_decision_ledger_schema_path),
+            "required": True,
+            "ok": llm_route_planner_model_tier_decision_ledger_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+        },
+        {
             "artifact_name": "route_adoption_blocker_taxonomy_schema",
             "path": str(route_adoption_blocker_taxonomy_schema_path),
             "required": True,
@@ -1979,6 +2006,11 @@ def export_formalization_gap_planner_publication_bundle(
                 "all_ok",
             ),
         ),
+        "cross_prover_formal_attempt_dependency_summary": (
+            _cross_prover_formal_attempt_dependency_summary(
+                formalization_gap_planner_cross_prover_matrix_audit_dir
+            )
+        ),
         "route_replan_handoff_summary": _manifest_summary(
             formalization_gap_planner_route_replan_handoff_dir,
             "formalization_gap_planner_route_replan_handoff_manifest.json",
@@ -2182,10 +2214,23 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_adoption_blockers",
             "n_llm_route_adoption_pending_quality_control_blockers",
             "n_llm_route_adoption_pending_source_grounding_blockers",
+            "n_rows_with_llm_route_planner_route_adoption_preconditions",
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+            "n_llm_route_planner_route_adoption_precondition_known_blockers",
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
             "llm_route_adoption_blockers",
             "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
             "evaluation_by_llm_route_adoption_blocker",
+            "llm_route_planner_provider_usage_summary",
+            "n_rows_with_llm_route_planner_provider_usage",
+            "total_llm_route_planner_provider_input_tokens",
+            "total_llm_route_planner_provider_output_tokens",
+            "total_llm_route_planner_provider_cache_creation_input_tokens",
+            "total_llm_route_planner_provider_cache_read_input_tokens",
+            "total_llm_route_planner_provider_total_tokens",
             "n_rows_with_quality_controls",
             "n_quality_control_fields",
             "quality_control_fields",
@@ -2232,6 +2277,24 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_adoption_pending_source_grounding_blockers": (
                 nonnegative_integer
             ),
+            "n_rows_with_llm_route_planner_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "llm_route_planner_route_adoption_precondition_known_blockers": (
+                string_array
+            ),
+            "llm_route_planner_route_adoption_precondition_required_response_fields": (
+                string_array
+            ),
             "llm_route_adoption_blockers": string_array,
             "llm_route_adoption_blocker_counts": {
                 "type": "object",
@@ -2245,6 +2308,20 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 "type": "object",
                 "additionalProperties": {"type": "object"},
             },
+            "llm_route_planner_provider_usage_summary": {
+                "type": "object",
+                "additionalProperties": True,
+            },
+            "n_rows_with_llm_route_planner_provider_usage": nonnegative_integer,
+            "total_llm_route_planner_provider_input_tokens": nonnegative_integer,
+            "total_llm_route_planner_provider_output_tokens": nonnegative_integer,
+            "total_llm_route_planner_provider_cache_creation_input_tokens": (
+                nonnegative_integer
+            ),
+            "total_llm_route_planner_provider_cache_read_input_tokens": (
+                nonnegative_integer
+            ),
+            "total_llm_route_planner_provider_total_tokens": nonnegative_integer,
             "n_rows_with_quality_controls": nonnegative_integer,
             "n_quality_control_fields": nonnegative_integer,
             "quality_control_fields": string_array,
@@ -2263,6 +2340,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_rows_with_context_packet_inventory",
+            "n_requests_with_route_adoption_preconditions",
+            "n_request_route_adoption_precondition_known_blockers",
+            "n_request_route_adoption_precondition_required_response_fields",
             "n_requests_with_quality_control_obligation_inventory",
             "n_requests_with_pending_quality_control_obligation_inventory",
             "n_request_quality_control_obligation_fields",
@@ -2271,17 +2351,48 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values",
             "n_request_discharged_quality_control_fields",
             "n_request_discharged_quality_control_values",
+            "n_requests_with_source_grounding_rows",
+            "n_request_source_grounding_rows",
+            "n_requests_with_source_grounding_obligation_inventory",
+            "n_requests_with_pending_source_grounding_obligation_inventory",
+            "n_request_source_grounding_unresolved_rows",
+            "n_request_residual_source_grounding_unresolved_rows",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
             "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries",
             "n_feedback_loop_summary_interactive_resource_request_execution_commands",
+            "n_requests_with_component_resource_registry_context",
+            "n_component_resource_registry_resources_in_prompt",
+            "n_component_resource_registry_contracts_in_prompt",
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_requests_with_source_theorem_formal_environment_bridge_context",
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+            "n_requests_with_exact_source_theorem_proof_body_executor_context",
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
+            "provider_usage_summary",
+            "n_rows_with_provider_usage",
+            "total_provider_input_tokens",
+            "total_provider_output_tokens",
+            "total_provider_cache_creation_input_tokens",
+            "total_provider_cache_read_input_tokens",
+            "total_provider_total_tokens",
             "n_generated_responses_model_tier_escalated",
             "n_generated_responses_haiku_to_sonnet_escalated",
             "n_repair_attempt_ledger_model_tier_escalations",
+            "n_model_tier_decision_ledger_rows",
+            "n_model_tier_decision_ledger_rows_with_escalation",
+            "n_model_tier_decision_ledger_provider_failure_rows",
             "n_rows_with_model_tier_escalation",
             "n_requests_with_model_tier_decision_evidence",
             "n_request_model_tier_decision_auto_haiku_bounded",
@@ -2313,10 +2424,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_formal_attempt_queue_items",
+            "n_rows_with_formal_attempt_queue",
             "n_delta_action_witness_required_primitives",
             "n_delta_action_witness_missing_primitives",
             "n_rows_with_delta_action_witness_obligations",
             "n_rows_with_complete_delta_action_witness",
+            "n_rows_with_route_adoption_preconditions",
+            "n_row_route_adoption_precondition_known_blockers",
             "n_accepted_route_plans",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
@@ -2346,6 +2461,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_requests_with_route_adoption_preconditions": nonnegative_integer,
+            "n_request_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_request_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
             "n_requests_with_quality_control_obligation_inventory": (
                 nonnegative_integer
             ),
@@ -2358,6 +2480,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values": nonnegative_integer,
             "n_request_discharged_quality_control_fields": nonnegative_integer,
             "n_request_discharged_quality_control_values": nonnegative_integer,
+            "n_requests_with_source_grounding_rows": nonnegative_integer,
+            "n_request_source_grounding_rows": nonnegative_integer,
+            "n_requests_with_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_requests_with_pending_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_source_grounding_unresolved_rows": nonnegative_integer,
+            "n_request_residual_source_grounding_unresolved_rows": (
+                nonnegative_integer
+            ),
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -2373,15 +2507,98 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_feedback_loop_summary_interactive_resource_request_execution_commands": (
                 nonnegative_integer
             ),
+            "n_requests_with_component_resource_registry_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_formal_environment_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_exact_source_theorem_proof_body_executor_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_request_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "provider_usage_summary": {"type": "object"},
+            "n_rows_with_provider_usage": nonnegative_integer,
+            "total_provider_input_tokens": nonnegative_integer,
+            "total_provider_output_tokens": nonnegative_integer,
+            "total_provider_cache_creation_input_tokens": nonnegative_integer,
+            "total_provider_cache_read_input_tokens": nonnegative_integer,
+            "total_provider_total_tokens": nonnegative_integer,
             "n_generated_responses_model_tier_escalated": nonnegative_integer,
             "n_generated_responses_haiku_to_sonnet_escalated": (
                 nonnegative_integer
             ),
             "n_repair_attempt_ledger_model_tier_escalations": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_rows": nonnegative_integer,
+            "n_model_tier_decision_ledger_rows_with_escalation": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_provider_failure_rows": (
                 nonnegative_integer
             ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
@@ -2444,10 +2661,16 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases": {"type": "object"},
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_formal_attempt_queue_items": nonnegative_integer,
+            "n_rows_with_formal_attempt_queue": nonnegative_integer,
             "n_delta_action_witness_required_primitives": nonnegative_integer,
             "n_delta_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_delta_action_witness": nonnegative_integer,
+            "n_rows_with_route_adoption_preconditions": nonnegative_integer,
+            "n_row_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
             "n_accepted_route_plans": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
@@ -2495,6 +2718,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payloads",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            "n_payloads_with_formal_attempt_queue",
+            "n_payload_formal_attempt_queue_items",
+            "n_payloads_with_formal_attempt_queue_errors",
+            "n_formal_attempt_queue_errors",
             "n_payloads_with_declared_target_prover_family",
             "n_request_bound_payloads_with_target_prover_family_mismatch",
             "by_payload_target_prover_family",
@@ -2520,6 +2751,22 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payload_context_inventory_total_rows": (
                 nonnegative_integer
             ),
+            "n_request_bound_payloads_with_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "n_payloads_with_formal_attempt_queue": nonnegative_integer,
+            "n_payload_formal_attempt_queue_items": nonnegative_integer,
+            "n_payloads_with_formal_attempt_queue_errors": nonnegative_integer,
+            "n_formal_attempt_queue_errors": nonnegative_integer,
             "n_payloads_with_declared_target_prover_family": nonnegative_integer,
             "n_request_bound_payloads_with_target_prover_family_mismatch": (
                 nonnegative_integer
@@ -2535,6 +2782,39 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_schema_errors": nonnegative_integer,
             "n_request_context_errors": nonnegative_integer,
             "all_ok": {"type": "boolean"},
+        },
+    }
+    cross_prover_formal_attempt_dependency_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "manifest_path",
+            "target_summary_path",
+            "n_total_packets",
+            "n_total_packets_with_formal_attempt_dependency",
+            "n_total_packets_formal_attempt_initial_ready",
+            "n_total_packets_formal_attempt_waiting",
+            "n_total_packets_formal_attempt_missing_prerequisites",
+            "by_total_packet_formal_attempt_dependency_status",
+            "target_summary_consistent",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "manifest_path": {"type": "string"},
+            "target_summary_path": {"type": "string"},
+            "n_total_packets": nonnegative_integer,
+            "n_total_packets_with_formal_attempt_dependency": nonnegative_integer,
+            "n_total_packets_formal_attempt_initial_ready": nonnegative_integer,
+            "n_total_packets_formal_attempt_waiting": nonnegative_integer,
+            "n_total_packets_formal_attempt_missing_prerequisites": (
+                nonnegative_integer
+            ),
+            "by_total_packet_formal_attempt_dependency_status": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "target_summary_consistent": {"type": "boolean"},
         },
     }
     return {
@@ -2555,6 +2835,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_summary",
             "feedback_llm_route_planner_summary",
             "llm_route_planner_response_payload_validation_summary",
+            "cross_prover_formal_attempt_dependency_summary",
             "schema_catalog_summary",
             "all_ok",
             "proof_evidence_status",
@@ -2581,6 +2862,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "feedback_llm_route_planner_summary": llm_route_planner_summary_schema,
             "llm_route_planner_response_payload_validation_summary": (
                 response_payload_validation_summary_schema
+            ),
+            "cross_prover_formal_attempt_dependency_summary": (
+                cross_prover_formal_attempt_dependency_summary_schema
             ),
             "schema_catalog_summary": {"type": "object"},
             "portable_reuse_targets": string_array,
@@ -3966,6 +4250,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
@@ -4190,6 +4475,86 @@ def _manifest_summary(
     }
 
 
+def _int_or_zero(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _count_map(value: object) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): _int_or_zero(count)
+        for key, count in sorted(value.items(), key=lambda item: str(item[0]))
+    }
+
+
+def _cross_prover_formal_attempt_dependency_summary(
+    source_dir: Path | None,
+) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "target_summary_path": "",
+        "n_total_packets": 0,
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {},
+        "target_summary_consistent": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = (
+        source_dir
+        / "formalization_gap_planner_cross_prover_matrix_audit_manifest.json"
+    )
+    target_summary_path = (
+        source_dir / "formalization_gap_planner_cross_prover_target_summary.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    target_summary = _read_json_no_error(target_summary_path)
+    counter_fields = (
+        "n_total_packets_with_formal_attempt_dependency",
+        "n_total_packets_formal_attempt_initial_ready",
+        "n_total_packets_formal_attempt_waiting",
+        "n_total_packets_formal_attempt_missing_prerequisites",
+    )
+    manifest_counters = {
+        field_name: _int_or_zero(manifest.get(field_name))
+        for field_name in counter_fields
+    }
+    target_summary_counters = {
+        field_name: _int_or_zero(target_summary.get(field_name))
+        for field_name in counter_fields
+    }
+    manifest_histogram = _count_map(
+        manifest.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    target_summary_histogram = _count_map(
+        target_summary.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    total_packets = _int_or_zero(manifest.get("n_total_packets"))
+    target_total_packets = _int_or_zero(target_summary.get("n_total_packets"))
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "target_summary_path": str(target_summary_path),
+        "n_total_packets": total_packets,
+        **manifest_counters,
+        "by_total_packet_formal_attempt_dependency_status": manifest_histogram,
+        "target_summary_consistent": (
+            total_packets == target_total_packets
+            and manifest_counters == target_summary_counters
+            and manifest_histogram == target_summary_histogram
+        ),
+    }
+
+
 def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
     zero_summary: dict[str, object] = {
         "requested": False,
@@ -4225,10 +4590,23 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_adoption_blockers": 0,
         "n_llm_route_adoption_pending_quality_control_blockers": 0,
         "n_llm_route_adoption_pending_source_grounding_blockers": 0,
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": 0,
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 0,
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": 0,
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": 0,
+        "llm_route_planner_route_adoption_precondition_known_blockers": (),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (),
         "llm_route_adoption_blockers": (),
         "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
         "evaluation_by_llm_route_adoption_blocker": {},
+        "llm_route_planner_provider_usage_summary": {},
+        "n_rows_with_llm_route_planner_provider_usage": 0,
+        "total_llm_route_planner_provider_input_tokens": 0,
+        "total_llm_route_planner_provider_output_tokens": 0,
+        "total_llm_route_planner_provider_cache_creation_input_tokens": 0,
+        "total_llm_route_planner_provider_cache_read_input_tokens": 0,
+        "total_llm_route_planner_provider_total_tokens": 0,
         "n_rows_with_quality_controls": 0,
         "n_quality_control_fields": 0,
         "quality_control_fields": (),
@@ -4468,6 +4846,64 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             )
             or 0
         ),
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_route_adoption_preconditions",
+                sum(
+                    1
+                    for row in rows
+                    if row.get(
+                        "llm_route_planner_route_adoption_precondition_present"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+                sum(
+                    1
+                    for row in rows
+                    if row.get(
+                        "llm_route_planner_route_adoption_precondition_blocked_before_response"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": (
+            _manifest_count_or_rows(
+                payload,
+                rows,
+                "n_llm_route_planner_route_adoption_precondition_known_blockers",
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _manifest_count_or_rows(
+                payload,
+                rows,
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_known_blockers": (
+            _manifest_values_or_rows(
+                payload,
+                rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _manifest_values_or_rows(
+                payload,
+                rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
         "llm_route_adoption_blockers": _manifest_values_or_row_field(
             payload,
             rows,
@@ -4484,6 +4920,82 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         ),
         "evaluation_by_llm_route_adoption_blocker": (
             _llm_route_adoption_blocker_summary(payload, rows)
+        ),
+        "llm_route_planner_provider_usage_summary": (
+            _dict_value(payload, "llm_route_planner_provider_usage_summary")
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_provider_usage",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("llm_route_planner_has_provider_usage") is True
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_input_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_input_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_output_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_output_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_cache_creation_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_creation_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_cache_read_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_read_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_total_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_total_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
         ),
         "n_rows_with_quality_controls": int(
             payload.get(
@@ -4531,6 +5043,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
+        "n_requests_with_route_adoption_preconditions": 0,
+        "n_request_route_adoption_precondition_known_blockers": 0,
+        "n_request_route_adoption_precondition_required_response_fields": 0,
         "n_requests_with_quality_control_obligation_inventory": 0,
         "n_requests_with_pending_quality_control_obligation_inventory": 0,
         "n_request_quality_control_obligation_fields": 0,
@@ -4539,18 +5054,57 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_pending_quality_control_values": 0,
         "n_request_discharged_quality_control_fields": 0,
         "n_request_discharged_quality_control_values": 0,
+        "n_requests_with_source_grounding_rows": 0,
+        "n_request_source_grounding_rows": 0,
+        "n_requests_with_source_grounding_obligation_inventory": 0,
+        "n_requests_with_pending_source_grounding_obligation_inventory": 0,
+        "n_request_source_grounding_unresolved_rows": 0,
+        "n_request_residual_source_grounding_unresolved_rows": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
         "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": 0,
         "n_feedback_loop_summary_interactive_resource_request_execution_commands": 0,
+        "n_requests_with_component_resource_registry_context": 0,
+        "n_component_resource_registry_resources_in_prompt": 0,
+        "n_component_resource_registry_contracts_in_prompt": 0,
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context": 0,
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": 0,
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": 0,
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": 0,
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": 0,
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": 0,
+        "n_requests_with_source_theorem_formal_environment_bridge_context": 0,
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": 0,
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": 0,
+        "n_requests_with_exact_source_theorem_proof_body_executor_context": 0,
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": 0,
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": 0,
+        "n_requests_with_source_theorem_semantic_primitive_rows": 0,
+        "n_request_source_theorem_semantic_primitive_rows": 0,
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": 0,
+        "n_request_proof_body_semantic_primitive_work_order_rows": 0,
+        "n_requests_with_source_theorem_formal_environment_rows": 0,
+        "n_request_source_theorem_formal_environment_rows": 0,
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": 0,
+        "n_request_source_theorem_proof_body_execution_result_rows": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
         "n_provider_failures": 0,
+        "provider_usage_summary": {},
+        "n_rows_with_provider_usage": 0,
+        "total_provider_input_tokens": 0,
+        "total_provider_output_tokens": 0,
+        "total_provider_cache_creation_input_tokens": 0,
+        "total_provider_cache_read_input_tokens": 0,
+        "total_provider_total_tokens": 0,
         "n_generated_responses_model_tier_escalated": 0,
         "n_generated_responses_haiku_to_sonnet_escalated": 0,
         "n_repair_attempt_ledger_model_tier_escalations": 0,
+        "n_model_tier_decision_ledger_rows": 0,
+        "n_model_tier_decision_ledger_rows_with_escalation": 0,
+        "n_model_tier_decision_ledger_provider_failure_rows": 0,
         "n_rows_with_model_tier_escalation": 0,
         "n_requests_with_model_tier_decision_evidence": 0,
         "n_request_model_tier_decision_auto_haiku_bounded": 0,
@@ -4582,10 +5136,14 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "legacy_response_field_aliases": {},
         "n_lean_realization_dag_nodes": 0,
         "n_route_alignment_edges": 0,
+        "n_formal_attempt_queue_items": 0,
+        "n_rows_with_formal_attempt_queue": 0,
         "n_delta_action_witness_required_primitives": 0,
         "n_delta_action_witness_missing_primitives": 0,
         "n_rows_with_delta_action_witness_obligations": 0,
         "n_rows_with_complete_delta_action_witness": 0,
+        "n_rows_with_route_adoption_preconditions": 0,
+        "n_row_route_adoption_precondition_known_blockers": 0,
         "n_accepted_route_plans": 0,
         "n_route_adoption_ready": 0,
         "n_route_adoption_pending_refinement": 0,
@@ -4615,6 +5173,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     rows = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
+    request_route_adoption_preconditions = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_adoption_preconditions",
+        )
+        for packet in request_packets
+    )
+    row_route_adoption_preconditions = tuple(
+        _dict_value(row, "route_adoption_preconditions") for row in rows
+    )
     library_alignment_summaries = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "library_alignment_summary")
         for packet in request_packets
@@ -4640,6 +5208,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
     standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
+    model_tier_decision_ledger = _dict_tuple(
+        payload.get("model_tier_decision_ledger", [])
+    )
     return {
         **zero_summary,
         "requested": True,
@@ -4658,6 +5229,39 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_requests_with_route_adoption_preconditions",
+                sum(1 for value in request_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in request_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                sum(
+                    len(_str_tuple(value.get("response_required_fields", [])))
+                    for value in request_route_adoption_preconditions
+                ),
             )
             or 0
         ),
@@ -4693,6 +5297,36 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
         ),
+        "n_requests_with_source_grounding_rows": int(
+            payload.get("n_requests_with_source_grounding_rows", 0) or 0
+        ),
+        "n_request_source_grounding_rows": int(
+            payload.get("n_request_source_grounding_rows", 0) or 0
+        ),
+        "n_requests_with_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_grounding_unresolved_rows": int(
+            payload.get("n_request_source_grounding_unresolved_rows", 0) or 0
+        ),
+        "n_request_residual_source_grounding_unresolved_rows": int(
+            payload.get(
+                "n_request_residual_source_grounding_unresolved_rows",
+                0,
+            )
+            or 0
+        ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
@@ -4725,6 +5359,152 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "n_requests_with_component_resource_registry_context": int(
+            payload.get("n_requests_with_component_resource_registry_context", 0)
+            or 0
+        ),
+        "n_component_resource_registry_resources_in_prompt": int(
+            payload.get("n_component_resource_registry_resources_in_prompt", 0)
+            or 0
+        ),
+        "n_component_resource_registry_contracts_in_prompt": int(
+            payload.get("n_component_resource_registry_contracts_in_prompt", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_exact_source_theorem_proof_body_executor_context": int(
+            payload.get(
+                "n_requests_with_exact_source_theorem_proof_body_executor_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_semantic_primitive_rows": int(
+            payload.get("n_request_source_theorem_semantic_primitive_rows", 0)
+            or 0
+        ),
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_request_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_formal_environment_rows": int(
+            payload.get("n_request_source_theorem_formal_environment_rows", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_request_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(
@@ -4751,6 +5531,64 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "provider_usage_summary": _dict_value(payload, "provider_usage_summary"),
+        "n_rows_with_provider_usage": int(
+            payload.get(
+                "n_rows_with_provider_usage",
+                len(_dict_tuple(payload.get("provider_usage_rows", []))),
+            )
+            or 0
+        ),
+        "total_provider_input_tokens": int(
+            payload.get(
+                "total_provider_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_output_tokens": int(
+            payload.get(
+                "total_provider_output_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "output_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_provider_cache_creation_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_creation_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_provider_cache_read_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_read_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_total_tokens": int(
+            payload.get(
+                "total_provider_total_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "total_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
         "n_generated_responses_model_tier_escalated": int(
             payload.get(
                 "n_generated_responses_model_tier_escalated",
@@ -4774,6 +5612,31 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                     for ledger_row in _dict_tuple(row.get("repair_attempt_ledger"))
                     if bool(ledger_row.get("model_tier_escalated"))
                 ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows",
+                len(model_tier_decision_ledger),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows_with_escalation",
+                sum(
+                    1
+                    for row in model_tier_decision_ledger
+                    if row.get("model_tier_escalated")
+                ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_provider_failure_rows",
+                sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")),
             )
             or 0
         ),
@@ -5033,6 +5896,20 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "n_formal_attempt_queue_items": int(
+            payload.get(
+                "n_formal_attempt_queue_items",
+                _jsonl_row_collection_count(rows, "formal_attempt_queue"),
+            )
+            or 0
+        ),
+        "n_rows_with_formal_attempt_queue": int(
+            payload.get(
+                "n_rows_with_formal_attempt_queue",
+                sum(1 for row in rows if _dict_tuple(row.get("formal_attempt_queue"))),
+            )
+            or 0
+        ),
         "n_delta_action_witness_required_primitives": int(
             payload.get(
                 "n_delta_action_witness_required_primitives",
@@ -5101,6 +5978,29 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             "realization_coverage_witness",
                         ).get("delta_action_witness_complete", False)
                     )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                sum(1 for value in row_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_row_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in row_route_adoption_preconditions
                 ),
             )
             or 0
@@ -5206,6 +6106,14 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_bound_payloads": 0,
         "n_request_bound_payloads_with_context_packet_inventory": 0,
         "n_request_bound_payload_context_inventory_total_rows": 0,
+        "n_request_bound_payloads_with_route_adoption_preconditions": 0,
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": 0,
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": 0,
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": 0,
+        "n_payloads_with_formal_attempt_queue": 0,
+        "n_payload_formal_attempt_queue_items": 0,
+        "n_payloads_with_formal_attempt_queue_errors": 0,
+        "n_formal_attempt_queue_errors": 0,
         "n_payloads_with_declared_target_prover_family": 0,
         "n_request_bound_payloads_with_target_prover_family_mismatch": 0,
         "by_payload_target_prover_family": {},
@@ -5225,6 +6133,7 @@ def _llm_route_planner_response_payload_validation_summary(
         / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
     )
     payload = _read_json_no_error(manifest_path)
+    rows = _read_jsonl_dict_rows_no_error(jsonl_path)
     by_payload_target = payload.get("by_payload_target_prover_family", {})
     by_request_target = payload.get("by_request_context_target_prover_family", {})
     return {
@@ -5257,6 +6166,76 @@ def _llm_route_planner_response_payload_validation_summary(
         ),
         "n_request_bound_payload_context_inventory_total_rows": int(
             payload.get("n_request_bound_payload_context_inventory_total_rows", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_known_blockers",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+                0,
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("payload_formal_attempt_queue_present", False))
+                ),
+            )
+            or 0
+        ),
+        "n_payload_formal_attempt_queue_items": int(
+            payload.get(
+                "n_payload_formal_attempt_queue_items",
+                sum(
+                    int(row.get("payload_formal_attempt_queue_item_count", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue_errors",
+                sum(
+                    1
+                    for row in rows
+                    if int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_formal_attempt_queue_errors",
+                sum(
+                    int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                    for row in rows
+                ),
+            )
             or 0
         ),
         "n_payloads_with_declared_target_prover_family": int(
@@ -5735,15 +6714,40 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')}"
         ),
         (
+            f"- Evaluation LLM provider usage rows/input/output/total: "
+            f"{payload.get('evaluation_summary', {}).get('n_rows_with_llm_route_planner_provider_usage')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_total_tokens')}"
+        ),
+        (
             f"- Evaluation quality controls: "
             f"rows={payload.get('evaluation_summary', {}).get('n_rows_with_quality_controls')} "
             f"fields={payload.get('evaluation_summary', {}).get('quality_control_fields')}"
         ),
         (
+            f"- Cross-prover formal-attempt dependency: "
+            f"with_dependency="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_with_formal_attempt_dependency')} "
+            f"ready="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_initial_ready')} "
+            f"waiting="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_waiting')} "
+            f"missing="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_missing_prerequisites')} "
+            f"target_summary_consistent="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('target_summary_consistent')}"
+        ),
+        (
             f"- LLM route planner ready/pending/blockers: "
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
-            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
+            f"preconditions={payload.get('llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"row_preconditions={payload.get('llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
         ),
         (
             f"- LLM standalone replay gate: "
@@ -5753,10 +6757,51 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"blockers={payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
         ),
         (
+            f"- LLM route planner source-grounding rows/pending/residual-unresolved: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')} "
+            f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')}"
+        ),
+        (
+            f"- LLM formal-attempt queues primary/feedback: "
+            f"primary_items={payload.get('llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
+            f"primary_rows={payload.get('llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')} "
+            f"feedback_items={payload.get('feedback_llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
+            f"feedback_rows={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')}"
+        ),
+        (
+            f"- LLM response-payload formal-attempt queue validation: "
+            f"payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue')} "
+            f"items={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payload_formal_attempt_queue_items')} "
+            f"error_payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue_errors')} "
+            f"errors={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_formal_attempt_queue_errors')}"
+        ),
+        (
+            f"- LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_rows_with_provider_usage')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
+            f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_provider_failure_rows')}"
+        ),
+        (
             f"- Feedback LLM route planner ready/pending/blockers: "
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
-            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
+            f"preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"row_preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
         ),
         (
             f"- Feedback LLM standalone replay gate: "
@@ -5764,6 +6809,44 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"adoptable={payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
             f"blockers={payload.get('feedback_llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
+        ),
+        (
+            f"- Feedback LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_provider_usage')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
+            f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_provider_failure_rows')}"
+        ),
+        (
+            f"- LLM registry resources in prompt: "
+            f"primary={payload.get('llm_route_planner_summary', {}).get('n_requests_with_component_resource_registry_context')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_resources_in_prompt')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_contracts_in_prompt')} "
+            f"semantic_bridge={payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"post_proof_body_semantic_bridge={payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
+            f"formal_env_bridge={payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
+            f"proof_body_executor={payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt')} "
+            f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_component_resource_registry_context')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_resources_in_prompt')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_contracts_in_prompt')} "
+            f"feedback_semantic_bridge={payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"feedback_post_proof_body_semantic_bridge={payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
+            f"feedback_formal_env_bridge={payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
+            f"feedback_proof_body_executor={payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt')}"
         ),
         (
             f"- Adapter registry row schema valid: "

@@ -60,6 +60,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
@@ -172,6 +173,9 @@ from .formalization_gap_planner_target_intake import (
 )
 from .model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
+    ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
+    ANTHROPIC_MODELS_OVERVIEW_URL,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -222,6 +226,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_response_payload_validation_row_schema",
     "llm_route_planner_manifest_schema",
     "llm_route_planner_row_schema",
+    "llm_route_planner_model_tier_decision_ledger_schema",
     "route_adoption_blocker_taxonomy_schema",
     "route_adoption_blocker_taxonomy_contract",
     "route_revision_overlay_row_schema",
@@ -516,6 +521,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "bundle_feedback_llm_route_planner_summary_consistent"
             and check.ok
         ),
+        "n_bundle_llm_route_planner_response_payload_validation_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+        ),
+        "n_bundle_llm_route_planner_response_payload_validation_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+            and check.ok
+        ),
         "n_component_execution_plan_schema_checked": sum(
             1
             for check in checks
@@ -756,6 +774,56 @@ def audit_formalization_gap_planner_publication_bundle(
         "optional_evaluation_route_adoption_blockers": (
             optional_evaluation_route_adoption_blockers
         ),
+        "n_optional_evaluation_rows_with_route_adoption_preconditions": sum(
+            1
+            for row in optional_evaluation_rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_present"
+            )
+            is True
+        ),
+        "n_optional_evaluation_rows_with_blocking_route_adoption_preconditions": sum(
+            1
+            for row in optional_evaluation_rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_blocked_before_response"
+            )
+            is True
+        ),
+        "n_optional_evaluation_route_adoption_precondition_known_blockers": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_known_blockers",
+                        [],
+                    )
+                )
+            )
+            for row in optional_evaluation_rows
+        ),
+        "n_optional_evaluation_route_adoption_precondition_required_response_fields": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_required_response_fields",
+                        [],
+                    )
+                )
+            )
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_route_adoption_precondition_known_blockers": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                optional_evaluation_rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "optional_evaluation_route_adoption_precondition_required_response_fields": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                optional_evaluation_rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
         "n_optional_evaluation_rows_with_quality_controls": sum(
             1
             for row in optional_evaluation_rows
@@ -886,6 +954,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_interactive_session_row_")
             and check.check_name.endswith("_generic_prover_fields")
+            and check.ok
+        ),
+        "n_optional_interactive_session_route_precondition_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_route_precondition_consistency")
+        ),
+        "n_optional_interactive_session_route_precondition_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_route_precondition_consistency")
             and check.ok
         ),
         "n_optional_refinement_evidence_row_schema_checked": sum(
@@ -1102,6 +1183,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_llm_route_planner_row_")
             and check.check_name.endswith("_seed_model_provenance")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_source_grounding_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
+        ),
+        "n_optional_llm_route_planner_seed_source_grounding_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
             and check.ok
         ),
         "n_optional_llm_route_planner_seed_realization_witness_checked": sum(
@@ -1400,6 +1494,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
             and check.ok
         ),
+        "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
             1
             for check in checks
@@ -1480,6 +1587,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_model_provenance")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_seed_realization_witness_checked": sum(
@@ -1944,6 +2064,49 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_dag_preservation")
             and check.ok
         ),
+        "n_optional_route_replan_handoff_seed_target_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_target_context_preservation")
+        ),
+        "n_optional_route_replan_handoff_seed_target_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_target_context_preservation")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_seed_route_planning_brief_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_route_planning_brief_preservation")
+        ),
+        "n_optional_route_replan_handoff_seed_route_planning_brief_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_route_planning_brief_preservation")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith(
+                "_seed_route_adoption_preconditions_preservation"
+            )
+        ),
+        "n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith(
+                "_seed_route_adoption_preconditions_preservation"
+            )
+            and check.ok
+        ),
         "n_optional_route_replan_handoff_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -1966,6 +2129,32 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_route_replan_handoff_audit_row_")
             and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_route_planning_brief_trace"
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_route_planning_brief_trace"
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace"
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace"
             and check.ok
         ),
         "n_optional_runtime_handoff_audit_row_schema_checked": sum(
@@ -2278,6 +2467,21 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
+        "n_optional_cross_prover_formal_attempt_dependency_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_formal_attempt_dependency_"
+            )
+        ),
+        "n_optional_cross_prover_formal_attempt_dependency_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_formal_attempt_dependency_"
+            )
+            and check.ok
+        ),
         "by_category": dict(sorted(by_category.items())),
         "n_bundle_files": len(bundle_files),
         "bundle_files": tuple(str(path) for path in bundle_files),
@@ -2345,6 +2549,12 @@ def _manifest_checks(
             manifest,
             summary_field="feedback_llm_route_planner_summary",
             artifact_name="formalization_gap_planner_feedback_llm_route_planner",
+        )
+    )
+    response_payload_validation_summary_errors = (
+        _bundle_llm_route_planner_response_payload_validation_summary_errors(
+            bundle_dir,
+            manifest,
         )
     )
     checks = [
@@ -2428,6 +2638,18 @@ def _manifest_checks(
             ),
             not feedback_llm_route_planner_summary_errors,
             errors=feedback_llm_route_planner_summary_errors,
+        ),
+        _check(
+            "bundle_llm_route_planner_response_payload_validation_summary_consistent",
+            "manifest",
+            "llm_route_planner_response_payload_validation_summary matches packaged response-payload validation artifacts",
+            (
+                "ok"
+                if not response_payload_validation_summary_errors
+                else "; ".join(response_payload_validation_summary_errors[:3])
+            ),
+            not response_payload_validation_summary_errors,
+            errors=response_payload_validation_summary_errors,
         ),
         _check(
             "bundle_root_is_directory",
@@ -2571,6 +2793,193 @@ def _bundle_llm_route_planner_summary_errors(
     return tuple(errors)
 
 
+def _bundle_llm_route_planner_response_payload_validation_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "llm_route_planner_response_payload_validation_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_llm_route_planner_response_payload_validation_summary(
+        bundle_dir
+    )
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if int(observed_value or 0) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict = observed_value if isinstance(observed_value, dict) else {}
+            if _int_mapping(observed_dict) != _int_mapping(expected_value):
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={_int_mapping(observed_dict)} "
+                    f"expected={_int_mapping(expected_value)}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_llm_route_planner_response_payload_validation_summary(
+    bundle_dir: Path,
+) -> dict[str, object]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    )
+    rows_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    )
+    payload = _read_json_no_error(manifest_path)
+    rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
+    by_payload_target = payload.get("by_payload_target_prover_family", {})
+    by_request_target = payload.get("by_request_context_target_prover_family", {})
+    return {
+        "requested": artifact_dir.exists(),
+        "n_payloads": int(payload.get("n_payloads", 0) or 0),
+        "n_valid_payloads": int(payload.get("n_valid_payloads", 0) or 0),
+        "n_invalid_payloads": int(payload.get("n_invalid_payloads", 0) or 0),
+        "n_request_context_packets": int(
+            payload.get("n_request_context_packets", 0) or 0
+        ),
+        "n_request_contexts_with_context_packet_inventory": int(
+            payload.get("n_request_contexts_with_context_packet_inventory", 0) or 0
+        ),
+        "n_request_context_inventory_total_rows": int(
+            payload.get("n_request_context_inventory_total_rows", 0) or 0
+        ),
+        "n_request_bound_payloads": int(
+            payload.get("n_request_bound_payloads", 0) or 0
+        ),
+        "n_request_bound_payloads_with_context_packet_inventory": int(
+            payload.get(
+                "n_request_bound_payloads_with_context_packet_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_context_inventory_total_rows": int(
+            payload.get("n_request_bound_payload_context_inventory_total_rows", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_known_blockers",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+                0,
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("payload_formal_attempt_queue_present", False))
+                ),
+            )
+            or 0
+        ),
+        "n_payload_formal_attempt_queue_items": int(
+            payload.get(
+                "n_payload_formal_attempt_queue_items",
+                sum(
+                    int(row.get("payload_formal_attempt_queue_item_count", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue_errors",
+                sum(
+                    1
+                    for row in rows
+                    if int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_formal_attempt_queue_errors",
+                sum(
+                    int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_declared_target_prover_family": int(
+            payload.get("n_payloads_with_declared_target_prover_family", 0) or 0
+        ),
+        "n_request_bound_payloads_with_target_prover_family_mismatch": int(
+            payload.get(
+                "n_request_bound_payloads_with_target_prover_family_mismatch",
+                0,
+            )
+            or 0
+        ),
+        "by_payload_target_prover_family": (
+            dict(by_payload_target) if isinstance(by_payload_target, dict) else {}
+        ),
+        "by_request_context_target_prover_family": (
+            dict(by_request_target) if isinstance(by_request_target, dict) else {}
+        ),
+        "n_schema_errors": int(payload.get("n_schema_errors", 0) or 0),
+        "n_request_context_errors": int(
+            payload.get("n_request_context_errors", 0) or 0
+        ),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
 def _expected_bundle_llm_route_planner_summary(
     bundle_dir: Path,
     artifact_name: str,
@@ -2583,6 +2992,19 @@ def _expected_bundle_llm_route_planner_summary(
     payload = _read_json_no_error(manifest_path)
     rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
+    request_route_adoption_preconditions = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_adoption_preconditions",
+        )
+        for packet in request_packets
+    )
+    row_route_adoption_preconditions = tuple(
+        _dict_value(row, "route_adoption_preconditions") for row in rows
+    )
+    model_tier_decision_ledger = _dict_tuple(
+        payload.get("model_tier_decision_ledger", [])
+    )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     route_adoption_status_counts = _llm_route_planner_status_counts_for_summary(
         payload,
@@ -2606,6 +3028,39 @@ def _expected_bundle_llm_route_planner_summary(
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_requests_with_route_adoption_preconditions",
+                sum(1 for value in request_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in request_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                sum(
+                    len(_str_tuple(value.get("response_required_fields", [])))
+                    for value in request_route_adoption_preconditions
+                ),
             )
             or 0
         ),
@@ -2641,6 +3096,36 @@ def _expected_bundle_llm_route_planner_summary(
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
         ),
+        "n_requests_with_source_grounding_rows": int(
+            payload.get("n_requests_with_source_grounding_rows", 0) or 0
+        ),
+        "n_request_source_grounding_rows": int(
+            payload.get("n_request_source_grounding_rows", 0) or 0
+        ),
+        "n_requests_with_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_grounding_unresolved_rows": int(
+            payload.get("n_request_source_grounding_unresolved_rows", 0) or 0
+        ),
+        "n_request_residual_source_grounding_unresolved_rows": int(
+            payload.get(
+                "n_request_residual_source_grounding_unresolved_rows",
+                0,
+            )
+            or 0
+        ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
@@ -2673,6 +3158,152 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_component_resource_registry_context": int(
+            payload.get("n_requests_with_component_resource_registry_context", 0)
+            or 0
+        ),
+        "n_component_resource_registry_resources_in_prompt": int(
+            payload.get("n_component_resource_registry_resources_in_prompt", 0)
+            or 0
+        ),
+        "n_component_resource_registry_contracts_in_prompt": int(
+            payload.get("n_component_resource_registry_contracts_in_prompt", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_exact_source_theorem_proof_body_executor_context": int(
+            payload.get(
+                "n_requests_with_exact_source_theorem_proof_body_executor_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_semantic_primitive_rows": int(
+            payload.get("n_request_source_theorem_semantic_primitive_rows", 0)
+            or 0
+        ),
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_request_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_formal_environment_rows": int(
+            payload.get("n_request_source_theorem_formal_environment_rows", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_request_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(
@@ -2699,6 +3330,64 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "provider_usage_summary": _dict_value(payload, "provider_usage_summary"),
+        "n_rows_with_provider_usage": int(
+            payload.get(
+                "n_rows_with_provider_usage",
+                len(_dict_tuple(payload.get("provider_usage_rows", []))),
+            )
+            or 0
+        ),
+        "total_provider_input_tokens": int(
+            payload.get(
+                "total_provider_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_output_tokens": int(
+            payload.get(
+                "total_provider_output_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "output_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_provider_cache_creation_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_creation_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_provider_cache_read_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_read_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_total_tokens": int(
+            payload.get(
+                "total_provider_total_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "total_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
         "n_generated_responses_model_tier_escalated": int(
             payload.get(
                 "n_generated_responses_model_tier_escalated",
@@ -2722,6 +3411,31 @@ def _expected_bundle_llm_route_planner_summary(
                     for ledger_row in _dict_tuple(row.get("repair_attempt_ledger"))
                     if bool(ledger_row.get("model_tier_escalated"))
                 ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows",
+                len(model_tier_decision_ledger),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows_with_escalation",
+                sum(
+                    1
+                    for row in model_tier_decision_ledger
+                    if row.get("model_tier_escalated")
+                ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_provider_failure_rows",
+                sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")),
             )
             or 0
         ),
@@ -2831,6 +3545,23 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_formal_attempt_queue_items": int(
+            payload.get(
+                "n_formal_attempt_queue_items",
+                sum(
+                    len(_dict_tuple(row.get("formal_attempt_queue")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_formal_attempt_queue": int(
+            payload.get(
+                "n_rows_with_formal_attempt_queue",
+                sum(1 for row in rows if _dict_tuple(row.get("formal_attempt_queue"))),
+            )
+            or 0
+        ),
         "n_delta_action_witness_required_primitives": int(
             payload.get(
                 "n_delta_action_witness_required_primitives",
@@ -2899,6 +3630,29 @@ def _expected_bundle_llm_route_planner_summary(
                             "realization_coverage_witness",
                         ).get("delta_action_witness_complete", False)
                     )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                sum(1 for value in row_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_row_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in row_route_adoption_preconditions
                 ),
             )
             or 0
@@ -3199,12 +3953,139 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
             len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
             for row in rows
         ),
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_present"
+            )
+            is True
+        ),
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_blocked_before_response"
+            )
+            is True
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_known_blockers",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_required_response_fields",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "llm_route_planner_route_adoption_precondition_known_blockers": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
         "llm_route_adoption_blockers": _evaluation_route_adoption_blockers_from_rows(
             rows
         ),
         "llm_route_adoption_blocker_counts": dict(route_adoption_blocker_counts),
         "llm_route_adoption_status_counts": dict(route_adoption_counts),
         "evaluation_by_llm_route_adoption_blocker": route_adoption_blocker_summary,
+        "llm_route_planner_provider_usage_summary": _dict_value(
+            evaluation_manifest,
+            "llm_route_planner_provider_usage_summary",
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            evaluation_manifest.get(
+                "n_rows_with_llm_route_planner_provider_usage",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("llm_route_planner_has_provider_usage") is True
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_input_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_input_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_output_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_output_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_cache_creation_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_creation_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_cache_read_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_read_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_total_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_total_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_rows_with_quality_controls": sum(
             1 for row in rows if _quality_controls_from_evaluation_row(row)
         ),
@@ -3370,6 +4251,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         bundle_dir
         / "contract"
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    llm_route_planner_model_tier_decision_ledger_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
     )
     route_adoption_blocker_taxonomy_schema_path = (
         bundle_dir
@@ -3547,6 +4433,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     llm_route_planner_row_schema = _read_json_no_error(
         llm_route_planner_row_schema_path
     )
+    llm_route_planner_model_tier_decision_ledger_schema = _read_json_no_error(
+        llm_route_planner_model_tier_decision_ledger_schema_path
+    )
     route_adoption_blocker_taxonomy_schema = _read_json_no_error(
         route_adoption_blocker_taxonomy_schema_path
     )
@@ -3660,6 +4549,29 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         component_resource_contract_row_schema_path
     )
     llm_model_policy = _read_json_no_error(llm_model_policy_path)
+    llm_model_policy_source_evidence = (
+        llm_model_policy.get("source_evidence", {})
+        if isinstance(llm_model_policy.get("source_evidence", {}), dict)
+        else {}
+    )
+    llm_model_selection_policy = (
+        llm_model_policy.get("claude_model_selection", {})
+        if isinstance(llm_model_policy.get("claude_model_selection", {}), dict)
+        else {}
+    )
+    llm_models_overview_url = str(
+        llm_model_policy_source_evidence.get("models_overview_url", "")
+    )
+    llm_model_ids_and_versioning_url = str(
+        llm_model_policy_source_evidence.get(
+            "model_ids_and_versioning_url",
+            "",
+        )
+    )
+    llm_model_id_versioning_policy = str(
+        llm_model_selection_policy.get("model_id_versioning")
+        or ANTHROPIC_MODEL_ID_VERSIONING_POLICY
+    )
     llm_models_by_tier = (
         llm_model_policy.get("latest_claude_models_by_tier", {})
         if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
@@ -3846,6 +4758,37 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_model_policy.get("source_checked_date", "")),
             llm_model_policy.get("source_checked_date")
             == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        ),
+        _check(
+            "llm_model_policy_official_source_urls",
+            "contract",
+            "official Anthropic Claude model docs URLs",
+            json.dumps(
+                {
+                    "models_overview_url": llm_models_overview_url,
+                    "model_ids_and_versioning_url": (
+                        llm_model_ids_and_versioning_url
+                    ),
+                },
+                sort_keys=True,
+            ),
+            llm_models_overview_url == ANTHROPIC_MODELS_OVERVIEW_URL
+            and llm_model_ids_and_versioning_url
+            == ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL
+            and str(ANTHROPIC_MODELS_OVERVIEW_URL).startswith(
+                "https://platform.claude.com/docs/"
+            )
+            and str(ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL).startswith(
+                "https://platform.claude.com/docs/"
+            ),
+        ),
+        _check(
+            "llm_model_policy_pinned_snapshot_versioning",
+            "contract",
+            "Claude 4.6+ model IDs are pinned snapshots, not evergreen aliases",
+            llm_model_id_versioning_policy,
+            "pinned snapshot" in llm_model_id_versioning_policy.lower()
+            and "not evergreen" in llm_model_id_versioning_policy.lower(),
         ),
         _check(
             "llm_model_policy_outside_cost_tier_models",
@@ -4890,6 +5833,21 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_row_schema.get("$id", "")),
             llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_model_tier_decision_ledger_schema_file",
+            "contract",
+            "LLM route-planner model-tier decision ledger schema exists",
+            str(llm_route_planner_model_tier_decision_ledger_schema_path.exists()),
+            llm_route_planner_model_tier_decision_ledger_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_model_tier_decision_ledger_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+            str(llm_route_planner_model_tier_decision_ledger_schema.get("$id", "")),
+            llm_route_planner_model_tier_decision_ledger_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
         ),
         _check(
             "route_adoption_blocker_taxonomy_schema_file",
@@ -6831,6 +7789,34 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         )
         or 0
     )
+    manifest_request_bound_payloads_with_preconditions = int(
+        manifest.get(
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_payloads_with_blocking_preconditions = int(
+        manifest.get(
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_precondition_known_blockers = int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_precondition_required_fields = int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            0,
+        )
+        or 0
+    )
     row_request_bound_payloads = sum(
         1
         for row in rows
@@ -6846,6 +7832,49 @@ def _llm_route_planner_response_payload_validation_optional_checks(
     )
     row_request_bound_context_inventory_total_rows = sum(
         int(row.get("request_context_inventory_total_rows", 0) or 0)
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_payloads_with_preconditions = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(row.get("request_context_route_adoption_precondition_present", False))
+    )
+    row_request_bound_payloads_with_blocking_preconditions = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(
+            row.get(
+                "request_context_route_adoption_precondition_blocked_before_response",
+                False,
+            )
+        )
+    )
+    row_request_bound_precondition_known_blockers = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_known_blocker_count",
+                0,
+            )
+            or 0
+        )
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_precondition_required_fields = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_required_response_field_count",
+                0,
+            )
+            or 0
+        )
         for row in rows
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
@@ -6882,6 +7911,39 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         request_bound_accounting_errors.append(
             "JSONL request-bound inventory total rows must match manifest "
             "n_request_bound_payload_context_inventory_total_rows"
+        )
+    route_precondition_accounting_errors: list[str] = []
+    if (
+        row_request_bound_payloads_with_preconditions
+        != manifest_request_bound_payloads_with_preconditions
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition rows must match manifest "
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        )
+    if (
+        row_request_bound_payloads_with_blocking_preconditions
+        != manifest_request_bound_payloads_with_blocking_preconditions
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL blocking route-adoption precondition rows must match manifest "
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        )
+    if (
+        row_request_bound_precondition_known_blockers
+        != manifest_request_bound_precondition_known_blockers
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition blocker totals must match manifest "
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        )
+    if (
+        row_request_bound_precondition_required_fields
+        != manifest_request_bound_precondition_required_fields
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition required-field totals must match "
+            "manifest n_request_bound_payload_route_adoption_precondition_required_response_fields"
         )
     request_context_path_present = bool(
         str(manifest.get("request_context_path", "")).strip()
@@ -7044,6 +8106,23 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             ),
             not request_bound_coverage_errors,
             errors=tuple(request_bound_coverage_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_route_precondition_accounting",
+            "optional_artifacts",
+            "route-adoption precondition counters match JSONL rows",
+            (
+                f"preconditions={row_request_bound_payloads_with_preconditions}/"
+                f"{manifest_request_bound_payloads_with_preconditions} "
+                f"blocked={row_request_bound_payloads_with_blocking_preconditions}/"
+                f"{manifest_request_bound_payloads_with_blocking_preconditions} "
+                f"blockers={row_request_bound_precondition_known_blockers}/"
+                f"{manifest_request_bound_precondition_known_blockers} "
+                f"required_fields={row_request_bound_precondition_required_fields}/"
+                f"{manifest_request_bound_precondition_required_fields}"
+            ),
+            not route_precondition_accounting_errors,
+            errors=tuple(route_precondition_accounting_errors),
         ),
     ]
     for idx, row in enumerate(rows):
@@ -7597,6 +8676,19 @@ def _llm_route_planner_optional_checks(
                     _llm_seed_model_provenance_observed(row, seed_route),
                     not model_provenance_errors,
                     errors=model_provenance_errors,
+                )
+            )
+            source_grounding_errors = (
+                _llm_seed_source_grounding_provenance_errors(row, seed_route)
+            )
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_source_grounding_provenance",
+                    "optional_artifacts",
+                    "accepted LLM row source-grounding rows and obligations are preserved in standalone seed route metadata",
+                    _llm_seed_source_grounding_provenance_observed(row, seed_route),
+                    not source_grounding_errors,
+                    errors=source_grounding_errors,
                 )
             )
             witness_errors = _llm_seed_realization_witness_errors(row, seed_route)
@@ -11283,6 +12375,80 @@ def _llm_seed_model_provenance_observed(
     )
 
 
+def _llm_seed_source_grounding_provenance_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_rows = _dict_tuple(row.get("source_grounding_rows", []))
+    route_rows = _dict_tuple(
+        seed_route.get("llm_route_planner_source_grounding_rows", [])
+    )
+    metadata_rows = _dict_tuple(
+        metadata.get("llm_route_planner_source_grounding_rows", [])
+    )
+    row_row_hashes = _object_hashes(row_rows)
+    if row_row_hashes != _object_hashes(route_rows):
+        errors.append("seed route llm_route_planner_source_grounding_rows mismatch")
+    if row_row_hashes != _object_hashes(metadata_rows):
+        errors.append("seed metadata llm_route_planner_source_grounding_rows mismatch")
+    row_obligations = _as_dict(row.get("source_grounding_obligations", {}))
+    route_obligations = _as_dict(
+        seed_route.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    metadata_obligations = _as_dict(
+        metadata.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    if row_obligations != route_obligations:
+        errors.append(
+            "seed route llm_route_planner_source_grounding_obligations mismatch"
+        )
+    if row_obligations != metadata_obligations:
+        errors.append(
+            "seed metadata llm_route_planner_source_grounding_obligations mismatch"
+        )
+    return tuple(errors)
+
+
+def _llm_seed_source_grounding_provenance_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_rows = _dict_tuple(row.get("source_grounding_rows", []))
+    route_rows = _dict_tuple(
+        seed_route.get("llm_route_planner_source_grounding_rows", [])
+    )
+    metadata_rows = _dict_tuple(
+        metadata.get("llm_route_planner_source_grounding_rows", [])
+    )
+    row_row_hashes = _object_hashes(row_rows)
+    route_row_hashes = _object_hashes(route_rows)
+    metadata_row_hashes = _object_hashes(metadata_rows)
+    row_obligations = _as_dict(row.get("source_grounding_obligations", {}))
+    route_obligations = _as_dict(
+        seed_route.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    metadata_obligations = _as_dict(
+        metadata.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    return (
+        f"row_rows={len(row_rows)}; "
+        f"seed_route_rows={len(row_row_hashes.intersection(route_row_hashes))}/{len(row_row_hashes)}; "
+        f"metadata_rows={len(row_row_hashes.intersection(metadata_row_hashes))}/{len(row_row_hashes)}; "
+        f"row_pending={bool(row_obligations.get('pending', False))}; "
+        f"route_obligations_preserved={row_obligations == route_obligations}; "
+        f"metadata_obligations_preserved={row_obligations == metadata_obligations}"
+    )
+
+
 def _llm_seed_realization_witness_errors(
     row: dict[str, Any],
     seed_route: dict[str, Any],
@@ -14356,6 +15522,36 @@ def _interactive_session_row_has_resource_status(row: dict[str, Any]) -> bool:
     )
 
 
+def _interactive_session_rows_have_route_preconditions(
+    rows: list[dict[str, Any]],
+) -> bool:
+    return any(_interactive_session_row_has_route_preconditions(row) for row in rows)
+
+
+def _interactive_session_row_has_route_preconditions(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("route_adoption_precondition_present", False)
+        or row.get("route_adoption_precondition_unresolved", False)
+        or _dict_value(row, "route_adoption_preconditions")
+        or _str_tuple(row.get("route_adoption_precondition_known_blockers", []))
+        or _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        )
+    )
+
+
+def _route_stability_row_has_route_preconditions(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("route_adoption_precondition_present", False)
+        or row.get("route_adoption_precondition_unresolved", False)
+        or _dict_value(row, "route_adoption_preconditions")
+        or _str_tuple(row.get("route_adoption_precondition_known_blockers", []))
+        or _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        )
+    )
+
+
 def _interactive_session_resource_response_status_errors(
     session_row: dict[str, Any],
     stability_row: dict[str, Any] | None,
@@ -14398,6 +15594,59 @@ def _interactive_session_resource_response_status_errors(
         for request_id in (*stability_awaiting, *stability_rejected):
             if not any(f"resource_request_id={request_id}" in command for command in commands):
                 errors.append(f"next_commands missing resource_request_id={request_id}")
+    return tuple(errors)
+
+
+def _interactive_session_route_precondition_errors(
+    session_row: dict[str, Any],
+    stability_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if stability_row is None:
+        if _interactive_session_row_has_route_preconditions(session_row):
+            return ("interactive-session row has no matching route-stability row",)
+        return tuple()
+    if not _route_stability_row_has_route_preconditions(stability_row):
+        return tuple()
+    errors: list[str] = []
+    for field_name in (
+        "llm_route_planner_route_adoption_status",
+        "route_adoption_precondition_present",
+        "route_adoption_precondition_blocked_before_response",
+        "route_adoption_precondition_unresolved",
+        "route_adoption_precondition_known_blocker_count",
+        "route_adoption_precondition_required_response_field_count",
+    ):
+        if session_row.get(field_name) != stability_row.get(field_name):
+            errors.append(f"{field_name} mismatch")
+    if _dict_value(session_row, "route_adoption_preconditions") != _dict_value(
+        stability_row,
+        "route_adoption_preconditions",
+    ):
+        errors.append("route_adoption_preconditions mismatch")
+    for field_name in (
+        "route_adoption_precondition_known_blockers",
+        "route_adoption_precondition_required_response_fields",
+    ):
+        if _str_tuple(session_row.get(field_name, [])) != _str_tuple(
+            stability_row.get(field_name, [])
+        ):
+            errors.append(f"{field_name} mismatch")
+    if bool(stability_row.get("route_adoption_precondition_unresolved", False)):
+        if str(session_row.get("session_state", "")) != "AWAITING_REFINEMENT_RESPONSES":
+            errors.append(
+                "unresolved route-adoption preconditions require "
+                "AWAITING_REFINEMENT_RESPONSES session state"
+            )
+        if str(session_row.get("next_interaction_kind", "")) != "await_refinement_response":
+            errors.append(
+                "unresolved route-adoption preconditions require "
+                "await_refinement_response next interaction"
+            )
+        if "resource_response_ledger" not in _str_tuple(session_row.get("next_tools", [])):
+            errors.append("next_tools missing resource_response_ledger")
+        commands = tuple(str(command) for command in session_row.get("next_commands", []))
+        if not any("route-adoption precondition" in command for command in commands):
+            errors.append("next_commands missing route-adoption precondition guidance")
     return tuple(errors)
 
 
@@ -15023,8 +16272,9 @@ def _interactive_session_optional_checks(
                 ),
             ]
         )
-    if session_artifact_present and _interactive_session_rows_have_resource_status(
-        session_rows
+    if session_artifact_present and (
+        _interactive_session_rows_have_resource_status(session_rows)
+        or _interactive_session_rows_have_route_preconditions(session_rows)
     ):
         checks.append(
             _check(
@@ -15046,6 +16296,9 @@ def _interactive_session_optional_checks(
         status_errors = _interactive_session_resource_response_status_errors(
             row,
             stability_row,
+        )
+        route_precondition_errors = (
+            _interactive_session_route_precondition_errors(row, stability_row)
         )
         generic_prover_errors = _interactive_session_generic_prover_field_errors(row)
         checks.append(
@@ -15081,6 +16334,24 @@ def _interactive_session_optional_checks(
                     "; ".join(status_errors) if status_errors else "ok",
                     not status_errors,
                     errors=status_errors,
+                )
+            )
+        if _interactive_session_row_has_route_preconditions(row) or (
+            stability_row is not None
+            and _route_stability_row_has_route_preconditions(stability_row)
+        ):
+            checks.append(
+                _check(
+                    f"optional_interactive_session_row_{idx}_route_precondition_consistency",
+                    "optional_artifacts",
+                    "interactive-session route-adoption preconditions match route-stability rows",
+                    (
+                        "; ".join(route_precondition_errors)
+                        if route_precondition_errors
+                        else "ok"
+                    ),
+                    not route_precondition_errors,
+                    errors=route_precondition_errors,
                 )
             )
     for idx, row in enumerate(rows):
@@ -15847,6 +17118,53 @@ def _evaluation_route_adoption_manifest_errors(
     expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
     expected_blocker_counts = _evaluation_route_adoption_blocker_counts_from_rows(rows)
     expected_by_blocker = _evaluation_route_adoption_blocker_summary_from_rows(rows)
+    expected_precondition_rows = sum(
+        1
+        for row in _dict_tuple(rows)
+        if row.get("llm_route_planner_route_adoption_precondition_present") is True
+    )
+    expected_blocking_precondition_rows = sum(
+        1
+        for row in _dict_tuple(rows)
+        if row.get(
+            "llm_route_planner_route_adoption_precondition_blocked_before_response"
+        )
+        is True
+    )
+    expected_precondition_known_blockers = sum(
+        len(
+            _str_tuple(
+                row.get(
+                    "llm_route_planner_route_adoption_precondition_known_blockers",
+                    [],
+                )
+            )
+        )
+        for row in _dict_tuple(rows)
+    )
+    expected_precondition_required_fields = sum(
+        len(
+            _str_tuple(
+                row.get(
+                    "llm_route_planner_route_adoption_precondition_required_response_fields",
+                    [],
+                )
+            )
+        )
+        for row in _dict_tuple(rows)
+    )
+    expected_precondition_blocker_values = set(
+        _evaluation_route_adoption_precondition_values_from_rows(
+            rows,
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+        )
+    )
+    expected_precondition_required_field_values = set(
+        _evaluation_route_adoption_precondition_values_from_rows(
+            rows,
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
+        )
+    )
     observed_status_count = int(
         manifest.get("n_rows_with_llm_route_planner_route_adoption_status", -1) or 0
     )
@@ -15874,6 +17192,50 @@ def _evaluation_route_adoption_manifest_errors(
         or 0
     )
     observed_blockers = set(_str_tuple(manifest.get("llm_route_adoption_blockers", [])))
+    observed_precondition_rows = int(
+        manifest.get(
+            "n_rows_with_llm_route_planner_route_adoption_preconditions",
+            -1,
+        )
+        or 0
+    )
+    observed_blocking_precondition_rows = int(
+        manifest.get(
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_known_blockers = int(
+        manifest.get(
+            "n_llm_route_planner_route_adoption_precondition_known_blockers",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_required_fields = int(
+        manifest.get(
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_blocker_values = set(
+        _str_tuple(
+            manifest.get(
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+                [],
+            )
+        )
+    )
+    observed_precondition_required_field_values = set(
+        _str_tuple(
+            manifest.get(
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+                [],
+            )
+        )
+    )
     observed_blocker_counts = _int_mapping(
         manifest.get("llm_route_adoption_blocker_counts", {})
     )
@@ -15939,6 +17301,45 @@ def _evaluation_route_adoption_manifest_errors(
         errors.append(
             "llm_route_adoption_blockers mismatch: "
             f"observed={sorted(observed_blockers)} expected={sorted(expected_blockers)}"
+        )
+    if observed_precondition_rows != expected_precondition_rows:
+        errors.append(
+            "n_rows_with_llm_route_planner_route_adoption_preconditions mismatch: "
+            f"observed={observed_precondition_rows} "
+            f"expected={expected_precondition_rows}"
+        )
+    if observed_blocking_precondition_rows != expected_blocking_precondition_rows:
+        errors.append(
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions mismatch: "
+            f"observed={observed_blocking_precondition_rows} "
+            f"expected={expected_blocking_precondition_rows}"
+        )
+    if observed_precondition_known_blockers != expected_precondition_known_blockers:
+        errors.append(
+            "n_llm_route_planner_route_adoption_precondition_known_blockers mismatch: "
+            f"observed={observed_precondition_known_blockers} "
+            f"expected={expected_precondition_known_blockers}"
+        )
+    if observed_precondition_required_fields != expected_precondition_required_fields:
+        errors.append(
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields mismatch: "
+            f"observed={observed_precondition_required_fields} "
+            f"expected={expected_precondition_required_fields}"
+        )
+    if observed_precondition_blocker_values != expected_precondition_blocker_values:
+        errors.append(
+            "llm_route_planner_route_adoption_precondition_known_blockers mismatch: "
+            f"observed={sorted(observed_precondition_blocker_values)} "
+            f"expected={sorted(expected_precondition_blocker_values)}"
+        )
+    if (
+        observed_precondition_required_field_values
+        != expected_precondition_required_field_values
+    ):
+        errors.append(
+            "llm_route_planner_route_adoption_precondition_required_response_fields mismatch: "
+            f"observed={sorted(observed_precondition_required_field_values)} "
+            f"expected={sorted(expected_precondition_required_field_values)}"
         )
     if observed_blocker_counts != expected_blocker_counts:
         errors.append(
@@ -16090,6 +17491,8 @@ def _ablation_study_row_has_route_adoption_metrics(row: dict[str, Any]) -> bool:
             "mean_route_adoption_blockers",
             "mean_route_adoption_pending_quality_control_blockers",
             "mean_route_adoption_pending_source_grounding_blockers",
+            "mean_route_adoption_precondition_known_blockers",
+            "mean_route_adoption_precondition_required_response_fields",
             "relative_route_adoption_ready_drop",
         )
     )
@@ -16133,6 +17536,16 @@ def _evaluation_route_adoption_blocker_counts_from_rows(rows: Any) -> dict[str, 
             _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
         )
     return dict(sorted(counts.items()))
+
+
+def _evaluation_route_adoption_precondition_values_from_rows(
+    rows: Any,
+    field_name: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return tuple(dict.fromkeys(values))
 
 
 def _evaluation_route_adoption_blocker_summary_from_rows(
@@ -16592,6 +18005,85 @@ def _cross_prover_matrix_optional_checks(
         if isinstance(row.get("standalone_input_trace"), dict)
         and row["standalone_input_trace"].get("has_replan_metadata")
     )
+    n_attempt_dependency = int(
+        manifest.get("n_total_packets_with_formal_attempt_dependency", 0) or 0
+    )
+    n_attempt_ready = int(
+        manifest.get("n_total_packets_formal_attempt_initial_ready", 0) or 0
+    )
+    n_attempt_waiting = int(
+        manifest.get("n_total_packets_formal_attempt_waiting", 0) or 0
+    )
+    n_attempt_missing = int(
+        manifest.get("n_total_packets_formal_attempt_missing_prerequisites", 0)
+        or 0
+    )
+    attempt_manifest_counts = _int_mapping(
+        manifest.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    attempt_target_counts = _int_mapping(
+        target_summary.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    attempt_packet_counts = dict(
+        sorted(
+            Counter(
+                str(row.get("formal_attempt_dependency_status", "") or "")
+                for row in packet_rows
+            ).items()
+        )
+    )
+    attempt_dependency_statuses = {
+        "ready_no_formal_prerequisites",
+        "waiting_for_formal_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }
+    n_attempt_dependency_from_histogram = sum(
+        count
+        for status, count in attempt_manifest_counts.items()
+        if status in attempt_dependency_statuses
+    )
+    attempt_manifest_counts_ok = (
+        sum(attempt_manifest_counts.values()) == n_packets
+        and n_attempt_ready
+        == attempt_manifest_counts.get("ready_no_formal_prerequisites", 0)
+        and n_attempt_waiting
+        == attempt_manifest_counts.get("waiting_for_formal_prerequisite_attempts", 0)
+        and n_attempt_missing
+        == attempt_manifest_counts.get("missing_formal_prerequisite_attempts", 0)
+        and n_attempt_dependency
+        == n_attempt_ready + n_attempt_waiting + n_attempt_missing
+        == n_attempt_dependency_from_histogram
+    )
+    attempt_target_counts_ok = (
+        int(target_summary.get("n_total_packets", 0) or 0) == n_packets
+        and int(
+            target_summary.get(
+                "n_total_packets_with_formal_attempt_dependency", 0
+            )
+            or 0
+        )
+        == n_attempt_dependency
+        and int(
+            target_summary.get(
+                "n_total_packets_formal_attempt_initial_ready", 0
+            )
+            or 0
+        )
+        == n_attempt_ready
+        and int(
+            target_summary.get("n_total_packets_formal_attempt_waiting", 0)
+            or 0
+        )
+        == n_attempt_waiting
+        and int(
+            target_summary.get(
+                "n_total_packets_formal_attempt_missing_prerequisites", 0
+            )
+            or 0
+        )
+        == n_attempt_missing
+        and attempt_target_counts == attempt_manifest_counts
+    )
     checks = [
         _check(
             "optional_cross_prover_targets_ok",
@@ -16652,6 +18144,37 @@ def _cross_prover_matrix_optional_checks(
             n_trace == n_jsonl_trace
             and n_replan_trace == n_jsonl_replan_trace
             and n_missing_trace == max(0, len(packet_rows) - n_jsonl_trace),
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_manifest_counts",
+            "optional_artifacts",
+            "cross-prover formal-attempt dependency manifest counts are internally consistent",
+            (
+                f"dependency={n_attempt_dependency}; ready={n_attempt_ready}; "
+                f"waiting={n_attempt_waiting}; missing={n_attempt_missing}; "
+                f"histogram={attempt_manifest_counts}; packets={n_packets}"
+            ),
+            attempt_manifest_counts_ok,
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_target_summary_consistent",
+            "optional_artifacts",
+            "cross-prover formal-attempt dependency counts match the target summary",
+            (
+                f"manifest={attempt_manifest_counts}; "
+                f"target_summary={attempt_target_counts}"
+            ),
+            attempt_target_counts_ok,
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_jsonl_consistent",
+            "optional_artifacts",
+            "cross-prover packet JSONL formal-attempt dependency statuses match the manifest histogram",
+            (
+                f"manifest={attempt_manifest_counts}; "
+                f"jsonl={attempt_packet_counts}"
+            ),
+            attempt_packet_counts == attempt_manifest_counts,
         ),
         _check(
             "optional_cross_prover_matrix_row_schema_file",
@@ -17008,6 +18531,45 @@ def _route_replan_handoff_optional_checks(
                 errors=dag_errors,
             )
         )
+        target_context_errors = _handoff_seed_target_context_errors(row, seed_route)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_target_context_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve target theorem context packet",
+                _handoff_seed_target_context_observed(row, seed_route),
+                not target_context_errors,
+                errors=target_context_errors,
+            )
+        )
+        brief_errors = _handoff_seed_route_planning_brief_errors(row, seed_route)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_route_planning_brief_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve LLM route-planning brief",
+                _handoff_seed_route_planning_brief_observed(row, seed_route),
+                not brief_errors,
+                errors=brief_errors,
+            )
+        )
+        precondition_errors = _handoff_seed_route_adoption_preconditions_errors(
+            row,
+            seed_route,
+        )
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_route_adoption_preconditions_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve LLM route-adoption preconditions",
+                _handoff_seed_route_adoption_preconditions_observed(
+                    row,
+                    seed_route,
+                ),
+                not precondition_errors,
+                errors=precondition_errors,
+            )
+        )
     for idx, row in enumerate(jsonl_rows):
         schema_errors = validate_route_replan_handoff_row(row)
         checks.append(
@@ -17052,6 +18614,8 @@ def _route_replan_handoff_audit_optional_checks(
     }
     required_trace_checks = {
         "roundtrip_standalone_input_trace",
+        "roundtrip_llm_route_planning_brief_trace",
+        "roundtrip_llm_route_adoption_preconditions_trace",
         "roundtrip_llm_route_planner_hook_trace",
     }
     provenance_check_names = {
@@ -17130,6 +18694,46 @@ def _route_replan_handoff_audit_optional_checks(
             "handoff audit includes passing roundtrip standalone-input trace check",
             ",".join(sorted(required_trace_checks.intersection(ok_check_names))),
             required_trace_checks.issubset(ok_check_names),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_route_planning_brief_trace",
+            "optional_artifacts",
+            "handoff audit manifest exposes roundtrip route-planning-brief trace count",
+            (
+                "traces_with_brief="
+                f"{manifest.get('n_roundtrip_standalone_input_traces_with_llm_route_planning_brief', 'missing')}; "
+                f"seed_routes={n_seed_routes}"
+            ),
+            "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief"
+            in manifest
+            and int(
+                manifest.get(
+                    "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief",
+                    0,
+                )
+                or 0
+            )
+            >= 0,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace",
+            "optional_artifacts",
+            "handoff audit manifest exposes roundtrip route-adoption-precondition trace count",
+            (
+                "traces_with_preconditions="
+                f"{manifest.get('n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions', 'missing')}; "
+                f"seed_routes={n_seed_routes}"
+            ),
+            "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions"
+            in manifest
+            and int(
+                manifest.get(
+                    "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions",
+                    0,
+                )
+                or 0
+            )
+            >= 0,
         ),
     ]
     for idx, row in enumerate(rows):
@@ -17355,6 +18959,8 @@ _HANDOFF_SEED_SCHEMA_ROUTE_FIELDS = (
     *_HANDOFF_SEED_SCHEMA_REVISED_DAG_FIELDS,
     "revised_route_alignment_edges",
     "minimal_delta_and_or_cost_graph",
+    "llm_route_planner_route_planning_brief",
+    "llm_route_planner_route_adoption_preconditions",
     "replan_metadata",
 )
 _HANDOFF_SEED_SCHEMA_METADATA_FIELDS = (
@@ -17375,6 +18981,8 @@ _HANDOFF_SEED_SCHEMA_METADATA_FIELDS = (
     *_HANDOFF_SEED_SCHEMA_REVISED_DAG_FIELDS,
     "revised_route_alignment_edges",
     "minimal_delta_and_or_cost_graph",
+    "llm_route_planner_route_planning_brief",
+    "llm_route_planner_route_adoption_preconditions",
     "alignment_edge_primitives",
 )
 
@@ -17950,11 +19558,194 @@ def _handoff_seed_dag_observed(
     return "; ".join(parts)
 
 
+def _handoff_seed_target_context_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_packet = _as_dict(row.get("target_theorem_context_packet", {}))
+    route_packet = _as_dict(seed_route.get("target_theorem_context_packet", {}))
+    metadata_packet = _as_dict(metadata.get("target_theorem_context_packet", {}))
+    metadata_llm_packet = _as_dict(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    if not row_packet:
+        if route_packet or metadata_packet or metadata_llm_packet:
+            errors.append("seed route carries target context absent from handoff row")
+        return tuple(errors)
+    if route_packet != row_packet:
+        errors.append("seed route target_theorem_context_packet mismatch")
+    if metadata_packet != row_packet:
+        errors.append("seed metadata target_theorem_context_packet mismatch")
+    if metadata_llm_packet and metadata_llm_packet != row_packet:
+        errors.append(
+            "seed metadata llm_route_planner_target_theorem_context_packet mismatch"
+        )
+    target_prover_family = _handoff_seed_target_prover_family(
+        row,
+        seed_route,
+        metadata,
+    )
+    packet_target = str(row_packet.get("target_prover_family", "")).strip()
+    if (
+        packet_target
+        and target_prover_family
+        and _target_prover_key(packet_target)
+        != _target_prover_key(target_prover_family)
+    ):
+        errors.append("target_theorem_context_packet target_prover_family mismatch")
+    return tuple(errors)
+
+
+def _handoff_seed_target_context_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_packet = _as_dict(row.get("target_theorem_context_packet", {}))
+    route_packet = _as_dict(seed_route.get("target_theorem_context_packet", {}))
+    metadata_packet = _as_dict(metadata.get("target_theorem_context_packet", {}))
+    metadata_llm_packet = _as_dict(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    return (
+        f"row_packet={bool(row_packet)}; "
+        f"seed_route_packet={bool(route_packet)}; "
+        f"metadata_packet={bool(metadata_packet)}; "
+        f"metadata_llm_packet={bool(metadata_llm_packet)}; "
+        f"packet_target={row_packet.get('target_prover_family', '')}"
+    )
+
+
+def _handoff_seed_route_planning_brief_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_brief = _as_dict(row.get("route_planning_brief", {}))
+    route_brief = _as_dict(seed_route.get("llm_route_planner_route_planning_brief", {}))
+    metadata_brief = _as_dict(
+        metadata.get("llm_route_planner_route_planning_brief", {})
+    )
+    if not row_brief:
+        if route_brief or metadata_brief:
+            errors.append("seed route carries route-planning brief absent from handoff row")
+        return tuple(errors)
+    if route_brief != row_brief:
+        errors.append("seed route llm_route_planner_route_planning_brief mismatch")
+    if metadata_brief != row_brief:
+        errors.append(
+            "seed metadata llm_route_planner_route_planning_brief mismatch"
+        )
+    return tuple(errors)
+
+
+def _handoff_seed_route_planning_brief_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_brief = _as_dict(row.get("route_planning_brief", {}))
+    route_brief = _as_dict(seed_route.get("llm_route_planner_route_planning_brief", {}))
+    metadata_brief = _as_dict(
+        metadata.get("llm_route_planner_route_planning_brief", {})
+    )
+    return (
+        f"row_brief={bool(row_brief)}; "
+        f"seed_route_brief={bool(route_brief)}; "
+        f"metadata_brief={bool(metadata_brief)}; "
+        f"route_matches={route_brief == row_brief if row_brief else not route_brief}; "
+        f"metadata_matches={metadata_brief == row_brief if row_brief else not metadata_brief}"
+    )
+
+
+def _handoff_seed_route_adoption_preconditions_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_preconditions = _as_dict(row.get("route_adoption_preconditions", {}))
+    route_preconditions = _as_dict(
+        seed_route.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    metadata_preconditions = _as_dict(
+        metadata.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    if not row_preconditions:
+        if route_preconditions or metadata_preconditions:
+            errors.append(
+                "seed route carries route-adoption preconditions absent from handoff row"
+            )
+        return tuple(errors)
+    if route_preconditions != row_preconditions:
+        errors.append(
+            "seed route llm_route_planner_route_adoption_preconditions mismatch"
+        )
+    if metadata_preconditions != row_preconditions:
+        errors.append(
+            "seed metadata llm_route_planner_route_adoption_preconditions mismatch"
+        )
+    return tuple(errors)
+
+
+def _handoff_seed_route_adoption_preconditions_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_preconditions = _as_dict(row.get("route_adoption_preconditions", {}))
+    route_preconditions = _as_dict(
+        seed_route.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    metadata_preconditions = _as_dict(
+        metadata.get("llm_route_planner_route_adoption_preconditions", {})
+    )
+    blockers = _str_tuple(
+        row_preconditions.get("known_pre_response_blockers", [])
+    )
+    required_fields = _str_tuple(
+        row_preconditions.get("response_required_fields", [])
+    )
+    return (
+        f"row_preconditions={bool(row_preconditions)}; "
+        f"seed_route_preconditions={bool(route_preconditions)}; "
+        f"metadata_preconditions={bool(metadata_preconditions)}; "
+        f"route_matches={route_preconditions == row_preconditions if row_preconditions else not route_preconditions}; "
+        f"metadata_matches={metadata_preconditions == row_preconditions if row_preconditions else not metadata_preconditions}; "
+        f"blockers={len(blockers)}; required_fields={len(required_fields)}"
+    )
+
+
 def _seed_route_metadata(seed_route: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(seed_route, dict):
         return None
     metadata = seed_route.get("replan_metadata", {})
     return metadata if isinstance(metadata, dict) else None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _seed_resource_feedback_route_count(seed: dict[str, Any]) -> int:
@@ -18636,6 +20427,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
         f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional LLM route-planner seed alignment preserved: {payload.get('n_optional_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_llm_route_planner_seed_alignment_checked')}",
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
@@ -18656,6 +20448,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional feedback LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional feedback LLM route-planner seed alignment preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_alignment_checked')}",
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
@@ -18675,6 +20468,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner blocker summary valid: {payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
+        f"- Optional interactive-session route-precondition status consistent: {payload.get('n_optional_interactive_session_route_precondition_valid')}/{payload.get('n_optional_interactive_session_route_precondition_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",
         f"- Optional interactive decision-policy schema valid: {payload.get('n_optional_interactive_decision_policy_row_schema_valid')}/{payload.get('n_optional_interactive_decision_policy_row_schema_checked')}",
         f"- Optional refinement-evidence schema valid: {payload.get('n_optional_refinement_evidence_row_schema_valid')}/{payload.get('n_optional_refinement_evidence_row_schema_checked')}",
@@ -18689,8 +20483,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-revision generic formal DAG valid: {payload.get('n_optional_route_revision_generic_formal_dag_valid')}/{payload.get('n_optional_route_revision_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff seed alignment preserved: {payload.get('n_optional_route_replan_handoff_seed_alignment_valid')}/{payload.get('n_optional_route_replan_handoff_seed_alignment_checked')}",
         f"- Optional route-replan handoff seed DAG preserved: {payload.get('n_optional_route_replan_handoff_seed_dag_valid')}/{payload.get('n_optional_route_replan_handoff_seed_dag_checked')}",
+        f"- Optional route-replan handoff target context preserved: {payload.get('n_optional_route_replan_handoff_seed_target_context_valid')}/{payload.get('n_optional_route_replan_handoff_seed_target_context_checked')}",
+        f"- Optional route-replan handoff route-planning brief preserved: {payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_checked')}",
+        f"- Optional route-replan handoff route-adoption preconditions preserved: {payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked')}",
         f"- Optional route-replan handoff generic formal DAG valid: {payload.get('n_optional_route_replan_handoff_generic_formal_dag_valid')}/{payload.get('n_optional_route_replan_handoff_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff-audit schema valid: {payload.get('n_optional_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_optional_route_replan_handoff_audit_row_schema_checked')}",
+        f"- Optional route-replan handoff-audit route-planning brief trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked')}",
+        f"- Optional route-replan handoff-audit route-adoption precondition trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked')}",
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
         f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",
         f"- Optional ablation-study schema valid: {payload.get('n_optional_ablation_study_row_schema_valid')}/{payload.get('n_optional_ablation_study_row_schema_checked')}",
@@ -18719,6 +20518,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional cross-prover packet schema valid: {payload.get('n_optional_cross_prover_packet_row_schema_valid')}/{payload.get('n_optional_cross_prover_packet_row_schema_checked')}",
         f"- Optional cross-prover packet trace valid: {payload.get('n_optional_cross_prover_packet_trace_valid')}/{payload.get('n_optional_cross_prover_packet_trace_checked')}",
         f"- Optional cross-prover response-validation schema valid: {payload.get('n_optional_cross_prover_response_validation_row_schema_valid')}/{payload.get('n_optional_cross_prover_response_validation_row_schema_checked')}",
+        f"- Optional cross-prover formal-attempt dependency valid: {payload.get('n_optional_cross_prover_formal_attempt_dependency_valid')}/{payload.get('n_optional_cross_prover_formal_attempt_dependency_checked')}",
         f"- Bundle files: {payload.get('n_bundle_files')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

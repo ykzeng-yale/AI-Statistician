@@ -3043,8 +3043,32 @@ async def run_research_system_audit(
             "research_agent_runtime_generated_code_sandbox_executed": research_agent_runtime_audit_manifest[
                 "n_generated_code_sandbox_executed"
             ],
+            "research_agent_runtime_generated_code_sandbox_failed_then_passed_repair_sequences": research_agent_runtime_audit_manifest[
+                "n_generated_code_sandbox_failed_then_passed_repair_sequences"
+            ],
+            "research_agent_runtime_generated_code_sandbox_metric_gate_failed": research_agent_runtime_audit_manifest[
+                "n_generated_code_sandbox_metric_gate_failed"
+            ],
             "research_agent_runtime_unsafe_generated_code_rejected": research_agent_runtime_audit_manifest[
                 "n_unsafe_generated_code_rejected"
+            ],
+            "research_agent_runtime_generated_simulation_sandbox_executed": research_agent_runtime_audit_manifest[
+                "n_generated_simulation_sandbox_executed"
+            ],
+            "research_agent_runtime_generated_simulation_sandbox_failed_then_passed_repair_sequences": research_agent_runtime_audit_manifest[
+                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+            ],
+            "research_agent_runtime_generated_simulation_sandbox_metric_gate_failed": research_agent_runtime_audit_manifest[
+                "n_generated_simulation_sandbox_metric_gate_failed"
+            ],
+            "research_agent_runtime_unsafe_generated_simulation_code_rejected": research_agent_runtime_audit_manifest[
+                "n_unsafe_generated_simulation_code_rejected"
+            ],
+            "research_agent_runtime_formalizer_lean_candidate_local_lean_checked": research_agent_runtime_audit_manifest[
+                "n_formalizer_lean_candidate_local_lean_checked"
+            ],
+            "research_agent_runtime_formalizer_lean_candidate_local_lean_compiled": research_agent_runtime_audit_manifest[
+                "n_formalizer_lean_candidate_local_lean_compiled"
             ],
             "research_agent_runtime_learning_rows": research_agent_runtime_audit_manifest[
                 "n_runtime_learning_rows"
@@ -8537,6 +8561,124 @@ async def run_research_system_audit(
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },
     }
+    coding_agent_repair_eval_manifest = _coding_agent_generated_code_repair_eval_overlay(
+        out_dir
+    )
+    payload["counts"].update(
+        {
+            "coding_agent_generated_code_repair_capability_evidence_ok": bool(
+                coding_agent_repair_eval_manifest["capability_evidence_ok"]
+            ),
+            "coding_agent_algorithm_capability_evidence_ok": bool(
+                coding_agent_repair_eval_manifest["algorithm_capability_evidence_ok"]
+            ),
+            "coding_agent_simulation_capability_evidence_ok": bool(
+                coding_agent_repair_eval_manifest["simulation_capability_evidence_ok"]
+            ),
+            "coding_agent_algorithm_repair_sequences": int(
+                coding_agent_repair_eval_manifest["algorithm_repair_sequences"]
+            ),
+            "coding_agent_simulation_repair_sequences": int(
+                coding_agent_repair_eval_manifest["simulation_repair_sequences"]
+            ),
+            "coding_agent_generated_code_repair_live_generator": bool(
+                coding_agent_repair_eval_manifest["live_generator"]
+            ),
+            "coding_agent_generated_code_repair_static_or_fixture_only": bool(
+                coding_agent_repair_eval_manifest["static_or_fixture_only"]
+            ),
+            "coding_agent_generated_code_repair_fixture_plumbing_ok": bool(
+                coding_agent_repair_eval_manifest["fixture_plumbing_ok"]
+            ),
+            "coding_agent_generated_code_repair_provider": str(
+                coding_agent_repair_eval_manifest["provider_name"]
+            ),
+        }
+    )
+    if bool(coding_agent_repair_eval_manifest["available"]):
+        payload["artifacts"]["coding_agent_generated_code_repair_eval"] = str(
+            coding_agent_repair_eval_manifest["manifest_path"]
+        )
+    formalizer_lean_repair_eval_manifest = (
+        _formalizer_lean_candidate_repair_eval_overlay(out_dir)
+    )
+    payload["counts"].update(
+        {
+            "formalizer_lean_candidate_repair_capability_evidence_ok": bool(
+                formalizer_lean_repair_eval_manifest["capability_evidence_ok"]
+            ),
+            "formalizer_lean_candidate_repair_live_generator": bool(
+                formalizer_lean_repair_eval_manifest["live_generator"]
+            ),
+            "formalizer_lean_candidate_repair_static_or_fixture_only": bool(
+                formalizer_lean_repair_eval_manifest["static_or_fixture_only"]
+            ),
+            "formalizer_lean_candidate_repair_sequences": int(
+                formalizer_lean_repair_eval_manifest["repair_sequences"]
+            ),
+            "formalizer_lean_candidate_repair_local_lean_checked": int(
+                formalizer_lean_repair_eval_manifest["local_lean_checked"]
+            ),
+            "formalizer_lean_candidate_repair_local_lean_compiled": int(
+                formalizer_lean_repair_eval_manifest["local_lean_compiled"]
+            ),
+            "formalizer_lean_candidate_repair_candidate_kernel_verified": bool(
+                formalizer_lean_repair_eval_manifest["candidate_kernel_verified"]
+            ),
+            "formalizer_lean_candidate_repair_source_theorem_kernel_verified": bool(
+                formalizer_lean_repair_eval_manifest[
+                    "source_theorem_kernel_verified"
+                ]
+            ),
+            "formalizer_lean_candidate_repair_provider": str(
+                formalizer_lean_repair_eval_manifest["provider_name"]
+            ),
+        }
+    )
+    if bool(formalizer_lean_repair_eval_manifest["available"]):
+        payload["artifacts"]["formalizer_lean_candidate_repair_eval"] = str(
+            formalizer_lean_repair_eval_manifest["manifest_path"]
+        )
+    architect_policy_eval_manifest = _architect_research_path_policy_eval_overlay(
+        out_dir
+    )
+    payload["counts"].update(
+        {
+            "architect_research_path_policy_capability_evidence_ok": bool(
+                architect_policy_eval_manifest["capability_evidence_ok"]
+            ),
+            "architect_research_path_policy_live_generator": bool(
+                architect_policy_eval_manifest["live_generator"]
+            ),
+            "architect_research_path_policy_static_or_fixture_only": bool(
+                architect_policy_eval_manifest["static_or_fixture_only"]
+            ),
+            "architect_research_path_policy_cases": int(
+                architect_policy_eval_manifest["n_cases"]
+            ),
+            "architect_research_path_policy_cases_ok": int(
+                architect_policy_eval_manifest["n_cases_ok"]
+            ),
+            "architect_research_path_policy_problem_analysis": int(
+                architect_policy_eval_manifest["n_with_problem_analysis"]
+            ),
+            "architect_research_path_policy_knowledge_bank_plan": int(
+                architect_policy_eval_manifest["n_with_stat_knowledge_bank_plan"]
+            ),
+            "architect_research_path_policy_literature_fair_comparison_plan": int(
+                architect_policy_eval_manifest[
+                    "n_with_literature_fair_comparison_plan"
+                ]
+            ),
+            "architect_research_path_policy_provider": str(
+                architect_policy_eval_manifest["provider_name"]
+            ),
+        }
+    )
+    if bool(architect_policy_eval_manifest["available"]):
+        payload["artifacts"]["architect_research_path_policy_eval"] = str(
+            architect_policy_eval_manifest["manifest_path"]
+        )
     evaluation_benchmark_guidance_manifest = build_evaluation_benchmark_guidance(
         out_dir / "evaluation_benchmark_guidance",
         system_audit_payload=payload,
@@ -8611,6 +8753,278 @@ def _proof_search_kernel_rerun_local_lean_overlay(out_dir: Path) -> dict[str, ob
     }
 
 
+def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str, object]:
+    manifest_path = _coding_agent_generated_code_repair_eval_manifest_path(out_dir)
+    empty = {
+        "available": False,
+        "manifest_path": "",
+        "provider_name": "",
+        "model": "",
+        "live_generator": False,
+        "capability_evidence_ok": False,
+        "algorithm_capability_evidence_ok": False,
+        "simulation_capability_evidence_ok": False,
+        "algorithm_repair_sequences": 0,
+        "simulation_repair_sequences": 0,
+        "fixture_plumbing_ok": False,
+        "static_or_fixture_only": False,
+        "proof_evidence_status": "",
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    provider_name = str(payload.get("provider_name", ""))
+    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
+        "anthropic",
+        "openai",
+    }
+    algorithm_capability_evidence_ok = bool(
+        payload.get("algorithm_capability_evidence_ok", False)
+    )
+    simulation_capability_evidence_ok = bool(
+        payload.get("simulation_capability_evidence_ok", False)
+    )
+    capability_evidence_ok = bool(
+        live_generator
+        and algorithm_capability_evidence_ok
+        and simulation_capability_evidence_ok
+        and payload.get("capability_evidence_ok", False)
+    )
+    return {
+        "available": True,
+        "manifest_path": str(manifest_path),
+        "provider_name": provider_name,
+        "model": str(payload.get("model", "")),
+        "live_generator": live_generator,
+        "capability_evidence_ok": capability_evidence_ok,
+        "algorithm_capability_evidence_ok": algorithm_capability_evidence_ok,
+        "simulation_capability_evidence_ok": simulation_capability_evidence_ok,
+        "algorithm_repair_sequences": int(
+            payload.get("algorithm_repair_sequences", 0) or 0
+        ),
+        "simulation_repair_sequences": int(
+            payload.get("simulation_repair_sequences", 0) or 0
+        ),
+        "fixture_plumbing_ok": bool(payload.get("fixture_plumbing_ok", False)),
+        "static_or_fixture_only": bool(payload.get("static_or_fixture_only", False)),
+        "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
+    }
+
+
+def _coding_agent_generated_code_repair_eval_manifest_path(out_dir: Path) -> Path:
+    canonical = (
+        out_dir.parent
+        / "coding_agent_generated_code_repair_eval"
+        / "coding_agent_generated_code_repair_eval_manifest.json"
+    )
+    if canonical.exists():
+        return canonical
+    candidates = sorted(
+        out_dir.parent.glob(
+            "coding_agent_generated_code_repair_eval*/"
+            "coding_agent_generated_code_repair_eval_manifest.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else canonical
+
+
+def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, object]:
+    manifest_path = _formalizer_lean_candidate_repair_eval_manifest_path(out_dir)
+    empty = {
+        "available": False,
+        "manifest_path": "",
+        "provider_name": "",
+        "model": "",
+        "live_generator": False,
+        "capability_evidence_ok": False,
+        "candidate_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+        "repair_sequences": 0,
+        "local_lean_checked": 0,
+        "local_lean_compiled": 0,
+        "fixture_plumbing_ok": False,
+        "static_or_fixture_only": False,
+        "proof_evidence_status": "",
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    provider_name = str(payload.get("provider_name", ""))
+    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
+        "anthropic",
+        "openai",
+    }
+    repair_sequences = int(
+        payload.get(
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    local_lean_checked = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+        or 0
+    )
+    local_lean_compiled = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
+        or 0
+    )
+    candidate_kernel_verified = bool(
+        payload.get("candidate_kernel_verified", False)
+    )
+    source_theorem_kernel_verified = bool(
+        payload.get("source_theorem_kernel_verified", False)
+    )
+    capability_evidence_ok = bool(
+        live_generator
+        and repair_sequences > 0
+        and local_lean_checked > 0
+        and local_lean_compiled > 0
+        and candidate_kernel_verified
+        and payload.get("capability_evidence_ok", False)
+    )
+    static_or_fixture_only = bool(payload.get("static_or_fixture_only", False))
+    fixture_plumbing_ok = bool(
+        static_or_fixture_only
+        and repair_sequences > 0
+        and local_lean_compiled > 0
+        and candidate_kernel_verified
+    )
+    return {
+        "available": True,
+        "manifest_path": str(manifest_path),
+        "provider_name": provider_name,
+        "model": str(payload.get("model", "")),
+        "live_generator": live_generator,
+        "capability_evidence_ok": capability_evidence_ok,
+        "candidate_kernel_verified": candidate_kernel_verified,
+        "source_theorem_kernel_verified": source_theorem_kernel_verified,
+        "full_frontier_theorem_proved": bool(
+            payload.get("full_frontier_theorem_proved", False)
+        ),
+        "repair_sequences": repair_sequences,
+        "local_lean_checked": local_lean_checked,
+        "local_lean_compiled": local_lean_compiled,
+        "fixture_plumbing_ok": fixture_plumbing_ok,
+        "static_or_fixture_only": static_or_fixture_only,
+        "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
+    }
+
+
+def _formalizer_lean_candidate_repair_eval_manifest_path(out_dir: Path) -> Path:
+    canonical = (
+        out_dir.parent
+        / "formalizer_lean_candidate_repair_eval"
+        / "formalizer_lean_candidate_repair_eval_manifest.json"
+    )
+    if canonical.exists():
+        return canonical
+    candidates = sorted(
+        out_dir.parent.glob(
+            "formalizer_lean_candidate_repair_eval*/"
+            "formalizer_lean_candidate_repair_eval_manifest.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else canonical
+
+
+def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, object]:
+    manifest_path = _architect_research_path_policy_eval_manifest_path(out_dir)
+    empty = {
+        "available": False,
+        "manifest_path": "",
+        "provider_name": "",
+        "model": "",
+        "live_generator": False,
+        "capability_evidence_ok": False,
+        "n_cases": 0,
+        "n_cases_ok": 0,
+        "n_with_problem_analysis": 0,
+        "n_with_stat_knowledge_bank_plan": 0,
+        "n_with_literature_fair_comparison_plan": 0,
+        "fixture_plumbing_ok": False,
+        "static_or_fixture_only": False,
+        "proof_evidence_status": "",
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    provider_name = str(payload.get("provider_name", ""))
+    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
+        "anthropic",
+        "openai",
+    }
+    n_cases = int(payload.get("n_cases", 0) or 0)
+    n_cases_ok = int(payload.get("n_cases_ok", 0) or 0)
+    n_with_problem_analysis = int(payload.get("n_with_problem_analysis", 0) or 0)
+    n_with_knowledge_plan = int(
+        payload.get("n_with_stat_knowledge_bank_plan", 0) or 0
+    )
+    n_with_fair_comparison = int(
+        payload.get("n_with_literature_fair_comparison_plan", 0) or 0
+    )
+    all_cases_ok = bool(
+        n_cases > 0
+        and n_cases_ok == n_cases
+        and n_with_problem_analysis == n_cases
+        and n_with_knowledge_plan == n_cases
+        and n_with_fair_comparison == n_cases
+        and payload.get("all_cases_ok", False)
+    )
+    static_or_fixture_only = bool(payload.get("static_or_fixture_only", False))
+    return {
+        "available": True,
+        "manifest_path": str(manifest_path),
+        "provider_name": provider_name,
+        "model": str(payload.get("model", "")),
+        "live_generator": live_generator,
+        "capability_evidence_ok": bool(
+            live_generator and all_cases_ok and payload.get("capability_evidence_ok", False)
+        ),
+        "n_cases": n_cases,
+        "n_cases_ok": n_cases_ok,
+        "n_with_problem_analysis": n_with_problem_analysis,
+        "n_with_stat_knowledge_bank_plan": n_with_knowledge_plan,
+        "n_with_literature_fair_comparison_plan": n_with_fair_comparison,
+        "fixture_plumbing_ok": bool(static_or_fixture_only and all_cases_ok),
+        "static_or_fixture_only": static_or_fixture_only,
+        "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
+    }
+
+
+def _architect_research_path_policy_eval_manifest_path(out_dir: Path) -> Path:
+    canonical = (
+        out_dir.parent
+        / "architect_research_path_policy_eval"
+        / "architect_research_path_policy_eval_manifest.json"
+    )
+    if canonical.exists():
+        return canonical
+    candidates = sorted(
+        out_dir.parent.glob(
+            "architect_research_path_policy_eval*/"
+            "architect_research_path_policy_eval_manifest.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else canonical
+
+
 def _research_agent_runtime_audit_overlay(
     out_dir: Path,
     *,
@@ -8675,7 +9089,15 @@ def _research_agent_runtime_audit_overlay(
         "n_lean_lsp_mcp_live_calls": 0,
         "n_algorithm_sandbox_executed": 0,
         "n_generated_code_sandbox_executed": 0,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_generated_code_sandbox_metric_gate_failed": 0,
         "n_unsafe_generated_code_rejected": 0,
+        "n_generated_simulation_sandbox_executed": 0,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_unsafe_generated_simulation_code_rejected": 0,
+        "n_formalizer_lean_candidate_local_lean_checked": 0,
+        "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_results_with_runtime_learning_memory_input": 0,
         "n_runtime_learning_memory_input_rows": 0,
         "n_results_with_problem_analysis": 0,

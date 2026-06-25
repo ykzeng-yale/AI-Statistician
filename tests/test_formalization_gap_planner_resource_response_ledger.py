@@ -417,6 +417,152 @@ def test_resource_response_ledger_preserves_llm_route_planner_trace() -> None:
     ) == []
 
 
+def test_resource_response_ledger_preserves_llm_residual_goal_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_llm_residual"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(
+        root,
+        llm_route_planner_rows=[
+            {
+                "llm_route_planner_row_id": "llm_route_row:rank_residual",
+                "request_id": "llm_route_request:rank_residual",
+                "route_id": "distribution_free_rank_bound",
+                "display_name": "distribution_free_rank_bound",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "minimal_delta_plan": {
+                    "selected_primitives": ["rank_uniformity"],
+                },
+                "search_requests": [],
+                "planner_next_actions": [],
+                "residual_interpretations": [
+                    {
+                        "residual_goal": (
+                            "rank_uniformity: missing conditional exchangeability "
+                            "side condition"
+                        ),
+                        "interpretation": (
+                            "the proof route needs conditional exchangeability "
+                            "before replay"
+                        ),
+                        "route_repair": (
+                            "add conditional exchangeability to the informal "
+                            "and formal route DAGs"
+                        ),
+                        "residual_primitives": ["rank_uniformity"],
+                        "target_primitives": ["rank_uniformity"],
+                        "source_refs": ["conformal_prediction_textbook"],
+                    }
+                ],
+            }
+        ],
+    )
+    route_revision_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "residual_interpretation"
+        and row["resource_id"] == "local_route_revision_overlay"
+    )
+    assert route_revision_request["request_payload"]["residual_goal_context"] == (
+        route_revision_request["request_playbook"]["residual_goal_context"]
+    )
+    response = {
+        "resource_request_id": route_revision_request["resource_request_id"],
+        "resource_id": route_revision_request["resource_id"],
+        "tool_name": "local_route_revision_overlay",
+        "expected_response_artifact": route_revision_request[
+            "expected_response_artifact"
+        ],
+        "llm_route_planner_row_id": "llm_route_row:rank_residual",
+        "llm_route_planner_request_id": route_revision_request["request_payload"][
+            "llm_route_planner_request_id"
+        ],
+        "llm_route_planner_source_kind": "residual_interpretation",
+        "llm_route_planner_source_index": 0,
+        "llm_route_planner_hook_kind": "route_revision",
+        "response_payload": {
+            "route_revision_decision": {
+                "decision": "revise_route",
+                "reason": "add conditional exchangeability for rank_uniformity",
+            },
+            "revised_informal_knowledge_dag_nodes": [
+                {
+                    "node_id": "informal:rank_uniformity:conditional_exchangeability",
+                    "primitive": "rank_uniformity",
+                    "claim": (
+                        "rank_uniformity replay depends on conditional "
+                        "exchangeability"
+                    ),
+                    "target_primitives": ["rank_uniformity"],
+                }
+            ],
+            "revised_formal_realization_dag_nodes": [
+                {
+                    "node_id": "formal:rank_uniformity:conditional_exchangeability",
+                    "primitive": "rank_uniformity",
+                    "coverage_bucket": "bridge_needed",
+                    "formalization_action": "prove_bridge",
+                    "target_primitives": ["rank_uniformity"],
+                }
+            ],
+            "minimal_delta_plan": {
+                "selected_primitives": ["rank_uniformity"],
+                "route_cost": 5,
+            },
+            "target_primitives": route_revision_request["target_primitives"],
+            "route_revision_recommended": True,
+            "route_revision_reasons": [
+                "conditional exchangeability residual requires route repair"
+            ],
+            "response_summary": (
+                "conditional exchangeability route revision for rank_uniformity"
+            ),
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_llm_route_planner_residual_context_rows"] == 2
+    assert payload["n_llm_route_planner_traced_residual_interpretation_rows"] == 2
+    assert payload["n_llm_route_planner_response_trace_grounded"] == 1
+    ledger_row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == route_revision_request["resource_request_id"]
+    )
+    assert ledger_row["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert ledger_row["llm_route_planner_source_kind"] == "residual_interpretation"
+    assert ledger_row["llm_route_planner_hook_kind"] == "route_revision"
+    residual_context = ledger_row["residual_goal_context"]
+    assert residual_context["source_kind"] == "residual_interpretation"
+    assert residual_context["residual_goal"].startswith("rank_uniformity")
+    assert residual_context["residual_primitives"] == ("rank_uniformity",)
+    assert "conditional exchangeability" in residual_context["route_repair"]
+    assert residual_context == route_revision_request["request_payload"][
+        "residual_goal_context"
+    ]
+    assert validate_resource_response_ledger_row(
+        ledger_row,
+        resource_response_ledger_row_json_schema(),
+    ) == []
+
+
 def test_resource_response_ledger_rejects_llm_route_planner_trace_mismatch() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_llm_mismatch"
@@ -841,6 +987,34 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_target_primitives"] == payload["n_ledger_rows"]
     assert payload["n_rows_with_actionable_work_items"] == payload["n_ledger_rows"]
     assert payload["n_actionable_work_items"] == payload["n_ledger_rows"]
+    assert payload["n_minimal_delta_reuse_ready"] == sum(
+        1
+        for row in request_payload["rows"]
+        if int(row["minimal_delta_cost_score"]) <= 15
+    )
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == sum(
+        1
+        for row in request_payload["rows"]
+        if 15 < int(row["minimal_delta_cost_score"]) <= 45
+    )
+    assert payload["n_minimal_delta_source_or_new_theory"] == sum(
+        1
+        for row in request_payload["rows"]
+        if 45 < int(row["minimal_delta_cost_score"]) < 100
+    )
+    assert payload["n_minimal_delta_alignment_blocked"] == sum(
+        1
+        for row in request_payload["rows"]
+        if int(row["minimal_delta_cost_score"]) >= 100
+    )
+    assert payload["average_reuse_readiness_score"] == round(
+        sum(int(row["reuse_readiness_score"]) for row in request_payload["rows"])
+        / len(request_payload["rows"])
+    )
+    assert payload["average_evidence_readiness_score"] == round(
+        sum(int(row["evidence_readiness_score"]) for row in request_payload["rows"])
+        / len(request_payload["rows"])
+    )
     assert payload["n_rows_with_formal_declaration_hits"] == 1
     assert payload["n_formal_declaration_hits"] == 1
     assert payload["n_rows_with_legacy_lean_declaration_hits"] == 1
@@ -858,6 +1032,16 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert "actionable_work_items" in payload[
         "resource_response_ledger_row_schema"
     ]["required"]
+    for priority_field in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
+    ):
+        assert priority_field in payload["resource_response_ledger_row_schema"][
+            "required"
+        ]
     source_ledger = next(
         row
         for row in payload["rows"]
@@ -875,6 +1059,19 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert source_ledger["response_playbook_grounding_terms"]
     assert source_ledger["acceptance_gate"] == source_request["acceptance_gate"]
     assert source_ledger["response_contract_fields"] == source_request["response_contract_fields"]
+    assert source_ledger["priority_score"] == source_request["priority_score"]
+    assert source_ledger["minimal_delta_cost_score"] == source_request[
+        "minimal_delta_cost_score"
+    ]
+    assert source_ledger["reuse_readiness_score"] == source_request[
+        "reuse_readiness_score"
+    ]
+    assert source_ledger["evidence_readiness_score"] == source_request[
+        "evidence_readiness_score"
+    ]
+    assert tuple(source_ledger["priority_rationale"]) == tuple(
+        source_request["priority_rationale"]
+    )
     assert source_ledger["response_contract_minimum_met"]
     assert "source_refs" in source_ledger["matched_response_contract_fields"]
     assert source_ledger["dispatch_spec"] == source_request["dispatch_spec"]
@@ -918,6 +1115,19 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert proof_ledger["quality_controls"]["resource_contract_ids"] == proof_request[
         "resource_contract_ids"
     ]
+    assert proof_ledger["priority_score"] == proof_request["priority_score"]
+    assert proof_ledger["minimal_delta_cost_score"] == proof_request[
+        "minimal_delta_cost_score"
+    ]
+    assert proof_ledger["reuse_readiness_score"] == proof_request[
+        "reuse_readiness_score"
+    ]
+    assert proof_ledger["evidence_readiness_score"] == proof_request[
+        "evidence_readiness_score"
+    ]
+    assert tuple(proof_ledger["priority_rationale"]) == tuple(
+        proof_request["priority_rationale"]
+    )
     assert set(proof_request["stop_conditions"]).issubset(
         set(proof_ledger["quality_controls"]["stop_conditions"])
     )
@@ -943,6 +1153,14 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         proof_ledger,
         resource_response_ledger_row_json_schema(),
     ) == []
+    malformed_score = dict(proof_ledger)
+    malformed_score["minimal_delta_cost_score"] = 101
+    assert "minimal_delta_cost_score must be between 0 and 100" in (
+        validate_resource_response_ledger_row(
+            malformed_score,
+            resource_response_ledger_row_json_schema(),
+        )
+    )
     malformed = dict(proof_ledger)
     malformed.pop("resource_id")
     assert "resource_id required" in validate_resource_response_ledger_row(

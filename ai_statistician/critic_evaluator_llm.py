@@ -130,7 +130,7 @@ def build_critic_evaluator_prompt(
             "theory": _small_manifest(theory_packet),
             "simulation": _small_manifest(simulation_manifest),
             "algorithm": _small_manifest(algorithm_manifest),
-            "formalization": _small_manifest(formalization_manifest),
+        "formalization": _small_manifest(formalization_manifest),
         },
         "deterministic_next_action_agenda": _compact_rows(deterministic_agenda, limit=4),
         "deterministic_learning_rows": _compact_rows(deterministic_learning_rows, limit=4),
@@ -143,7 +143,16 @@ def build_critic_evaluator_prompt(
         "1 short object or 1 short string. Audit evidence boundaries and identify one reroute "
         "priority. Do not promote any "
         "artifact to proof evidence; only AXLE/local Lean/kernel records can do that.\n\n"
-        + json.dumps(payload, separators=(",", ":"), default=str)
+        "If deterministic context reports source_to_bridge_premise_derivation_required "
+        "or SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP, recommend a REVISE/reroute to "
+        "TheoryDeveloper/Formalizer/ProofEngineer for the concrete premise targets. "
+        "If deterministic context reports source_theorem_truth_table_feedback or "
+        "RUNTIME_EVIDENCE_TRUTH_TABLE with source_theorem_kernel_verified=false, keep the "
+        "verdict at REVISE unless the next action directly targets ProofEngineer/LeanProver "
+        "or upstream premise repair; do not broaden retrieval as a substitute for the open "
+        "source-theorem proof gate. "
+        "Do not summarize that state as accepted theorem proof.\n\n"
+        + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
 
@@ -284,11 +293,14 @@ def _small_manifest(row: Mapping[str, Any]) -> dict[str, Any]:
         "artifact_kind",
         "counts",
         "proof_evidence_status",
+        "runtime_architect_control",
         "simulation_passed",
         "n_executed",
         "n_passed",
         "promotion_ready",
         "full_frontier_theorem_proved",
+        "source_to_bridge_premise_derivation_required",
+        "source_to_bridge_premise_derivation_pending_premise_names",
         "boundary",
         "proof_evidence_boundary",
     )
@@ -297,6 +309,9 @@ def _small_manifest(row: Mapping[str, Any]) -> dict[str, Any]:
         if key not in row:
             continue
         value = row.get(key)
+        if key == "runtime_architect_control" and isinstance(value, Mapping):
+            compact[key] = _compact_runtime_architect_control(value)
+            continue
         if isinstance(value, Mapping):
             compact[key] = {
                 str(nested_key): _truncate_text(nested_value)
@@ -305,6 +320,29 @@ def _small_manifest(row: Mapping[str, Any]) -> dict[str, Any]:
         else:
             compact[key] = _truncate_text(value)
     return compact
+
+
+def _compact_runtime_architect_control(row: Mapping[str, Any]) -> dict[str, Any]:
+    evidence_contract = (
+        row.get("evidence_contract", {})
+        if isinstance(row.get("evidence_contract", {}), Mapping)
+        else {}
+    )
+    return {
+        "formal_verification_policy": _truncate_text(
+            row.get("formal_verification_policy", "")
+            or evidence_contract.get("formal_verification_policy", "")
+        ),
+        "recommended_research_path": _truncate_text(
+            row.get("recommended_research_path", "")
+            or evidence_contract.get("recommended_research_path", "")
+        ),
+        "formal_required_for_final": bool(
+            row.get("formal_required_for_final", False)
+            or evidence_contract.get("formal_required_for_final", False)
+        ),
+        "acceptance_gate": _truncate_text(row.get("acceptance_gate", "")),
+    }
 
 
 def _compact_rows(rows: list[Mapping[str, Any]], *, limit: int) -> list[dict[str, Any]]:
@@ -327,8 +365,19 @@ def _compact_rows(rows: list[Mapping[str, Any]], *, limit: int) -> list[dict[str
                     "priority",
                     "learning_task",
                     "input_signal",
+                    "input_summary",
                     "target_behavior",
                     "gap_reason",
+                    "semantic_primitive_id",
+                    "target_theorem_name",
+                    "premise_name",
+                    "premise_target_status",
+                    "premise_target_type",
+                    "premise_derivation_gap_kind",
+                    "premise_derivation_gap_summary",
+                    "premise_semantic_dependency_status",
+                    "premise_semantic_dependency_requirements",
+                    "runtime_queue_status",
                 }
             }
         )

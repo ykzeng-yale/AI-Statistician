@@ -109,6 +109,16 @@ def run_theorem_reduction_closure_proofengineer_bridge(
                 "kernel_verified_theorem_reduction_closure_target_ids"
             ]
         ),
+        "kernel_verified_theorem_reduction_closure_declarations": list(
+            learning_export_manifest.get(
+                "kernel_verified_theorem_reduction_closure_declarations", []
+            )
+        ),
+        "verified_theorem_reduction_closure_artifact_paths": list(
+            learning_export_manifest.get(
+                "verified_theorem_reduction_closure_artifact_paths", []
+            )
+        ),
         "kernel_verified_theorem_reduction_closure_goal_ids": list(
             learning_export_manifest[
                 "kernel_verified_theorem_reduction_closure_goal_ids"

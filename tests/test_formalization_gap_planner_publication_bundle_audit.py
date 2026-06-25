@@ -28,6 +28,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
@@ -86,6 +87,7 @@ from ai_statistician.formalization_gap_planner_portable_plan_audit import (
     portable_plan_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
+    FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
     prover_adapter_packet_json_schema,
     prover_adapter_response_validation_row_json_schema,
 )
@@ -320,7 +322,28 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
     ].ok
 
 
+def _fixture_residual_goal_context() -> dict[str, object]:
+    return {
+        "source_kind": "proof_state_feedback",
+        "residual_goal": "rank_uniformity requires an explicit bridge lemma",
+        "residual_goals": ["rank_uniformity"],
+        "residual_primitives": ["rank_uniformity"],
+        "source_refs": ["fixture-source"],
+        "source_snippets": [
+            {
+                "source_ref": "fixture-source",
+                "text": "Fixture source backs the residual bridge obligation.",
+            }
+        ],
+        "formal_gap_boundary": (
+            "Formal boundary: residual context guides adapter mapping but is "
+            "not kernel proof evidence."
+        ),
+    }
+
+
 def _fixture_prover_adapter_packet() -> dict[str, object]:
+    residual_context = _fixture_residual_goal_context()
     return {
         "schema_version": 1,
         "prover_adapter_packet_id": "packet:fixture",
@@ -357,6 +380,10 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
+            "residual_goal_contexts": [residual_context],
+            "has_residual_goal_contexts": True,
+            "residual_goal_context_count": 1,
+            "residual_context_source_kinds": ["proof_state_feedback"],
             "applied_hook_kinds": ["resource_response_ledger"],
             "quality_controls": {
                 "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
@@ -375,7 +402,20 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
                 "response_validation_signals",
                 "stop_conditions",
             ],
+            "formal_attempt_queue_index": -1,
+            "formal_attempt_initial_ready": False,
+            "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+            "formal_attempt_prerequisite_formal_node_ids": [],
+            "formal_attempt_prerequisite_refinement_item_ids": [],
+            "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+            "formal_attempt_missing_prerequisite_formal_node_ids": [],
+            "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         },
+        "residual_goal_contexts": [residual_context],
+        "n_residual_goal_contexts": 1,
+        "residual_context_source_kinds": ["proof_state_feedback"],
+        "n_residual_contexts_with_source_refs": 1,
+        "n_residual_contexts_with_formal_gap_boundary": 1,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -383,6 +423,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "formal_attempt_queue_index": -1,
+        "formal_attempt_initial_ready": False,
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "formal_attempt_prerequisite_formal_node_ids": [],
+        "formal_attempt_prerequisite_refinement_item_ids": [],
+        "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+        "formal_attempt_missing_prerequisite_formal_node_ids": [],
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -439,6 +487,9 @@ def _fixture_prover_adapter_response_validation_row(
         "library_snapshot_ref": "",
         "semantic_alignment_notes": "",
         "residual_translation_gaps": [],
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "prerequisite_feedback_satisfied": False,
+        "prerequisite_response_ids": [],
         "kernel_verified_claimed": False,
         "acceptance_status": "AWAITING_PROVER_ADAPTER_MAPPING",
         "proof_evidence_status": "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE",
@@ -448,7 +499,11 @@ def _fixture_prover_adapter_response_validation_row(
     }
 
 
-def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
+def _write_accepted_llm_route_planner_artifact(
+    root: Path,
+    *,
+    include_unsourced_residual_context: bool = False,
+) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     target_intake_dir = root / "target_intake"
     raw_target_json = root / "target_intake_request.json"
@@ -485,6 +540,31 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         target_intake_dir
         / "formalization_gap_planner_target_intake_standalone_seed.json"
     )
+    residual_context: dict[str, object] | None = None
+    if include_unsourced_residual_context:
+        residual_context = {
+            "residual_goal": (
+                "rank_uniformity: missing finite tie-breaking side condition"
+            ),
+            "interpretation": (
+                "A prior prover residual indicated a finite tie-breaking side "
+                "condition, but no source grounding was attached."
+            ),
+            "route_repair": (
+                "Search the source literature before promoting this side "
+                "condition into the rank_uniformity route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "residual_attempt_status": "local_lean_failed",
+            "residual_diagnostic_signature": "prover_diagnostic_signature:tie",
+        }
+        input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+        input_payload["routes"][0]["replan_metadata"] = {
+            "llm_route_planner_residual_interpretations": [
+                dict(residual_context)
+            ]
+        }
+        input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     response_json = root / "llm_response.json"
     response_json.write_text(
         json.dumps(
@@ -497,6 +577,17 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                         "source_refs": ["fixture_source"],
                         "source_search_status": "SOURCE_BACKED",
                         "semantic_role": "lemma",
+                    },
+                    {
+                        "node_id": "informal:rank_route_conclusion",
+                        "claim": (
+                            "The rank-uniformity bridge supports the requested "
+                            "distribution-free route."
+                        ),
+                        "depends_on": ["informal:rank_uniformity"],
+                        "source_refs": ["fixture_source"],
+                        "source_search_status": "SOURCE_BACKED",
+                        "semantic_role": "main_route_step",
                     }
                 ],
                 "lean_realization_dag_nodes": [
@@ -524,6 +615,28 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                         "formalization_action": "define_new",
                     },
                 ],
+                "informal_knowledge_dag_edges": [
+                    {
+                        "source_node_id": "informal:rank_uniformity",
+                        "target_node_id": "informal:rank_route_conclusion",
+                        "edge_kind": "supports",
+                        "rationale": (
+                            "The source-backed rank-uniformity lemma is the "
+                            "informal dependency for the route conclusion."
+                        ),
+                    }
+                ],
+                "formal_realization_dag_edges": [
+                    {
+                        "source_node_id": "formal:rank_uniformity_bridge",
+                        "target_node_id": "formal:baseline_rank_route_statement",
+                        "edge_kind": "supports_statement",
+                        "rationale": (
+                            "The bridge lemma is the formal dependency for the "
+                            "route statement candidate."
+                        ),
+                    }
+                ],
                 "route_alignment_edges": [
                     {
                         "informal_node_id": "informal:rank_uniformity",
@@ -533,6 +646,20 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                             "The source-backed finite-rank statement should be "
                             "realized by one bridge lemma."
                         ),
+                    }
+                ],
+                "formal_attempt_queue": [
+                    {
+                        "attempt_id": "attempt:rank_uniformity_bridge",
+                        "formal_node_id": "formal:rank_uniformity_bridge",
+                        "primitive": "rank_uniformity",
+                        "target_prover_family": "lean4",
+                        "owner": "lean_lsp",
+                        "action": "attempt the rank-uniformity bridge lemma",
+                        "attempt_kind": "bridge_proof",
+                        "prerequisite_formal_node_ids": [],
+                        "expected_feedback": ["residual_goals"],
+                        "target_primitives": ["rank_uniformity"],
                     }
                 ],
                 "minimal_delta_plan": {
@@ -613,6 +740,13 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                                 "selected_primitives": ["rank_uniformity"],
                                 "route_cost": 7,
                                 "cost_rationale": "A source port is broader than this route.",
+                                "source_port_lemmas": [
+                                    (
+                                        "rank_uniformity: port the finite-rank "
+                                        "exchangeability source theorem as a "
+                                        "reusable route alternative"
+                                    )
+                                ],
                                 "primitive_costs": [
                                     {
                                         "primitive": "rank_uniformity",
@@ -741,6 +875,27 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    if residual_context is not None:
+        response_payload = json.loads(response_json.read_text(encoding="utf-8"))
+        response_payload["residual_interpretations"] = [dict(residual_context)]
+        response_payload["search_requests"].append(
+            {
+                "request_kind": "literature",
+                "query": (
+                    "finite tie-breaking side condition rank_uniformity "
+                    "exchangeability source"
+                ),
+                "reason": (
+                    "The carried residual context is unaccounted and needs "
+                    "bounded source grounding before route promotion."
+                ),
+                "target_primitives": ["rank_uniformity"],
+            }
+        )
+        response_json.write_text(
+            json.dumps(response_payload, indent=2),
+            encoding="utf-8",
+        )
     out_dir = root / "llm_route_planner"
     component_resource_registry_dir = root / "component_resource_registry"
     export_formalization_gap_planner_component_resource_registry(
@@ -848,6 +1003,11 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_missing_target_library_snapshot_trace": 0,
         "n_packets_target_library_snapshot_mismatch": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_residual_goal_contexts": 1,
+        "n_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_packet_residual_contexts_with_source_refs": 1,
+        "n_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_packets_with_quality_controls": 1,
         "n_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -898,6 +1058,13 @@ def _fixture_cross_prover_matrix_row(
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_packets_with_formal_attempt_dependency": 0,
+        "n_packets_formal_attempt_initial_ready": 0,
+        "n_packets_formal_attempt_waiting": 0,
+        "n_packets_formal_attempt_missing_prerequisites": 0,
+        "by_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -930,6 +1097,11 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_missing_target_library_snapshot_trace": 0,
         "n_total_packets_target_library_snapshot_mismatch": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_residual_goal_contexts": 1,
+        "n_total_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_total_packet_residual_contexts_with_source_refs": 1,
+        "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_total_packets_with_quality_controls": 1,
         "n_total_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -980,6 +1152,13 @@ def _fixture_cross_prover_target_summary(
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -992,6 +1171,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_missing_target_library_snapshot_trace": 0,
                 "n_packets_target_library_snapshot_mismatch": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_residual_goal_contexts": 1,
+                "n_packet_residual_goal_contexts": 1,
+                "packet_residual_context_source_kinds": [
+                    "proof_state_feedback"
+                ],
+                "n_packet_residual_contexts_with_source_refs": 1,
+                "n_packet_residual_contexts_with_formal_gap_boundary": 1,
                 "n_packets_with_quality_controls": 1,
                 "n_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
@@ -1044,6 +1230,13 @@ def _fixture_cross_prover_target_summary(
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
+                "n_packets_with_formal_attempt_dependency": 0,
+                "n_packets_formal_attempt_initial_ready": 0,
+                "n_packets_formal_attempt_waiting": 0,
+                "n_packets_formal_attempt_missing_prerequisites": 0,
+                "by_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
+                },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
@@ -1072,6 +1265,22 @@ def _fixture_cross_prover_target_summary(
 
 
 def _fixture_evaluation_row() -> dict[str, object]:
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
+        "n_known_pre_response_blockers": 2,
+        "response_required_fields": [
+            "planner_next_actions",
+            "search_requests",
+        ],
+        "n_response_required_fields": 2,
+    }
     return {
         "schema_version": 1,
         "evaluation_id": "evaluation:fixture",
@@ -1132,6 +1341,15 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_provider": "anthropic",
         "llm_route_planner_model": "claude-sonnet-4-6",
         "llm_route_planner_model_tier": "sonnet",
+        "llm_route_planner_model_tier_decision_basis": "auto_sonnet_triggers",
+        "llm_route_planner_model_tier_decision_sonnet_triggers": [
+            "fixture Sonnet trigger"
+        ],
+        "llm_route_planner_model_tier_decision_sonnet_trigger_count": 1,
+        "llm_route_planner_source_feedback_row_count": 0,
+        "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": 0,
+        "llm_route_planner_source_feedback_proof_body_execution_failure_count": 0,
+        "llm_route_planner_source_feedback_formal_environment_blocker_count": 0,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -1139,6 +1357,21 @@ def _fixture_evaluation_row() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "llm_route_planner_route_adoption_preconditions": (
+            route_adoption_preconditions
+        ),
+        "llm_route_planner_route_adoption_precondition_present": True,
+        "llm_route_planner_route_adoption_precondition_blocked_before_response": True,
+        "llm_route_planner_route_adoption_precondition_known_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
+        "llm_route_planner_route_adoption_precondition_required_response_fields": [
+            "planner_next_actions",
+            "search_requests",
+        ],
+        "llm_route_planner_route_adoption_precondition_known_blocker_count": 2,
+        "llm_route_planner_route_adoption_precondition_required_response_field_count": 2,
         "llm_route_planner_acceptance_status": (
             "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
         ),
@@ -1147,6 +1380,12 @@ def _fixture_evaluation_row() -> dict[str, object]:
         ),
         "llm_route_planner_has_generator_metadata": True,
         "llm_route_planner_generator_metadata_keys": ["retry_count"],
+        "llm_route_planner_has_provider_usage": True,
+        "llm_route_planner_provider_input_tokens": 11,
+        "llm_route_planner_provider_output_tokens": 5,
+        "llm_route_planner_provider_cache_creation_input_tokens": 0,
+        "llm_route_planner_provider_cache_read_input_tokens": 2,
+        "llm_route_planner_provider_total_tokens": 18,
         "llm_route_planner_request_contract_blocked": False,
         "llm_route_planner_errors": [],
         "llm_route_planner_generation_errors": [],
@@ -1263,6 +1502,20 @@ def _fixture_primitive_action_queue_row() -> dict[str, object]:
         "queue_action_kind": "prove_bridge_lemma",
         "owner_agent": "formal_verifier",
         "priority_score": 70,
+        "minimal_delta_cost_score": 40,
+        "reuse_readiness_score": 75,
+        "evidence_readiness_score": 100,
+        "priority_rationale": [
+            "primitive=rank_uniformity",
+            "coverage_bucket=bridge_needed",
+            "minimal_delta_cost_score=40",
+            "reuse_readiness_score=75",
+            "evidence_readiness_score=100",
+            "focused bridge lemma is a bounded formalization delta",
+            "candidate declarations available",
+            "source references available",
+            "route-level actionable work item available",
+        ],
         "rank": 1,
         "candidate_declarations": ["Fixture.rankUniformity"],
         "candidate_declaration_rows": [
@@ -1322,6 +1575,18 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
         "primitive": "rank_uniformity",
         "coverage_bucket": "bridge_needed",
         "queue_action_kind": "prove_bridge_lemma",
+        "priority_score": 70,
+        "minimal_delta_cost_score": 40,
+        "reuse_readiness_score": 75,
+        "evidence_readiness_score": 100,
+        "priority_rationale": [
+            "primitive=rank_uniformity",
+            "coverage_bucket=bridge_needed",
+            "minimal_delta_cost_score=40",
+            "reuse_readiness_score=75",
+            "evidence_readiness_score=100",
+            "focused bridge lemma is a bounded formalization delta",
+        ],
         "target_prover_family": "lean4",
         "library_snapshot_ref": "mathlib4:fixture",
         "candidate_declaration_rows": [
@@ -1862,11 +2127,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_total_packets_missing_alignment": 0,
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
-                "n_total_packets_with_target_library_snapshot_trace": 1,
-                "n_total_packets_missing_target_library_snapshot_trace": 0,
-                "n_total_packets_target_library_snapshot_mismatch": 0,
-                "n_total_packets_with_replan_metadata_trace": 1,
-                "n_total_packets_with_quality_controls": 1,
+                    "n_total_packets_with_target_library_snapshot_trace": 1,
+                    "n_total_packets_missing_target_library_snapshot_trace": 0,
+                    "n_total_packets_target_library_snapshot_mismatch": 0,
+                    "n_total_packets_with_replan_metadata_trace": 1,
+                    "n_total_packets_with_residual_goal_contexts": 1,
+                    "n_total_packet_residual_goal_contexts": 1,
+                    "packet_residual_context_source_kinds": [
+                        "proof_state_feedback"
+                    ],
+                    "n_total_packet_residual_contexts_with_source_refs": 1,
+                    "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
+                    "n_total_packets_with_quality_controls": 1,
                 "n_total_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
                     "required_quality_signals",
@@ -1918,12 +2190,20 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "by_total_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
+                "n_total_packets_with_formal_attempt_dependency": 0,
+                "n_total_packets_formal_attempt_initial_ready": 0,
+                "n_total_packets_formal_attempt_waiting": 0,
+                "n_total_packets_formal_attempt_missing_prerequisites": 0,
+                "by_total_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
-                "standalone_input_trace_packet_count_consistent": True,
-                "target_library_snapshot_trace_packet_count_consistent": True,
-                "quality_control_packet_count_consistent": True,
-                "all_ok": True,
+                    "standalone_input_trace_packet_count_consistent": True,
+                    "target_library_snapshot_trace_packet_count_consistent": True,
+                    "quality_control_packet_count_consistent": True,
+                    "residual_context_packet_count_consistent": True,
+                    "all_ok": True,
             },
             indent=2,
         ),
@@ -2032,6 +2312,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_llm_route_adoption_blockers": 2,
                 "n_llm_route_adoption_pending_quality_control_blockers": 0,
                 "n_llm_route_adoption_pending_source_grounding_blockers": 0,
+                "n_rows_with_llm_route_planner_route_adoption_preconditions": 1,
+                "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 1,
+                "n_llm_route_planner_route_adoption_precondition_known_blockers": 2,
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields": 2,
+                "llm_route_planner_route_adoption_precondition_known_blockers": [
+                    "search_requests_pending_evidence",
+                    "uncertainty_flags_require_review",
+                ],
+                "llm_route_planner_route_adoption_precondition_required_response_fields": [
+                    "planner_next_actions",
+                    "search_requests",
+                ],
                 "llm_route_adoption_blockers": [
                     "search_requests_pending_evidence",
                     "uncertainty_flags_require_review",
@@ -2066,6 +2358,55 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         },
                     },
                 },
+                "llm_route_planner_provider_usage_summary": {
+                    "row_count": 1,
+                    "n_rows": 1,
+                    "input_tokens": 11,
+                    "output_tokens": 5,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 2,
+                    "total_tokens": 18,
+                    "by_provider": {
+                        "anthropic": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "by_model_tier": {
+                        "sonnet": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "by_model": {
+                        "claude-sonnet-4-6": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": "not theorem proof evidence",
+                },
+                "n_rows_with_llm_route_planner_provider_usage": 1,
+                "total_llm_route_planner_provider_input_tokens": 11,
+                "total_llm_route_planner_provider_output_tokens": 5,
+                "total_llm_route_planner_provider_cache_creation_input_tokens": 0,
+                "total_llm_route_planner_provider_cache_read_input_tokens": 2,
+                "total_llm_route_planner_provider_total_tokens": 18,
                 "n_rows_with_llm_route_planner_request_contract_blocked": 0,
                 "n_rows_with_llm_route_planner_errors": 0,
                 "n_llm_route_planner_errors": 0,
@@ -2608,6 +2949,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "mean_route_adoption_blockers": 0.0,
         "mean_route_adoption_pending_quality_control_blockers": 0.0,
         "mean_route_adoption_pending_source_grounding_blockers": 0.0,
+        "mean_route_adoption_precondition_known_blockers": 0.0,
+        "mean_route_adoption_precondition_required_response_fields": 0.0,
         "relative_route_recall_drop": 0.0,
         "relative_delta_recall_drop": 0.0,
         "relative_residual_recall_drop": 0.0,
@@ -2874,6 +3217,63 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "# route revision overlay\nnot theorem proof evidence\n",
         encoding="utf-8",
     )
+    handoff_target_theorem_context_packet = {
+        "context_packet_kind": (
+            "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+        ),
+        "route_id": "route:fixture",
+        "display_name": "fixture route",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:fixture",
+        "target_ids": ["rank_uniformity_fixture"],
+        "theorem_statement": (
+            "For exchangeable calibration and test scores, the test score rank "
+            "is uniformly distributed."
+        ),
+        "primitive_candidates": ["rank_uniformity"],
+        "residual_goals": ["rank_uniformity"],
+        "source_refs": ["fixture source"],
+    }
+    handoff_route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": "route:fixture",
+        "display_name": "fixture route",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "preserve_rank_uniformity_replan",
+                "priority": 1,
+                "action": "keep the rank-uniformity bridge as the replan target",
+                "reason": "handoff residuals name the same primitive",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "rank_uniformity_source_grounding",
+                "gap_kind": "source_grounding",
+                "recommended_action": "preserve source-backed rank-uniformity route evidence",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    handoff_route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": ["source_grounding_obligations_pending"],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     handoff_row = {
         "schema_version": 1,
         "route_replan_handoff_id": "handoff:rank_uniformity",
@@ -2903,6 +3303,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "applied_prover_diagnostic_signatures": ["materialize_statement"],
         "route_revision_reasons": ["proof-state feedback exposed missing bridge"],
         "route_revision_summaries": ["add rank uniformity bridge"],
+        "target_theorem_context_packet": handoff_target_theorem_context_packet,
+        "route_planning_brief": handoff_route_planning_brief,
+        "route_adoption_preconditions": handoff_route_adoption_preconditions,
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [
             {"primitive": "rank_uniformity", "declaration": "Fixture.rank_uniformity"}
@@ -2916,7 +3319,29 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "revised_route_alignment_edges": handoff_alignment_edges,
         "unaligned_primitives": [],
         "standalone_route_id": "replan_route:rank_uniformity",
-        "standalone_route": {"route_id": "replan_route:rank_uniformity"},
+        "standalone_route": {
+            "route_id": "replan_route:rank_uniformity",
+            "target_prover_family": "lean4",
+            "target_theorem_context_packet": handoff_target_theorem_context_packet,
+            "llm_route_planner_route_planning_brief": (
+                handoff_route_planning_brief
+            ),
+            "llm_route_planner_route_adoption_preconditions": (
+                handoff_route_adoption_preconditions
+            ),
+            "replan_metadata": {
+                "target_theorem_context_packet": handoff_target_theorem_context_packet,
+                "llm_route_planner_target_theorem_context_packet": (
+                    handoff_target_theorem_context_packet
+                ),
+                "llm_route_planner_route_planning_brief": (
+                    handoff_route_planning_brief
+                ),
+                "llm_route_planner_route_adoption_preconditions": (
+                    handoff_route_adoption_preconditions
+                ),
+            },
+        },
         "next_commands": [
             "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json",
             "formalization-gap-planner-component-resource-registry --out <formalization_gap_planner_component_resource_registry_dir>",
@@ -2966,6 +3391,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_resource_response_awaiting_request_ids": 1,
                 "n_resource_response_rejected_request_ids": 1,
                 "n_distinct_prover_diagnostic_signatures": 1,
+                "n_routes_with_target_theorem_context_packet": 1,
+                "n_standalone_seed_routes_with_target_theorem_context_packet": 1,
+                "n_routes_with_llm_route_planning_brief": 1,
+                "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
+                "n_routes_with_llm_route_adoption_preconditions": 1,
+                "n_standalone_seed_routes_with_llm_route_adoption_preconditions": 1,
                 "all_ok": True,
                 "rows": [handoff_row],
             },
@@ -2990,11 +3421,33 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "routes": [
                     {
                         "route_id": "replan_route:rank_uniformity",
+                        "target_prover_family": "lean4",
+                        "target_theorem_context_packet": (
+                            handoff_target_theorem_context_packet
+                        ),
+                        "llm_route_planner_route_planning_brief": (
+                            handoff_route_planning_brief
+                        ),
+                        "llm_route_planner_route_adoption_preconditions": (
+                            handoff_route_adoption_preconditions
+                        ),
                         "revised_informal_knowledge_dag_nodes": handoff_informal_nodes,
                         "revised_formal_realization_dag_nodes": handoff_lean_nodes,
                         "revised_lean_realization_dag_nodes": handoff_lean_nodes,
                         "revised_route_alignment_edges": handoff_alignment_edges,
                         "replan_metadata": {
+                            "target_theorem_context_packet": (
+                                handoff_target_theorem_context_packet
+                            ),
+                            "llm_route_planner_target_theorem_context_packet": (
+                                handoff_target_theorem_context_packet
+                            ),
+                            "llm_route_planner_route_planning_brief": (
+                                handoff_route_planning_brief
+                            ),
+                            "llm_route_planner_route_adoption_preconditions": (
+                                handoff_route_adoption_preconditions
+                            ),
                             "applied_proposal_ids": ["proposal:rank_uniformity"],
                             "applied_refinement_evidence_ids": [
                                 "resource_response_ledger:rank_uniformity"
@@ -3128,6 +3581,43 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_route_planning_brief_trace",
+            "check_name": "roundtrip_llm_route_planning_brief_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM "
+                "route-planning briefs"
+            ),
+            "observed": (
+                "seed_routes_with_brief=1; roundtrip_traces_with_brief=1; "
+                "trace_matches=1; metadata_matches=1"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "check_id": "check:roundtrip_llm_route_adoption_preconditions_trace",
+            "check_name": "roundtrip_llm_route_adoption_preconditions_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM "
+                "route-adoption preconditions"
+            ),
+            "observed": (
+                "seed_routes_with_preconditions=1; "
+                "roundtrip_traces_with_preconditions=1; "
+                "trace_matches=1; metadata_matches=1; expected_blockers=1; "
+                "roundtrip_blockers=1; expected_required_fields=2; "
+                "roundtrip_required_fields=2"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_provenance_metadata",
             "check_name": "row_0_seed_route_provenance_metadata",
             "category": "provenance",
@@ -3137,18 +3627,48 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "severity": "error",
             "errors": [],
         },
+        {
+            "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_route_planning_brief",
+            "check_name": "row_0_seed_route_llm_route_planning_brief",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve the LLM "
+                "route-planning brief"
+            ),
+            "observed": "row=True route=True metadata=True focus=1 evidence_gaps=1",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_route_adoption_preconditions",
+            "check_name": "row_0_seed_route_llm_route_adoption_preconditions",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve LLM "
+                "route-adoption preconditions"
+            ),
+            "observed": "row=True route=True metadata=True blockers=1 required_fields=2",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
     ]
     (replan_handoff_audit_dir / "formalization_gap_planner_route_replan_handoff_audit_manifest.json").write_text(
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 7,
+                "n_checks": 11,
                 "n_failed": 0,
-                "n_row_schema_valid": 7,
+                "n_row_schema_valid": 11,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
                 "n_roundtrip_route_alignment_edges": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": 1,
                 "roundtrip_all_ok": True,
                 "all_ok": True,
                 "checks": audit_checks,
@@ -3339,6 +3859,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_payload["n_optional_cross_prover_response_validation_row_schema_valid"]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_cross_prover_formal_attempt_dependency_checked"
+        ]
+        == 3
+    )
+    assert (
+        audit_payload[
+            "n_optional_cross_prover_formal_attempt_dependency_valid"
+        ]
+        == 3
+    )
     assert audit_payload["n_benchmark_route_row_schema_checked"] == bundle_payload[
         "benchmark_summary"
     ]["n_routes"]
@@ -3404,6 +3936,42 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["optional_evaluation_route_adoption_blockers"] == (
         "search_requests_pending_evidence",
         "uncertainty_flags_require_review",
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_blocking_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
+    assert audit_payload[
+        "optional_evaluation_route_adoption_precondition_known_blockers"
+    ] == (
+        "search_requests_pending_evidence",
+        "uncertainty_flags_require_review",
+    )
+    assert audit_payload[
+        "optional_evaluation_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
     )
     assert audit_payload["n_optional_evaluation_rows_with_quality_controls"] == 1
     assert audit_payload["n_optional_evaluation_quality_control_fields"] == 4
@@ -3681,6 +4249,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "llm_route_planner_model_tier_decision_ledger_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "schema_catalog_payload_schema_id"
         and row["observed"] == schema_catalog_json_schema()["$id"]
         and row["ok"]
@@ -3812,6 +4387,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "llm_model_policy_rejects_codex"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_official_source_urls"
+        and "platform.claude.com/docs" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_pinned_snapshot_versioning"
+        and "not evergreen" in row["observed"]
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -4106,6 +4693,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert any(
         row["check_name"]
         == "optional_cross_prover_response_validation_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_manifest_counts"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_target_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_jsonl_consistent"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -4428,6 +5033,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_row_0_seed_route_planning_brief_preservation"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_row_0_seed_route_adoption_preconditions_preservation"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_route_replan_handoff_seed_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -4481,6 +5098,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_route_planning_brief_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_route_revision_overlay_row_schema_checked"] == 1
     assert audit_payload["n_optional_route_revision_overlay_row_schema_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_row_schema_checked"] == 1
@@ -4489,12 +5118,60 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_route_replan_handoff_seed_alignment_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_seed_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_seed_dag_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_planning_brief_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_planning_brief_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_route_revision_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 7
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 7
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 11
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 11
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid"
+        ]
+        == 1
+    )
     assert any(
         row["check_name"]
         == "optional_route_replan_handoff_audit_row_0_schema_valid"
@@ -4685,6 +5362,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         bundle_manifest_payload["evaluation_summary"]["mean_alignment_coverage"]
         == 1.0
     )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_provider_usage"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "total_llm_route_planner_provider_total_tokens"
+        ]
+        == 18
+    )
     corrupted_bundle_manifest = json.loads(json.dumps(bundle_manifest_payload))
     corrupted_bundle_manifest["evaluation_summary"][
         "n_realization_omitted_cost_hint_primitives"
@@ -4696,6 +5385,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "n_kernel_verification_witnesses"
     ] = 1
     corrupted_bundle_manifest["evaluation_summary"]["mean_alignment_coverage"] = 0.0
+    corrupted_bundle_manifest["evaluation_summary"][
+        "total_llm_route_planner_provider_total_tokens"
+    ] = 1
     bundle_manifest_path.write_text(
         json.dumps(corrupted_bundle_manifest, indent=2),
         encoding="utf-8",
@@ -4718,6 +5410,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         "mean_alignment_coverage" in error
+        for error in rejected_bundle_summary_check.get("errors", [])
+    )
+    assert any(
+        "total_llm_route_planner_provider_total_tokens" in error
         for error in rejected_bundle_summary_check.get("errors", [])
     )
     bundle_manifest_path.write_text(
@@ -4777,6 +5473,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "n_rows_pending_refinement_before_route_adoption"
     ] = 0
     corrupted_route_adoption_manifest["n_llm_route_adoption_blockers"] = 0
+    corrupted_route_adoption_manifest[
+        "n_rows_with_llm_route_planner_route_adoption_preconditions"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_llm_route_planner_route_adoption_precondition_known_blockers"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] = []
+    corrupted_route_adoption_manifest[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] = []
     corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = []
     corrupted_route_adoption_manifest["llm_route_adoption_blocker_counts"] = {}
     corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_status"] = {}
@@ -4806,6 +5520,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "n_optional_evaluation_route_adoption_manifest_valid"
         ]
         == 0
+    )
+    route_adoption_manifest_check = next(
+        row
+        for row in rejected_route_adoption_evaluation_payload["checks"]
+        if row["check_name"] == "optional_evaluation_route_adoption_manifest"
+    )
+    assert any(
+        "n_rows_with_llm_route_planner_route_adoption_preconditions" in error
+        for error in route_adoption_manifest_check["errors"]
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),
@@ -6388,6 +7111,199 @@ def test_publication_bundle_audit_rejects_stale_interactive_resource_status() ->
     assert "next_commands missing resource_request_id=" in consistency_errors
 
 
+def test_publication_bundle_audit_rejects_stale_interactive_route_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_interactive_route_preconditions"
+    )
+    plan_dir = root / "plan"
+    stability_dir = root / "route_stability"
+    interactive_session_dir = root / "interactive_session"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "source_grounding_obligations_pending"
+        ],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+    }
+    plan_row = {
+        "goal_plan_id": "goal:precondition",
+        "route_id": "route:precondition",
+        "display_name": "route precondition fixture",
+        "selected_primitives": ["rank_uniformity"],
+    }
+    stability_row = {
+        "schema_version": 1,
+        "route_stability_audit_id": "stability:precondition",
+        "goal_plan_id": "goal:precondition",
+        "route_id": "route:precondition",
+        "display_name": "route precondition fixture",
+        "stability_decision": "AWAITING_REFINEMENT_RESPONSES",
+        "stable_under_current_evidence_bound": False,
+        "needs_more_literature": False,
+        "needs_more_formal_grounding": False,
+        "needs_more_lean_grounding": False,
+        "needs_more_proof_state_feedback": False,
+        "needs_route_replanning": False,
+        "response_summary_by_hook": {},
+        "awaiting_hook_kinds": [],
+        "rejected_hook_kinds": [],
+        "responded_hook_kinds": ["literature_discovery"],
+        "resource_response_awaiting_request_ids": [],
+        "resource_response_rejected_request_ids": [],
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "route_adoption_preconditions": route_adoption_preconditions,
+        "route_adoption_precondition_present": True,
+        "route_adoption_precondition_blocked_before_response": True,
+        "route_adoption_precondition_unresolved": True,
+        "route_adoption_precondition_known_blockers": [
+            "source_grounding_obligations_pending"
+        ],
+        "route_adoption_precondition_required_response_fields": [
+            "search_requests",
+            "planner_next_actions",
+        ],
+        "route_adoption_precondition_known_blocker_count": 1,
+        "route_adoption_precondition_required_response_field_count": 2,
+        "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
+        "original_selected_primitives": ["rank_uniformity"],
+        "revised_selected_primitives": ["rank_uniformity"],
+        "added_primitives": [],
+        "removed_primitives": [],
+        "original_delta_primitives": ["rank_uniformity"],
+        "revised_delta_primitives": ["rank_uniformity"],
+        "added_delta_primitives": [],
+        "new_primitives_since_plan": [],
+        "source_refs": [],
+        "formal_declaration_hits": [],
+        "lean_declaration_hits": [],
+        "residual_goals": [],
+        "prover_attempt_statuses": [],
+        "prover_attempt_classes": [],
+        "target_prover_families": [],
+        "route_revision_reasons": [],
+        "stopping_rule_evidence": [
+            "route_adoption_preconditions remain unresolved"
+        ],
+        "next_actions": [
+            "resolve LLM route-adoption precondition blockers"
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_ROUTE_STABILITY_AUDIT_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+        "ok": True,
+        "errors": [],
+    }
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [plan_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_stability_audit",
+                "n_stability_rows": 1,
+                "n_row_schema_valid": 1,
+                "n_row_schema_invalid": 0,
+                "rows": [stability_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir / "formalization_gap_planner_route_stability_audit.jsonl"
+    ).write_text(json.dumps(stability_row, sort_keys=True) + "\n", encoding="utf-8")
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_row.schema.json"
+    ).write_text(
+        json.dumps(route_stability_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        stability_dir / "formalization_gap_planner_route_stability_audit.md"
+    ).write_text("# fixture\n", encoding="utf-8")
+    export_formalization_gap_planner_interactive_session(
+        plan_dir,
+        interactive_session_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+    interactive_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_interactive_session"
+        / "formalization_gap_planner_interactive_session.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in interactive_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows[0]["route_adoption_precondition_unresolved"] = False
+    rows[0]["next_interaction_kind"] = "build_refinement_queue"
+    rows[0]["next_tools"] = []
+    rows[0]["next_commands"] = []
+    interactive_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(bundle_dir, audit_dir)
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_interactive_session_route_precondition_checked"] == 1
+    assert payload["n_optional_interactive_session_route_precondition_valid"] == 0
+    assert (
+        "optional_interactive_session_row_0_route_precondition_consistency"
+        in failed_names
+    )
+    consistency_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_interactive_session_row_0_route_precondition_consistency"
+    )
+    consistency_errors = "; ".join(consistency_check["errors"])
+    assert "route_adoption_precondition_unresolved mismatch" in consistency_errors
+    assert "await_refinement_response next interaction" in consistency_errors
+    assert "next_tools missing resource_response_ledger" in consistency_errors
+    assert "next_commands missing route-adoption precondition guidance" in (
+        consistency_errors
+    )
+
+
 def test_publication_bundle_audit_validates_interactive_policy_resource_links() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_interactive_links")
     bundle_dir = root / "bundle"
@@ -6617,6 +7533,15 @@ def test_publication_bundle_audit_rejects_stale_generic_prover_fields() -> None:
         "responded_hook_kinds": ["proof_state_feedback"],
         "resource_response_awaiting_request_ids": [],
         "resource_response_rejected_request_ids": [],
+        "llm_route_planner_route_adoption_status": "",
+        "route_adoption_preconditions": {},
+        "route_adoption_precondition_present": False,
+        "route_adoption_precondition_blocked_before_response": False,
+        "route_adoption_precondition_unresolved": False,
+        "route_adoption_precondition_known_blockers": [],
+        "route_adoption_precondition_required_response_fields": [],
+        "route_adoption_precondition_known_blocker_count": 0,
+        "route_adoption_precondition_required_response_field_count": 0,
         "revision_status": "ROUTE_REVISION_APPLIED",
         "original_selected_primitives": [],
         "revised_selected_primitives": ["rank_uniformity"],
@@ -6861,6 +7786,219 @@ def test_publication_bundle_audit_rejects_stale_generic_prover_fields() -> None:
     assert "optional_interactive_session_row_0_generic_prover_fields" in failed_names
 
 
+def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_llm_seed_source_grounding"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    llm_dir = _write_accepted_llm_route_planner_artifact(
+        root / "llm",
+        include_unsourced_residual_context=True,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_dir,
+    )
+    bundle_manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    bundle_manifest = json.loads(bundle_manifest_path.read_text(encoding="utf-8"))
+    llm_summary = bundle_manifest["llm_route_planner_summary"]
+    assert llm_summary["n_requests_with_source_grounding_rows"] == 1
+    assert llm_summary["n_request_source_grounding_rows"] == 1
+    assert (
+        llm_summary["n_requests_with_source_grounding_obligation_inventory"]
+        == 1
+    )
+    assert (
+        llm_summary[
+            "n_requests_with_pending_source_grounding_obligation_inventory"
+        ]
+        == 1
+    )
+    assert llm_summary["n_request_source_grounding_unresolved_rows"] == 1
+    assert (
+        llm_summary["n_request_residual_source_grounding_unresolved_rows"]
+        == 1
+    )
+    assert llm_summary["n_formal_attempt_queue_items"] == 1
+    assert llm_summary["n_rows_with_formal_attempt_queue"] == 1
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit",
+    )
+
+    assert audit_payload["all_ok"]
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+        and row["ok"]
+        and "row_rows=1" in row["observed"]
+        and "row_pending=True" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+
+    stale_summary_manifest = json.loads(json.dumps(bundle_manifest))
+    stale_summary_manifest["llm_route_planner_summary"][
+        "n_request_source_grounding_rows"
+    ] = 0
+    bundle_manifest_path.write_text(
+        json.dumps(stale_summary_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_summary_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_source_grounding_summary_drift",
+    )
+    summary_checks = [
+        row
+        for row in rejected_summary_payload["checks"]
+        if row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+    ]
+    assert summary_checks
+    assert not summary_checks[0]["ok"]
+    assert any(
+        "n_request_source_grounding_rows mismatch" in error
+        for error in summary_checks[0]["errors"]
+    )
+    assert not rejected_summary_payload["all_ok"]
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    stale_queue_summary_manifest = json.loads(json.dumps(bundle_manifest))
+    stale_queue_summary_manifest["llm_route_planner_summary"][
+        "n_formal_attempt_queue_items"
+    ] = 0
+    bundle_manifest_path.write_text(
+        json.dumps(stale_queue_summary_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_queue_summary_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_formal_attempt_queue_summary_drift",
+    )
+    queue_summary_checks = [
+        row
+        for row in rejected_queue_summary_payload["checks"]
+        if row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+    ]
+    assert queue_summary_checks
+    assert not queue_summary_checks[0]["ok"]
+    assert any(
+        "n_formal_attempt_queue_items mismatch" in error
+        for error in queue_summary_checks[0]["errors"]
+    )
+    assert not rejected_queue_summary_payload["all_ok"]
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    llm_artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_llm_route_planner"
+    )
+    rows_path = llm_artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    seed_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+    )
+    rows = [
+        json.loads(line)
+        for line in rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    original_seed = json.loads(seed_path.read_text(encoding="utf-8"))
+    assert len(rows[0]["source_grounding_rows"]) == 1
+    assert rows[0]["source_grounding_obligations"]["pending"] is True
+
+    row_corrupted_seed = json.loads(json.dumps(original_seed))
+    row_corrupted_seed["routes"][0]["llm_route_planner_source_grounding_rows"][0][
+        "grounding_status"
+    ] = "source_backed"
+    seed_path.write_text(
+        json.dumps(row_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_row_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_source_grounding_row_drift",
+    )
+    row_checks = [
+        row
+        for row in rejected_row_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+    ]
+    assert row_checks
+    assert not row_checks[0]["ok"]
+    assert any(
+        "seed route llm_route_planner_source_grounding_rows mismatch" in error
+        for error in row_checks[0]["errors"]
+    )
+    assert (
+        rejected_row_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == 0
+    )
+    assert not rejected_row_payload["all_ok"]
+    seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
+
+    obligation_corrupted_seed = json.loads(json.dumps(original_seed))
+    seed_route = obligation_corrupted_seed["routes"][0]
+    seed_route["llm_route_planner_source_grounding_obligations"][
+        "pending"
+    ] = False
+    seed_route["replan_metadata"]["llm_route_planner_source_grounding_obligations"][
+        "pending"
+    ] = False
+    seed_path.write_text(
+        json.dumps(obligation_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_obligation_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_source_grounding_obligation_drift",
+    )
+    obligation_checks = [
+        row
+        for row in rejected_obligation_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+    ]
+    assert obligation_checks
+    assert not obligation_checks[0]["ok"]
+    assert any(
+        "seed route llm_route_planner_source_grounding_obligations mismatch"
+        in error
+        for error in obligation_checks[0]["errors"]
+    )
+    assert any(
+        "seed metadata llm_route_planner_source_grounding_obligations mismatch"
+        in error
+        for error in obligation_checks[0]["errors"]
+    )
+    assert not rejected_obligation_payload["all_ok"]
+    seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
+
+
+
 def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_llm_seed")
     bundle_dir = root / "bundle"
@@ -6928,6 +8066,96 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
         ]
         == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        == 1
     )
     assert bundle_manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert bundle_manifest["llm_route_planner_summary"]["n_response_present"] == 1
@@ -7069,6 +8297,96 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         == 0
     )
     assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
         bundle_manifest["feedback_llm_route_planner_summary"]["n_accepted_route_plans"]
         == 1
     )
@@ -7171,6 +8489,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_llm_route_planner_response_payload_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -7247,6 +8571,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_bundle_llm_route_planner_response_payload_validation_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_bundle_llm_route_planner_response_payload_validation_summary_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_response_payload_validation_count_checked"
         ]
         == 1
@@ -7283,6 +8619,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_response_payload_validation_row_schema_checked"
         ]
         == 1
@@ -7311,6 +8659,13 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         and row["ok"]
         and "context_inventories=1" in row["observed"]
         and "bound_inventories=1" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
+        and row["ok"]
+        and "preconditions=1/1" in row["observed"]
         for row in audit_payload["checks"]
     )
     assert (
@@ -10130,6 +11485,83 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     assert rejected_feedback["n_bundle_llm_route_planner_summary_valid"] == 1
     assert rejected_feedback["n_bundle_feedback_llm_route_planner_summary_checked"] == 1
     assert rejected_feedback["n_bundle_feedback_llm_route_planner_summary_valid"] == 0
+
+
+def test_publication_bundle_audit_rejects_response_payload_validation_summary_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_response_validation_summary_drift"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    primary_llm_dir = _write_accepted_llm_route_planner_artifact(root / "primary_llm")
+    feedback_llm_dir = _write_accepted_llm_route_planner_artifact(root / "feedback_llm")
+    payload_validation_dir = _write_llm_payload_validation_from_route_planner_artifact(
+        primary_llm_dir,
+        root / "payload_validation",
+    )
+
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_llm_dir,
+        formalization_gap_planner_feedback_llm_route_planner_dir=feedback_llm_dir,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            payload_validation_dir
+        ),
+    )
+    manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert (
+        manifest["llm_route_planner_response_payload_validation_summary"][
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_response_payload_validation_summary"][
+            "n_payload_formal_attempt_queue_items"
+        ]
+        == 1
+    )
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "n_request_bound_payloads_with_route_adoption_preconditions"
+    ] = 0
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+    ] = 0
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "n_payload_formal_attempt_queue_items"
+    ] = 0
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    rejected = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_response_payload_validation_summary_drift",
+    )
+
+    failed_names = {row["check_name"] for row in rejected["checks"] if not row["ok"]}
+    assert not rejected["all_ok"]
+    assert (
+        "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+        in failed_names
+    )
+    assert (
+        rejected[
+            "n_bundle_llm_route_planner_response_payload_validation_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        rejected[
+            "n_bundle_llm_route_planner_response_payload_validation_summary_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected[
+            "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_valid"
+        ]
+        == 1
+    )
 
 
 def test_publication_bundle_audit_rejects_schema_mismatch() -> None:

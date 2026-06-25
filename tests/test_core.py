@@ -266,6 +266,9 @@ from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_schema import FormalSubclaim, ResearchReport
 from ai_statistician.research_system_audit import (
     ResearchSystemAuditConfig,
+    _architect_research_path_policy_eval_overlay,
+    _coding_agent_generated_code_repair_eval_overlay,
+    _formalizer_lean_candidate_repair_eval_overlay,
     _formalization_gap_planner_evaluation_route_adoption_count_rollups,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
@@ -5040,7 +5043,7 @@ class SystemTests(unittest.TestCase):
             system_audit_payload=payload,
         )
         self.assertTrue(guidance["all_ok"])
-        self.assertEqual(guidance["suites_defined"], 10)
+        self.assertEqual(guidance["suites_defined"], 14)
         self.assertEqual(guidance["frontier_entries"], 60)
         statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
@@ -5058,6 +5061,26 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S6_algorithm_simulation_stress"], "OK")
         self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
         self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
+        self.assertEqual(statuses["S10_live_coding_agent_generated_repair"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S11_live_formalizer_lean_candidate_repair"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S12_live_architect_research_path_policy"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S13_live_integrated_agent_runtime_capability"], "CAPACITY_GAP")
+        self.assertIn(
+            "no live Claude/OpenAI combined AlgorithmEngineer+SimulationEngineer",
+            suites["S10_live_coding_agent_generated_repair"]["issues"][0],
+        )
+        self.assertIn(
+            "no live Claude/OpenAI Formalizer Lean-candidate",
+            suites["S11_live_formalizer_lean_candidate_repair"]["issues"][0],
+        )
+        self.assertIn(
+            "no live Claude/OpenAI Architect research-path policy",
+            suites["S12_live_architect_research_path_policy"]["issues"][0],
+        )
+        self.assertIn(
+            "no single live Architect-orchestrated AgentRuntime run",
+            suites["S13_live_integrated_agent_runtime_capability"]["issues"][0],
+        )
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertEqual(
             guidance["top_actions"][1]["action"],
@@ -5072,6 +5095,135 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             Path("runs/test_evaluation_benchmark_guidance/evaluation_benchmark_guidance.md").exists()
         )
+        live_coding_agent_payload = json.loads(json.dumps(payload))
+        live_coding_agent_payload["artifacts"][
+            "coding_agent_generated_code_repair_eval"
+        ] = (
+            "runs/example/coding_agent_generated_code_repair_eval/"
+            "coding_agent_generated_code_repair_eval_manifest.json"
+        )
+        live_coding_agent_payload["counts"].update(
+            {
+                "coding_agent_generated_code_repair_capability_evidence_ok": True,
+                "coding_agent_algorithm_capability_evidence_ok": True,
+                "coding_agent_simulation_capability_evidence_ok": True,
+                "coding_agent_algorithm_repair_sequences": 1,
+                "coding_agent_simulation_repair_sequences": 1,
+                "coding_agent_generated_code_repair_live_generator": True,
+                "coding_agent_generated_code_repair_static_or_fixture_only": False,
+            }
+        )
+        live_coding_agent_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_live_coding_agent"),
+            system_audit_payload=live_coding_agent_payload,
+        )
+        live_coding_agent_s10 = next(
+            row
+            for row in live_coding_agent_guidance["suites"]
+            if row["suite_id"] == "S10_live_coding_agent_generated_repair"
+        )
+        self.assertEqual(live_coding_agent_s10["status"], "OK")
+        self.assertTrue(
+            live_coding_agent_s10["key_counts"][
+                "coding_agent_generated_code_repair_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            live_coding_agent_s10["key_counts"]["coding_agent_algorithm_repair_sequences"],
+            1,
+        )
+        self.assertEqual(
+            live_coding_agent_s10["key_counts"]["coding_agent_simulation_repair_sequences"],
+            1,
+        )
+        self.assertEqual(live_coding_agent_s10["issues"], ())
+        live_formalizer_payload = json.loads(json.dumps(payload))
+        live_formalizer_payload["artifacts"][
+            "formalizer_lean_candidate_repair_eval"
+        ] = (
+            "runs/example/formalizer_lean_candidate_repair_eval/"
+            "formalizer_lean_candidate_repair_eval_manifest.json"
+        )
+        live_formalizer_payload["counts"].update(
+            {
+                "formalizer_lean_candidate_repair_capability_evidence_ok": True,
+                "formalizer_lean_candidate_repair_sequences": 1,
+                "formalizer_lean_candidate_repair_local_lean_checked": 1,
+                "formalizer_lean_candidate_repair_local_lean_compiled": 1,
+                "formalizer_lean_candidate_repair_candidate_kernel_verified": True,
+                "formalizer_lean_candidate_repair_source_theorem_kernel_verified": False,
+                "formalizer_lean_candidate_repair_live_generator": True,
+                "formalizer_lean_candidate_repair_static_or_fixture_only": False,
+            }
+        )
+        live_formalizer_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_live_formalizer"),
+            system_audit_payload=live_formalizer_payload,
+        )
+        live_formalizer_s11 = next(
+            row
+            for row in live_formalizer_guidance["suites"]
+            if row["suite_id"] == "S11_live_formalizer_lean_candidate_repair"
+        )
+        self.assertEqual(live_formalizer_s11["status"], "OK")
+        self.assertTrue(
+            live_formalizer_s11["key_counts"][
+                "formalizer_lean_candidate_repair_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            live_formalizer_s11["key_counts"][
+                "formalizer_lean_candidate_repair_sequences"
+            ],
+            1,
+        )
+        self.assertFalse(
+            live_formalizer_s11["key_counts"][
+                "formalizer_lean_candidate_repair_source_theorem_kernel_verified"
+            ]
+        )
+        self.assertEqual(live_formalizer_s11["issues"], ())
+        live_architect_payload = json.loads(json.dumps(payload))
+        live_architect_payload["artifacts"][
+            "architect_research_path_policy_eval"
+        ] = (
+            "runs/example/architect_research_path_policy_eval/"
+            "architect_research_path_policy_eval_manifest.json"
+        )
+        live_architect_payload["counts"].update(
+            {
+                "architect_research_path_policy_capability_evidence_ok": True,
+                "architect_research_path_policy_cases": 3,
+                "architect_research_path_policy_cases_ok": 3,
+                "architect_research_path_policy_problem_analysis": 3,
+                "architect_research_path_policy_knowledge_bank_plan": 3,
+                "architect_research_path_policy_literature_fair_comparison_plan": 3,
+                "architect_research_path_policy_live_generator": True,
+                "architect_research_path_policy_static_or_fixture_only": False,
+            }
+        )
+        live_architect_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_live_architect"),
+            system_audit_payload=live_architect_payload,
+        )
+        live_architect_s12 = next(
+            row
+            for row in live_architect_guidance["suites"]
+            if row["suite_id"] == "S12_live_architect_research_path_policy"
+        )
+        self.assertEqual(live_architect_s12["status"], "OK")
+        self.assertTrue(
+            live_architect_s12["key_counts"][
+                "architect_research_path_policy_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            live_architect_s12["key_counts"][
+                "architect_research_path_policy_cases_ok"
+            ],
+            3,
+        )
+        self.assertEqual(live_architect_s12["issues"], ())
         zero_kernel_payload = json.loads(json.dumps(payload))
         zero_kernel_payload["counts"]["proofs_kernel_verified"] = 0
         zero_kernel_payload["counts"]["proof_search_kernel_verified"] = 0
@@ -5131,6 +5283,227 @@ class SystemTests(unittest.TestCase):
         )
         self.assertNotIn("kernel verification", " ".join(overlay_kernel_s5["issues"]))
         self.assertNotIn("AXLE/local Lean", overlay_kernel_guidance["top_actions"][2]["action"])
+
+    def test_research_system_audit_reads_coding_agent_repair_eval_overlay(self) -> None:
+        root = Path("runs/test_coding_agent_generated_repair_overlay")
+        if root.exists():
+            shutil.rmtree(root)
+        manifest_dir = root / "coding_agent_generated_code_repair_eval"
+        manifest_dir.mkdir(parents=True)
+        manifest_path = manifest_dir / "coding_agent_generated_code_repair_eval_manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "model": "claude-haiku-4-5-20251001",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "algorithm_capability_evidence_ok": True,
+                    "simulation_capability_evidence_ok": True,
+                    "algorithm_repair_sequences": 2,
+                    "simulation_repair_sequences": 3,
+                    "fixture_plumbing_ok": False,
+                    "static_or_fixture_only": False,
+                    "proof_evidence_status": (
+                        "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        overlay = _coding_agent_generated_code_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(overlay["available"])
+        self.assertTrue(overlay["live_generator"])
+        self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertTrue(overlay["algorithm_capability_evidence_ok"])
+        self.assertTrue(overlay["simulation_capability_evidence_ok"])
+        self.assertEqual(overlay["algorithm_repair_sequences"], 2)
+        self.assertEqual(overlay["simulation_repair_sequences"], 3)
+        self.assertFalse(overlay["static_or_fixture_only"])
+        self.assertEqual(overlay["manifest_path"], str(manifest_path))
+
+        missing_overlay = _coding_agent_generated_code_repair_eval_overlay(
+            root / "missing_parent" / "research_system_audit"
+        )
+        self.assertFalse(missing_overlay["available"])
+        self.assertFalse(missing_overlay["capability_evidence_ok"])
+        self.assertEqual(missing_overlay["algorithm_repair_sequences"], 0)
+        self.assertEqual(missing_overlay["simulation_repair_sequences"], 0)
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "static",
+                    "model": "fixture",
+                    "live_generator": False,
+                    "capability_evidence_ok": True,
+                    "algorithm_capability_evidence_ok": True,
+                    "simulation_capability_evidence_ok": True,
+                    "algorithm_repair_sequences": 2,
+                    "simulation_repair_sequences": 3,
+                    "fixture_plumbing_ok": True,
+                    "static_or_fixture_only": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        fixture_overlay = _coding_agent_generated_code_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(fixture_overlay["available"])
+        self.assertFalse(fixture_overlay["live_generator"])
+        self.assertFalse(fixture_overlay["capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["algorithm_capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["simulation_capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["static_or_fixture_only"])
+
+    def test_research_system_audit_reads_formalizer_lean_candidate_repair_overlay(
+        self,
+    ) -> None:
+        root = Path("runs/test_research_system_audit_formalizer_repair_overlay")
+        shutil.rmtree(root, ignore_errors=True)
+        manifest_dir = root / "formalizer_lean_candidate_repair_eval"
+        manifest_dir.mkdir(parents=True)
+        manifest_path = (
+            manifest_dir / "formalizer_lean_candidate_repair_eval_manifest.json"
+        )
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "candidate_kernel_verified": True,
+                    "source_theorem_kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                    "n_formalizer_lean_candidate_local_lean_checked": 1,
+                    "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                    "static_or_fixture_only": False,
+                    "proof_evidence_status": (
+                        "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        overlay = _formalizer_lean_candidate_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(overlay["available"])
+        self.assertTrue(overlay["live_generator"])
+        self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertTrue(overlay["candidate_kernel_verified"])
+        self.assertFalse(overlay["source_theorem_kernel_verified"])
+        self.assertEqual(overlay["repair_sequences"], 1)
+        self.assertEqual(overlay["local_lean_checked"], 1)
+        self.assertEqual(overlay["local_lean_compiled"], 1)
+        self.assertEqual(overlay["manifest_path"], str(manifest_path))
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "static",
+                    "model": "fixture",
+                    "live_generator": False,
+                    "capability_evidence_ok": True,
+                    "candidate_kernel_verified": True,
+                    "source_theorem_kernel_verified": False,
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                    "n_formalizer_lean_candidate_local_lean_checked": 1,
+                    "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                    "static_or_fixture_only": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        fixture_overlay = _formalizer_lean_candidate_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(fixture_overlay["available"])
+        self.assertFalse(fixture_overlay["live_generator"])
+        self.assertFalse(fixture_overlay["capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["candidate_kernel_verified"])
+        self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
+        self.assertTrue(fixture_overlay["static_or_fixture_only"])
+
+    def test_research_system_audit_reads_architect_policy_overlay(self) -> None:
+        root = Path("runs/test_research_system_audit_architect_policy_overlay")
+        shutil.rmtree(root, ignore_errors=True)
+        manifest_dir = root / "architect_research_path_policy_eval"
+        manifest_dir.mkdir(parents=True)
+        manifest_path = (
+            manifest_dir / "architect_research_path_policy_eval_manifest.json"
+        )
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "n_cases": 3,
+                    "n_cases_ok": 3,
+                    "n_with_problem_analysis": 3,
+                    "n_with_stat_knowledge_bank_plan": 3,
+                    "n_with_literature_fair_comparison_plan": 3,
+                    "all_cases_ok": True,
+                    "static_or_fixture_only": False,
+                    "proof_evidence_status": (
+                        "ARCHITECT_RESEARCH_PATH_POLICY_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        overlay = _architect_research_path_policy_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(overlay["available"])
+        self.assertTrue(overlay["live_generator"])
+        self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["n_cases"], 3)
+        self.assertEqual(overlay["n_cases_ok"], 3)
+        self.assertEqual(overlay["n_with_problem_analysis"], 3)
+        self.assertEqual(
+            overlay["n_with_literature_fair_comparison_plan"],
+            3,
+        )
+        self.assertFalse(overlay["static_or_fixture_only"])
+        self.assertEqual(overlay["manifest_path"], str(manifest_path))
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "provider_name": "static",
+                    "model": "fixture",
+                    "live_generator": False,
+                    "capability_evidence_ok": True,
+                    "n_cases": 3,
+                    "n_cases_ok": 3,
+                    "n_with_problem_analysis": 3,
+                    "n_with_stat_knowledge_bank_plan": 3,
+                    "n_with_literature_fair_comparison_plan": 3,
+                    "all_cases_ok": True,
+                    "static_or_fixture_only": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        fixture_overlay = _architect_research_path_policy_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(fixture_overlay["available"])
+        self.assertFalse(fixture_overlay["live_generator"])
+        self.assertFalse(fixture_overlay["capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
+        self.assertTrue(fixture_overlay["static_or_fixture_only"])
 
     def test_algorithm_registry_audit_passes(self) -> None:
         payload = audit_algorithm_registry(Path("runs/test_algorithm_audit"))
@@ -6532,6 +6905,10 @@ class SystemTests(unittest.TestCase):
             (7, "feedback_loop_repair"),
             (8, "adversarial_unsupported_intake"),
             (9, "fresh_holdout_frontier"),
+            (10, "live_coding_agent_generated_repair"),
+            (11, "live_formalizer_lean_candidate_repair"),
+            (12, "live_architect_research_path_policy"),
+            (13, "live_integrated_agent_runtime_capability"),
         )})
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
@@ -6564,13 +6941,142 @@ class SystemTests(unittest.TestCase):
             0,
         )
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
+        self.assertIn("S10_live_coding_agent_generated_repair", payload["recommended_next_gate_stack"])
+        self.assertIn("S11_live_formalizer_lean_candidate_repair", payload["recommended_next_gate_stack"])
+        self.assertIn("S12_live_architect_research_path_policy", payload["recommended_next_gate_stack"])
+        self.assertIn("S13_live_integrated_agent_runtime_capability", payload["recommended_next_gate_stack"])
+        self.assertEqual(
+            suites["S10_live_coding_agent_generated_repair"]["current_status"],
+            (
+                "live Anthropic Claude Haiku evidence present in "
+                "runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard: "
+                "AlgorithmEngineer and SimulationEngineer each have one generated-code "
+                "fail-then-pass repair sequence; this is coding-agent "
+                "implementation/simulation evidence only"
+            ),
+        )
+        self.assertTrue(
+            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
+                "capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
+                "algorithm_repair_sequences"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
+                "simulation_repair_sequences"
+            ],
+            1,
+        )
+        self.assertTrue(
+            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
+                "proof_evidence_status"
+            ].endswith("NOT_PROOF_EVIDENCE")
+        )
+        self.assertIn(
+            "Static fixture plumbing",
+            suites["S10_live_coding_agent_generated_repair"]["honesty_boundary"],
+        )
+        self.assertEqual(
+            suites["S11_live_formalizer_lean_candidate_repair"]["current_status"],
+            (
+                "live Anthropic Claude Sonnet evidence present in "
+                "runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair: "
+                "Formalizer repaired a prior local-Lean failure into one locally "
+                "compiled Lean candidate; this is helper-candidate capability evidence only"
+            ),
+        )
+        self.assertTrue(
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "current_live_evidence"
+            ]["capability_evidence_ok"]
+        )
+        self.assertTrue(
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "current_live_evidence"
+            ]["candidate_kernel_verified"]
+        )
+        self.assertFalse(
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "current_live_evidence"
+            ]["source_theorem_kernel_verified"]
+        )
+        self.assertEqual(
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "current_live_evidence"
+            ]["repair_sequences"],
+            1,
+        )
+        self.assertEqual(
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "current_live_evidence"
+            ]["local_lean_compiled"],
+            1,
+        )
+        self.assertIn(
+            "not source theorem proof",
+            suites["S11_live_formalizer_lean_candidate_repair"][
+                "honesty_boundary"
+            ],
+        )
+        self.assertEqual(
+            suites["S12_live_architect_research_path_policy"]["current_status"],
+            (
+                "live Anthropic Claude Sonnet evidence present in "
+                "runs/architect_research_path_policy_eval_live_20260623_sonnet: "
+                "Architect returned valid policy/path contracts for all 3 cases "
+                "with problem-analysis, knowledge-bank, and fair-comparison fields present"
+            ),
+        )
+        self.assertTrue(
+            suites["S12_live_architect_research_path_policy"][
+                "current_live_evidence"
+            ]["capability_evidence_ok"]
+        )
+        self.assertEqual(
+            suites["S12_live_architect_research_path_policy"][
+                "current_live_evidence"
+            ]["n_cases_ok"],
+            3,
+        )
+        self.assertEqual(
+            suites["S12_live_architect_research_path_policy"][
+                "current_live_evidence"
+            ]["n_with_literature_fair_comparison_plan"],
+            3,
+        )
+        self.assertIn(
+            "planning capability evidence only",
+            suites["S12_live_architect_research_path_policy"]["honesty_boundary"],
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["capability_ready_for_full_ai_statistician"]
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["full_frontier_theorem_kernel_proved"]
+        )
+        self.assertIn(
+            "Passing S10, S11, and S12 separately does not imply S13 passes",
+            suites["S13_live_integrated_agent_runtime_capability"]["honesty_boundary"],
+        )
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
-        self.assertIn("`proofs_kernel_verified=122/122`", doc)
+        self.assertIn(f"`proofs_kernel_verified={proof_bank_size}/{proof_bank_size}`", doc)
         self.assertIn("expected-result coverage about 83.9%", doc)
         self.assertIn("34 frontier-evaluation triage items", doc)
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
+        self.assertIn("S11. Live Formalizer Lean-Candidate Repair Suite", doc)
+        self.assertIn("S12. Live Architect Research-Path Policy Suite", doc)
+        self.assertIn("S13. Live Integrated AgentRuntime Capability Suite", doc)
         self.assertIn("minimal-wrapper debt is now 2", doc)
         self.assertIn("compose-existing bridge-chain opportunities are now 51", doc)
         self.assertNotIn("79/79", doc)
@@ -19528,7 +20034,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
-        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 10)
+        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 14)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 8)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 0)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_capacity_gaps"], 1)
