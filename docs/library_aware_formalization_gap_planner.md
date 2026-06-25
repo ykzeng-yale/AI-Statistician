@@ -306,6 +306,10 @@ a Haiku-designated helper configured with a Sonnet or Opus model. The packaged
 topology manifest also records the resolved Claude Haiku/Sonnet/Opus model map
 and rejects reported tier-policy collapse, so cost-aware routing is auditable
 even when only a subset of agents or planner prompts is staged. The packaged
+`anthropic_claude_tier_routing_contract` is the shared source of truth for that
+audit surface: it records the current source-checked API IDs, request-time
+resolved tier map, freshness status, environment override warnings, and the
+prohibited Codex/CLI-agent provider list for downstream reuse. The packaged
 `ai_statistician_llm_model_policy` contract also records that empty worker
 `model` fields resolve from provider and `model_tier` when each request is
 built, so tier-specific Claude overrides apply to direct worker construction as

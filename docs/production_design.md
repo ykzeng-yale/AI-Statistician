@@ -24,7 +24,11 @@ not silently run on Sonnet or Opus unless the topology policy is intentionally
 changed. The topology manifest also records the request-time resolved Claude
 model map for Haiku/Sonnet/Opus and fails the same tier-policy/collapse audit
 used by `ai_statistician doctor`, even when only a subset of LLM agents is
-enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
+enabled. The shared backend also exposes
+`anthropic_claude_tier_routing_contract`, which packages the source-checked API
+IDs, resolved tier map, freshness status, environment override warnings, and
+prohibited agent-provider list for reuse by topology, publication bundle, and
+external audit artifacts. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
 as CLI-created agents. As of the 2026-06-25 Anthropic Models overview and Model

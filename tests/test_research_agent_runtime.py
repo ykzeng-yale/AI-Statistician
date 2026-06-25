@@ -6124,6 +6124,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
     )
     assert "not evergreen aliases" in topology["policy"]["claude_model_selection"]["model_id_versioning"]
+    assert (
+        topology["policy"]["claude_tier_routing_contract"]["contract_name"]
+        == "anthropic_claude_tier_routing_contract"
+    )
+    assert topology["policy"]["claude_tier_routing_contract"][
+        "resolved_claude_models_by_tier"
+    ] == topology["policy"]["resolved_claude_models_by_tier"]
+    assert topology["policy"]["claude_tier_routing_contract"][
+        "environment_override_status"
+    ] == "OK"
     assert "LLM backends generate structured proposals only" in topology["policy"]["backend_boundary"]
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_learning_rows_jsonl"]).exists()

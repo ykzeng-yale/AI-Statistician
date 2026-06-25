@@ -65,13 +65,11 @@ from .formalizer_llm import (
 from .model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
-    CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
-    claude_model_freshness_warnings,
+    claude_tier_routing_contract,
     claude_model_tier_mismatch,
-    claude_model_tier_policy_violations,
     llm_subsystem_expected_model_tier,
     resolve_generator_model,
 )
@@ -4140,12 +4138,15 @@ def _runtime_llm_topology(
         provider = str(row.get("provider_name", ""))
         by_tier[tier] = by_tier.get(tier, 0) + 1
         by_provider[provider] = by_provider.get(provider, 0) + 1
-    resolved_claude_models_by_tier = _resolved_claude_models_by_tier()
-    resolved_claude_model_tier_policy_violations = (
-        claude_model_tier_policy_violations(resolved_claude_models_by_tier)
+    claude_tier_contract = claude_tier_routing_contract()
+    resolved_claude_models = dict(
+        claude_tier_contract.get("resolved_claude_models_by_tier", {})
     )
-    resolved_claude_model_freshness_warnings = (
-        claude_model_freshness_warnings(resolved_claude_models_by_tier)
+    resolved_claude_model_tier_policy_violations = list(
+        claude_tier_contract.get("resolved_claude_model_tier_policy_violations", ())
+    )
+    resolved_claude_model_freshness_warnings = list(
+        claude_tier_contract.get("resolved_claude_model_freshness_warnings", ())
     )
     violations = _llm_topology_policy_violations(agents) + [
         "resolved Claude model tier policy violation: " + violation
@@ -4169,19 +4170,22 @@ def _runtime_llm_topology(
                 "proposal text."
             ),
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
-            "resolved_claude_models_by_tier": resolved_claude_models_by_tier,
+            "claude_tier_routing_contract": claude_tier_contract,
+            "resolved_claude_models_by_tier": resolved_claude_models,
             "resolved_claude_model_tier_policy_status": (
-                "OK"
-                if not resolved_claude_model_tier_policy_violations
-                else "POLICY_VIOLATION"
+                claude_tier_contract.get(
+                    "resolved_claude_model_tier_policy_status",
+                    "",
+                )
             ),
             "resolved_claude_model_tier_policy_violations": (
                 resolved_claude_model_tier_policy_violations
             ),
             "resolved_claude_model_freshness_status": (
-                "CURRENT"
-                if not resolved_claude_model_freshness_warnings
-                else "NON_CURRENT"
+                claude_tier_contract.get(
+                    "resolved_claude_model_freshness_status",
+                    "",
+                )
             ),
             "resolved_claude_model_freshness_warnings": (
                 resolved_claude_model_freshness_warnings
@@ -4240,17 +4244,6 @@ def _runtime_llm_topology(
         ]
     )[:20]
     return manifest
-
-
-def _resolved_claude_models_by_tier() -> dict[str, str]:
-    return {
-        tier: resolve_generator_model(
-            provider_name="anthropic",
-            requested_model="",
-            model_tier=tier,
-        )
-        for tier in CLAUDE_MODEL_TIERS
-    }
 
 
 def _llm_topology_policy_violations(agents: list[dict[str, Any]]) -> list[str]:

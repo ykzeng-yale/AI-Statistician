@@ -166,17 +166,7 @@ from .formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
 from .model_backend import (
-    ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
-    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
-    ANTHROPIC_MODEL_SOURCE_EVIDENCE,
-    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
-    DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
-    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
-    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-    DEFAULT_LIVE_GENERATOR_PROVIDER,
-    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
-    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    claude_tier_routing_contract,
 )
 
 
@@ -4015,20 +4005,21 @@ def _schema_artifact_kind(
 
 
 def _llm_model_policy_payload() -> dict[str, object]:
+    routing_contract = claude_tier_routing_contract()
     models_by_tier = dict(
-        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
+        routing_contract.get("latest_claude_models_by_tier", {})
     )
-    outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
-    supported_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
-    prohibited_providers = tuple(PROHIBITED_AGENT_GENERATOR_PROVIDERS)
+    outside_cost_tier_models = dict(
+        routing_contract.get("latest_claude_family_models_outside_cost_tiers", {})
+    )
+    supported_providers = tuple(
+        routing_contract.get("supported_live_generator_providers", ())
+    )
+    prohibited_providers = tuple(
+        routing_contract.get("prohibited_agent_generator_providers", ())
+    )
     all_ok = (
-        DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
-        and models_by_tier
-        == {
-            "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-            "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
-        }
+        bool(routing_contract.get("all_ok", False))
         and outside_cost_tier_models
         and not set(prohibited_providers).intersection(supported_providers)
     )
@@ -4036,15 +4027,19 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
         "component_name": LLM_MODEL_POLICY_COMPONENT_NAME,
         "policy_kind": "cost_aware_generator_only_llm_policy",
-        "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
-        "source_evidence": ANTHROPIC_MODEL_SOURCE_EVIDENCE,
-        "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
+        "source_checked_date": routing_contract.get("source_checked_date", ""),
+        "source_evidence": routing_contract.get("source_evidence", {}),
+        "default_live_generator_provider": routing_contract.get(
+            "default_live_generator_provider",
+            "",
+        ),
         "supported_live_generator_providers": supported_providers,
         "prohibited_generator_providers": prohibited_providers,
-        "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+        "claude_tier_routing_contract": routing_contract,
+        "claude_model_selection": routing_contract.get("claude_model_selection", {}),
         "latest_claude_models_by_tier": models_by_tier,
         "latest_claude_api_aliases_by_tier": dict(
-            DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+            routing_contract.get("latest_claude_api_aliases_by_tier", {})
         ),
         "runtime_model_id_policy": (
             "Runtime calls use latest_claude_models_by_tier API IDs. Claude API "
@@ -4132,6 +4127,7 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     outside_models = dict(
         payload.get("latest_claude_family_models_outside_cost_tiers", {}) or {}
     )
+    routing_contract = dict(payload.get("claude_tier_routing_contract", {}) or {})
     resolution_policy = dict(
         payload.get("request_time_model_resolution_policy", {}) or {}
     )
@@ -4145,6 +4141,10 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         "",
         "## Claude Tiers",
         "",
+        "- Resolved tier policy status: "
+        f"`{routing_contract.get('resolved_claude_model_tier_policy_status', '')}`; "
+        "freshness status: "
+        f"`{routing_contract.get('resolved_claude_model_freshness_status', '')}`",
         f"- Claude Haiku: `{models.get('haiku', '')}`",
         f"- Claude Sonnet: `{models.get('sonnet', '')}`",
         f"- Claude Opus: `{models.get('opus', '')}`",

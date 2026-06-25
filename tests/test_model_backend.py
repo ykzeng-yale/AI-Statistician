@@ -30,9 +30,11 @@ from ai_statistician.model_backend import (
     claude_model_tier_for_model,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
+    claude_tier_routing_contract,
     default_generator_model,
     default_generator_provider,
     llm_subsystem_expected_model_tier,
+    resolved_claude_models_by_tier,
     resolve_generator_model,
 )
 
@@ -548,6 +550,50 @@ def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
     }
     assert claude_model_tier_policy_violations(models) == []
     assert claude_model_freshness_warnings(models) == []
+
+
+def test_claude_tier_routing_contract_reports_resolved_models_and_codex_warning() -> None:
+    clean_env = {"AI_STATISTICIAN_LLM_PROVIDER": "anthropic"}
+
+    assert resolved_claude_models_by_tier(clean_env) == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    contract = claude_tier_routing_contract(clean_env)
+
+    assert contract["contract_name"] == "anthropic_claude_tier_routing_contract"
+    assert contract["effective_live_generator_provider"] == "anthropic"
+    assert contract["environment_override_status"] == "OK"
+    assert contract["provider_override_warnings"] == ()
+    assert contract["resolved_claude_models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert contract["resolved_claude_model_tier_policy_status"] == "OK"
+    assert contract["resolved_claude_model_freshness_status"] == "CURRENT"
+    assert "codex_exec" in contract["prohibited_agent_generator_providers"]
+    assert contract["all_ok"] is True
+
+    codex_env = {
+        "AI_STATISTICIAN_LLM_PROVIDER": "codex_exec",
+        "AI_STATISTICIAN_LLM_MODEL": "gpt-codex-test",
+    }
+    codex_contract = claude_tier_routing_contract(codex_env)
+
+    assert codex_contract["effective_live_generator_provider"] == "anthropic"
+    assert codex_contract["environment_override_status"] == "WARN"
+    assert codex_contract["global_model_override_keys_present"] == (
+        "AI_STATISTICIAN_LLM_MODEL",
+    )
+    assert any(
+        "agent-style provider" in warning
+        for warning in codex_contract["provider_override_warnings"]
+    )
+    assert codex_contract["resolved_claude_models_by_tier"]["haiku"] == (
+        "claude-haiku-4-5-20251001"
+    )
 
 
 def test_claude_model_tier_policy_violations_detect_configured_model_collapse() -> None:

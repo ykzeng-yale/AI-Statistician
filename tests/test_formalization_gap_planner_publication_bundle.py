@@ -5975,12 +5975,25 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert set(llm_model_policy["prohibited_generator_providers"]) == set(
         PROHIBITED_AGENT_GENERATOR_PROVIDERS
     )
+    assert (
+        llm_model_policy["claude_tier_routing_contract"]["contract_name"]
+        == "anthropic_claude_tier_routing_contract"
+    )
+    assert llm_model_policy["claude_tier_routing_contract"][
+        "latest_claude_models_by_tier"
+    ] == llm_model_policy["latest_claude_models_by_tier"]
+    assert llm_model_policy["claude_tier_routing_contract"][
+        "resolved_claude_model_tier_policy_status"
+    ] == "OK"
     llm_model_policy_report = (
         out_dir / "contract" / "ai_statistician_llm_model_policy.md"
     )
     assert llm_model_policy_report.exists()
     assert "## Request-Time Resolution" in llm_model_policy_report.read_text(
         encoding="utf-8"
+    )
+    assert "Resolved tier policy status: `OK`; freshness status: `CURRENT`" in (
+        llm_model_policy_report.read_text(encoding="utf-8")
     )
     assert (
         "llm_route_planner_response_payload_validation_manifest_contract"
