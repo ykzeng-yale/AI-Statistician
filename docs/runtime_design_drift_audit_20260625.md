@@ -141,3 +141,20 @@ work orders emitted. That is the desired direction: typed request propagation
 gets the candidate to the real ProofEngineer obligation, while validation still
 blocks proof promotion until the candidate uses the semantic anchors and passes
 Lean/AXLE.
+
+The next observed blocker was also generic rather than conformal-specific. A
+live repair produced a materialized helper rejected by local Lean with unknown
+identifier `Nat.ceil`. The runtime already carries this as a
+`local_lean_repair_contract`, so the right next step is Lean API grounding
+through local formal-source/RAG/prover tools, not a hand-coded conformal
+replacement.
+
+One design-level infrastructure mistake was fixed here: generated Lean files
+under `runs/` were valid for `lake env lean` replay but invalid for Lean LSP/MCP
+inspection because they had no Lean-project ancestor. Runtime materialization now
+keeps the canonical `runs/` artifact for kernel/audit replay and writes an
+ignored project-local mirror under
+`<lean_project>/.lake/ai_statistician_formalizer_candidates` for proof-state
+tooling. The repair context records both paths and preserves the proof boundary:
+only the exact kernel/audit artifact can become proof evidence after local
+Lean/AXLE verification; the project-local mirror is diagnostic/search context.

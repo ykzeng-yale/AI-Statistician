@@ -271,6 +271,33 @@ resume `formalize-repair:conformal_prediction_coverage:1af7fb86`; only after a
 locally valid source-to-bridge candidate is emitted should runtime queue the
 premise derivation for local Lean/AXLE.
 
+The latest one-iteration resume from that semantic-anchor repair moved into a
+different concrete ProofEngineer blocker. The Formalizer packet produced
+`split_conformal_hGoodRankImpliesCovered_bridge_helper`, but local Lean rejected
+it because `Nat.ceil` is unknown in the configured
+`legacy_sources/emperical_process_lean` project. The pending task is now
+`formalize-repair:conformal_prediction_coverage:5e0ee83f`, carrying a
+`local_lean_repair_contract` with `unknown_identifiers=["Nat.ceil"]`. This should
+be repaired through verified local Lean APIs, formal-source/RAG lookup, or an
+honest FORMAL_GAP; do not add a conformal-specific Python rewrite for `Nat.ceil`.
+
+The generic runtime fix added after this audit is path hygiene for prover
+infrastructure. Generated Formalizer Lean candidates still keep their canonical
+kernel/audit artifact under `runs/`, but when a Lean project is configured the
+runtime also writes an ignored project-local mirror under
+`<lean_project>/.lake/ai_statistician_formalizer_candidates` for Lean LSP/MCP
+proof-state inspection. `live_proof_state_request`, learning rows, and
+ProofEngineer repair context now distinguish `kernel_check_artifact_path` from
+`proof_state_artifact_path`, so LSP-style tools get a file with a Lean-project
+ancestor without changing what counts as proof evidence. The regression
+`test_formalizer_candidate_materialization_mirrors_project_local_lsp_artifact`
+and the guarded suite `tests/test_source_to_bridge_metadata.py
+tests/test_research_agent_runtime.py` pass (`302 passed in 154.29s`). A live
+probe at
+`runs/main_worker_live_runtime_resume_project_local_lsp_probe/research_agent_runtime_manifest.json`
+did not materialize a new post-patch candidate, so the mirror has not yet been
+live-exercised.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

@@ -2598,6 +2598,76 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     )
 
 
+def test_formalizer_candidate_materialization_mirrors_project_local_lsp_artifact(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_candidate_lsp_mirror",
+        owner_subsystem="FormalizationEvaluator",
+        objective="mirror generated Lean inside the configured project for LSP",
+    )
+    lean_project = tmp_path / "lean_project"
+    lean_project.mkdir()
+    (lean_project / "lean-toolchain").write_text(
+        "leanprover/lean4:stable\n",
+        encoding="utf-8",
+    )
+
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:lsp_mirror_candidate",
+            "formal_targets": [
+                {
+                    "id": "ai_statistician_lsp_mirror_candidate",
+                    "lean_statement_sketch": (
+                        "theorem ai_statistician_lsp_mirror_candidate "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=False,
+        lean_project=lean_project,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    artifact_path = Path(row["artifact_path"])
+    proof_state_artifact_path = Path(row["proof_state_artifact_path"])
+    assert artifact_path.exists()
+    assert proof_state_artifact_path.exists()
+    assert artifact_path != proof_state_artifact_path
+    assert proof_state_artifact_path.is_relative_to(lean_project)
+    assert ".lake" in proof_state_artifact_path.parts
+    assert row["kernel_check_artifact_path"] == str(artifact_path)
+    assert row["target_lean_file"] == str(proof_state_artifact_path)
+
+    live_request = row["live_proof_state_request"]
+    assert live_request["candidate_artifact_path"] == str(artifact_path)
+    assert live_request["kernel_check_artifact_path"] == str(artifact_path)
+    assert live_request["proof_state_artifact_path"] == str(proof_state_artifact_path)
+    assert live_request["project_local_proof_state_artifact"] is True
+    assert live_request["target_lean_file"] == str(proof_state_artifact_path)
+    assert {
+        tool_call["arguments"]["file"]
+        for tool_call in live_request["mcp_tool_calls"]
+    } == {str(proof_state_artifact_path)}
+
+    learning_row = manifest["learning_rows"][0]
+    assert learning_row["kernel_check_artifact_path"] == str(artifact_path)
+    assert learning_row["proof_state_artifact_path"] == str(proof_state_artifact_path)
+    assert learning_row["target_lean_file"] == str(proof_state_artifact_path)
+    assert learning_row["candidate_live_proof_state_request"][
+        "proof_state_artifact_path"
+    ] == str(proof_state_artifact_path)
+
+
 def test_formalizer_candidate_materialization_rejects_vacuous_true_candidate(
     tmp_path: Path,
 ) -> None:

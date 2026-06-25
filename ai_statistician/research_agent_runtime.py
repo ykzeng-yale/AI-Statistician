@@ -4899,6 +4899,19 @@ def _materialize_formalizer_lean_candidate_artifacts(
             )
             path.write_text(source, encoding="utf-8")
             artifact_path = str(path)
+        proof_state_artifact_path = (
+            _formalizer_lean_candidate_project_local_proof_state_artifact(
+                source=source,
+                lean_project=lean_project,
+                question_id=question.id,
+                task_id=task.task_id,
+                candidate_id=candidate_id,
+                source_hash=source_hash,
+                index=index,
+            )
+            if artifact_path
+            else ""
+        )
         local_lean_result = (
             _run_formalizer_lean_candidate_local_check(
                 artifact_path=Path(artifact_path),
@@ -4932,6 +4945,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 candidate_id=candidate_id,
                 candidate_kind=str(candidate.get("candidate_kind", "") or ""),
                 artifact_path=artifact_path,
+                proof_state_artifact_path=proof_state_artifact_path,
                 target_location=target_location,
                 source_hash=source_hash,
             )
@@ -4962,7 +4976,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "source_hash": source_hash,
                 "lean_source_excerpt": source[:1200],
                 "artifact_path": artifact_path,
-                "target_lean_file": str(artifact_path or ""),
+                "kernel_check_artifact_path": artifact_path,
+                "proof_state_artifact_path": proof_state_artifact_path,
+                "target_lean_file": str(proof_state_artifact_path or artifact_path or ""),
                 "target_lean_line": int(target_location.get("target_lean_line", 0) or 0),
                 "target_lean_column": int(
                     target_location.get("target_lean_column", 0) or 0
@@ -5137,6 +5153,45 @@ def _materialize_formalizer_lean_candidate_artifacts(
     return manifest_payload
 
 
+def _formalizer_lean_candidate_project_local_proof_state_artifact(
+    *,
+    source: str,
+    lean_project: Path | None,
+    question_id: str,
+    task_id: str,
+    candidate_id: str,
+    source_hash: str,
+    index: int,
+) -> str:
+    """Mirror generated Lean inside the configured project for LSP-style tools.
+
+    The runtime keeps the canonical candidate under ``runs/`` for audit and
+    local-kernel replay. Lean LSP/MCP tools, however, usually require the file to
+    have a Lean project ancestor. This ignored mirror is diagnostic/search
+    context only; it is not a separate proof artifact.
+    """
+
+    if lean_project is None:
+        return ""
+    try:
+        project = Path(lean_project)
+        mirror_dir = (
+            project
+            / ".lake"
+            / "ai_statistician_formalizer_candidates"
+            / _safe_identifier(question_id)
+            / stable_hash([task_id, source_hash])[:12]
+        )
+        mirror_dir.mkdir(parents=True, exist_ok=True)
+        mirror_path = mirror_dir / (
+            f"{index:03d}_{_safe_identifier(candidate_id)}_{source_hash[:10]}.lean"
+        )
+        mirror_path.write_text(source, encoding="utf-8")
+        return str(mirror_path.resolve())
+    except OSError:
+        return ""
+
+
 def _formalizer_candidate_proof_evidence_status(
     *,
     local_lean_compiled: bool,
@@ -5267,6 +5322,15 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     candidate.get("lean_source_excerpt", "") or ""
                 )[:500],
                 "artifact_path": artifact_path,
+                "kernel_check_artifact_path": str(
+                    candidate.get("kernel_check_artifact_path", "")
+                    or artifact_path
+                    or ""
+                ),
+                "proof_state_artifact_path": str(
+                    candidate.get("proof_state_artifact_path", "") or ""
+                ),
+                "target_lean_file": str(candidate.get("target_lean_file", "") or ""),
                 "precheck_status": str(candidate.get("precheck_status", "") or ""),
                 "precheck_errors": list(candidate.get("precheck_errors", []) or []),
                 "local_lean_attempted": local_lean_attempted,
@@ -5401,6 +5465,7 @@ def _formalizer_lean_candidate_live_proof_state_request(
     candidate_id: str,
     candidate_kind: str,
     artifact_path: str,
+    proof_state_artifact_path: str = "",
     target_location: Mapping[str, Any],
     source_hash: str,
 ) -> dict[str, Any]:
@@ -5410,6 +5475,7 @@ def _formalizer_lean_candidate_live_proof_state_request(
     )
     if not artifact_path or target_line <= 0 or not target_declaration:
         return {}
+    proof_state_path = str(proof_state_artifact_path or artifact_path)
     target_column = int(target_location.get("target_lean_column", 1) or 1)
     mcp_tools = (
         "lean_diagnostic_messages",
@@ -5425,6 +5491,7 @@ def _formalizer_lean_candidate_live_proof_state_request(
                 candidate_id,
                 candidate_kind,
                 artifact_path,
+                proof_state_path,
                 target_line,
                 target_column,
                 target_declaration,
@@ -5440,7 +5507,7 @@ def _formalizer_lean_candidate_live_proof_state_request(
             {
                 "tool": tool,
                 "arguments": {
-                    "file": artifact_path,
+                    "file": proof_state_path,
                     "line": target_line,
                     "column": target_column,
                     "declaration": target_declaration,
@@ -5450,7 +5517,12 @@ def _formalizer_lean_candidate_live_proof_state_request(
         ),
         "fallback_adapter": "local_lean_proof_state_feedback",
         "candidate_artifact_path": artifact_path,
-        "target_lean_file": artifact_path,
+        "kernel_check_artifact_path": artifact_path,
+        "proof_state_artifact_path": proof_state_path,
+        "project_local_proof_state_artifact": bool(
+            proof_state_artifact_path and proof_state_artifact_path != artifact_path
+        ),
+        "target_lean_file": proof_state_path,
         "target_lean_line": target_line,
         "target_lean_column": target_column,
         "target_lean_declaration": target_declaration,
@@ -5518,6 +5590,14 @@ def _formalizer_lean_candidate_repair_feedback(
                 "lean_source_excerpt": str(
                     row.get("lean_source_excerpt", "") or ""
                 )[:900],
+                "kernel_check_artifact_path": str(
+                    row.get("kernel_check_artifact_path", "")
+                    or row.get("artifact_path", "")
+                    or ""
+                ),
+                "proof_state_artifact_path": str(
+                    row.get("proof_state_artifact_path", "") or ""
+                ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
                 "precheck_errors": list(row.get("precheck_errors", []) or []),
                 "local_lean_attempted": bool(
@@ -5683,10 +5763,23 @@ def _proofengineer_repair_context_from_diagnostics(
             for row in diagnostics
             if str(row.get("artifact_path", "") or "")
         ],
+        "proof_state_artifact_paths": [
+            str(row.get("proof_state_artifact_path", "") or "")
+            for row in diagnostics
+            if str(row.get("proof_state_artifact_path", "") or "")
+        ],
         "candidate_rerun_specs": [
             {
                 "candidate_id": str(row.get("candidate_id", "") or ""),
                 "artifact_path": str(row.get("artifact_path", "") or ""),
+                "kernel_check_artifact_path": str(
+                    row.get("kernel_check_artifact_path", "")
+                    or row.get("artifact_path", "")
+                    or ""
+                ),
+                "proof_state_artifact_path": str(
+                    row.get("proof_state_artifact_path", "") or ""
+                ),
                 "target_lean_file": str(row.get("target_lean_file", "") or ""),
                 "target_lean_line": int(row.get("target_lean_line", 0) or 0),
                 "target_lean_column": int(
@@ -5718,6 +5811,7 @@ def _proofengineer_repair_context_from_diagnostics(
             "local_lean_repair_contract",
             "target_shape_contract",
             "live_proof_state_request",
+            "project_local_proof_state_artifact",
         ],
         "proof_state_workflow": {
             "style": "lean_dojo_reprover_compatible",
@@ -5766,7 +5860,16 @@ def _formalizer_lean_candidate_proof_state_subclaims(
     ]
     for index, row in enumerate(diagnostics, start=1):
         candidate_id = str(row.get("candidate_id", "") or f"candidate_{index}")
-        artifact_path = str(row.get("artifact_path", "") or "")
+        kernel_artifact_path = str(
+            row.get("kernel_check_artifact_path", "")
+            or row.get("artifact_path", "")
+            or ""
+        )
+        artifact_path = str(
+            row.get("proof_state_artifact_path", "")
+            or row.get("target_lean_file", "")
+            or kernel_artifact_path
+        )
         lean_statement = str(row.get("lean_source_excerpt", "") or "")
         if artifact_path:
             try:
