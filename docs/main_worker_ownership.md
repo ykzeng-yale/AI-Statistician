@@ -186,6 +186,18 @@ Live evidence collected on 2026-06-25:
   `source_to_bridge_premise_derivation_candidate_request` metadata before
   executable premise candidates are queued; this remains orchestration context,
   not source-theorem proof evidence.
+- `runs/main_worker_live_runtime_resume_metadata_request_artifact_probe_keyed/research_agent_runtime_manifest.json`:
+  after loading the attached Anthropic key from its prose-formatted
+  `Anthropic API Key:` line into `ANTHROPIC_API_KEY`, the one-iteration resume
+  reached `MAX_ITERATIONS_REACHED` instead of the earlier missing-key failure.
+  The live Formalizer emitted
+  `formalizer_proposal:f3fb62bfe04f7a578fcd5f45` with one complete
+  `SourceToBridgePremiseDerivationCandidateRequest`
+  `request:hGoodRankImpliesCovered`; runtime recorded it as
+  `SOURCE_TO_BRIDGE_METADATA_AUTHORING_REQUEST_NOT_PROOF_EVIDENCE` and still
+  produced zero executable source-to-bridge work orders in that same iteration.
+  Scorecard remains 41/49, with `kernel_verified_subclaims=14` and
+  `formal_gaps=19`.
 - `docs/runtime_design_drift_audit_20260625.md` records the design correction
   for this lane: evidence-boundary guards may stay in the core runtime, but
   conformal/source-to-bridge tactics should move into typed artifacts, policy
@@ -231,18 +243,15 @@ emits concrete `source_to_bridge_premise_derivation_candidates` with copied
 source-binding metadata and local Lean/AXLE verifies the intended
 probability/measure coverage claim.
 
-The latest live blocker is no longer the `sorry` packet-validation loop. It is
-the absence of executable source-to-bridge premise candidates: recent proposals
-either retry root `import Mathlib`, use no-import Real/`linarith` helpers that
-fail local Lean, or compile only Prop-level diagnostic helpers. The next worker
-should resume `critic:conformal_prediction_coverage:b609575e`. Resume now
-auto-loads the prior `runtime_learning_rows.jsonl` and keeps the latest rows, so
-the Formalizer memory summary enters
-`source_theorem_diagnostic_helper_bridge_or_blocker` instead of silently reading
-stale early rows. The latest live auto-memory probe dropped the helper-only Lean
-next action and replaced it with a source-to-bridge metadata/semantic-anchor
-request. The next step is to route that standardized blocker into source-binding
-metadata authoring before asking Formalizer for another executable candidate.
+The latest live blocker is no longer the `sorry` packet-validation loop, and
+not merely absent source-binding metadata. The runtime now has one complete
+metadata-authoring request in memory, but it has not yet consumed that request
+to ask Formalizer/ProofEngineer for an executable, locally verified
+source-to-bridge premise derivation candidate. The next worker should resume
+`critic:conformal_prediction_coverage:0fccd06e`, preserve the authored request
+as orchestration context, and require any subsequent premise-derivation
+candidate to copy the exact source-binding metadata before local Lean/AXLE can
+promote it to proof evidence.
 
 ## Delegation To Other Codex Workers
 

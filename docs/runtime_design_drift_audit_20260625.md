@@ -118,3 +118,15 @@ typed orchestration artifact, not as proof evidence and not as another proof
 heuristic. Its next design improvement should be extraction from
 `research_agent_runtime.py` into a reusable proof-route artifact module or
 ProofEngineer adapter contract.
+
+## Follow-Up Evidence
+
+The first extraction is complete in `ai_statistician/source_to_bridge_metadata.py`.
+The live keyed probe
+`runs/main_worker_live_runtime_resume_metadata_request_artifact_probe_keyed/research_agent_runtime_manifest.json`
+then authored one complete
+`SourceToBridgePremiseDerivationCandidateRequest` while producing zero
+executable source-to-bridge work orders in the same iteration. That is the
+intended separation: metadata can guide a later Formalizer/ProofEngineer
+candidate, but it is not proof evidence and cannot certify a helper theorem by
+itself.
