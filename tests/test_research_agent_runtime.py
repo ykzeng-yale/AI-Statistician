@@ -19416,6 +19416,125 @@ def test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action() -> N
     assert validate_formalizer_packet(packet) == []
 
 
+def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "exchangeable_rank_uniform_helper",
+                "informal_source": "rank helper attempted after source theorem gap",
+                "lean_statement_sketch": (
+                    "theorem exchangeable_rank_uniform_helper "
+                    "(rank_uniform : Prop) : rank_uniform := by\n"
+                    "  sorry\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": "",
+                    "source_theorem_goal_id": "",
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "exchangeability",
+                "to": "coverage source theorem",
+                "role": "support gap planning",
+                "risk": "proof hole remained in helper",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "exchangeable rank uniformity split conformal Lean",
+                "target_library": "StatInference",
+                "purpose": "find non-placeholder helper proof",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["check only complete no-sorry candidates"],
+            "known_blockers": ["placeholder proof hole"],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [],
+        "gap_taxonomy": [
+            {
+                "gap": "source theorem still lacks concrete source-to-bridge proof",
+                "kind": "source_binding_contract",
+                "next_owner": "Formalizer",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "self",
+                "finding": "helper proof still contains a placeholder",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "Formalizer",
+                "action": "record FORMAL_GAP if no complete helper proof exists",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    feedback = {
+        "failure_classification": "formalizer_packet_validation_failed",
+        "validation_errors": [
+            (
+                "capability_eval formal target exchangeable_rank_uniform_helper "
+                "Lean sketch contains Lean sorry placeholder"
+            ),
+            "formal target Lean sketch contains Lean sorry placeholder",
+        ],
+        "target_shape_contract": {
+            "contract_kind": "source_theorem_target_preservation",
+            "required_conclusion_family": "probability_or_measure_coverage_claim",
+        },
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True,
+        },
+        "formalizer_packet_repair_retry_depth": 1,
+        "repeated_formalizer_packet_validation_failure": True,
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:placeholder-fail-closed"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    converted = packet["fail_closed_placeholder_formal_targets"][0]
+    assert converted["id"] == "exchangeable_rank_uniform_helper"
+    assert packet["formal_targets"][0]["expected_status"] == "FORMAL_GAP"
+    assert packet["formal_targets"][0]["lean_statement_sketch"] == ""
+    assert packet["formal_targets"][0]["proof_evidence_status"] == (
+        "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+    )
+    assert any(
+        row["id"] == "source_theorem_formal_gap_after_placeholder_repair"
+        for row in packet["formal_targets"]
+    )
+    assert any(
+        row.get("kind") == "proof_hole_placeholder_removed"
+        for row in packet["gap_taxonomy"]
+    )
+    assert validate_formalizer_packet(packet) == []
+
+
 def test_formalizer_validator_rejects_uninstantiated_adapter_object_binders() -> None:
     packet = {
         "formal_targets": [

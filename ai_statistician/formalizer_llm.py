@@ -104,6 +104,7 @@ class LLMFormalizerProofEngineerAgent:
                 raw_response=raw_text,
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
+                environment_feedback=environment_feedback or {},
             )
 
         requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
@@ -742,6 +743,8 @@ def _has_explicit_source_theorem_formal_gap_target(
         if str(row.get("lean_statement_sketch", "") or "").strip():
             continue
         provenance = row.get("source_theorem_target_provenance", {})
+        if _source_theorem_target_known(provenance) is False:
+            continue
         if (
             isinstance(provenance, Mapping)
             and provenance.get("source_theorem_target_known") is True
@@ -1039,6 +1042,7 @@ def _normalize_formalizer_packet(
     provider_name: str,
     raw_response: str,
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
     _enrich_source_to_bridge_candidates_from_memory(
@@ -1050,6 +1054,10 @@ def _normalize_formalizer_packet(
         proof_bank_runtime_memory_summary or {},
     )
     _drop_phantom_source_to_bridge_next_actions(body)
+    _fail_closed_placeholder_lean_candidates(
+        body,
+        environment_feedback or {},
+    )
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -1081,6 +1089,222 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _feedback_requests_placeholder_fail_closed(
+    environment_feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(environment_feedback, Mapping):
+        return False
+    input_summary = (
+        environment_feedback.get("input_summary", {})
+        if isinstance(environment_feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    failure_classification = str(
+        environment_feedback.get("failure_classification", "")
+        or input_summary.get("failure_classification", "")
+        or ""
+    )
+    if failure_classification != "formalizer_packet_validation_failed":
+        return False
+    validation_errors = [
+        str(error)
+        for error in (
+            environment_feedback.get("validation_errors", [])
+            or input_summary.get("validation_errors", [])
+            or []
+        )
+        if str(error).strip()
+    ]
+    validation_text = " ".join(validation_errors).lower()
+    has_placeholder_failure = any(
+        marker in validation_text
+        for marker in (
+            "lean sorry placeholder",
+            "lean admit placeholder",
+            "interactive proof-hole marker",
+            "unsupported tactic hole",
+            " exact?",
+            " by?",
+            "admit",
+            "sorry",
+        )
+    )
+    if not has_placeholder_failure:
+        return False
+    retry_depth = _feedback_int(
+        environment_feedback.get("formalizer_packet_repair_retry_depth", 0)
+        or input_summary.get("formalizer_packet_repair_retry_depth", 0)
+    )
+    attempts = _feedback_int(
+        environment_feedback.get("attempts", 0) or input_summary.get("attempts", 0)
+    )
+    repeated = bool(
+        environment_feedback.get("repeated_formalizer_packet_validation_failure")
+        or input_summary.get("repeated_formalizer_packet_validation_failure")
+        or retry_depth > 0
+        or attempts > 1
+    )
+    return repeated or _feedback_has_source_theorem_target_drift(environment_feedback)
+
+
+def _fail_closed_placeholder_lean_candidates(
+    packet: dict[str, Any],
+    environment_feedback: Mapping[str, Any],
+) -> None:
+    if not _feedback_requests_placeholder_fail_closed(environment_feedback):
+        return
+    converted_targets: list[dict[str, Any]] = []
+    for row in packet.get("formal_targets", []) or []:
+        if not isinstance(row, dict):
+            continue
+        lean_source = str(row.get("lean_statement_sketch", "") or "")
+        placeholder_error = _lean_statement_placeholder_syntax_error(lean_source)
+        if not placeholder_error:
+            continue
+        converted_targets.append(
+            {
+                "id": str(row.get("id", "") or ""),
+                "previous_expected_status": str(
+                    row.get("expected_status", "") or ""
+                ),
+                "placeholder_error": placeholder_error,
+                "lean_source_fingerprint": stable_hash(lean_source)[:20],
+                "proof_evidence_status": (
+                    "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        row["expected_status"] = "FORMAL_GAP"
+        row["lean_statement_sketch"] = ""
+        row["proof_evidence_status"] = (
+            "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+        )
+        row["normalizer_status"] = (
+            "FAIL_CLOSED_PLACEHOLDER_LEAN_SKETCH_TO_FORMAL_GAP"
+        )
+
+    source_to_bridge_candidates = packet.get(
+        "source_to_bridge_premise_derivation_candidates",
+        [],
+    )
+    dropped_source_to_bridge: list[dict[str, Any]] = []
+    kept_source_to_bridge: list[Any] = []
+    if isinstance(source_to_bridge_candidates, list):
+        for index, candidate in enumerate(source_to_bridge_candidates, start=1):
+            if not isinstance(candidate, Mapping):
+                kept_source_to_bridge.append(candidate)
+                continue
+            candidate_source = str(
+                candidate.get("premise_derivation_candidate_lean_source", "")
+                or candidate.get("lean_statement_sketch", "")
+                or candidate.get("candidate_lean_source", "")
+                or ""
+            )
+            placeholder_error = _lean_statement_placeholder_syntax_error(
+                candidate_source
+            )
+            if not placeholder_error:
+                kept_source_to_bridge.append(candidate)
+                continue
+            dropped_source_to_bridge.append(
+                {
+                    "index": index,
+                    "premise_name": str(candidate.get("premise_name", "") or ""),
+                    "placeholder_error": placeholder_error,
+                    "lean_source_fingerprint": stable_hash(candidate_source)[:20],
+                    "proof_evidence_status": (
+                        "PLACEHOLDER_SOURCE_TO_BRIDGE_CANDIDATE_DROPPED_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+        if dropped_source_to_bridge:
+            packet["source_to_bridge_premise_derivation_candidates"] = (
+                kept_source_to_bridge
+            )
+
+    if not converted_targets and not dropped_source_to_bridge:
+        return
+
+    formal_targets = [
+        row
+        for row in packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        _feedback_has_source_theorem_target_drift(environment_feedback)
+        and not _has_explicit_source_theorem_formal_gap_target(formal_targets)
+    ):
+        formal_targets.append(
+            {
+                "id": "source_theorem_formal_gap_after_placeholder_repair",
+                "informal_source": (
+                    "source theorem remains unproved after placeholder Lean "
+                    "sketches were removed"
+                ),
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "",
+                    "source_theorem_goal_id": "",
+                },
+                "proof_evidence_status": (
+                    "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        packet["formal_targets"] = formal_targets
+
+    gap_rows = packet.get("gap_taxonomy", [])
+    if not isinstance(gap_rows, list):
+        gap_rows = []
+    gap_rows.append(
+        {
+            "gap": (
+                "placeholder Lean proof sketches were fail-closed to FORMAL_GAP"
+            ),
+            "kind": "proof_hole_placeholder_removed",
+            "next_owner": "Formalizer",
+            "proof_evidence_status": (
+                "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["gap_taxonomy"] = gap_rows
+
+    if converted_targets:
+        packet["fail_closed_placeholder_formal_targets"] = converted_targets
+    if dropped_source_to_bridge:
+        existing_dropped = packet.get(
+            "dropped_placeholder_source_to_bridge_candidates",
+            [],
+        )
+        if not isinstance(existing_dropped, list):
+            existing_dropped = []
+        packet["dropped_placeholder_source_to_bridge_candidates"] = [
+            *existing_dropped,
+            *dropped_source_to_bridge,
+        ]
+
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Removed placeholder Lean proof sketches after repeated packet "
+                "validation feedback and converted the affected executable work "
+                "to explicit FORMAL_GAP/non-executable gap records."
+            ),
+            "proof_evidence_status": (
+                "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["critic_findings"] = findings
 
 
 def _source_to_bridge_candidate_names(packet: Mapping[str, Any]) -> set[str]:

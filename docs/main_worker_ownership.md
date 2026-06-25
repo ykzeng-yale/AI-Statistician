@@ -161,6 +161,13 @@ Live evidence collected on 2026-06-25:
   compiled Formalizer diagnostic helpers. It still ended at
   `MAX_ITERATIONS_REACHED` with pending task
   `formalize-repair:conformal_prediction_coverage:b3bbbf62`.
+- `runs/main_worker_live_runtime_resume_placeholder_fail_closed_probe/research_agent_runtime_manifest.json`:
+  after adding a fail-closed normalizer for repeated placeholder Lean sketches,
+  the live resume produced no new packet-validation failure after the prior
+  proof-hole rows. It reached candidate precheck/local Lean repair, then Critic
+  reroute, with `kernel_verified_subclaims=14`,
+  `n_formalizer_lean_candidate_local_lean_compiled=6`, and pending task
+  `formalize-critic-repair:conformal_prediction_coverage:460b3dc4`.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
@@ -197,6 +204,14 @@ fails because `Mathlib.olean` is absent. Compiled candidates remain
 emits concrete `source_to_bridge_premise_derivation_candidates` with copied
 source-binding metadata and local Lean/AXLE verifies the intended
 probability/measure coverage claim.
+
+The latest live blocker is no longer the `sorry` packet-validation loop. It is
+the absence of executable source-to-bridge premise candidates: recent proposals
+either retry root `import Mathlib`, use no-import Real/`linarith` helpers that
+fail local Lean, or compile only Prop-level diagnostic helpers. The next worker
+should resume `formalize-critic-repair:conformal_prediction_coverage:460b3dc4`
+and force either a concrete source-to-bridge candidate with copied runtime
+source-binding metadata or an explicit non-executable blocker.
 
 ## Delegation To Other Codex Workers
 
