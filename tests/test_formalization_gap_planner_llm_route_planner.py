@@ -26,6 +26,8 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+    FALLBACK_ROUTE_BOUNDARY,
+    FALLBACK_ROUTE_REASON,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
     PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
@@ -2599,7 +2601,36 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert target_context_packet_rows == [target_context_packet]
     assert payload["rows"][0]["target_theorem_context_packet"] == target_context_packet
     assert payload["rows"][0]["route_planning_brief"] == route_planning_brief
+    seed_selection = payload["standalone_seed"][
+        "llm_route_planner_seed_route_selection"
+    ]
+    assert seed_selection["selection_status"] == "fallback_routes_ranked"
+    assert seed_selection["selection_rows"][0][
+        "llm_route_planner_fallback_route"
+    ] is True
+    assert seed_selection["selection_rows"][0][
+        "llm_route_planner_seed_route_source"
+    ] == "fallback_input_route"
+    assert seed_selection["selection_rows"][0][
+        "llm_route_planner_fallback_reason"
+    ] == FALLBACK_ROUTE_REASON
+    assert seed_selection["selection_rows"][0][
+        "llm_route_planner_fallback_boundary"
+    ] == FALLBACK_ROUTE_BOUNDARY
     fallback_seed_route = payload["standalone_seed"]["routes"][0]
+    assert fallback_seed_route["llm_route_planner_fallback_route"] is True
+    assert (
+        fallback_seed_route["llm_route_planner_seed_route_source"]
+        == "fallback_input_route"
+    )
+    assert fallback_seed_route["llm_route_planner_fallback_reason"] == (
+        FALLBACK_ROUTE_REASON
+    )
+    assert fallback_seed_route["llm_route_planner_fallback_boundary"] == (
+        FALLBACK_ROUTE_BOUNDARY
+    )
+    assert fallback_seed_route["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+    assert fallback_seed_route["proof_evidence_boundary"] == PROOF_EVIDENCE_BOUNDARY
     assert fallback_seed_route["target_theorem_context_packet"] == (
         target_context_packet
     )
@@ -2615,6 +2646,27 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert fallback_seed_route["replan_metadata"][
         "llm_route_planner_route_planning_brief"
     ] == route_planning_brief
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_fallback_route"
+    ] is True
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_seed_route_source"
+    ] == "fallback_input_route"
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_fallback_reason"
+    ] == FALLBACK_ROUTE_REASON
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_fallback_boundary"
+    ] == FALLBACK_ROUTE_BOUNDARY
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_fallback_source_acceptance_status"
+    ] == payload["rows"][0]["acceptance_status"]
+    assert fallback_seed_route["replan_metadata"][
+        "proof_evidence_status"
+    ] == PROOF_EVIDENCE_STATUS
+    assert fallback_seed_route["replan_metadata"][
+        "proof_evidence_boundary"
+    ] == PROOF_EVIDENCE_BOUNDARY
     brief = context["route_planning_brief"]
     assert brief["brief_kind"] == (
         "formalization_gap_planner_llm_route_planner_route_planning_brief"
@@ -16139,11 +16191,28 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
         "rank_route_alt",
         "rank_route",
     ]
+    assert [
+        row["llm_route_planner_fallback_route"]
+        for row in selection["selection_rows"]
+    ] == [False, False]
     seed_routes = payload["standalone_seed"]["routes"]
     assert [route["route_id"] for route in seed_routes] == [
         "rank_route_low_cost_seed",
         "rank_route_high_cost_seed",
     ]
+    assert seed_routes[0]["llm_route_planner_fallback_route"] is False
+    assert (
+        seed_routes[0]["llm_route_planner_seed_route_source"]
+        == "accepted_llm_standalone_route"
+    )
+    assert seed_routes[0]["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+    assert seed_routes[0]["proof_evidence_boundary"] == PROOF_EVIDENCE_BOUNDARY
+    assert seed_routes[0]["replan_metadata"][
+        "llm_route_planner_fallback_route"
+    ] is False
+    assert seed_routes[0]["replan_metadata"][
+        "llm_route_planner_seed_route_source"
+    ] == "accepted_llm_standalone_route"
     assert seed_routes[0]["llm_route_planner_seed_selected"] is True
     assert (
         seed_routes[0]["llm_route_planner_seed_adoptable_for_standalone_replay"]

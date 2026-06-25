@@ -149,6 +149,14 @@ PROOF_EVIDENCE_BOUNDARY = (
     "and minimal-delta plans, but they are not theorem proof evidence. Proof "
     "claims require target-prover kernel replay."
 )
+FALLBACK_ROUTE_REASON = (
+    "no accepted LLM route was available; original standalone input route "
+    "preserved for review only"
+)
+FALLBACK_ROUTE_BOUNDARY = (
+    "fallback seed routes are not accepted LLM route-plan synthesis and require "
+    "a successful LLM route plan or explicit reviewer adoption before replay"
+)
 REPAIR_ATTEMPT_LEDGER_KIND = (
     "formalization_gap_planner_llm_route_planner_repair_attempt_ledger"
 )
@@ -34369,6 +34377,10 @@ def _standalone_seed_route_selection_rows(
                 "minimal_delta_route_cost": route_cost,
                 "minimal_delta_selected_route_option_id": selected_route_option_id,
                 "response_contract_ok": row.response_contract_ok,
+                "llm_route_planner_fallback_route": False,
+                "llm_route_planner_seed_route_source": (
+                    "accepted_llm_standalone_route"
+                ),
                 "proof_evidence_status": PROOF_EVIDENCE_STATUS,
                 "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
             }
@@ -34438,6 +34450,10 @@ def _fallback_seed_route_selection_rows(
                 "minimal_delta_route_cost": None,
                 "minimal_delta_selected_route_option_id": "",
                 "response_contract_ok": response_contract_ok,
+                "llm_route_planner_fallback_route": True,
+                "llm_route_planner_seed_route_source": "fallback_input_route",
+                "llm_route_planner_fallback_reason": FALLBACK_ROUTE_REASON,
+                "llm_route_planner_fallback_boundary": FALLBACK_ROUTE_BOUNDARY,
                 "proof_evidence_status": PROOF_EVIDENCE_STATUS,
                 "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
             }
@@ -34629,6 +34645,15 @@ def _apply_seed_route_selection(
             selection_row.get("minimal_delta_selected_route_option_id", "")
         ),
     }
+    for key in (
+        "llm_route_planner_fallback_route",
+        "llm_route_planner_seed_route_source",
+        "llm_route_planner_fallback_reason",
+        "llm_route_planner_fallback_boundary",
+    ):
+        if key in selection_row:
+            route[key] = selection_row[key]
+            metadata[key] = selection_row[key]
     route["replan_metadata"] = metadata
     route["llm_route_planner_seed_minimal_delta_selected_route_option_id"] = str(
         selection_row.get("minimal_delta_selected_route_option_id", "")
@@ -34728,10 +34753,33 @@ def _fallback_routes_for_seed(
     for route in _routes(input_payload):
         row = rows_by_route_id.get(str(route.get("route_id", "")))
         if row is None:
-            routes.append(dict(route))
+            routes.append(_fallback_route_without_row_for_seed(route))
             continue
         routes.append(_fallback_route_for_seed(route, row))
     return routes
+
+
+def _fallback_route_without_row_for_seed(
+    route: Mapping[str, Any],
+) -> dict[str, object]:
+    fallback = dict(route)
+    metadata = {
+        **_dict_value(fallback, "replan_metadata"),
+        "llm_route_planner_fallback_route": True,
+        "llm_route_planner_seed_route_source": "fallback_input_route",
+        "llm_route_planner_fallback_reason": FALLBACK_ROUTE_REASON,
+        "llm_route_planner_fallback_boundary": FALLBACK_ROUTE_BOUNDARY,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    fallback["replan_metadata"] = metadata
+    fallback["llm_route_planner_fallback_route"] = True
+    fallback["llm_route_planner_seed_route_source"] = "fallback_input_route"
+    fallback["llm_route_planner_fallback_reason"] = FALLBACK_ROUTE_REASON
+    fallback["llm_route_planner_fallback_boundary"] = FALLBACK_ROUTE_BOUNDARY
+    fallback["proof_evidence_status"] = PROOF_EVIDENCE_STATUS
+    fallback["proof_evidence_boundary"] = PROOF_EVIDENCE_BOUNDARY
+    return fallback
 
 
 def _fallback_route_for_seed(
@@ -34773,6 +34821,17 @@ def _fallback_route_for_seed(
             str(key) for key in row.generator_metadata
         ),
         "target_prover_family": row.target_prover_family,
+        "llm_route_planner_fallback_route": True,
+        "llm_route_planner_seed_route_source": "fallback_input_route",
+        "llm_route_planner_fallback_reason": FALLBACK_ROUTE_REASON,
+        "llm_route_planner_fallback_boundary": FALLBACK_ROUTE_BOUNDARY,
+        "llm_route_planner_fallback_source_acceptance_status": row.acceptance_status,
+        "llm_route_planner_fallback_source_route_adoption_status": (
+            row.route_adoption_status
+        ),
+        "llm_route_planner_fallback_source_response_contract_ok": (
+            row.response_contract_ok
+        ),
         "llm_route_planner_acceptance_status": row.acceptance_status,
         "llm_route_planner_route_adoption_status": row.route_adoption_status,
         "llm_route_planner_route_adoption_blockers": list(
@@ -34814,6 +34873,21 @@ def _fallback_route_for_seed(
     }
     fallback["target_prover_family"] = row.target_prover_family
     fallback["target_theorem_context_packet"] = target_context_packet
+    fallback["llm_route_planner_fallback_route"] = True
+    fallback["llm_route_planner_seed_route_source"] = "fallback_input_route"
+    fallback["llm_route_planner_fallback_reason"] = FALLBACK_ROUTE_REASON
+    fallback["llm_route_planner_fallback_boundary"] = FALLBACK_ROUTE_BOUNDARY
+    fallback["llm_route_planner_fallback_source_acceptance_status"] = (
+        row.acceptance_status
+    )
+    fallback["llm_route_planner_fallback_source_route_adoption_status"] = (
+        row.route_adoption_status
+    )
+    fallback["llm_route_planner_fallback_source_response_contract_ok"] = (
+        row.response_contract_ok
+    )
+    fallback["proof_evidence_status"] = PROOF_EVIDENCE_STATUS
+    fallback["proof_evidence_boundary"] = PROOF_EVIDENCE_BOUNDARY
     if target_context_summary:
         fallback["llm_route_planner_target_context_summary"] = deepcopy(
             target_context_summary
@@ -35165,6 +35239,8 @@ def _accepted_route_for_seed(
             str(key) for key in row.generator_metadata
         ),
         "target_prover_family": row.target_prover_family,
+        "llm_route_planner_fallback_route": False,
+        "llm_route_planner_seed_route_source": "accepted_llm_standalone_route",
         "llm_route_planner_acceptance_status": row.acceptance_status,
         "llm_route_planner_route_adoption_status": row.route_adoption_status,
         "llm_route_planner_route_adoption_blockers": list(
@@ -35305,11 +35381,15 @@ def _accepted_route_for_seed(
     route["realization_coverage_witness"] = realization_coverage_witness
     route["selected_primitives"] = list(selected_primitives)
     route["llm_route_planner_row_id"] = row.llm_route_planner_row_id
+    route["llm_route_planner_fallback_route"] = False
+    route["llm_route_planner_seed_route_source"] = "accepted_llm_standalone_route"
     route["llm_route_planner_acceptance_status"] = row.acceptance_status
     route["llm_route_planner_route_adoption_status"] = row.route_adoption_status
     route["llm_route_planner_route_adoption_blockers"] = list(
         row.route_adoption_blockers
     )
+    route["proof_evidence_status"] = PROOF_EVIDENCE_STATUS
+    route["proof_evidence_boundary"] = PROOF_EVIDENCE_BOUNDARY
     return route
 
 
