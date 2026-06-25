@@ -92,19 +92,33 @@
       "uniform_rank_pmf_helper produced a Lean syntax error: unexpected token '}'",
       "split_conformal_marginal_coverage_sketch imported Mathlib, but the configured legacy_sources/emperical_process_lean Lake environment did not expose a Mathlib module prefix"
     ],
-    "formalizer_lean_candidate_local_lean_checked": 5,
-    "formalizer_lean_candidate_local_lean_compiled": 0,
-    "formalizer_proof_state_feedback_rows": 6,
-    "formalizer_local_lean_tool_calls": 6,
-    "formalizer_lean_lsp_mcp_live_calls": 3,
+    "formalizer_mathlib_import_contract_repair_runtime_manifest": "runs/main_worker_live_runtime_resume_mathlib_import_contract_repair/research_agent_runtime_manifest.json",
+    "formalizer_mathlib_import_contract_preserved_runtime_manifest": "runs/main_worker_live_runtime_resume_mathlib_import_contract_preserved/research_agent_runtime_manifest.json",
+    "formalizer_string_false_helper_compile_runtime_manifest": "runs/main_worker_live_runtime_resume_string_false_helper_compile/research_agent_runtime_manifest.json",
+    "formalizer_core_prop_helper_repair_runtime_manifest": "runs/main_worker_live_runtime_resume_core_prop_helper_repair/research_agent_runtime_manifest.json",
+    "formalizer_core_contract_enriched_runtime_manifest": "runs/main_worker_live_runtime_resume_core_contract_enriched/research_agent_runtime_manifest.json",
+    "formalizer_core_contract_enriched_scorecard": "37/49",
+    "formalizer_core_contract_enriched_status": "MAX_ITERATIONS_REACHED",
+    "formalizer_core_contract_enriched_terminal": "FormalizationEvaluator formalizer_lean_candidate_local_lean_failed",
+    "formalizer_core_contract_enriched_pending_next_task": "formalize-lean-repair:conformal_prediction_coverage:75f4c185",
+    "formalizer_core_contract_enriched_result": "Packet-validation feedback now preserves and enriches carried local Lean contracts, so the live resume produced split_conformal_core_prop_bridge_helper as a no-import Prop-level helper and local Lean compiled it. The source theorem remains a FORMAL_GAP and no failed-then-passed Formalizer Lean repair sequence has been observed yet.",
+    "formalizer_core_contract_enriched_latest_blocker": "After the compiled diagnostic helper, the Critic handoff routed back to Formalizer/ProofEngineer and the next proposal retried a full `import Mathlib` coverage theorem in the legacy Lake project. Runtime Critic feedback now derives and carries the Mathlib blocked-import repair contract from failed formal subclaim diagnostics.",
+    "formalizer_critic_mathlib_handoff_contract_regression": true,
+    "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
+    "formalizer_lean_candidate_local_lean_checked": 9,
+    "formalizer_lean_candidate_local_lean_compiled": 1,
+    "formalizer_lean_candidate_failed_then_passed_repair_sequences": 0,
+    "formalizer_proof_state_feedback_rows": 9,
+    "formalizer_local_lean_tool_calls": 9,
+    "formalizer_lean_lsp_mcp_live_calls": 6,
     "real_kernel_verified_subclaims": 0,
-    "formal_gaps": 9,
-    "proof_boundary": "Live runtime evidence reached generated-code repair and local Lean diagnostics, but it did not prove the conformal source theorem or any full frontier theorem."
+    "formal_gaps": 13,
+    "proof_boundary": "Live runtime evidence reached generated-code repair, local Lean diagnostics, live Lean LSP/MCP calls, and one locally compiled diagnostic helper, but it did not prove the conformal source theorem or any full frontier theorem."
   },
   "latest_runtime_eval_alignment": {
     "date": "2026-06-25",
     "branch": "codex/runtime-eval-alignment-20260625",
-    "focus": "AgentRuntime source-to-bridge adapter instantiation, verified adapter retry, exact proof-body retry routing, integrated generated algorithm/simulation repair evidence, and stricter audit expectations.",
+    "focus": "AgentRuntime source-to-bridge adapter instantiation, verified adapter retry, exact proof-body retry routing, integrated generated algorithm/simulation repair evidence, Formalizer/ProofEngineer local Lean repair feedback, and stricter evidence-boundary audits.",
     "source_to_bridge_adapter_instantiation_queue_source": "Runtime now consumes source-to-bridge adapter-instantiation queues from the post-executor semantic bridge when present, otherwise from the initial source-semantic ProofEngineer bridge.",
     "verified_adapter_unblocks_exact_proof_body_retry": true,
     "integrated_generated_algorithm_metric_gate_repair_regression": true,
@@ -119,10 +133,25 @@
     "formalizer_next_action_reference_contract": true,
     "formalizer_next_action_reference_contract_test": "tests/test_research_agent_runtime.py::test_formalization_validator_failure_infers_coverage_shape_contract_from_sorry_feedback",
     "formalizer_next_action_reference_contract_evidence": "Runtime validation feedback now exports next_action_reference_contract for phantom source_to_bridge next_actions failures, the prompt compactor preserves it, and live retry moved from packet validation failure to local Lean candidate failure.",
+    "formalizer_mathlib_unavailable_import_contract": true,
+    "formalizer_mathlib_unavailable_import_contract_tests": [
+      "tests/test_research_agent_runtime.py::test_formalizer_prompt_blocks_mathlib_root_after_unknown_module_prefix",
+      "tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contract",
+      "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract"
+    ],
+    "formalizer_mathlib_unavailable_import_contract_evidence": "Runtime and prompt feedback now detect unknown module prefix `Mathlib`, forbid retrying `import Mathlib`/`import Mathlib.*` in the configured Lake project, and carry that contract through packet-validation and Critic handoff wrappers.",
+    "formalizer_core_prop_helper_contract": true,
+    "formalizer_core_prop_helper_contract_tests": [
+      "tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contract",
+      "tests/test_research_agent_runtime.py::test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic",
+      "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_allows_string_false_helper_target"
+    ],
+    "formalizer_core_prop_helper_contract_evidence": "No-import helpers that fail on Real/order arithmetic or unavailable tactics are now repaired toward Prop-level core Lean helpers using direct exact/lambda proofs. String-valued source_theorem_target_known=false is treated as false, so diagnostic helpers no longer get rejected as source-theorem target drift.",
+    "formalizer_core_prop_helper_live_evidence": "runs/main_worker_live_runtime_resume_core_contract_enriched compiled split_conformal_core_prop_bridge_helper with local Lean; this is diagnostic helper evidence only and not proof of split_conformal_finite_sample_coverage.",
     "proof_boundary": "Kernel-verified source-to-bridge adapter rows can route an exact source theorem proof-body retry, but they do not prove the source theorem or clear unrelated semantic-definition gaps.",
     "static_debug_runtime_audit_boundary": "The static debug runtime test now records a CriticEvaluator formalizer/proofengineer repair request as REVISE at max_iterations; audit all_ok is false with one result contract error because the runtime result is not ACCEPTED.",
-    "focused_runtime_tests": "8 adapter tests passed; 7 generated algorithm repair/evidence tests passed; 9 generated simulation repair/evidence tests passed; 23 formalizer validation/helper/next-action tests passed",
-    "full_runtime_test_module": "281 passed in 145.51s after adding Formalizer helper/next-action repair regressions"
+    "focused_runtime_tests": "8 adapter tests passed; 7 generated algorithm repair/evidence tests passed; 9 generated simulation repair/evidence tests passed; 36 Critic/Formalizer validation/helper/import-contract tests passed",
+    "full_runtime_test_module": "287 passed in 146.28s after adding Formalizer local-Lean import-contract and Critic handoff regressions"
   },
   "latest_local_verification": [
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_agent_runtime_repairs_generated_algorithm_metric_gate_failure",
@@ -146,23 +175,26 @@
     ".venv/bin/python -m py_compile ai_statistician/formalizer_llm.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short",
     ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_proofengineer_helper_escape_hatch/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 3 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_next_action_contract_repair",
+    ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_core_prop_helper_repair/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 3 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_core_contract_enriched",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract tests/test_research_agent_runtime.py::test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_budget tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contract tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contract",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'critic_formalizer_handoff or critic_routes_unresolved_premise_derivation or formalizer_prompt_repair_instructions or formalizer_prompt_blocks_mathlib_root or formalizer_prompt_repairs_no_import_helper_noncore_arithmetic or formalizer_lean_candidate_precheck_import_feedback_is_actionable or formalizer_lean_candidate_timeout_feedback_is_actionable or formalizer_candidate_materialization or formalizer_capability_eval_validator or formalization_validator_failure or formalizer_packet_validation_feedback or formalizer_prompt_repairs_phantom_source_to_bridge_next_action or formalizer_prompt_includes_validation_repair_feedback or formalizer_prompt_repair_instructions_preserve_source_theorem_after_target_drift or formalizer_prompt_escalates_repeated_coverage_target_shape_failure_to_gap_route or formalizer_validator_rejects_phantom_source_to_bridge_next_action'",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short # 287 passed in 146.28s",
     "audit_research_agent_runtime(runs/main_worker_live_runtime_resume_formalizer_shape_guard, runs/main_worker_live_runtime_resume_formalizer_shape_guard/runtime_capability_audit_after_counter_fix)",
     "git diff --check",
-    "targeted secret scan over touched files"
+    "targeted secret scan over touched files; only the benign status-file phrase matched"
   ],
   "current_blockers": [
     "project .env is not present in the repo worktree",
     "AXLE is not configured in the local runtime environment used for this chat",
     "OpenProver checkout is not present at the default /Users/yukang/Documents/OpenProver/src path",
     "latest local AgentRuntime regressions cover generated AlgorithmEngineer and SimulationEngineer fail-then-pass repair sequences, but the freshest live resumed runtime still records generated_algorithm_failed_then_passed_repair_sequences=0 and generated_simulation_failed_then_passed_repair_sequences=1",
-    "Formalizer/ProofEngineer now fails closed into source-theorem FORMAL_GAP plus diagnostic helper candidates and has observed integrated local Lean/LSP calls, but it still lacks a compiling repaired Lean candidate",
-    "latest Formalizer Lean blockers are concrete syntax/import-environment failures: unexpected token '}' in one helper and an unavailable Mathlib module prefix in the configured legacy Lean project",
+    "Formalizer/ProofEngineer now fails closed into source-theorem FORMAL_GAP plus diagnostic helper candidates and has observed one locally compiled Prop helper, but it still lacks a failed-then-passed Formalizer Lean repair sequence for the intended source theorem",
+    "latest Formalizer Lean blocker is the unavailable Mathlib module prefix in the configured legacy Lean project; Critic handoff feedback now carries this blocked-import contract, but a fresh live resume is still needed to confirm the next proposal avoids `import Mathlib`",
     "no real kernel-verified subclaim or full frontier theorem proof is present"
   ],
   "next_main_worker_actions": [
-    "resume formalize-lean-repair:conformal_prediction_coverage:ce683cbb and force Formalizer/ProofEngineer to repair the exact local Lean syntax/import diagnostics rather than regenerating broader theorem sketches",
-    "teach the Formalizer repair prompt or candidate normalizer to prefer imports available in legacy_sources/emperical_process_lean instead of blindly emitting import Mathlib",
-    "drive a live failed-then-passed Formalizer Lean candidate repair sequence with local Lean compilation before counting the formalizer repair loop capability",
+    "resume formalize-lean-repair:conformal_prediction_coverage:75f4c185 after the Critic handoff blocked-import patch and confirm the Formalizer avoids `import Mathlib`",
+    "drive a live failed-then-passed Formalizer Lean candidate repair sequence that compiles under local Lean before counting the formalizer repair-loop capability",
     "rerun the live capability eval from the latest branch to see whether both generated AlgorithmEngineer and SimulationEngineer repair loops appear in the same resumed runtime audit",
     "add a second non-conformal task-family capability run before claiming cross-task generality",
     "push this branch and open or update a GitHub PR against the coordination branch when connector support is available"

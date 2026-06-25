@@ -4294,6 +4294,47 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
         else {}
     )
+    active_local_lean_repair_contract = (
+        dict(prior_environment_feedback.get("local_lean_repair_contract", {}) or {})
+        if isinstance(
+            prior_environment_feedback.get("local_lean_repair_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    active_candidate_diagnostics = (
+        list(prior_environment_feedback.get("candidate_diagnostics", []) or [])
+        if isinstance(
+            prior_environment_feedback.get("candidate_diagnostics", []),
+            (list, tuple),
+        )
+        else []
+    )
+    diagnostic_local_lean_repair_contract = (
+        _formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                dict(row)
+                for row in active_candidate_diagnostics
+                if isinstance(row, Mapping)
+            ]
+        )
+        if active_candidate_diagnostics
+        else {}
+    )
+    active_local_lean_repair_contract = (
+        _formalizer_merge_local_lean_repair_contracts(
+            active_local_lean_repair_contract,
+            diagnostic_local_lean_repair_contract,
+        )
+    )
+    active_proofengineer_repair_context = (
+        dict(prior_environment_feedback.get("proofengineer_repair_context", {}) or {})
+        if isinstance(
+            prior_environment_feedback.get("proofengineer_repair_context", {}),
+            Mapping,
+        )
+        else {}
+    )
     active_target_shape_contract = (
         dict(prior_environment_feedback.get("target_shape_contract", {}) or {})
         if isinstance(
@@ -4370,6 +4411,9 @@ def _formalizer_packet_validation_failure_result(
             "target_shape_contract": active_target_shape_contract,
             "target_drift_repair_contract": active_target_drift_repair_contract,
             "next_action_reference_contract": next_action_reference_contract,
+            "local_lean_repair_contract": active_local_lean_repair_contract,
+            "candidate_diagnostics": active_candidate_diagnostics,
+            "proofengineer_repair_context": active_proofengineer_repair_context,
             "candidate_reroute_options": active_candidate_reroute_options,
             "missing_semantic_anchor_references": missing_anchors,
             "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4398,6 +4442,19 @@ def _formalizer_packet_validation_failure_result(
             "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
             "repeated_formalizer_packet_validation_failure": (
                 packet_repair_retry_depth > 0
+            ),
+            "formalizer_lean_repair_retry_depth": int(
+                prior_environment_feedback.get(
+                    "formalizer_lean_repair_retry_depth",
+                    0,
+                )
+                or 0
+            ),
+            "repeated_formalizer_lean_candidate_failure": bool(
+                prior_environment_feedback.get(
+                    "repeated_formalizer_lean_candidate_failure",
+                    False,
+                )
             ),
             "last_attempt_summary": exc.history[-1] if exc.history else {},
         },
@@ -4432,6 +4489,9 @@ def _formalizer_packet_validation_failure_result(
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
         "next_action_reference_contract": next_action_reference_contract,
+        "local_lean_repair_contract": active_local_lean_repair_contract,
+        "candidate_diagnostics": active_candidate_diagnostics,
+        "proofengineer_repair_context": active_proofengineer_repair_context,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4458,6 +4518,9 @@ def _formalizer_packet_validation_failure_result(
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
         "next_action_reference_contract": next_action_reference_contract,
+        "local_lean_repair_contract": active_local_lean_repair_contract,
+        "candidate_diagnostics": active_candidate_diagnostics,
+        "proofengineer_repair_context": active_proofengineer_repair_context,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4468,6 +4531,16 @@ def _formalizer_packet_validation_failure_result(
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "repeated_formalizer_packet_validation_failure": (
             packet_repair_retry_depth > 0
+        ),
+        "formalizer_lean_repair_retry_depth": int(
+            prior_environment_feedback.get("formalizer_lean_repair_retry_depth", 0)
+            or 0
+        ),
+        "repeated_formalizer_lean_candidate_failure": bool(
+            prior_environment_feedback.get(
+                "repeated_formalizer_lean_candidate_failure",
+                False,
+            )
         ),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "target_behavior": learning_row["target_behavior"],
@@ -5816,6 +5889,9 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         )
         for row in diagnostics
     ).lower()
+    candidate_source_text = " ".join(
+        str(row.get("lean_source_excerpt", "") or "") for row in diagnostics
+    ).lower()
     if not local_lean_text.strip():
         return {}
     classes: list[str] = []
@@ -5834,8 +5910,22 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         or "lean.unknownidentifier" in local_lean_text
     ):
         classes.append("lean_unknown_identifier")
+    if "unknown tactic" in local_lean_text:
+        classes.append("lean_unknown_tactic")
     if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
         classes.append("lean_type_mismatch")
+    if (
+        "le real" in local_lean_text
+        or "ofnat real" in local_lean_text
+        or (
+            "unknown tactic" in local_lean_text
+            and any(
+                marker in candidate_source_text
+                for marker in ("real", "linarith", "norm_num", "ring")
+            )
+        )
+    ):
+        classes.append("lean_no_import_noncore_arithmetic")
     if "timeout" in local_lean_text:
         classes.append("lean_timeout")
     if "source-theorem target drift" in local_lean_text:
@@ -5868,6 +5958,30 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "imports. If no valid import/dependency exists, emit a FORMAL_GAP/dependency "
             "blocker instead of retrying the same module path."
         )
+        unavailable_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
+            diagnostics
+        )
+        if unavailable_prefixes:
+            contract["blocked_import_prefixes"] = unavailable_prefixes
+            contract["blocked_import_repair_rule"] = (
+                "Do not import any blocked prefix or submodule in the next candidate. "
+                "Use no imports, an import already verified in this same configured "
+                "Lake project, or emit a FORMAL_GAP/dependency blocker."
+            )
+        if "Mathlib" in unavailable_prefixes:
+            contract["mathlib_import_unavailable"] = True
+            contract["mathlib_repair_rule"] = (
+                "The configured Lake environment reported the Mathlib import root as "
+                "unavailable. Do not retry `import Mathlib` or `import Mathlib.*`. "
+                "If the statistical theorem needs Mathlib-only measure/probability "
+                "APIs, fail closed with FORMAL_GAP rather than guessing imports."
+            )
+            contract["core_lean_diagnostic_helper_shape"] = (
+                "If capability-eval still needs a materialized helper, emit at most one "
+                "no-import core Lean theorem over Prop variables tied to the semantic "
+                "bridge, for example a premise-to-coverage implication helper. This is "
+                "diagnostic helper evidence only, not source-theorem proof evidence."
+            )
         import_replacements = _formalizer_import_replacement_suggestions(
             diagnostics
         )
@@ -5890,6 +6004,27 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
                 "the needed fact directly using known primitives, or emit a FORMAL_GAP "
                 "naming the missing API."
             )
+    if "lean_unknown_tactic" in classes:
+        contract["unknown_tactic_repair_rule"] = (
+            "Do not retry tactics that are unavailable without imports, including "
+            "`linarith`, `ring`, `norm_num`, or search tactics. Use a direct core Lean "
+            "`exact`/lambda proof or emit a FORMAL_GAP/dependency blocker."
+        )
+    if "lean_no_import_noncore_arithmetic" in classes:
+        contract["core_lean_only_helper_rule"] = (
+            "The previous no-import helper used non-core arithmetic or tactics. If "
+            "Mathlib remains unavailable, the next diagnostic helper must use only "
+            "core Lean propositions and functions: Prop, Not, ->, lambda/fun, and "
+            "`exact`. Do not use Real, <=, Nat.ceil, Finset, MeasureTheory, ENNReal, "
+            "`linarith`, `ring`, or `norm_num` in a no-import helper."
+        )
+        contract["core_lean_only_helper_example"] = (
+            "theorem split_conformal_core_prop_bridge "
+            "(coverage_event no_bad_rank : Prop) "
+            "(h : no_bad_rank -> coverage_event) "
+            "(h_no_bad_rank : no_bad_rank) : coverage_event := by\n"
+            "  exact h h_no_bad_rank"
+        )
     if "lean_timeout" in classes:
         contract["timeout_repair_rule"] = (
             "Treat timeout as a candidate-size/search-shape failure, not as proof evidence "
@@ -5913,6 +6048,103 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "the helper through a support-lemma or source-to-bridge premise channel."
         )
     return contract
+
+
+def _formalizer_merge_local_lean_repair_contracts(
+    primary: Mapping[str, Any] | None,
+    derived: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Preserve an existing contract while adding sharper diagnostic details."""
+
+    primary_contract = dict(primary or {})
+    derived_contract = dict(derived or {})
+    if not primary_contract:
+        return derived_contract
+    if not derived_contract:
+        return primary_contract
+
+    merged = dict(primary_contract)
+    primary_classes = [
+        str(value).strip()
+        for value in primary_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    ]
+    derived_classes = [
+        str(value).strip()
+        for value in derived_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    ]
+    classes: list[str] = []
+    for value in [*primary_classes, *derived_classes]:
+        if value == "lean_local_check_failed" and any(
+            cls != "lean_local_check_failed" for cls in [*primary_classes, *derived_classes]
+        ):
+            continue
+        if value not in classes:
+            classes.append(value)
+    if classes:
+        merged["diagnostic_classes"] = classes
+
+    for key, value in derived_contract.items():
+        if key == "diagnostic_classes":
+            continue
+        if key in {"blocked_import_prefixes", "unknown_identifiers"}:
+            existing_values = [
+                str(item).strip()
+                for item in merged.get(key, []) or []
+                if str(item).strip()
+            ]
+            for item in value or []:
+                item_text = str(item).strip()
+                if item_text and item_text not in existing_values:
+                    existing_values.append(item_text)
+            if existing_values:
+                merged[key] = existing_values
+            continue
+        if key not in merged or not merged.get(key):
+            merged[key] = value
+    return merged
+
+
+def _formalizer_unavailable_import_prefixes_from_diagnostics(
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Extract unavailable Lean module prefixes from precheck/local Lean output."""
+
+    patterns = (
+        re.compile(
+            r"unknown module prefix\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"No directory\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']\s+or file",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"Lean candidate imports unavailable module in configured project:\s*"
+            r"(?P<prefix>[A-Za-z0-9_.]+)",
+            re.IGNORECASE,
+        ),
+    )
+    prefixes: list[str] = []
+    seen: set[str] = set()
+    for row in diagnostics:
+        text = " ".join(
+            [
+                " ".join(str(error) for error in row.get("precheck_errors", []) or []),
+                str(row.get("local_lean_stdout", "") or ""),
+                str(row.get("local_lean_stderr", "") or ""),
+                str(row.get("local_lean_stdout_excerpt", "") or ""),
+                str(row.get("local_lean_stderr_excerpt", "") or ""),
+            ]
+        )
+        for pattern in patterns:
+            for match in pattern.finditer(text):
+                prefix = match.group("prefix").strip().strip(".")
+                if prefix and prefix not in seen:
+                    seen.add(prefix)
+                    prefixes.append(prefix)
+    return prefixes[:8]
 
 
 def _formalizer_import_replacement_suggestions(
@@ -6310,9 +6542,7 @@ def _formalizer_source_theorem_target_drift_errors(
     candidate_metadata: Mapping[str, Any],
 ) -> list[str]:
     provenance = candidate_metadata.get("source_theorem_target_provenance", {})
-    if not isinstance(provenance, Mapping) or not bool(
-        provenance.get("source_theorem_target_known", False)
-    ):
+    if _source_theorem_target_known_value(provenance) is not True:
         return []
     informal_source = str(candidate_metadata.get("informal_source", "") or "")
     constraints = [
@@ -6365,6 +6595,23 @@ def _formalizer_source_theorem_target_drift_errors(
             "claim but Lean candidate has no measure/probability conclusion shape"
         )
     return errors
+
+
+def _source_theorem_target_known_value(provenance: object) -> bool | None:
+    if not isinstance(provenance, Mapping):
+        return None
+    value = provenance.get("source_theorem_target_known")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    return None
 
 
 class CriticEvaluatorRuntimeSubsystem:
@@ -17570,12 +17817,22 @@ def _critic_repair_feedback(
     agenda: list[dict[str, Any]],
 ) -> dict[str, Any]:
     formal_counts = formalization_manifest.get("counts", {}) if isinstance(formalization_manifest, Mapping) else {}
+    formalizer_local_lean_contract = (
+        _critic_local_lean_repair_contract_from_formalization_manifest(
+            formalization_manifest
+        )
+    )
+    formalizer_candidate_diagnostics = (
+        _critic_candidate_diagnostics_from_formalization_manifest(
+            formalization_manifest
+        )
+    )
     required_repair = (
         "Revise theorem statements, assumptions, estimator specification, or proof plan "
         "to address formal gaps and non-kernel proof feedback. Do not claim proof evidence "
         "unless AXLE/local Lean kernel verification closes the intended claim."
     )
-    return {
+    feedback = {
         "feedback_source": "CriticEvaluator",
         "failure_classification": "critic_requested_theory_revision",
         "question_id": question.id,
@@ -17605,6 +17862,53 @@ def _critic_repair_feedback(
         "required_repair": required_repair,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    if formalizer_local_lean_contract:
+        feedback["local_lean_repair_contract"] = formalizer_local_lean_contract
+    if formalizer_candidate_diagnostics:
+        feedback["candidate_diagnostics"] = formalizer_candidate_diagnostics
+    return feedback
+
+
+def _critic_candidate_diagnostics_from_formalization_manifest(
+    formalization_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    diagnostics: list[dict[str, Any]] = []
+    if not isinstance(formalization_manifest, Mapping):
+        return diagnostics
+    formal_subclaims = formalization_manifest.get("formal_subclaims", []) or []
+    if not isinstance(formal_subclaims, list | tuple):
+        return diagnostics
+    for row in formal_subclaims[:8]:
+        if not isinstance(row, Mapping):
+            continue
+        errors = [str(error) for error in row.get("errors", []) or [] if str(error)]
+        if not errors:
+            continue
+        diagnostics.append(
+            {
+                "candidate_id": str(row.get("id", "") or ""),
+                "candidate_kind": str(row.get("claim_type", "") or ""),
+                "source_field": "formal_subclaims",
+                "precheck_status": str(row.get("status", "") or ""),
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": bool(row.get("kernel_verified", False)),
+                "local_lean_exit_status": (
+                    "0" if bool(row.get("kernel_verified", False)) else "1"
+                ),
+                "local_lean_stdout_excerpt": "\n".join(errors[:3]),
+            }
+        )
+    return diagnostics
+
+
+def _critic_local_lean_repair_contract_from_formalization_manifest(
+    formalization_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    diagnostics = _critic_candidate_diagnostics_from_formalization_manifest(
+        formalization_manifest
+    )
+    return _formalizer_local_lean_repair_contract_from_diagnostics(diagnostics)
 
 
 def _compact_agenda_item(row: Mapping[str, Any]) -> dict[str, Any]:

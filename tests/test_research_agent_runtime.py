@@ -321,6 +321,115 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     )
 
 
+def test_critic_formalizer_handoff_preserves_mathlib_import_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    blackboard = BlackboardState(project_id="critic-mathlib-contract-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+                "counts": {"formal_source_hits": 1},
+            },
+            "theory_derivation:test": {
+                "artifact_kind": "RuntimeTheoryDerivationPacket",
+                "packet_id": "theory_derivation:test",
+            },
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {
+                    "proved": 0,
+                    "kernel_verified": 0,
+                    "formal_gap": 1,
+                    "failed": 1,
+                },
+                "formal_subclaims": [
+                    {
+                        "id": (
+                            "conformal_prediction_coverage:"
+                            "coverage_lower_bound_of_complement_error"
+                        ),
+                        "claim_type": "lean_obligation",
+                        "status": "FAILED",
+                        "kernel_verified": False,
+                        "gap_reason": "registered Mathlib-backed subclaim failed verifier",
+                        "errors": [
+                            (
+                                "/tmp/coverage_lower_bound.lean:1:0: error: "
+                                "unknown module prefix 'Mathlib'"
+                            ),
+                            "No directory 'Mathlib' or file 'Mathlib.olean'",
+                        ],
+                    }
+                ],
+                "deterministic_theorem_goals": [
+                    {"id": "split_conformal_finite_sample_coverage"}
+                ],
+                "proof_bank_runtime_memory_summary": {
+                    "recommended_formalizer_target_mode": (
+                        "source_to_bridge_premise_derivation_required"
+                    ),
+                    "source_to_bridge_premise_derivation_required": True,
+                    "source_to_bridge_premise_derivation_pending_premise_names": [
+                        "hGoodCovered"
+                    ],
+                },
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:mathlib",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate runtime artifacts.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                }
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    repair_contract = feedback["local_lean_repair_contract"]
+    assert repair_contract["blocked_import_prefixes"] == ["Mathlib"]
+    assert repair_contract["mathlib_import_unavailable"] is True
+    assert feedback["candidate_diagnostics"][0]["source_field"] == "formal_subclaims"
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Mandatory Mathlib-root repair" in prompt
+    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+
+
 def test_architect_coordinator_prompt_requires_long_horizon_research_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     prompt = build_architect_coordinator_prompt(
@@ -1892,6 +2001,246 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
     assert "target_shape_contract" in prompt
 
 
+def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class RejectingFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM Formalizer/ProofEngineer packet",
+                attempts=2,
+                errors=[
+                    (
+                        "capability_eval formal target "
+                        "split_conformal_marginal_coverage_finite_sample violates "
+                        "target_shape_contract: source theorem target shape requires "
+                        "a probability/measure coverage conclusion"
+                    ),
+                    (
+                        "next_actions reference "
+                        "source_to_bridge_premise_derivation_candidates but packet "
+                        "contains no source_to_bridge_premise_derivation_candidates "
+                        "entries"
+                    ),
+                ],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-4-6",
+                        "raw_response_fingerprint": "mathlib-root-validation",
+                    }
+                ],
+            )
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=RejectingFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:conformal_prediction_coverage:mathlib",
+        owner_subsystem="ProofEngineer",
+        objective="repair local Lean import diagnostic",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "repair_owner_agent": "ProofEngineer",
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_import_environment_missing"],
+                    "blocked_import_prefixes": ["Mathlib"],
+                    "mathlib_import_unavailable": True,
+                    "mathlib_repair_rule": (
+                        "Do not retry `import Mathlib` or `import Mathlib.*`."
+                    ),
+                    "core_lean_diagnostic_helper_shape": (
+                        "Emit at most one no-import core Lean theorem over Prop "
+                        "variables tied to the semantic bridge."
+                    ),
+                },
+                "candidate_diagnostics": [
+                    {
+                        "candidate_id": "split_conformal_marginal_coverage_sketch",
+                        "source_field": "formal_targets",
+                        "lean_source_excerpt": "import Mathlib\n\ntheorem bad : True := by\n  trivial\n",
+                        "local_lean_stdout_excerpt": (
+                            "error: unknown module prefix 'Mathlib'\n"
+                            "No directory 'Mathlib' or file 'Mathlib.olean'"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["local_lean_repair_contract"]["blocked_import_prefixes"] == [
+        "Mathlib"
+    ]
+    assert feedback["local_lean_repair_contract"]["mathlib_import_unavailable"] is True
+    assert feedback["candidate_diagnostics"][0]["candidate_id"] == (
+        "split_conformal_marginal_coverage_sketch"
+    )
+    assert feedback["next_action_reference_contract"]["contract_kind"] == (
+        "next_action_references_must_be_materialized"
+    )
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Mandatory Mathlib-root repair" in prompt
+    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+    assert "Mandatory next_action_reference_contract repair" in prompt
+    assert "Mandatory target-shape packet repair" in prompt
+
+
+def test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class RejectingFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM Formalizer/ProofEngineer packet",
+                attempts=2,
+                errors=[
+                    (
+                        "capability_eval formal target "
+                        "split_conformal_finite_sample_coverage violates "
+                        "target_shape_contract: source theorem target shape requires "
+                        "a probability/measure coverage conclusion"
+                    )
+                ],
+                history=[{"attempt_index": 1}],
+            )
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=RejectingFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:conformal_prediction_coverage:real",
+        owner_subsystem="ProofEngineer",
+        objective="repair local Lean no-import helper diagnostic",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_local_check_failed"],
+                },
+                "candidate_diagnostics": [
+                    {
+                        "candidate_id": "split_conformal_coverage_prop_helper",
+                        "source_field": "formal_targets",
+                        "lean_source_excerpt": (
+                            "theorem split_conformal_coverage_prop_helper\n"
+                            "    (alpha : Real) (pCoverage pError : Real)\n"
+                            "    (hErrorBound : pError <= alpha) :\n"
+                            "    1 - alpha <= pCoverage := by\n"
+                            "  linarith\n"
+                        ),
+                        "local_lean_stdout_excerpt": (
+                            "error: unknown tactic\n"
+                            "error(lean.synthInstanceFailed): failed to synthesize "
+                            "instance of type class\n  LE Real"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    repair_contract = feedback["local_lean_repair_contract"]
+    assert "lean_local_check_failed" not in repair_contract["diagnostic_classes"]
+    assert "lean_unknown_tactic" in repair_contract["diagnostic_classes"]
+    assert "lean_no_import_noncore_arithmetic" in repair_contract[
+        "diagnostic_classes"
+    ]
+    assert "Do not use Real" in repair_contract["core_lean_only_helper_rule"]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Mandatory core-Lean helper repair" in prompt
+    assert "do not use Real, <=" in prompt
+    assert "split_conformal_core_prop_bridge" in prompt
+
+
 def test_agent_runtime_retries_formalizer_after_validation_feedback(tmp_path: Path) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {
@@ -2519,6 +2868,87 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
     assert "support lemma" in feedback["candidate_reroute_options"][0]
 
 
+def test_formalizer_candidate_materialization_allows_string_false_helper_target(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_candidate_string_false_helper",
+        owner_subsystem="ProofEngineer",
+        objective="allow diagnostic helper target with string false provenance",
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:string_false_helper",
+            "formal_targets": [
+                {
+                    "id": (
+                        "split_conformal_marginal_coverage_finite_sample_prop_helper"
+                    ),
+                    "informal_source": (
+                        "Diagnostic Prop helper for the split conformal coverage "
+                        "lower-bound bridge; not source-theorem proof evidence."
+                    ),
+                    "lean_statement_sketch": (
+                        "theorem split_conformal_coverage_lower_bound_prop_helper\n"
+                        "    (coverage_prob error_prob alpha : Prop)\n"
+                        "    (h_compl : error_prob -> False)\n"
+                        "    (h_bound : Not error_prob -> coverage_prob)\n"
+                        "    : coverage_prob -> True := fun _ => trivial\n"
+                    ),
+                    "semantic_alignment_constraints": [
+                        "coverage lower-bound diagnostic helper only",
+                        "No Mathlib imports; Prop-only diagnostic helper",
+                    ],
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "false",
+                        "target_lean_declaration": (
+                            "split_conformal_marginal_coverage_finite_sample"
+                        ),
+                        "source_theorem_goal_id": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                },
+                {
+                    "id": "split_conformal_marginal_coverage_finite_sample_source",
+                    "informal_source": (
+                        "Source theorem remains a probability coverage FORMAL_GAP."
+                    ),
+                    "lean_statement_sketch": "",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "true",
+                        "target_lean_declaration": (
+                            "split_conformal_marginal_coverage_finite_sample"
+                        ),
+                    },
+                    "expected_status": "FORMAL_GAP",
+                },
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert row["precheck_errors"] == []
+    assert row["local_lean_compiled"] is True
+    assert row["kernel_verified"] is True
+    assert row["proof_evidence_status"] == (
+        "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+    )
+
+
 def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_lean(
     tmp_path: Path,
 ) -> None:
@@ -2966,6 +3396,109 @@ def test_formalizer_prompt_repair_instructions_handle_missing_import_and_formal_
     assert "never place identifiers such as `FORMAL_GAP_*` inside Lean source" in prompt
 
 
+def test_formalizer_prompt_blocks_mathlib_root_after_unknown_module_prefix() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+            "failure_classification": (
+                "formalizer_lean_candidate_local_lean_failed"
+            ),
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "split_conformal_marginal_coverage_sketch",
+                    "candidate_kind": "formal_target_lean_statement_sketch",
+                    "source_field": "formal_targets",
+                    "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                    "precheck_errors": [],
+                    "lean_source_excerpt": (
+                        "import Mathlib\n\n"
+                        "theorem split_conformal_marginal_coverage "
+                        "(coverage_rank_premise coverage_event : Prop) : "
+                        "coverage_event := by\n"
+                        "  exact? \n"
+                    ),
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: unknown module prefix 'Mathlib'\n\n"
+                        "No directory 'Mathlib' or file 'Mathlib.olean' in the "
+                        "search path entries:\n"
+                        "/tmp/project/.lake/packages/mathlib/.lake/build/lib/lean"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert "Mandatory unavailable-import-prefix repair" in prompt
+    assert "`Mathlib`" in prompt
+    assert "Do not import any blocked prefix or submodule" in prompt
+    assert "Mandatory Mathlib-root repair" in prompt
+    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+    assert "no-import core Lean diagnostic helper over Prop variables" in prompt
+    assert "expected_status=FORMAL_GAP" in prompt
+
+
+def test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+            "failure_classification": (
+                "formalizer_lean_candidate_local_lean_failed"
+            ),
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "split_conformal_coverage_prop_helper",
+                    "candidate_kind": "formal_target_lean_statement_sketch",
+                    "source_field": "formal_targets",
+                    "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                    "precheck_errors": [],
+                    "lean_source_excerpt": (
+                        "theorem split_conformal_coverage_prop_helper\n"
+                        "    (alpha : Real) (pCoverage pError : Real)\n"
+                        "    (hErrorBound : pError <= alpha) :\n"
+                        "    1 - alpha <= pCoverage := by\n"
+                        "  linarith\n"
+                    ),
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: unknown tactic\n"
+                        "error(lean.synthInstanceFailed): failed to synthesize "
+                        "instance of type class\n  LE Real"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert "Mandatory core-Lean helper repair" in prompt
+    assert "Prop-level helper" in prompt
+    assert "do not use Real" in prompt
+    assert "`linarith`" in prompt
+    assert "expected_status=FORMAL_GAP" in prompt
+
+
 def test_formalizer_prompt_repair_instructions_handle_local_lean_timeout_without_weakening() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
@@ -3374,6 +3907,76 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
                 "otherwise remove the guessed import or emit a dependency FORMAL_GAP"
             ),
         }
+    ]
+    live_mathlib_root_contract = (
+        runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                {
+                    "precheck_errors": [],
+                    "precheck_status": (
+                        "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    ),
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: unknown module prefix 'Mathlib'\n\n"
+                        "No directory 'Mathlib' or file 'Mathlib.olean' in the "
+                        "search path entries:\n"
+                        "/tmp/project/.lake/packages/mathlib/.lake/build/lib/lean"
+                    ),
+                }
+            ]
+        )
+    )
+    assert live_mathlib_root_contract["diagnostic_classes"] == [
+        "lean_import_environment_missing"
+    ]
+    assert live_mathlib_root_contract["blocked_import_prefixes"] == ["Mathlib"]
+    assert live_mathlib_root_contract["mathlib_import_unavailable"] is True
+    assert "Do not retry `import Mathlib`" in live_mathlib_root_contract[
+        "mathlib_repair_rule"
+    ]
+    assert "no-import core Lean theorem over Prop variables" in (
+        live_mathlib_root_contract["core_lean_diagnostic_helper_shape"]
+    )
+    live_no_import_arithmetic_contract = (
+        runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                {
+                    "precheck_errors": [],
+                    "precheck_status": (
+                        "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    ),
+                    "lean_source_excerpt": (
+                        "theorem split_conformal_coverage_prop_helper\n"
+                        "    (alpha : Real) (pCoverage pError : Real)\n"
+                        "    (hErrorBound : pError <= alpha) :\n"
+                        "    1 - alpha <= pCoverage := by\n"
+                        "  linarith\n"
+                    ),
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: unknown tactic\n"
+                        "error(lean.synthInstanceFailed): failed to synthesize "
+                        "instance of type class\n  LE Real"
+                    ),
+                }
+            ]
+        )
+    )
+    assert "lean_unknown_tactic" in live_no_import_arithmetic_contract[
+        "diagnostic_classes"
+    ]
+    assert "lean_no_import_noncore_arithmetic" in live_no_import_arithmetic_contract[
+        "diagnostic_classes"
+    ]
+    assert "Do not retry tactics" in live_no_import_arithmetic_contract[
+        "unknown_tactic_repair_rule"
+    ]
+    assert "Do not use Real" in live_no_import_arithmetic_contract[
+        "core_lean_only_helper_rule"
+    ]
+    assert "split_conformal_core_prop_bridge" in live_no_import_arithmetic_contract[
+        "core_lean_only_helper_example"
     ]
     live_unknown_constant_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(

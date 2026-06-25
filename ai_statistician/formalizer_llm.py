@@ -1555,6 +1555,67 @@ def _formalizer_mode_specific_instructions(
             "lean_state_search/proof_search -> lean_multi_attempt -> "
             "local_lean_or_axle_rerun when those tools are available."
         )
+    carried_local_lean_repair_contract = (
+        runtime_environment_feedback.get("local_lean_repair_contract", {})
+        if isinstance(
+            runtime_environment_feedback.get("local_lean_repair_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if carried_local_lean_repair_contract and feedback_failure not in {
+        "formalizer_lean_candidate_precheck_rejected",
+        "formalizer_lean_candidate_local_lean_failed",
+    }:
+        instructions.append(
+            "Carried Local-Lean repair contract is still mandatory: even though the "
+            "current wrapper failure is packet validation, the next packet must also "
+            "satisfy runtime_environment_feedback.local_lean_repair_contract before "
+            "emitting another NEEDS_KERNEL_CHECK candidate."
+        )
+        blocked_import_prefixes = [
+            str(value).strip()
+            for value in carried_local_lean_repair_contract.get(
+                "blocked_import_prefixes",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        if blocked_import_prefixes:
+            quoted_prefixes = ", ".join(
+                f"`{value}`" for value in blocked_import_prefixes[:8]
+            )
+            instructions.append(
+                "Mandatory unavailable-import-prefix repair: local Lean reported "
+                f"unknown/unavailable module prefix(es): {quoted_prefixes}. Do not "
+                "import any blocked prefix or submodule in the next candidate. Use no "
+                "imports, an import already verified in this same configured Lake "
+                "project, or emit a FORMAL_GAP/dependency blocker instead of retrying "
+                "the same module path."
+            )
+        if carried_local_lean_repair_contract.get("mathlib_import_unavailable"):
+            instructions.append(
+                "Mandatory Mathlib-root repair: this configured Lean environment "
+                "reported the Mathlib import root as unavailable. Do not retry "
+                "`import Mathlib` or any `import Mathlib.*` line. If the source theorem "
+                "needs Mathlib-only measure/probability APIs, keep the source theorem "
+                "as expected_status=FORMAL_GAP. If capability-eval still needs one "
+                "materialized helper, emit at most one no-import core Lean diagnostic "
+                "helper over Prop variables tied to the semantic bridge; this helper is "
+                "diagnostic only and not source-theorem proof evidence."
+            )
+        if carried_local_lean_repair_contract.get("core_lean_only_helper_rule"):
+            instructions.append(
+                "Mandatory core-Lean helper repair: the previous no-import helper "
+                "used arithmetic, typeclasses, or tactics unavailable without imports. "
+                "If Mathlib remains unavailable, emit only a Prop-level helper using "
+                "Prop, Not, arrows, lambda/fun, and `exact`; do not use Real, <=, "
+                "Nat.ceil, Finset, MeasureTheory, ENNReal, `linarith`, `ring`, or "
+                "`norm_num` in the helper. The source theorem itself must remain "
+                "expected_status=FORMAL_GAP unless the real probability/measure "
+                "statement can be checked."
+            )
     prior_lean_candidate_repair_memory = [
         row
         for row in proof_memory_summary.get(
@@ -2051,6 +2112,50 @@ def _formalizer_mode_specific_instructions(
                         "derive the fact from known primitives, or emit a FORMAL_GAP "
                         "naming the missing API/dependency."
                     )
+                blocked_import_prefixes = [
+                    str(value).strip()
+                    for value in local_lean_repair_contract.get(
+                        "blocked_import_prefixes",
+                        [],
+                    )
+                    or []
+                    if str(value).strip()
+                ]
+                if blocked_import_prefixes:
+                    quoted_prefixes = ", ".join(
+                        f"`{value}`" for value in blocked_import_prefixes[:8]
+                    )
+                    instructions.append(
+                        "Mandatory unavailable-import-prefix repair: local Lean "
+                        f"reported unknown/unavailable module prefix(es): {quoted_prefixes}. "
+                        "Do not import any blocked prefix or submodule in the next "
+                        "candidate. Use no imports, an import already verified in this "
+                        "same configured Lake project, or emit a FORMAL_GAP/dependency "
+                        "blocker instead of retrying the same module path."
+                    )
+                if local_lean_repair_contract.get("mathlib_import_unavailable"):
+                    instructions.append(
+                        "Mandatory Mathlib-root repair: this configured Lean environment "
+                        "reported the Mathlib import root as unavailable. Do not retry "
+                        "`import Mathlib` or any `import Mathlib.*` line. If the source "
+                        "theorem needs Mathlib-only measure/probability APIs, keep the "
+                        "source theorem as expected_status=FORMAL_GAP. If capability-eval "
+                        "still needs one materialized helper, emit at most one no-import "
+                        "core Lean diagnostic helper over Prop variables tied to the "
+                        "semantic bridge; this helper is diagnostic only and not source-"
+                        "theorem proof evidence."
+                    )
+                if local_lean_repair_contract.get("core_lean_only_helper_rule"):
+                    instructions.append(
+                        "Mandatory core-Lean helper repair: the previous no-import "
+                        "helper used arithmetic, typeclasses, or tactics unavailable "
+                        "without imports. If Mathlib remains unavailable, emit only a "
+                        "Prop-level helper using Prop, Not, arrows, lambda/fun, and "
+                        "`exact`; do not use Real, <=, Nat.ceil, Finset, MeasureTheory, "
+                        "ENNReal, `linarith`, `ring`, or `norm_num` in the helper. "
+                        "The source theorem itself must remain expected_status=FORMAL_GAP "
+                        "unless the real probability/measure statement can be checked."
+                    )
         if has_target_drift:
             instructions.append(
                 "Mandatory source-theorem target-preservation repair: the previous "
@@ -2118,12 +2223,11 @@ def _formalizer_mode_specific_instructions(
         if has_missing_import:
             instructions.append(
                 "Mandatory import repair: local Lean reported a missing module/object "
-                "file. Do not import guessed Mathlib module paths. Prefer imports that "
-                "are already known to exist in the configured project, reuse imports "
-                "from prior kernel-verified artifacts, or fall back to `import Mathlib` "
-                "only when the candidate remains small enough to check. If the needed "
-                "module is unavailable, report the dependency as a FORMAL_GAP outside "
-                "Lean source rather than inventing an import."
+                "file. Do not import guessed Mathlib module paths or retry any module "
+                "prefix that local Lean reported as unknown. Prefer no imports, imports "
+                "already verified in the configured project, or a FORMAL_GAP/dependency "
+                "blocker. If the needed module is unavailable, report the dependency as "
+                "a FORMAL_GAP outside Lean source rather than inventing an import."
             )
         if has_proof_hole:
             instructions.append(
@@ -2581,15 +2685,14 @@ def _feedback_local_lean_repair_contract(
         "local_lean_repair_contract",
         {},
     )
-    if isinstance(explicit, Mapping) and explicit:
-        return explicit
+    explicit_contract = dict(explicit) if isinstance(explicit, Mapping) else {}
     candidate_diagnostics = (
         feedback.get("candidate_diagnostics", [])
         or input_summary.get("candidate_diagnostics", [])
         or []
     )
     if not isinstance(candidate_diagnostics, list | tuple):
-        return {}
+        return explicit_contract
     local_lean_text = " ".join(
         " ".join(
             [
@@ -2602,7 +2705,7 @@ def _feedback_local_lean_repair_contract(
         if isinstance(row, Mapping)
     ).lower()
     if not local_lean_text.strip():
-        return {}
+        return explicit_contract
     classes: list[str] = []
     if "unexpected token" in local_lean_text or "expected term" in local_lean_text:
         classes.append("lean_parser_or_syntax_error")
@@ -2614,8 +2717,27 @@ def _feedback_local_lean_repair_contract(
         or "lean.unknownidentifier" in local_lean_text
     ):
         classes.append("lean_unknown_identifier")
+    if "unknown tactic" in local_lean_text:
+        classes.append("lean_unknown_tactic")
     if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
         classes.append("lean_type_mismatch")
+    candidate_source_text = " ".join(
+        str(row.get("lean_source_excerpt", "") or "")
+        for row in candidate_diagnostics
+        if isinstance(row, Mapping)
+    ).lower()
+    if (
+        "le real" in local_lean_text
+        or "ofnat real" in local_lean_text
+        or (
+            "unknown tactic" in local_lean_text
+            and any(
+                marker in candidate_source_text
+                for marker in ("real", "linarith", "norm_num", "ring")
+            )
+        )
+    ):
+        classes.append("lean_no_import_noncore_arithmetic")
     if not classes:
         classes.append("lean_local_check_failed")
     contract: dict[str, Any] = {
@@ -2626,6 +2748,24 @@ def _feedback_local_lean_repair_contract(
             "large for a reliable repair, emit FORMAL_GAP and route a smaller support lemma."
         ),
     }
+    unavailable_prefixes = _feedback_unavailable_import_prefixes(candidate_diagnostics)
+    if unavailable_prefixes:
+        contract["blocked_import_prefixes"] = unavailable_prefixes
+        contract["blocked_import_repair_rule"] = (
+            "Do not import any blocked prefix or submodule in the next candidate. "
+            "Use no imports, an import already verified in this same configured "
+            "Lake project, or emit a FORMAL_GAP/dependency blocker."
+        )
+    if "Mathlib" in unavailable_prefixes:
+        contract["mathlib_import_unavailable"] = True
+        contract["mathlib_repair_rule"] = (
+            "Do not retry `import Mathlib` or `import Mathlib.*` after local Lean "
+            "reported the Mathlib import root unavailable."
+        )
+        contract["core_lean_diagnostic_helper_shape"] = (
+            "At most one no-import core Lean Prop helper may be emitted as diagnostic "
+            "tooling evidence; it is not source-theorem proof evidence."
+        )
     unknown_identifiers = _feedback_unknown_identifiers(candidate_diagnostics)
     if unknown_identifiers:
         contract["unknown_identifiers"] = unknown_identifiers
@@ -2634,7 +2774,125 @@ def _feedback_local_lean_repair_contract(
             "with an existing local declaration, prove the fact from known "
             "primitives, or emit a FORMAL_GAP naming the missing API."
         )
-    return contract
+    if "lean_unknown_tactic" in classes:
+        contract["unknown_tactic_repair_rule"] = (
+            "Do not retry tactics unavailable without imports; use direct core Lean "
+            "`exact`/lambda proofs or emit a FORMAL_GAP/dependency blocker."
+        )
+    if "lean_no_import_noncore_arithmetic" in classes:
+        contract["core_lean_only_helper_rule"] = (
+            "If Mathlib remains unavailable, no-import helpers must use only core Lean "
+            "Prop/Not/arrows/lambda/fun/exact. Do not use Real, <=, Nat.ceil, Finset, "
+            "MeasureTheory, ENNReal, linarith, ring, or norm_num."
+        )
+        contract["core_lean_only_helper_example"] = (
+            "theorem split_conformal_core_prop_bridge "
+            "(coverage_event no_bad_rank : Prop) "
+            "(h : no_bad_rank -> coverage_event) "
+            "(h_no_bad_rank : no_bad_rank) : coverage_event := by\n"
+            "  exact h h_no_bad_rank"
+        )
+    return _merge_feedback_local_lean_repair_contracts(
+        explicit_contract,
+        contract,
+    )
+
+
+def _merge_feedback_local_lean_repair_contracts(
+    explicit_contract: Mapping[str, Any],
+    derived_contract: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    if not explicit_contract:
+        return dict(derived_contract)
+    if not derived_contract:
+        return dict(explicit_contract)
+
+    merged = dict(explicit_contract)
+    explicit_classes = [
+        str(value).strip()
+        for value in explicit_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    ]
+    derived_classes = [
+        str(value).strip()
+        for value in derived_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    ]
+    classes: list[str] = []
+    has_specific_class = any(
+        value != "lean_local_check_failed"
+        for value in [*explicit_classes, *derived_classes]
+    )
+    for value in [*explicit_classes, *derived_classes]:
+        if value == "lean_local_check_failed" and has_specific_class:
+            continue
+        if value not in classes:
+            classes.append(value)
+    if classes:
+        merged["diagnostic_classes"] = classes
+
+    for key, value in derived_contract.items():
+        if key == "diagnostic_classes":
+            continue
+        if key in {"blocked_import_prefixes", "unknown_identifiers"}:
+            existing_values = [
+                str(item).strip()
+                for item in merged.get(key, []) or []
+                if str(item).strip()
+            ]
+            for item in value or []:
+                item_text = str(item).strip()
+                if item_text and item_text not in existing_values:
+                    existing_values.append(item_text)
+            if existing_values:
+                merged[key] = existing_values
+            continue
+        if key not in merged or not merged.get(key):
+            merged[key] = value
+    return merged
+
+
+def _feedback_unavailable_import_prefixes(
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    patterns = (
+        re.compile(
+            r"unknown module prefix\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"No directory\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']\s+or file",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"Lean candidate imports unavailable module in configured project:\s*"
+            r"(?P<prefix>[A-Za-z0-9_.]+)",
+            re.IGNORECASE,
+        ),
+    )
+    prefixes: list[str] = []
+    seen: set[str] = set()
+    for row in diagnostics:
+        text = " ".join(
+            str(row.get(key, "") or "")
+            for key in (
+                "local_lean_stdout",
+                "local_lean_stderr",
+                "local_lean_stdout_excerpt",
+                "local_lean_stderr_excerpt",
+            )
+        )
+        precheck_errors = " ".join(
+            str(error) for error in row.get("precheck_errors", []) or []
+        )
+        text = f"{precheck_errors} {text}"
+        for pattern in patterns:
+            for match in pattern.finditer(text):
+                prefix = match.group("prefix").strip().strip(".")
+                if prefix and prefix not in seen:
+                    seen.add(prefix)
+                    prefixes.append(prefix)
+    return prefixes[:8]
 
 
 def _feedback_unknown_identifiers(
