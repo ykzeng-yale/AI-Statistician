@@ -183,6 +183,17 @@ def _assert_prompt_only_staged_route_planner_summary(
     assert summary["estimated_prompt_total_token_budget"] == (
         summary["estimated_prompt_input_tokens"] + 9000
     )
+    assert summary["estimated_prompt_input_cost_micro_usd"] == (
+        summary["estimated_prompt_input_tokens"] * 3
+    )
+    assert summary["estimated_prompt_max_output_cost_micro_usd"] == 9000 * 15
+    assert summary["estimated_prompt_base_input_output_cost_micro_usd"] == (
+        summary["estimated_prompt_input_cost_micro_usd"]
+        + summary["estimated_prompt_max_output_cost_micro_usd"]
+    )
+    assert summary["n_prompt_token_budget_rows_with_estimated_base_cost"] == (
+        summary["n_prompt_token_budget_rows"]
+    )
     assert summary["prompt_token_budget_summary"]["row_count"] == (
         summary["n_prompt_token_budget_rows"]
     )
@@ -197,6 +208,10 @@ def _assert_no_route_planner_execution_summary(summary: dict[str, object]) -> No
     assert summary["live_provider_backend_requested"] is False
     assert summary["static_generator_backend_requested"] is False
     assert summary["provider_generation_requested"] is False
+    assert summary["estimated_prompt_input_cost_micro_usd"] == 0
+    assert summary["estimated_prompt_max_output_cost_micro_usd"] == 0
+    assert summary["estimated_prompt_base_input_output_cost_micro_usd"] == 0
+    assert summary["n_prompt_token_budget_rows_with_estimated_base_cost"] == 0
     assert summary["n_standalone_seed_routes_llm_fallback_routes"] == 0
     assert (
         summary["n_standalone_seed_routes_llm_fallback_routes_marked_adoptable"]
@@ -1658,6 +1673,36 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "estimated_prompt_input_cost_micro_usd"
+        ]
+        == manifest["llm_route_planner_summary"]["estimated_prompt_input_tokens"]
+        * 3
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_max_output_cost_micro_usd"
+        ]
+        == 9000 * 15
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_base_input_output_cost_micro_usd"
+        ]
+        == manifest["llm_route_planner_summary"][
+            "estimated_prompt_input_cost_micro_usd"
+        ]
+        + manifest["llm_route_planner_summary"][
+            "estimated_prompt_max_output_cost_micro_usd"
+        ]
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_prompt_token_budget_rows_with_estimated_base_cost"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_model_tier_decision_ledger_rows"
         ]
         == 1
@@ -2222,6 +2267,38 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "estimated_prompt_input_tokens"
         ]
         + 9000
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_cost_micro_usd"
+        ]
+        == manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        * 3
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_max_output_cost_micro_usd"
+        ]
+        == 9000 * 15
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_base_input_output_cost_micro_usd"
+        ]
+        == manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_cost_micro_usd"
+        ]
+        + manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_max_output_cost_micro_usd"
+        ]
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_prompt_token_budget_rows_with_estimated_base_cost"
+        ]
+        == 1
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
@@ -5387,6 +5464,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "by_request_model_tier" in llm_summary_schema["required"]
     assert "n_request_target_prover_families" in llm_summary_schema["required"]
     assert "by_request_target_prover_family" in llm_summary_schema["required"]
+    for field_name in (
+        "estimated_prompt_input_cost_micro_usd",
+        "estimated_prompt_max_output_cost_micro_usd",
+        "estimated_prompt_base_input_output_cost_micro_usd",
+        "n_prompt_token_budget_rows_with_estimated_base_cost",
+    ):
+        assert field_name in llm_summary_schema["required"]
+        assert llm_summary_schema["properties"][field_name]["type"] == "integer"
+        assert llm_summary_schema["properties"][field_name]["minimum"] == 0
     assert "n_planner_next_actions" in llm_summary_schema["required"]
     assert "n_row_residual_goal_contexts" in llm_summary_schema["required"]
     assert "n_rows_with_source_snippets" in llm_summary_schema["required"]

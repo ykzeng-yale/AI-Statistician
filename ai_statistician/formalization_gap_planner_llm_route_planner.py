@@ -1765,6 +1765,34 @@ def export_formalization_gap_planner_llm_route_planner(
             prompt_token_budget_summary.get("estimated_total_token_budget", 0)
             or 0
         ),
+        "estimated_prompt_input_cost_micro_usd": int(
+            prompt_token_budget_summary.get(
+                "estimated_prompt_input_cost_micro_usd",
+                0,
+            )
+            or 0
+        ),
+        "estimated_prompt_max_output_cost_micro_usd": int(
+            prompt_token_budget_summary.get(
+                "estimated_prompt_max_output_cost_micro_usd",
+                0,
+            )
+            or 0
+        ),
+        "estimated_prompt_base_input_output_cost_micro_usd": int(
+            prompt_token_budget_summary.get(
+                "estimated_prompt_base_input_output_cost_micro_usd",
+                0,
+            )
+            or 0
+        ),
+        "n_prompt_token_budget_rows_with_estimated_base_cost": int(
+            prompt_token_budget_summary.get(
+                "n_rows_with_estimated_prompt_base_cost",
+                0,
+            )
+            or 0
+        ),
         "n_requests_with_model_tier_decision_evidence": sum(
             1
             for packet in request_packets
@@ -5150,6 +5178,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "estimated_prompt_input_tokens",
             "estimated_prompt_max_output_tokens",
             "estimated_prompt_total_token_budget",
+            "estimated_prompt_input_cost_micro_usd",
+            "estimated_prompt_max_output_cost_micro_usd",
+            "estimated_prompt_base_input_output_cost_micro_usd",
+            "n_prompt_token_budget_rows_with_estimated_base_cost",
             "n_requests_with_model_tier_decision_evidence",
             "n_request_model_tier_decision_auto_haiku_bounded",
             "n_request_model_tier_decision_auto_sonnet_triggered",
@@ -5506,6 +5538,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "estimated_prompt_input_tokens": nonnegative_integer,
             "estimated_prompt_max_output_tokens": nonnegative_integer,
             "estimated_prompt_total_token_budget": nonnegative_integer,
+            "estimated_prompt_input_cost_micro_usd": nonnegative_integer,
+            "estimated_prompt_max_output_cost_micro_usd": nonnegative_integer,
+            "estimated_prompt_base_input_output_cost_micro_usd": nonnegative_integer,
+            "n_prompt_token_budget_rows_with_estimated_base_cost": nonnegative_integer,
             "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
             "n_request_model_tier_decision_auto_haiku_bounded": nonnegative_integer,
             "n_request_model_tier_decision_auto_sonnet_triggered": nonnegative_integer,
@@ -6474,6 +6510,34 @@ def validate_llm_route_planner_manifest(
             "estimated_prompt_total_token_budget",
             expected_prompt_token_budget_summary.get(
                 "estimated_total_token_budget",
+                0,
+            ),
+        ),
+        (
+            "estimated_prompt_input_cost_micro_usd",
+            expected_prompt_token_budget_summary.get(
+                "estimated_prompt_input_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "estimated_prompt_max_output_cost_micro_usd",
+            expected_prompt_token_budget_summary.get(
+                "estimated_prompt_max_output_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "estimated_prompt_base_input_output_cost_micro_usd",
+            expected_prompt_token_budget_summary.get(
+                "estimated_prompt_base_input_output_cost_micro_usd",
+                0,
+            ),
+        ),
+        (
+            "n_prompt_token_budget_rows_with_estimated_base_cost",
+            expected_prompt_token_budget_summary.get(
+                "n_rows_with_estimated_prompt_base_cost",
                 0,
             ),
         ),
@@ -17224,6 +17288,13 @@ def _prompt_token_budget_row(
     provider_name = str(packet.get("provider_name", "") or "")
     model = str(packet.get("model", "") or "")
     model_tier = str(packet.get("model_tier", "") or "")
+    cost_fields = _prompt_token_budget_base_cost_fields(
+        provider_name=provider_name,
+        model=model,
+        model_tier=model_tier,
+        estimated_input_tokens=estimated_input_tokens,
+        max_output_tokens=max_output_tokens,
+    )
     return {
         "budget_row_id": (
             "formalization_gap_planner_llm_route_planner_prompt_token_budget:"
@@ -17252,15 +17323,87 @@ def _prompt_token_budget_row(
         "estimated_input_tokens": estimated_input_tokens,
         "max_output_tokens": max_output_tokens,
         "estimated_total_token_budget": estimated_input_tokens + max_output_tokens,
+        **cost_fields,
         "estimation_method": "ceil(prompt_chars/4)+max_output_tokens",
         "budget_boundary": (
             "Prompt token budget rows are pre-invocation cost-control estimates. "
             "They are not provider billing records, provider usage metadata, "
-            "mathematical evidence, or theorem proof evidence."
+            "provider invoices, mathematical evidence, or theorem proof evidence."
         ),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _prompt_token_budget_base_cost_fields(
+    *,
+    provider_name: str,
+    model: str,
+    model_tier: str,
+    estimated_input_tokens: int,
+    max_output_tokens: int,
+) -> dict[str, object]:
+    tier = str(model_tier or "").strip().lower() or claude_model_tier_for_model(model)
+    if str(provider_name or "").strip().lower() != "anthropic":
+        return _empty_prompt_token_budget_cost_fields(
+            status="unsupported_provider",
+            tier=tier,
+        )
+    pricing = CLAUDE_COST_TIER_BASE_PRICING_PER_MTOK.get(tier, {})
+    if not pricing:
+        return _empty_prompt_token_budget_cost_fields(
+            status="unknown_claude_tier",
+            tier=tier,
+        )
+    input_rate = _nonnegative_int(pricing.get("input", 0))
+    output_rate = _nonnegative_int(pricing.get("output", 0))
+    input_cost = _nonnegative_int(estimated_input_tokens) * input_rate
+    output_cost = _nonnegative_int(max_output_tokens) * output_rate
+    return {
+        "prompt_cost_estimation_status": "estimated_base_input_output",
+        "prompt_cost_estimation_model_tier": tier,
+        "prompt_pricing_per_mtok": {"input": input_rate, "output": output_rate},
+        "estimated_prompt_input_cost_micro_usd": input_cost,
+        "estimated_prompt_max_output_cost_micro_usd": output_cost,
+        "estimated_prompt_base_input_output_cost_micro_usd": (
+            input_cost + output_cost
+        ),
+        "n_rows_with_estimated_prompt_base_cost": 1,
+        "prompt_cost_estimation_boundary": (
+            _prompt_token_budget_base_cost_boundary()
+        ),
+    }
+
+
+def _empty_prompt_token_budget_cost_fields(
+    *,
+    status: str,
+    tier: str,
+) -> dict[str, object]:
+    return {
+        "prompt_cost_estimation_status": status,
+        "prompt_cost_estimation_model_tier": tier,
+        "prompt_pricing_per_mtok": {},
+        "estimated_prompt_input_cost_micro_usd": 0,
+        "estimated_prompt_max_output_cost_micro_usd": 0,
+        "estimated_prompt_base_input_output_cost_micro_usd": 0,
+        "n_rows_with_estimated_prompt_base_cost": 0,
+        "prompt_cost_estimation_boundary": (
+            _prompt_token_budget_base_cost_boundary()
+        ),
+    }
+
+
+def _prompt_token_budget_base_cost_boundary() -> str:
+    return (
+        "Estimated prompt budget cost uses source-checked Claude API base "
+        "input/output pricing per MTok and deterministic pre-invocation prompt "
+        "token estimates. Max output tokens are budget ceilings, not actual "
+        "provider usage. Prompt caching, batch discounts, priority tier, beta "
+        "output tiers, cloud-platform variants, taxes, and account-specific "
+        "billing terms are excluded. This is cost-control metadata, not a "
+        "provider invoice, mathematical evidence, or theorem proof evidence."
+    )
 
 
 def _estimated_text_tokens(text: str) -> int:
@@ -17375,6 +17518,10 @@ def _empty_prompt_token_budget_bucket() -> dict[str, int]:
         "estimated_input_tokens": 0,
         "max_output_tokens": 0,
         "estimated_total_token_budget": 0,
+        "estimated_prompt_input_cost_micro_usd": 0,
+        "estimated_prompt_max_output_cost_micro_usd": 0,
+        "estimated_prompt_base_input_output_cost_micro_usd": 0,
+        "n_rows_with_estimated_prompt_base_cost": 0,
     }
 
 
@@ -17389,6 +17536,10 @@ def _add_prompt_token_budget_to_bucket(
         "estimated_input_tokens",
         "max_output_tokens",
         "estimated_total_token_budget",
+        "estimated_prompt_input_cost_micro_usd",
+        "estimated_prompt_max_output_cost_micro_usd",
+        "estimated_prompt_base_input_output_cost_micro_usd",
+        "n_rows_with_estimated_prompt_base_cost",
     ):
         bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 
@@ -39323,6 +39474,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Request model freshness warnings: {payload.get('n_request_model_freshness_warnings')}",
         f"- Prompt token budget rows: {payload.get('n_prompt_token_budget_rows')}",
         f"- Estimated prompt tokens input/max-output/total: {payload.get('estimated_prompt_input_tokens')}/{payload.get('estimated_prompt_max_output_tokens')}/{payload.get('estimated_prompt_total_token_budget')}",
+        f"- Estimated prompt base cost micro-USD input/max-output/total: {payload.get('estimated_prompt_input_cost_micro_usd')}/{payload.get('estimated_prompt_max_output_cost_micro_usd')}/{payload.get('estimated_prompt_base_input_output_cost_micro_usd')} rows={payload.get('n_prompt_token_budget_rows_with_estimated_base_cost')}",
         f"- Prompt token budget preflight blocks: {payload.get('n_prompt_token_budget_preflight_blocked')} cap={payload.get('max_estimated_prompt_input_tokens')}",
         f"- Generation preflight blocks: {payload.get('n_generation_preflight_blocked')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",

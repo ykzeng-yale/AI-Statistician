@@ -12322,6 +12322,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "estimated_prompt_input_tokens",
         "estimated_prompt_max_output_tokens",
         "estimated_prompt_total_token_budget",
+        "estimated_prompt_input_cost_micro_usd",
+        "estimated_prompt_max_output_cost_micro_usd",
+        "estimated_prompt_base_input_output_cost_micro_usd",
+        "n_prompt_token_budget_rows_with_estimated_base_cost",
     )
     for field_name in prompt_token_budget_fields:
         assert field_name in manifest_schema["required"]
@@ -12473,6 +12477,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert prompt_token_budget_row["estimated_total_token_budget"] == (
         prompt_token_budget_row["estimated_input_tokens"] + 9000
     )
+    assert prompt_token_budget_row["prompt_cost_estimation_status"] == (
+        "unsupported_provider"
+    )
+    assert prompt_token_budget_row["prompt_cost_estimation_model_tier"] == "sonnet"
+    assert prompt_token_budget_row["prompt_pricing_per_mtok"] == {}
+    assert prompt_token_budget_row["estimated_prompt_input_cost_micro_usd"] == 0
+    assert prompt_token_budget_row["estimated_prompt_max_output_cost_micro_usd"] == 0
+    assert (
+        prompt_token_budget_row["estimated_prompt_base_input_output_cost_micro_usd"]
+        == 0
+    )
+    assert prompt_token_budget_row["n_rows_with_estimated_prompt_base_cost"] == 0
     assert "not provider billing records" in prompt_token_budget_row["budget_boundary"]
     assert payload["prompt_token_budget_summary"]["row_count"] == 1
     assert payload["prompt_token_budget_summary"]["by_provider"]["static"][
@@ -12488,6 +12504,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["estimated_prompt_total_token_budget"] == (
         payload["estimated_prompt_input_tokens"] + 9000
     )
+    assert payload["estimated_prompt_input_cost_micro_usd"] == 0
+    assert payload["estimated_prompt_max_output_cost_micro_usd"] == 0
+    assert payload["estimated_prompt_base_input_output_cost_micro_usd"] == 0
+    assert payload["n_prompt_token_budget_rows_with_estimated_base_cost"] == 0
     prompt_token_budget_jsonl = (
         out_dir
         / "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl"
@@ -12717,6 +12737,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "estimated_prompt_input_tokens must match prompt_token_budget_summary"
         in validate_llm_route_planner_manifest(
             drifted_prompt_budget_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_cost_manifest = deepcopy(payload)
+    drifted_prompt_budget_cost_manifest[
+        "estimated_prompt_base_input_output_cost_micro_usd"
+    ] = 1
+    assert (
+        "estimated_prompt_base_input_output_cost_micro_usd must match prompt_token_budget_summary"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_cost_manifest,
             manifest_schema,
         )
     )
@@ -18649,6 +18680,45 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["n_provider_failures"] == 0
     assert payload["n_rows_with_generator_metadata"] == 1
     assert payload["n_rows_with_provider_usage"] == 1
+    prompt_budget_row = payload["prompt_token_budget_rows"][0]
+    assert prompt_budget_row["provider_name"] == "anthropic"
+    assert prompt_budget_row["model_tier"] == "sonnet"
+    assert prompt_budget_row["prompt_cost_estimation_status"] == (
+        "estimated_base_input_output"
+    )
+    assert prompt_budget_row["prompt_pricing_per_mtok"] == {
+        "input": 3,
+        "output": 15,
+    }
+    assert prompt_budget_row["estimated_prompt_input_cost_micro_usd"] == (
+        prompt_budget_row["estimated_input_tokens"] * 3
+    )
+    assert prompt_budget_row["estimated_prompt_max_output_cost_micro_usd"] == (
+        payload["max_tokens"] * 15
+    )
+    assert prompt_budget_row[
+        "estimated_prompt_base_input_output_cost_micro_usd"
+    ] == (
+        prompt_budget_row["estimated_prompt_input_cost_micro_usd"]
+        + prompt_budget_row["estimated_prompt_max_output_cost_micro_usd"]
+    )
+    assert prompt_budget_row["n_rows_with_estimated_prompt_base_cost"] == 1
+    assert "not a provider invoice" in prompt_budget_row[
+        "prompt_cost_estimation_boundary"
+    ]
+    assert payload["estimated_prompt_input_cost_micro_usd"] == (
+        prompt_budget_row["estimated_prompt_input_cost_micro_usd"]
+    )
+    assert payload["estimated_prompt_max_output_cost_micro_usd"] == (
+        prompt_budget_row["estimated_prompt_max_output_cost_micro_usd"]
+    )
+    assert payload["estimated_prompt_base_input_output_cost_micro_usd"] == (
+        prompt_budget_row["estimated_prompt_base_input_output_cost_micro_usd"]
+    )
+    assert payload["n_prompt_token_budget_rows_with_estimated_base_cost"] == 1
+    assert payload["prompt_token_budget_summary"]["by_model_tier"]["sonnet"][
+        "estimated_prompt_base_input_output_cost_micro_usd"
+    ] == prompt_budget_row["estimated_prompt_base_input_output_cost_micro_usd"]
     assert payload["total_provider_input_tokens"] == 123
     assert payload["total_provider_output_tokens"] == 45
     assert payload["total_provider_cache_read_input_tokens"] == 7

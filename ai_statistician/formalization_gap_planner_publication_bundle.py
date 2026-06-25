@@ -2754,6 +2754,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "estimated_prompt_input_tokens",
             "estimated_prompt_max_output_tokens",
             "estimated_prompt_total_token_budget",
+            "estimated_prompt_input_cost_micro_usd",
+            "estimated_prompt_max_output_cost_micro_usd",
+            "estimated_prompt_base_input_output_cost_micro_usd",
+            "n_prompt_token_budget_rows_with_estimated_base_cost",
             "provider_usage_summary",
             "n_rows_with_provider_usage",
             "total_provider_input_tokens",
@@ -3125,6 +3129,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "estimated_prompt_input_tokens": nonnegative_integer,
             "estimated_prompt_max_output_tokens": nonnegative_integer,
             "estimated_prompt_total_token_budget": nonnegative_integer,
+            "estimated_prompt_input_cost_micro_usd": nonnegative_integer,
+            "estimated_prompt_max_output_cost_micro_usd": nonnegative_integer,
+            "estimated_prompt_base_input_output_cost_micro_usd": nonnegative_integer,
+            "n_prompt_token_budget_rows_with_estimated_base_cost": (
+                nonnegative_integer
+            ),
             "provider_usage_summary": {"type": "object"},
             "n_rows_with_provider_usage": nonnegative_integer,
             "total_provider_input_tokens": nonnegative_integer,
@@ -6967,6 +6977,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "estimated_prompt_input_tokens": 0,
         "estimated_prompt_max_output_tokens": 0,
         "estimated_prompt_total_token_budget": 0,
+        "estimated_prompt_input_cost_micro_usd": 0,
+        "estimated_prompt_max_output_cost_micro_usd": 0,
+        "estimated_prompt_base_input_output_cost_micro_usd": 0,
+        "n_prompt_token_budget_rows_with_estimated_base_cost": 0,
         "provider_usage_summary": {},
         "n_rows_with_provider_usage": 0,
         "total_provider_input_tokens": 0,
@@ -7220,6 +7234,23 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "estimated_prompt_total_token_budget": int(
             payload.get("estimated_prompt_total_token_budget", 0) or 0
+        ),
+        "estimated_prompt_input_cost_micro_usd": int(
+            payload.get("estimated_prompt_input_cost_micro_usd", 0) or 0
+        ),
+        "estimated_prompt_max_output_cost_micro_usd": int(
+            payload.get("estimated_prompt_max_output_cost_micro_usd", 0) or 0
+        ),
+        "estimated_prompt_base_input_output_cost_micro_usd": int(
+            payload.get("estimated_prompt_base_input_output_cost_micro_usd", 0)
+            or 0
+        ),
+        "n_prompt_token_budget_rows_with_estimated_base_cost": int(
+            payload.get(
+                "n_prompt_token_budget_rows_with_estimated_base_cost",
+                0,
+            )
+            or 0
         ),
         "n_request_packets": int(
             payload.get("n_request_packets", len(rows)) or 0
@@ -10347,6 +10378,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')} "
             f"cap={payload.get('llm_route_planner_summary', {}).get('max_estimated_prompt_input_tokens')} "
+            f"base_cost_micro_usd={payload.get('llm_route_planner_summary', {}).get('estimated_prompt_base_input_output_cost_micro_usd')} "
+            f"cost_rows={payload.get('llm_route_planner_summary', {}).get('n_prompt_token_budget_rows_with_estimated_base_cost')} "
             f"blocks={payload.get('llm_route_planner_summary', {}).get('n_prompt_token_budget_preflight_blocked')}"
         ),
         (
@@ -10404,6 +10437,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')} "
             f"cap={payload.get('feedback_llm_route_planner_summary', {}).get('max_estimated_prompt_input_tokens')} "
+            f"base_cost_micro_usd={payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_base_input_output_cost_micro_usd')} "
+            f"cost_rows={payload.get('feedback_llm_route_planner_summary', {}).get('n_prompt_token_budget_rows_with_estimated_base_cost')} "
             f"blocks={payload.get('feedback_llm_route_planner_summary', {}).get('n_prompt_token_budget_preflight_blocked')}"
         ),
         (
