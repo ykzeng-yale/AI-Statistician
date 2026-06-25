@@ -202,7 +202,7 @@
     "project .env is not present in the repo worktree",
     "AXLE is not configured in the local runtime environment used for this chat",
     "OpenProver checkout is not present at the default /Users/yukang/Documents/OpenProver/src path",
-    "latest local AgentRuntime regressions cover generated AlgorithmEngineer and SimulationEngineer fail-then-pass repair sequences, but the freshest live resumed runtime still records generated_algorithm_failed_then_passed_repair_sequences=0 and generated_simulation_failed_then_passed_repair_sequences=1",
+    "latest local AgentRuntime regressions cover generated AlgorithmEngineer and SimulationEngineer fail-then-pass repair sequences, but the freshest live resumed runtime still records generated_algorithm_failed_then_passed_repair_sequences=0 while generated_simulation_failed_then_passed_repair_sequences=1 and Formalizer Lean repair sequences=1",
     "Formalizer/ProofEngineer now has one live failed-then-passed local Lean repair sequence, but it is a source_theorem_target_known=false diagnostic helper and not proof of the intended conformal source theorem",
     "latest Formalizer/Critic blocker is the unavailable Mathlib module prefix for registered Mathlib-backed formal subclaims in the configured legacy Lean project",
     "no real kernel-verified subclaim or full frontier theorem proof is present"
