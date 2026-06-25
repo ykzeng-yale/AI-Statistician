@@ -219,3 +219,17 @@ runtime learning export carries the same materialization contract. This is an
 evidence-boundary contract, not a conformal theorem heuristic: it prevents
 proof-body work from being queued until the LLM/prover stack has produced a
 concrete candidate artifact that local Lean/AXLE can inspect.
+
+The follow-up correction keeps that contract alive across long resume chains.
+Runtime memory compaction now pins candidate-materialization blocker rows, the
+resume-context merge remains bounded by `max_rows`, and Critic recomputes its
+proof-bank summary from the current runtime memory before issuing
+Formalizer/ProofEngineer feedback. The live bounded probe
+`runs/main_worker_live_runtime_resume_critic_materialization_request_bounded_probe/research_agent_runtime_manifest.json`
+ended at the expected `42/49` scorecard gate with
+`runtime_learning_memory.rows_loaded=20`, 4 pinned materialization rows, and a
+pending FormalizationEvaluator task carrying
+`SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED`. This is still
+non-evidence orchestration; it tells Claude/ProofEngineer/prover adapters to
+materialize an exact Lean candidate artifact before signature probes or
+proof-body work, rather than letting AgentRuntime invent another local repair.

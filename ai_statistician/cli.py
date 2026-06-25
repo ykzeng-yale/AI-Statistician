@@ -763,7 +763,24 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
             else:
                 errors.append(f"{path}:{line_no}: expected JSON object")
     row_limit = max(int(max_rows or 0), 0)
-    rows = all_rows[-row_limit:] if row_limit else []
+    rows: list[dict[str, object]] = []
+    retention_policy = "latest_rows"
+    if row_limit:
+        pinned_rows = [
+            row for row in all_rows if _runtime_learning_memory_should_pin_row(row)
+        ][-row_limit:]
+        latest_rows = all_rows[-row_limit:]
+        seen: set[str] = set()
+        for row in [*pinned_rows, *latest_rows]:
+            fingerprint = json.dumps(row, sort_keys=True, ensure_ascii=False)
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            rows.append(row)
+            if len(rows) >= row_limit:
+                break
+        if pinned_rows:
+            retention_policy = "priority_pinned_latest_rows"
     return {
         "schema_version": 1,
         "artifact_kind": "RuntimeLearningMemoryContext",
@@ -775,7 +792,7 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
             "source_paths": len(paths),
             "errors": len(errors),
             "max_rows": max_rows,
-            "retention_policy": "latest_rows",
+            "retention_policy": retention_policy,
         },
         "errors": errors[:10],
         "boundary": (
@@ -783,6 +800,35 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
             "They are not proof evidence, simulation evidence, execution evidence, or source authority."
         ),
     }
+
+
+def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return True
+    materialization_failures = {
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_artifact_missing",
+    }
+    failure = str(row.get("failure_classification", "") or "")
+    input_failure = str(input_summary.get("failure_classification", "") or "")
+    if failure in materialization_failures or input_failure in materialization_failures:
+        return True
+    for probe_row in input_summary.get("signature_probe_rows", []) or []:
+        if not isinstance(probe_row, Mapping):
+            continue
+        probe_failure = str(probe_row.get("failure_classification", "") or "")
+        if bool(probe_row.get("candidate_materialization_required", False)):
+            return True
+        if probe_failure in materialization_failures:
+            return True
+    return False
 
 
 def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str, object]:
@@ -930,6 +976,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "adapter_instantiation_group_id",
         "shared_adapter_instantiation_contract",
         "semantic_anchor_reference_gate",
+        "candidate_materialization_required",
+        "candidate_materialization_contract",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
@@ -990,6 +1038,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "target_theorem_goal_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
+        "candidate_materialization_statuses",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -1040,9 +1089,23 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "source_to_bridge_grouped_premise_derivation_candidate_request_id",
             "source_to_bridge_premise_derivation_source_candidate_request_id",
             "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
+            "candidate_materialization_required",
+            "candidate_materialization_contract",
         ):
             if key not in compact and input_summary.get(key) not in (None, "", [], {}):
                 compact[key] = input_summary[key]
+        for key in ("candidate_materialization_statuses",):
+            value = input_summary.get(key)
+            if (
+                key not in compact
+                and isinstance(value, list)
+                and value
+            ):
+                compact[key] = [
+                    _compact_runtime_learning_value(item)
+                    for item in value[:12]
+                    if str(item).strip()
+                ]
         for key in (
             "source_to_bridge_premise_derivation_candidate_request",
             "source_to_bridge_grouped_premise_derivation_candidate_request",
@@ -1189,6 +1252,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "adapter_instantiation_group_id",
         "shared_adapter_instantiation_contract",
         "semantic_anchor_reference_gate",
+        "candidate_materialization_required",
+        "candidate_materialization_contract",
     )
     list_keys = (
         "target_ids",
@@ -1250,6 +1315,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_metadata_blocker_helper_candidate_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
+        "candidate_materialization_statuses",
     )
     mapping_keys = (
         "formalization_counts",

@@ -370,6 +370,25 @@ keeps that contract in runtime learning rows so Formalizer/ProofEngineer must
 materialize an exact Lean candidate before signature probing or proof-body
 execution can run.
 
+The follow-up materialization-contract probe at
+`runs/main_worker_live_runtime_resume_candidate_materialization_contract_followup_probe/research_agent_runtime_manifest.json`
+exercised that bridge live: 6 formal-environment work orders produced 6
+signature-probe rows, all blocked as
+`SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT`, with zero proof-body queue
+rows and scorecard `42/49`. The next runtime design mistake was memory routing,
+not theorem logic: bounded resume memory could drop those materialization rows
+or merge them past the `max_rows` cap, so Critic saw only generic formal gaps.
+The runtime now pins candidate-materialization rows during memory compaction,
+keeps merged runtime memory bounded, recomputes the Critic proof-bank summary
+from current memory, and emits a typed
+`SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED` request for
+Formalizer/ProofEngineer/LeanProver. The live bounded probe
+`runs/main_worker_live_runtime_resume_critic_materialization_request_bounded_probe/research_agent_runtime_manifest.json`
+confirmed the handoff: pending task
+`formalize-critic-repair:conformal_prediction_coverage:c3d1341e` has 4 formal
+blocker requests, including the materialization request, and
+`runtime_learning_memory.rows_loaded=20` with 4 pinned materialization rows.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

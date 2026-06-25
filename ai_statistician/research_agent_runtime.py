@@ -7391,6 +7391,10 @@ class CriticEvaluatorRuntimeSubsystem:
         simulation_manifest = _latest_artifact(blackboard, "simulation_manifest:")
         algorithm_manifest = _latest_artifact(blackboard, "algorithm_sandbox_manifest:")
         formalization_manifest = _latest_artifact(blackboard, "formalization_manifest:")
+        formalization_manifest = _formalization_manifest_with_runtime_memory_summary(
+            formalization_manifest,
+            context,
+        )
         agenda = _critic_next_action_agenda(
             question=question,
             retrieval_manifest=retrieval_manifest,
@@ -18222,19 +18226,39 @@ def _merge_runtime_learning_memory_context(
     rows = [
         row
         for row in [
-            *(incoming_context.get("rows", []) or []),
             *(existing_context.get("rows", []) or []),
+            *(incoming_context.get("rows", []) or []),
         ]
         if isinstance(row, Mapping)
     ]
+    existing_counts = dict(existing_context.get("counts", {}) or {})
+    incoming_counts = dict(incoming_context.get("counts", {}) or {})
+    row_limit = max(
+        int(
+            incoming_counts.get(
+                "max_rows",
+                existing_counts.get("max_rows", len(rows)),
+            )
+            or 0
+        ),
+        0,
+    )
+    pinned_rows = [
+        row for row in rows if _runtime_learning_memory_should_pin_context_row(row)
+    ]
+    retention_candidates = (
+        [*pinned_rows[-row_limit:], *rows[-row_limit:]] if row_limit else rows
+    )
     deduped_rows: list[dict[str, Any]] = []
     seen_rows: set[str] = set()
-    for row in rows:
+    for row in retention_candidates:
         fingerprint = stable_hash(row)
         if fingerprint in seen_rows:
             continue
         seen_rows.add(fingerprint)
         deduped_rows.append(dict(row))
+        if row_limit and len(deduped_rows) >= row_limit:
+            break
     merged["schema_version"] = int(
         incoming_context.get(
             "schema_version",
@@ -18251,9 +18275,30 @@ def _merge_runtime_learning_memory_context(
     )
     merged["source_paths"] = list(dict.fromkeys(source_paths))
     merged["rows"] = deduped_rows
-    counts = dict(existing_context.get("counts", {}) or {})
-    counts.update(dict(incoming_context.get("counts", {}) or {}))
+    counts = dict(existing_counts)
+    counts.update(incoming_counts)
     counts["rows_loaded"] = len(deduped_rows)
+    counts["rows_seen"] = max(
+        int(
+            existing_counts.get(
+                "rows_seen",
+                len(existing_context.get("rows", []) or []),
+            )
+            or 0
+        ),
+        int(
+            incoming_counts.get(
+                "rows_seen",
+                len(incoming_context.get("rows", []) or []),
+            )
+            or 0
+        ),
+        len(rows),
+    )
+    if row_limit:
+        counts["max_rows"] = row_limit
+    if pinned_rows:
+        counts["retention_policy"] = "priority_pinned_latest_rows"
     counts["source_paths"] = len(merged["source_paths"])
     if existing_context.get("counts") or incoming_context.get("counts"):
         counts["errors"] = int(
@@ -18261,6 +18306,33 @@ def _merge_runtime_learning_memory_context(
         ) + int((incoming_context.get("counts", {}) or {}).get("errors", 0) or 0)
     merged["counts"] = counts
     return merged
+
+
+def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return True
+    materialization_failures = {
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_artifact_missing",
+    }
+    failure = str(row.get("failure_classification", "") or "")
+    input_failure = str(input_summary.get("failure_classification", "") or "")
+    if failure in materialization_failures or input_failure in materialization_failures:
+        return True
+    for probe_row in input_summary.get("signature_probe_rows", []) or []:
+        if not isinstance(probe_row, Mapping):
+            continue
+        probe_failure = str(probe_row.get("failure_classification", "") or "")
+        if bool(probe_row.get("candidate_materialization_required", False)):
+            return True
+        if probe_failure in materialization_failures:
+            return True
+    return False
 
 
 def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]:
@@ -18517,6 +18589,7 @@ def _critic_should_route_to_formalizer_proofengineer(
         "source_theorem_diagnostic_helper_bridge_or_blocker",
         "source_to_bridge_premise_derivation_required",
         "source_theorem_exact_semantic_definition_repair",
+        "source_theorem_exact_candidate_materialization_required",
         "source_theorem_exact_proof_body_repair",
         "source_theorem_proof_body_adapter_required",
         "source_theorem_exact_semantics_or_theorem_promotion",
@@ -18559,6 +18632,75 @@ def _critic_should_route_to_formalizer_proofengineer(
         ):
             return True
     return False
+
+
+def _formalization_manifest_with_runtime_memory_summary(
+    formalization_manifest: Mapping[str, Any],
+    context: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    memory = (
+        context.get("runtime_learning_memory", {})
+        if isinstance(context, Mapping)
+        else {}
+    )
+    if not (
+        isinstance(formalization_manifest, Mapping)
+        and isinstance(memory, Mapping)
+        and memory.get("artifact_kind") == "RuntimeLearningMemoryContext"
+    ):
+        return formalization_manifest
+    proof_bank_obligation_catalog = [
+        row
+        for row in formalization_manifest.get(
+            "registered_proof_bank_obligation_catalog", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    theorem_goals = [
+        row
+        for row in formalization_manifest.get("deterministic_theorem_goals", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    catalog_ids = tuple(
+        str(row.get("obligation_id", "") or "").strip()
+        for row in proof_bank_obligation_catalog
+        if str(row.get("obligation_id", "") or "").strip()
+    )
+    memory_kernel_verified_ids = (
+        _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+            context,
+            catalog_ids=catalog_ids,
+        )
+    )
+    memory_prioritized_ids, _off_catalog_ids, _rejected_ids = (
+        _runtime_learning_memory_proof_obligation_ids(
+            context,
+            catalog_ids=catalog_ids,
+        )
+    )
+    runtime_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context=context,
+        proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+        theorem_goals=theorem_goals,  # type: ignore[arg-type]
+        memory_kernel_verified_proof_obligation_ids=memory_kernel_verified_ids,
+        memory_prioritized_proof_obligation_ids=memory_prioritized_ids,
+    )
+    existing_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    merged_manifest = dict(formalization_manifest)
+    merged_manifest["proof_bank_runtime_memory_summary"] = {
+        **dict(existing_summary),
+        **runtime_summary,
+    }
+    return merged_manifest
 
 
 def _critic_repair_feedback(
@@ -18709,6 +18851,74 @@ def _critic_formal_blocker_resource_requests(
             blocker_kind=str(row.get("kind", "") or ""),
             blocker=str(row.get("gap", "") or ""),
             next_owner=str(row.get("next_owner", "") or ""),
+        )
+
+    proof_bank_memory_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if proof_bank_memory_summary.get(
+        "source_theorem_candidate_materialization_required", False
+    ):
+        materialization_targets = [
+            str(value).strip()
+            for value in proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        materialization_statuses = [
+            str(value).strip()
+            for value in proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_required_statuses",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        missing_symbols = [
+            str(value).strip()
+            for value in proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_missing_formal_symbols",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        materialization_contract = str(
+            proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_contract", ""
+            )
+            or ""
+        ).strip()
+        blocker_parts = [
+            materialization_contract
+            or (
+                "Materialize an exact source-theorem Lean candidate artifact "
+                "before signature probes or proof-body execution can run."
+            ),
+        ]
+        if materialization_statuses:
+            blocker_parts.append(
+                "signature_probe_statuses="
+                + ", ".join(materialization_statuses[:4])
+            )
+        if missing_symbols:
+            blocker_parts.append(
+                "missing_formal_symbols=" + ", ".join(missing_symbols[:8])
+            )
+        add_request(
+            source="proof_bank_runtime_memory_summary",
+            blocker_kind="SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED",
+            blocker="; ".join(blocker_parts),
+            next_owner="Formalizer/ProofEngineer/LeanProver",
+            target_ids_override=materialization_targets,
         )
 
     for row in agenda:
@@ -20302,6 +20512,8 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
 
 _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
     {
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_artifact_missing",
         "formal_environment_placeholder_primitives",
         "formal_environment_typeclass_blockers_unreviewed",
         "lean_import_environment_missing",
@@ -20980,6 +21192,67 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "source_theorem_truth_table_feedback"
             or trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
         )
+        is_source_theorem_formal_environment_feedback = (
+            str(row.get("learning_task", "") or "")
+            == "source_theorem_formal_environment_repair_feedback"
+        )
+        candidate_materialization_required = bool(
+            row.get("candidate_materialization_required", False)
+        )
+        candidate_materialization_statuses = [
+            str(value).strip()
+            for value in row.get("candidate_materialization_statuses", []) or []
+            if str(value).strip()
+        ]
+        candidate_materialization_contract = str(
+            row.get("candidate_materialization_contract", "") or ""
+        ).strip()
+        if isinstance(input_summary, Mapping):
+            candidate_materialization_required = bool(
+                candidate_materialization_required
+                or input_summary.get("candidate_materialization_required", False)
+            )
+            candidate_materialization_statuses.extend(
+                str(value).strip()
+                for value in input_summary.get(
+                    "candidate_materialization_statuses", []
+                )
+                or []
+                if str(value).strip()
+            )
+            if not candidate_materialization_contract:
+                candidate_materialization_contract = str(
+                    input_summary.get("candidate_materialization_contract", "")
+                    or ""
+                ).strip()
+            for probe_row in input_summary.get("signature_probe_rows", []) or []:
+                if not isinstance(probe_row, Mapping):
+                    continue
+                probe_failure = str(
+                    probe_row.get("failure_classification", "") or ""
+                ).strip()
+                candidate_materialization_required = bool(
+                    candidate_materialization_required
+                    or probe_row.get("candidate_materialization_required", False)
+                    or probe_failure
+                    in {
+                        "source_theorem_candidate_materialization_required",
+                        "source_theorem_candidate_artifact_missing",
+                    }
+                )
+                probe_status = str(
+                    probe_row.get("signature_probe_status", "") or ""
+                ).strip()
+                if probe_status:
+                    candidate_materialization_statuses.append(probe_status)
+                if not candidate_materialization_contract:
+                    candidate_materialization_contract = str(
+                        probe_row.get("candidate_materialization_contract", "")
+                        or ""
+                    ).strip()
+        candidate_materialization_statuses = list(
+            dict.fromkeys(candidate_materialization_statuses)
+        )
         truth_premise_derivation_gap_kind = str(
             row.get("premise_derivation_gap_kind", "") or ""
         ).strip()
@@ -21069,6 +21342,8 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 == "source_to_bridge_premise_semantic_repair_feedback"
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK"
             )
+        if is_source_theorem_formal_environment_feedback and not trigger:
+            trigger = "SOURCE_THEOREM_EXACT_CANDIDATE_FORMAL_ENVIRONMENT_GAP"
         if is_exact_semantic_definition_work_order and not trigger:
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER"
         if is_exact_semantic_definition_source_lookup and not trigger:
@@ -21107,6 +21382,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and not is_source_theorem_proof_body_adapter_feedback
             and not is_source_to_bridge_premise_derivation_feedback
             and not is_source_theorem_truth_table_feedback
+            and not is_source_theorem_formal_environment_feedback
             and str(row.get("learning_task", "") or "")
             != "source_theorem_exact_candidate_lean_feedback"
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
@@ -21605,6 +21881,27 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             failure_classification = str(
                 input_summary.get("failure_classification", "") or ""
             )
+            if candidate_materialization_required:
+                if failure_classification and failure_classification not in {
+                    "source_theorem_candidate_materialization_required",
+                    "source_theorem_candidate_artifact_missing",
+                }:
+                    diagnostics.append(
+                        "source_failure_classification="
+                        + failure_classification[:160]
+                    )
+                failure_classification = (
+                    "source_theorem_candidate_materialization_required"
+                )
+                if candidate_materialization_contract:
+                    diagnostics.append(
+                        "candidate_materialization_contract="
+                        + candidate_materialization_contract[:180]
+                    )
+                diagnostics.extend(
+                    "candidate_materialization_status=" + value[:120]
+                    for value in candidate_materialization_statuses[:3]
+                )
             generated_next_action_routing = (
                 str(row.get("learning_task", "") or "")
                 == "generated_next_action_routing"
@@ -22659,6 +22956,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "source_theorem_kernel_evidence_eligible": (
                     source_theorem_kernel_evidence_eligible
                 ),
+                "candidate_materialization_required": (
+                    candidate_materialization_required
+                ),
+                "candidate_materialization_statuses": list(
+                    candidate_materialization_statuses
+                ),
+                "candidate_materialization_contract": (
+                    candidate_materialization_contract
+                ),
                 "proof_body_gate_status": proof_body_gate_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
                 "proof_body_attempted": proof_body_attempted,
@@ -23562,6 +23868,47 @@ def _formalizer_proof_bank_runtime_memory_summary(
         in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
     )
     exact_candidate_environment_gap = bool(exact_candidate_environment_gap_rows)
+    exact_candidate_materialization_required_rows = tuple(
+        row
+        for row in source_theorem_exact_candidate_repairs
+        if bool(row.get("candidate_materialization_required", False))
+        or str(row.get("failure_classification", "") or "").strip()
+        in {
+            "source_theorem_candidate_materialization_required",
+            "source_theorem_candidate_artifact_missing",
+        }
+    )
+    exact_candidate_materialization_required_targets = tuple(
+        dict.fromkeys(
+            str(row.get("target_theorem_name", "") or "").strip()
+            for row in exact_candidate_materialization_required_rows
+            if str(row.get("target_theorem_name", "") or "").strip()
+        )
+    )
+    exact_candidate_materialization_required_statuses = tuple(
+        dict.fromkeys(
+            str(status).strip()
+            for row in exact_candidate_materialization_required_rows
+            for status in row.get("candidate_materialization_statuses", []) or []
+            if str(status).strip()
+        )
+    )
+    exact_candidate_materialization_missing_symbols = tuple(
+        dict.fromkeys(
+            str(symbol).strip()
+            for row in exact_candidate_materialization_required_rows
+            for symbol in row.get("missing_formal_symbols", []) or []
+            if str(symbol).strip()
+        )
+    )
+    exact_candidate_materialization_contract = next(
+        (
+            str(row.get("candidate_materialization_contract", "") or "").strip()
+            for row in exact_candidate_materialization_required_rows
+            if str(row.get("candidate_materialization_contract", "") or "").strip()
+        ),
+        "",
+    )
     exact_semantic_definition_compiled_import_candidates = tuple(
         row
         for row in source_theorem_exact_candidate_repairs
@@ -24312,6 +24659,21 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "source_theorem_exact_candidate_environment_gap": (
             exact_candidate_environment_gap
+        ),
+        "source_theorem_candidate_materialization_required": bool(
+            exact_candidate_materialization_required_rows
+        ),
+        "source_theorem_candidate_materialization_required_target_names": list(
+            exact_candidate_materialization_required_targets
+        ),
+        "source_theorem_candidate_materialization_required_statuses": list(
+            exact_candidate_materialization_required_statuses
+        ),
+        "source_theorem_candidate_materialization_missing_formal_symbols": list(
+            exact_candidate_materialization_missing_symbols
+        ),
+        "source_theorem_candidate_materialization_contract": (
+            exact_candidate_materialization_contract
         ),
         "source_theorem_exact_semantic_definition_repair_required": (
             exact_semantic_definition_repair_required
@@ -25440,6 +25802,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if exact_source_proof_body_adapter_required
             else "repair_exact_source_theorem_candidate_proof_body"
             if exact_source_proof_body_repair_required
+            else "materialize_exact_source_theorem_candidate"
+            if exact_candidate_materialization_required_rows
             else "repair_exact_source_theorem_candidate_formal_environment"
             if exact_candidate_environment_gap
             else "review_import_compiled_exact_semantic_definition_candidates"
@@ -25469,6 +25833,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if exact_source_proof_body_adapter_required
             else "source_theorem_exact_proof_body_repair"
             if exact_source_proof_body_repair_required
+            else "source_theorem_exact_candidate_materialization_required"
+            if exact_candidate_materialization_required_rows
             else "theorem_level_reduction_closure"
             if theorem_reduction_closure_required
             else "source_theorem_exact_semantics_or_theorem_promotion"

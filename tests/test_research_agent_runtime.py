@@ -89,6 +89,7 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     SimulationEvaluatorRuntimeSubsystem,
     _critic_learning_rows,
+    _critic_formal_blocker_resource_requests,
     _critic_next_action_agenda,
     _proof_bank_obligation_request_ids,
     _registered_algorithm_template_hint,
@@ -363,6 +364,119 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     assert (
         critic_manifest["runtime_reroute_decision"]["reroute_to_theory_developer"]
         is False
+    )
+
+
+def test_critic_handoff_recomputes_materialization_request_from_runtime_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "learning_task": "retrieval_to_theory_context",
+            "target_behavior": f"stale row {index}",
+        }
+        for index in range(25)
+    ]
+    rows.insert(
+        5,
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "learning_task": "source_theorem_formal_environment_repair_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_materialization_required": True,
+            "candidate_materialization_statuses": [
+                "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+            ],
+            "candidate_materialization_contract": (
+                "Formalizer/ProofEngineer must materialize an exact "
+                "source-theorem Lean candidate artifact before signature probes "
+                "or proof-body execution can run."
+            ),
+            "input_summary": {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "candidate_materialization_required": True,
+                "candidate_materialization_statuses": [
+                    "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+                ],
+                "missing_formal_symbols": ["C_n"],
+            },
+        },
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path], max_rows=20)
+    blackboard = BlackboardState(project_id="critic-materialization-memory-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+            },
+            "theory_derivation:test": {
+                "artifact_kind": "RuntimeTheoryDerivationPacket",
+                "packet_id": "theory_derivation:test",
+            },
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+                "deterministic_theorem_goals": [
+                    {
+                        "id": "split_conformal_finite_sample_coverage",
+                        "status": "FORMAL_GAP",
+                    }
+                ],
+                "proof_bank_runtime_memory_summary": {},
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:materialization",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate runtime artifacts.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_learning_memory": memory,
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                },
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    requests = result.next_task.inputs["environment_feedback"][
+        "formal_blocker_resource_requests"
+    ]
+    assert any(
+        row["blocker_kind"] == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+        and row["source"] == "proof_bank_runtime_memory_summary"
+        for row in requests
     )
 
 
@@ -5371,6 +5485,158 @@ def test_runtime_learning_memory_loader_retains_latest_diagnostic_helper(
     assert summary["formalizer_diagnostic_helper_integration_required"] is True
     assert summary["recommended_formalizer_target_mode"] == (
         "source_theorem_diagnostic_helper_bridge_or_blocker"
+    )
+
+
+def test_runtime_learning_memory_loader_pins_candidate_materialization_blocker(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "retrieval_to_theory_context",
+            "target_behavior": f"stale row {index}",
+        }
+        for index in range(25)
+    ]
+    rows.insert(
+        4,
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "source_theorem_formal_environment_repair_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_materialization_required": True,
+            "candidate_materialization_statuses": [
+                "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+            ],
+            "candidate_materialization_contract": (
+                "Formalizer/ProofEngineer must materialize an exact "
+                "source-theorem Lean candidate artifact before signature probes "
+                "or proof-body execution can run."
+            ),
+            "input_summary": {
+                "candidate_artifact_path": "",
+                "candidate_materialization_required": True,
+                "candidate_materialization_statuses": [
+                    "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+                ],
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "missing_formal_symbols": ["coverage_event"],
+            },
+        },
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=20)
+
+    assert memory["counts"]["rows_seen"] == 26
+    assert memory["counts"]["rows_loaded"] == 20
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert any(
+        row.get("learning_task") == "source_theorem_formal_environment_repair_feedback"
+        and row.get("candidate_materialization_required") is True
+        for row in memory["rows"]
+    )
+    assert not any(
+        row.get("target_behavior") == "stale row 0" for row in memory["rows"]
+    )
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_candidate_materialization_required"] is True
+
+
+def test_runtime_learning_memory_merge_remains_bounded_with_pinned_blocker() -> None:
+    materialization_row = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_formal_environment_repair_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "candidate_materialization_required": True,
+        "candidate_materialization_statuses": [
+            "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+        ],
+        "input_summary": {
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "candidate_materialization_required": True,
+        },
+    }
+    existing = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "source_paths": ["old/runtime_learning_rows.jsonl"],
+        "rows": [
+            {
+                "schema_version": 1,
+                "learning_task": "retrieval_to_theory_context",
+                "target_behavior": f"old row {index}",
+            }
+            for index in range(78)
+        ],
+        "counts": {
+            "rows_loaded": 78,
+            "rows_seen": 78,
+            "source_paths": 1,
+            "errors": 0,
+            "max_rows": 20,
+            "retention_policy": "latest_rows",
+        },
+    }
+    incoming = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "source_paths": ["new/runtime_learning_rows.jsonl"],
+        "rows": [
+            materialization_row,
+            *[
+                {
+                    "schema_version": 1,
+                    "learning_task": "retrieval_to_theory_context",
+                    "target_behavior": f"new row {index}",
+                }
+                for index in range(25)
+            ],
+        ],
+        "counts": {
+            "rows_loaded": 20,
+            "rows_seen": 26,
+            "source_paths": 1,
+            "errors": 0,
+            "max_rows": 20,
+            "retention_policy": "priority_pinned_latest_rows",
+        },
+    }
+
+    merged = runtime_module._merge_runtime_learning_memory_context(
+        existing,
+        incoming,
+    )
+
+    assert merged["counts"]["rows_loaded"] == 20
+    assert len(merged["rows"]) == 20
+    assert merged["counts"]["max_rows"] == 20
+    assert merged["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert any(
+        row.get("candidate_materialization_required") is True
+        for row in merged["rows"]
+    )
+    assert not any(
+        row.get("target_behavior") == "old row 0" for row in merged["rows"]
     )
 
 
@@ -18317,6 +18583,112 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
         "lean_import_environment_missing"
     )
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
+def test_critic_memory_routes_candidate_materialization_blocker_request() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    materialization_row = {
+        "learning_task": "source_theorem_formal_environment_repair_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "candidate_materialization_required": True,
+        "candidate_materialization_statuses": [
+            "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+        ],
+        "candidate_materialization_contract": (
+            "Formalizer/ProofEngineer must materialize an exact source-theorem "
+            "Lean candidate artifact before signature probes or proof-body "
+            "execution can run."
+        ),
+        "input_summary": {
+            "trigger": "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_REQUIRED",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_artifact_path": "",
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "candidate_materialization_required": True,
+            "candidate_materialization_statuses": [
+                "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+            ],
+            "missing_formal_symbols": ["coverage_event", "good_rank_event"],
+            "signature_probe_rows": [
+                {
+                    "failure_classification": (
+                        "source_theorem_candidate_materialization_required"
+                    ),
+                    "signature_probe_status": (
+                        "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+                    ),
+                    "candidate_materialization_required": True,
+                    "diagnostics": ["candidate_artifact_path missing"],
+                }
+            ],
+        },
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {"kernel_verified_proof_obligation_ids": verified_ids},
+                    materialization_row,
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_environment_gap"] is True
+    assert summary["source_theorem_candidate_materialization_required"] is True
+    assert summary["source_theorem_candidate_materialization_required_target_names"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["source_theorem_candidate_materialization_required_statuses"] == [
+        "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+    ]
+    assert summary["source_theorem_candidate_materialization_missing_formal_symbols"] == [
+        "coverage_event",
+        "good_rank_event",
+    ]
+    assert "source_theorem_candidate_materialization_required" in summary[
+        "source_theorem_exact_candidate_failure_classifications"
+    ]
+
+    requests = _critic_formal_blocker_resource_requests(
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:candidate_materialization",
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": summary,
+        },
+        agenda=[],
+    )
+
+    materialization_request = next(
+        row
+        for row in requests
+        if row["blocker_kind"]
+        == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    )
+    assert materialization_request["source"] == "proof_bank_runtime_memory_summary"
+    assert materialization_request["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert "exact source-theorem Lean candidate artifact" in materialization_request[
+        "blocker"
+    ]
+    assert "coverage_event" in materialization_request["blocker"]
+    assert materialization_request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
