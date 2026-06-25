@@ -5132,6 +5132,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             None,
         )
         diagnostic_row = {
+            "lean_source_excerpt": str(
+                candidate.get("lean_source_excerpt", "") or ""
+            )[:500],
             "precheck_status": str(candidate.get("precheck_status", "") or ""),
             "precheck_errors": list(candidate.get("precheck_errors", []) or []),
             "local_lean_exit_status": str(
@@ -6029,6 +6032,7 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         "unknown module prefix" in local_lean_text
         or "no directory" in local_lean_text
         or "imports unavailable module" in local_lean_text
+        or "imports unavailable umbrella module" in local_lean_text
         or "unavailable module" in local_lean_text
     ):
         classes.append("lean_import_environment_missing")
@@ -6089,20 +6093,34 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         unavailable_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
             diagnostics
         )
-        if unavailable_prefixes:
-            contract["blocked_import_prefixes"] = unavailable_prefixes
+        mathlib_root_import_unavailable = (
+            "Mathlib" in unavailable_prefixes
+            and _formalizer_diagnostics_import_exact_module(diagnostics, "Mathlib")
+        )
+        blocked_import_prefixes = [
+            value
+            for value in unavailable_prefixes
+            if not (value == "Mathlib" and mathlib_root_import_unavailable)
+        ]
+        if blocked_import_prefixes:
+            contract["blocked_import_prefixes"] = blocked_import_prefixes
             contract["blocked_import_repair_rule"] = (
                 "Do not import any blocked prefix or submodule in the next candidate. "
                 "Use no imports, an import already verified in this same configured "
                 "Lake project, or emit a FORMAL_GAP/dependency blocker."
             )
-        if "Mathlib" in unavailable_prefixes:
+        if mathlib_root_import_unavailable or "Mathlib" in unavailable_prefixes:
             contract["mathlib_import_unavailable"] = True
+            if mathlib_root_import_unavailable:
+                contract["mathlib_root_import_unavailable"] = True
             contract["mathlib_repair_rule"] = (
                 "The configured Lake environment reported the Mathlib import root as "
-                "unavailable. Do not retry `import Mathlib` or `import Mathlib.*`. "
-                "If the statistical theorem needs Mathlib-only measure/probability "
-                "APIs, fail closed with FORMAL_GAP rather than guessing imports."
+                "unavailable. Do not retry the umbrella import `import Mathlib`. "
+                "This does not block narrow `Mathlib.*` module imports that are "
+                "verified in the configured Lake project or listed as "
+                "suggested_import_replacements. If the statistical theorem still "
+                "needs unavailable measure/probability APIs, fail closed with "
+                "FORMAL_GAP rather than guessing imports."
             )
             contract["core_lean_diagnostic_helper_shape"] = (
                 "If capability-eval still needs a materialized helper, emit at most one "
@@ -6253,6 +6271,11 @@ def _formalizer_unavailable_import_prefixes_from_diagnostics(
             r"(?P<prefix>[A-Za-z0-9_.]+)",
             re.IGNORECASE,
         ),
+        re.compile(
+            r"Lean candidate imports unavailable umbrella module in configured project:\s*"
+            r"(?P<prefix>[A-Za-z0-9_.]+)",
+            re.IGNORECASE,
+        ),
     )
     prefixes: list[str] = []
     seen: set[str] = set()
@@ -6273,6 +6296,23 @@ def _formalizer_unavailable_import_prefixes_from_diagnostics(
                     seen.add(prefix)
                     prefixes.append(prefix)
     return prefixes[:8]
+
+
+def _formalizer_diagnostics_import_exact_module(
+    diagnostics: Sequence[Mapping[str, Any]],
+    module: str,
+) -> bool:
+    pattern = re.compile(r"^\s*import\s+(?P<modules>.+?)\s*$")
+    for row in diagnostics:
+        source = str(row.get("lean_source_excerpt", "") or "")
+        for line in source.splitlines():
+            match = pattern.match(line)
+            if not match:
+                continue
+            modules = [value.strip() for value in match.group("modules").split()]
+            if module in modules:
+                return True
+    return False
 
 
 def _formalizer_import_replacement_suggestions(
@@ -6575,7 +6615,41 @@ def _formalizer_import_precheck_errors(
     roots = _lean_project_import_roots(project)
     errors: list[str] = []
     for module in imports:
+        if (
+            module == "Mathlib"
+            and _lean_module_directory_exists(module, roots)
+            and not _lean_compiled_module_exists(module, roots)
+        ):
+            suggestions = _lean_umbrella_module_import_suggestions(module, roots)
+            suggestion_text = (
+                "; verified narrow module(s): " + ", ".join(suggestions)
+                if suggestions
+                else ""
+            )
+            errors.append(
+                "Lean candidate imports unavailable umbrella module in configured "
+                "project: "
+                + module
+                + "; import a specific module instead"
+                + suggestion_text
+            )
+            continue
         if not _lean_module_exists(module, roots):
+            if _lean_module_directory_exists(module, roots):
+                suggestions = _lean_umbrella_module_import_suggestions(module, roots)
+                suggestion_text = (
+                    "; verified narrow module(s): " + ", ".join(suggestions)
+                    if suggestions
+                    else ""
+                )
+                errors.append(
+                    "Lean candidate imports unavailable umbrella module in configured "
+                    "project: "
+                    + module
+                    + "; import a specific module instead"
+                    + suggestion_text
+                )
+                continue
             suggestions = _lean_module_suggestions(module, roots)
             suggestion_text = (
                 "; available similar module(s): " + ", ".join(suggestions)
@@ -6619,6 +6693,60 @@ def _lean_module_exists(module: str, roots: Sequence[Path]) -> bool:
         if (root / rel.with_suffix(".olean")).exists():
             return True
     return False
+
+
+def _lean_module_directory_exists(module: str, roots: Sequence[Path]) -> bool:
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
+        return False
+    rel = Path(*module.split("."))
+    return any((root / rel).is_dir() for root in roots)
+
+
+def _lean_compiled_module_exists(module: str, roots: Sequence[Path]) -> bool:
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
+        return False
+    rel = Path(*module.split(".")).with_suffix(".olean")
+    return any((root / rel).exists() for root in roots)
+
+
+def _lean_umbrella_module_import_suggestions(
+    module: str,
+    roots: Sequence[Path],
+    *,
+    limit: int = 5,
+) -> list[str]:
+    preferred = (
+        f"{module}.MeasureTheory.Measure.ProbabilityMeasure",
+        f"{module}.Probability.IdentDistribIndep",
+        f"{module}.Data.Real.Basic",
+        f"{module}.Data.Finset.Basic",
+        f"{module}.Tactic",
+    )
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for candidate in preferred:
+        if _lean_module_exists(candidate, roots) and candidate not in seen:
+            seen.add(candidate)
+            suggestions.append(candidate)
+            if len(suggestions) >= limit:
+                return suggestions
+    rel = Path(*module.split("."))
+    for root in roots:
+        module_dir = root / rel
+        if not module_dir.is_dir():
+            continue
+        for suffix in (".olean", ".lean"):
+            for path in module_dir.rglob(f"*{suffix}"):
+                candidate = _lean_import_candidate_from_relative_parts(
+                    path.relative_to(root).with_suffix("").parts
+                )
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                suggestions.append(candidate)
+                if len(suggestions) >= limit:
+                    return suggestions
+    return suggestions
 
 
 def _lean_module_suggestions(
@@ -21935,6 +22063,14 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
             "local_lean_stderr_excerpt": str(
                 row.get("local_lean_stderr_excerpt", "") or ""
             )[:500],
+            "source_theorem_target_known": row.get(
+                "source_theorem_target_known",
+                None,
+            ),
+            "diagnostic_helper_not_source_theorem": bool(
+                row.get("diagnostic_helper_not_source_theorem", False)
+            ),
+            "lean_source_excerpt": str(row.get("lean_source_excerpt", "") or "")[:500],
             "memory_status": str(row.get("memory_status", "") or ""),
             "next_action": str(row.get("next_action", "") or ""),
             "proof_evidence_status": str(row.get("proof_evidence_status", "") or ""),
@@ -22122,6 +22258,21 @@ def _formalizer_proof_bank_runtime_memory_summary(
         row
         for row in formalizer_lean_candidate_feedback_rows
         if not bool(row.get("local_lean_compiled", False))
+    )
+    formalizer_diagnostic_helper_rows = tuple(
+        row
+        for row in formalizer_lean_candidate_feedback_rows
+        if bool(row.get("local_lean_compiled", False))
+        and (
+            row.get("diagnostic_helper_not_source_theorem") is True
+            or row.get("source_theorem_target_known") is False
+            or str(row.get("memory_status", "") or "").startswith(
+                "DIAGNOSTIC_HELPER"
+            )
+            or str(row.get("proof_evidence_status", "") or "").startswith(
+                "FORMALIZER_DIAGNOSTIC_HELPER"
+            )
+        )
     )
     formalizer_lean_candidate_repair_manifest_paths = tuple(
         dict.fromkeys(
@@ -23530,6 +23681,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_repair_required": bool(
             formalizer_lean_candidate_repair_rows
         ),
+        "formalizer_diagnostic_helper_integration_required": bool(
+            formalizer_diagnostic_helper_rows
+        ),
         "formalizer_lean_candidate_proof_state_feedback_available": bool(
             formalizer_lean_candidate_proof_state_feedback_rows
         ),
@@ -23600,6 +23754,34 @@ def _formalizer_proof_bank_runtime_memory_summary(
             }
             for row in formalizer_lean_candidate_repair_rows[:3]
         ],
+        "formalizer_diagnostic_helper_memory": [
+            {
+                "candidate_id": str(row.get("candidate_id", "") or ""),
+                "candidate_kind": str(row.get("candidate_kind", "") or ""),
+                "source_field": str(row.get("source_field", "") or ""),
+                "source_manifest_path": str(
+                    row.get("source_manifest_path", "") or ""
+                ),
+                "artifact_path": str(row.get("artifact_path", "") or ""),
+                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                "source_theorem_target_known": row.get(
+                    "source_theorem_target_known",
+                    None,
+                ),
+                "diagnostic_helper_not_source_theorem": bool(
+                    row.get("diagnostic_helper_not_source_theorem", False)
+                ),
+                "lean_source_excerpt": str(
+                    row.get("lean_source_excerpt", "") or ""
+                )[:350],
+                "next_action": str(row.get("next_action", "") or ""),
+                "memory_status": str(row.get("memory_status", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+            }
+            for row in formalizer_diagnostic_helper_rows[:3]
+        ],
         "recommended_source_theorem_integration_action": (
             "derive_source_theorem_proof_body_adapter"
             if source_to_bridge_adapter_retry_unblocked_by_verified_premises
@@ -23621,6 +23803,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             else
             "consume_ready_source_theorem_promotion_queue"
             if unresolved_source_theorem_promotion_targets
+            else "bridge_or_block_compiled_diagnostic_helpers"
+            if formalizer_diagnostic_helper_rows
             else ""
         ),
         "theorem_reduction_closure_required": theorem_reduction_closure_required,
@@ -23642,6 +23826,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if source_theorem_semantic_primitive_support_already_kernel_verified
             else "source_theorem_semantic_primitive_closure"
             if theorem_reduction_closure_already_kernel_verified
+            else "source_theorem_diagnostic_helper_bridge_or_blocker"
+            if formalizer_diagnostic_helper_rows
             else "registered_proof_bank_obligation_selection"
         ),
         "boundary": (
@@ -23993,13 +24179,43 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
         proof_bank_runtime_memory_summary.get("recommended_formalizer_target_mode", "")
         or ""
     )
-    if target_mode != "source_to_bridge_premise_derivation_required" and not bool(
+    diagnostic_helper_bridge_mode = (
+        target_mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
+        or bool(
+            proof_bank_runtime_memory_summary.get(
+                "formalizer_diagnostic_helper_integration_required",
+                False,
+            )
+        )
+    )
+    if (
+        target_mode != "source_to_bridge_premise_derivation_required"
+        and not diagnostic_helper_bridge_mode
+        and not bool(
         proof_bank_runtime_memory_summary.get(
             "source_to_bridge_premise_derivation_required",
             False,
         )
+        )
     ):
         return []
+
+    explicit_candidates = [
+        dict(row)
+        for row in proposal_packet.get(
+            "source_to_bridge_premise_derivation_candidates",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    formal_target_candidates = [
+        dict(row)
+        for row in proposal_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+        and _formal_target_is_source_to_bridge_premise_derivation(row)
+    ]
+    candidate_rows = [*explicit_candidates, *formal_target_candidates]
 
     diagnostics = [
         dict(row)
@@ -24030,25 +24246,27 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
         or []
         if str(row).strip()
     ] or list(diagnostic_by_premise)
+    if not pending_premise_names and diagnostic_helper_bridge_mode:
+        pending_premise_names = list(
+            dict.fromkeys(
+                value
+                for candidate in candidate_rows
+                for value in _runtime_row_string_values(
+                    candidate,
+                    "premise_name",
+                    "source_to_bridge_premise_name",
+                    "adapter_premise_name",
+                    "premise_names",
+                    "source_to_bridge_premise_names",
+                    "adapter_premise_names",
+                    "required_bridge_premise_names_for_shared_instantiation",
+                )
+                if value
+            )
+        )
     if not pending_premise_names:
         return []
 
-    explicit_candidates = [
-        dict(row)
-        for row in proposal_packet.get(
-            "source_to_bridge_premise_derivation_candidates",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    formal_target_candidates = [
-        dict(row)
-        for row in proposal_packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-        and _formal_target_is_source_to_bridge_premise_derivation(row)
-    ]
-    candidate_rows = [*explicit_candidates, *formal_target_candidates]
     if not candidate_rows:
         return []
 

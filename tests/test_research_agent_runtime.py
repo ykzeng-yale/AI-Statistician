@@ -427,7 +427,8 @@ def test_critic_formalizer_handoff_preserves_mathlib_import_contract() -> None:
         environment_feedback=feedback,
     )
     assert "Mandatory Mathlib-root repair" in prompt
-    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+    assert "Do not retry that umbrella import" in prompt
+    assert "narrow module import already verified by runtime/precheck" in prompt
 
 
 def test_architect_coordinator_prompt_requires_long_horizon_research_memory() -> None:
@@ -2127,7 +2128,8 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
         environment_feedback=feedback,
     )
     assert "Mandatory Mathlib-root repair" in prompt
-    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+    assert "Do not retry that umbrella import" in prompt
+    assert "narrow module import already verified by runtime/precheck" in prompt
     assert "Mandatory next_action_reference_contract repair" in prompt
     assert "Mandatory target-shape packet repair" in prompt
 
@@ -3076,6 +3078,71 @@ def test_formalizer_candidate_materialization_rejects_unavailable_import(
     )
 
 
+def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    lean_project = tmp_path / "LeanProject"
+    narrow_module = (
+        lean_project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib"
+        / "MeasureTheory"
+        / "Measure"
+        / "ProbabilityMeasure.olean"
+    )
+    narrow_module.parent.mkdir(parents=True, exist_ok=True)
+    narrow_module.write_text("", encoding="utf-8")
+    task = AgentTask(
+        task_id="task:formalizer_candidate_mathlib_umbrella",
+        owner_subsystem="FormalizationEvaluator",
+        objective="reject unavailable Mathlib umbrella import",
+    )
+
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:mathlib_umbrella",
+            "formal_targets": [
+                {
+                    "id": "mathlib_umbrella_candidate",
+                    "informal_source": "candidate imports the unavailable umbrella",
+                    "lean_statement_sketch": (
+                        "import Mathlib\n\n"
+                        "theorem mathlib_umbrella_candidate "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    error_text = " ".join(row["precheck_errors"])
+    assert "imports unavailable umbrella module" in error_text
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in error_text
+    contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
+    assert contract["mathlib_import_unavailable"] is True
+    assert contract["mathlib_root_import_unavailable"] is True
+    assert "blocked_import_prefixes" not in contract
+    assert "narrow `Mathlib.*` module imports" in contract["mathlib_repair_rule"]
+
+
 def test_formalizer_candidate_materialization_rejects_import_without_lean_project(
     tmp_path: Path,
 ) -> None:
@@ -3466,11 +3533,9 @@ def test_formalizer_prompt_blocks_mathlib_root_after_unknown_module_prefix() -> 
         },
     )
 
-    assert "Mandatory unavailable-import-prefix repair" in prompt
-    assert "`Mathlib`" in prompt
-    assert "Do not import any blocked prefix or submodule" in prompt
     assert "Mandatory Mathlib-root repair" in prompt
-    assert "Do not retry `import Mathlib` or any `import Mathlib.*` line" in prompt
+    assert "Do not retry that umbrella import" in prompt
+    assert "narrow module import already verified by runtime/precheck" in prompt
     assert "no-import core Lean diagnostic helper over Prop variables" in prompt
     assert "expected_status=FORMAL_GAP" in prompt
 
@@ -3958,9 +4023,10 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     ]
     assert live_mathlib_root_contract["blocked_import_prefixes"] == ["Mathlib"]
     assert live_mathlib_root_contract["mathlib_import_unavailable"] is True
-    assert "Do not retry `import Mathlib`" in live_mathlib_root_contract[
-        "mathlib_repair_rule"
-    ]
+    assert (
+        "Do not retry the umbrella import `import Mathlib`"
+        in live_mathlib_root_contract["mathlib_repair_rule"]
+    )
     assert "no-import core Lean theorem over Prop variables" in (
         live_mathlib_root_contract["core_lean_diagnostic_helper_shape"]
     )
@@ -4293,6 +4359,174 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     assert "lean_type_mismatch" in prompt
     assert "MeasureTheory.MeasurableSet" in prompt
     assert "Finset.sort" in prompt
+
+
+def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_blocker_prompt(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    helper_path = tmp_path / "split_conformal_coverage_core_prop.lean"
+    helper_source = (
+        "theorem split_conformal_coverage_core_prop "
+        "(coverage_event no_bad_rank : Prop) "
+        "(h_impl : no_bad_rank -> coverage_event) "
+        "(h_no_bad : no_bad_rank) : coverage_event := h_impl h_no_bad"
+    )
+    helper_path.write_text(helper_source, encoding="utf-8")
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                "source_manifest_id": (
+                    "formalizer_lean_candidate_materialization:helper"
+                ),
+                "source_manifest_path": str(tmp_path / "helper_manifest.json"),
+                "candidate_id": "split_conformal_coverage_core_prop",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "artifact_path": str(helper_path),
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "source_theorem_target_known": False,
+                "diagnostic_helper_not_source_theorem": True,
+                "lean_source_excerpt": helper_source,
+                "memory_status": (
+                    "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+                "next_action": (
+                    "reuse exact materialized candidate only as a checked helper"
+                ),
+                "proof_evidence_status": (
+                    "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path])
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_diagnostic_helper_integration_required"] is True
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "bridge_or_block_compiled_diagnostic_helpers"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_diagnostic_helper_bridge_or_blocker"
+    )
+    helper_memory = summary["formalizer_diagnostic_helper_memory"]
+    assert helper_memory[0]["candidate_id"] == "split_conformal_coverage_core_prop"
+    assert helper_memory[0]["source_theorem_target_known"] is False
+    assert helper_memory[0]["diagnostic_helper_not_source_theorem"] is True
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Compiled diagnostic-helper integration is active" in prompt
+    assert "formalizer_diagnostic_helper_memory" in prompt
+    assert "split_conformal_coverage_core_prop" in prompt
+    assert "source_theorem_target_known=false" in prompt
+    assert "source_to_bridge_premise_derivation_candidates" in prompt
+    assert "explicit gap_taxonomy blocker" in prompt
+
+
+def test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate() -> None:
+    candidate_source = (
+        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
+        "(source_hypotheses hC hGoodCovered : Prop) "
+        "(h_anchor : hC) : hGoodCovered := by\n"
+        "  exact hGoodCovered"
+    )
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:helper_bridge",
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodCovered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "premise_derivation_candidate_lean_source": candidate_source,
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": {
+                    "candidate_request_id": (
+                        "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                    ),
+                    "premise_name": "hGoodCovered",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "premise_semantic_anchor_binder_names": ["hC"],
+                    "required_semantic_anchor_reference_names": ["hC"],
+                    "candidate_contract": (
+                        "Derive hGoodCovered from exact source theorem hypotheses."
+                    ),
+                },
+                "premise_semantic_anchor_binder_names": ["hC"],
+                "required_semantic_anchor_reference_names": ["hC"],
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+    }
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_diagnostic_helper_bridge_or_blocker"
+        ),
+        "formalizer_diagnostic_helper_integration_required": True,
+    }
+
+    rows = _formalizer_source_to_bridge_premise_derivation_work_orders(
+        proposal_packet=proposal_packet,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=[],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["premise_name"] == "hGoodCovered"
+    assert rows[0]["premise_derivation_candidate_lean_source"] == candidate_source
+    assert rows[0]["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
+    )
+    assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+    unbound_packet = {
+        "packet_id": "formalizer_proposal:helper_bridge_unbound",
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodCovered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "premise_derivation_candidate_lean_source": candidate_source,
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+    }
+    assert (
+        _formalizer_source_to_bridge_premise_derivation_work_orders(
+            proposal_packet=unbound_packet,
+            proof_bank_runtime_memory_summary=summary,
+            theorem_goals=[],
+        )
+        == []
+    )
 
 
 def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_prompt(
@@ -19083,6 +19317,102 @@ def test_formalizer_quarantines_unbound_source_to_bridge_candidate_without_runti
         "premise_name"
     ] == "hGoodCovered"
     assert packet["formal_targets"][0]["id"] == "generic_conformal_sanity_candidate"
+    assert validate_formalizer_packet(packet) == []
+
+
+def test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "informal_source": "source theorem remains a formal gap",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "source theorem hypotheses",
+                "to": "coverage conclusion",
+                "role": "source-to-bridge gap planning",
+                "risk": "missing source-binding metadata",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal source-to-bridge premise derivation",
+                "target_library": "StatInference",
+                "purpose": "find exact premise derivation metadata",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["check only emitted concrete candidates"],
+            "known_blockers": ["no concrete source-to-bridge candidate emitted"],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [],
+        "gap_taxonomy": [
+            {
+                "gap": "source-to-bridge premise derivation object missing",
+                "kind": "source_binding_contract",
+                "next_owner": "Formalizer",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "self",
+                "finding": "source theorem remains unproved",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/AXLE",
+                "action": (
+                    "Run local Lean kernel check on "
+                    "source_to_bridge_premise_derivation_candidates entry "
+                    "hGoodCovered"
+                ),
+                "acceptance_gate": "Local Lean exit status 0",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:phantom-next-action"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+    )
+
+    assert packet["dropped_phantom_source_to_bridge_next_actions"][0][
+        "owner_agent"
+    ] == "AgentRuntime/AXLE"
+    assert packet["next_actions"][0]["owner_agent"] == "Formalizer"
+    assert "non-executable gap/dependency" in packet["next_actions"][0]["action"]
+    assert any(
+        row.get("proof_evidence_status")
+        == "DROPPED_PHANTOM_NEXT_ACTION_NOT_PROOF_EVIDENCE"
+        for row in packet["critic_findings"]
+    )
     assert validate_formalizer_packet(packet) == []
 
 

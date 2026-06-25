@@ -126,6 +126,15 @@
     "algorithm_formalizer_combined_probe_formal_gaps": 7,
     "algorithm_formalizer_combined_probe_kernel_verified_subclaims": 0,
     "algorithm_formalizer_combined_probe_result": "Fresh live combined lineage now records one integrated generated AlgorithmEngineer fail-then-pass repair sequence, one generated SimulationEngineer fail-then-pass repair sequence, and one Formalizer Lean candidate fail-then-pass repair sequence in the same resumed runtime history. The coding-agent capability table is ready, but the full runtime scorecard remains 40/49 and not ready for full AI Statistician because Architect is disabled in this subsystem resume, formal gaps remain open, and no source theorem or full frontier theorem is kernel verified.",
+    "formalizer_helper_bridge_mode_probe_runtime_manifest": "runs/main_worker_live_runtime_resume_mathlib_narrow_import_probe/research_agent_runtime_manifest.json",
+    "formalizer_helper_bridge_mode_probe_scorecard": "41/49",
+    "formalizer_helper_bridge_mode_probe_status": "MAX_ITERATIONS_REACHED",
+    "formalizer_helper_bridge_mode_probe_result": "After Mathlib cache population, the configured Lean project still rejects umbrella `import Mathlib` because root Mathlib.olean is absent, but narrow imports such as Mathlib.MeasureTheory.Measure.ProbabilityMeasure and Mathlib.Probability.IdentDistribIndep compile. Runtime precheck now reports this as an unavailable umbrella import with verified narrow-module suggestions. The live resume reached 6 real kernel-verified subclaims and 4 compiled Formalizer diagnostic helpers, but no source-to-bridge work order, source-theorem promotion seed, source-theorem formal-environment work order, or full theorem proof was produced.",
+    "formalizer_phantom_next_action_normalized_probe_runtime_manifest": "runs/main_worker_live_runtime_resume_phantom_next_action_normalized_probe/research_agent_runtime_manifest.json",
+    "formalizer_phantom_next_action_normalized_probe_scorecard": "41/49",
+    "formalizer_phantom_next_action_normalized_probe_status": "MAX_ITERATIONS_REACHED",
+    "formalizer_phantom_next_action_normalized_probe_pending_next_task": "formalize-repair:conformal_prediction_coverage:b3bbbf62",
+    "formalizer_phantom_next_action_normalized_probe_result": "Runtime normalizer now drops phantom next_actions that ask AgentRuntime/AXLE to execute absent source_to_bridge_premise_derivation_candidates, while the standalone validator remains strict. A follow-up live resume reached 8 real kernel-verified subclaims and 5 compiled Formalizer diagnostic helpers, but still produced zero source-to-bridge work orders and remained blocked on proof-hole/target-shape Formalizer repairs.",
     "formalizer_diagnostic_helper_boundary_regression": true,
     "formalizer_diagnostic_helper_boundary_test": "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_allows_string_false_helper_target",
     "formalizer_critic_mathlib_handoff_contract_regression": true,
@@ -164,7 +173,14 @@
       "tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contract",
       "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract"
     ],
-    "formalizer_mathlib_unavailable_import_contract_evidence": "Runtime and prompt feedback now detect unknown module prefix `Mathlib`, forbid retrying `import Mathlib`/`import Mathlib.*` in the configured Lake project, and carry that contract through packet-validation and Critic handoff wrappers.",
+    "formalizer_mathlib_unavailable_import_contract_evidence": "Runtime and prompt feedback now distinguish an unavailable umbrella `import Mathlib` from verified narrow Mathlib submodules. Root import repair forbids retrying the umbrella import, but allows narrow imports that precheck/local Lean verifies or that appear in suggested_import_replacements.",
+    "formalizer_mathlib_umbrella_import_regression": true,
+    "formalizer_mathlib_umbrella_import_tests": [
+      "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import",
+      "tests/test_research_agent_runtime.py::test_formalizer_prompt_repair_instructions_handle_missing_import_and_formal_gap_placeholder"
+    ],
+    "formalizer_phantom_next_action_normalizer_regression": true,
+    "formalizer_phantom_next_action_normalizer_test": "tests/test_research_agent_runtime.py::test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action",
     "formalizer_core_prop_helper_contract": true,
     "formalizer_core_prop_helper_contract_tests": [
       "tests/test_research_agent_runtime.py::test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contract",
@@ -173,7 +189,7 @@
     ],
     "formalizer_core_prop_helper_contract_evidence": "No-import helpers that fail on Real/order arithmetic or unavailable tactics are now repaired toward Prop-level core Lean helpers using direct exact/lambda proofs. String-valued source_theorem_target_known=false is treated as false, so diagnostic helpers no longer get rejected as source-theorem target drift.",
     "formalizer_core_prop_helper_live_evidence": "runs/main_worker_live_runtime_resume_core_contract_enriched compiled split_conformal_core_prop_bridge_helper with local Lean; this is diagnostic helper evidence only and not proof of split_conformal_finite_sample_coverage.",
-    "formalizer_failed_then_passed_repair_loop_live_evidence": "runs/main_worker_live_runtime_resume_blocked_import_followup records n_formalizer_lean_candidate_failed_then_passed_repair_sequences=1, n_formalizer_lean_candidate_local_lean_checked=11, n_formalizer_lean_candidate_local_lean_compiled=2, and n_formalizer_lean_candidate_lean_lsp_mcp_live_calls=7.",
+    "formalizer_failed_then_passed_repair_loop_live_evidence": "runs/main_worker_live_runtime_resume_blocked_import_followup records n_formalizer_lean_candidate_failed_then_passed_repair_sequences=1, n_formalizer_lean_candidate_local_lean_checked=11, n_formalizer_lean_candidate_local_lean_compiled=2, and n_formalizer_lean_candidate_lean_lsp_mcp_live_calls=7. Later resumes reached scorecard 41/49 with 8 real kernel-verified helper/subclaim rows, still with no source theorem proof.",
     "formalizer_diagnostic_helper_boundary_contract": "Compiled source_theorem_target_known=false helpers now receive FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF and NOT_SOURCE_THEOREM_PROOF_EVIDENCE statuses in candidate rows, manifests, and runtime learning rows.",
     "proof_boundary": "Kernel-verified source-to-bridge adapter rows can route an exact source theorem proof-body retry, but they do not prove the source theorem or clear unrelated semantic-definition gaps.",
     "static_debug_runtime_audit_boundary": "The static debug runtime test now records a CriticEvaluator formalizer/proofengineer repair request as REVISE at max_iterations; audit all_ok is false with one result contract error because the runtime result is not ACCEPTED.",
@@ -213,6 +229,13 @@
     "audit_research_agent_runtime(runs/main_worker_live_runtime_resume_formalizer_shape_guard, runs/main_worker_live_runtime_resume_formalizer_shape_guard/runtime_capability_audit_after_counter_fix)",
     ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_entrypoint_hardened/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 8 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_algorithm_repair_probe # scorecard 39/49; generated AlgorithmEngineer repair sequence observed",
     ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_algorithm_repair_probe/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 6 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_algorithm_formalizer_combined_probe # scorecard 40/49; generated algorithm, generated simulation, and Formalizer Lean repair sequences observed in one lineage",
+    "lake exe cache get # run in legacy_sources/emperical_process_lean; populated Mathlib package oleans but not root Mathlib.olean",
+    "lake env lean narrow MeasureTheory/Probability smoke # import Mathlib.MeasureTheory.Measure.ProbabilityMeasure and Mathlib.Probability.IdentDistribIndep compiled",
+    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/formalizer_llm.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_formalizer_validator_rejects_phantom_source_to_bridge_next_action tests/test_research_agent_runtime.py::test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action tests/test_research_agent_runtime.py::test_formalizer_quarantines_unbound_source_to_bridge_candidate_without_runtime_request tests/test_research_agent_runtime.py::test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import tests/test_research_agent_runtime.py::test_formalizer_prompt_repair_instructions_handle_missing_import_and_formal_gap_placeholder tests/test_research_agent_runtime.py::test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_blocker_prompt tests/test_research_agent_runtime.py::test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate # 8 passed",
+    ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_helper_bridge_mode_probe/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 5 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_mathlib_narrow_import_probe # scorecard 41/49; root Mathlib precheck repaired to narrow-import guidance; no source-to-bridge work orders",
+    ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_live_runtime_resume_mathlib_narrow_import_probe/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 4 --llm-timeout-seconds 120 --max-tokens 3500 --temperature 0.1 --formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp --formalizer-candidate-lean-project legacy_sources/emperical_process_lean --formalizer-candidate-lean-timeout 30 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_live_runtime_resume_phantom_next_action_normalized_probe # scorecard 41/49; kernel_verified_subclaims=8; no source-to-bridge work orders",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short # 291 passed in 145.80s",
     "git diff --check",
     "targeted secret scan over touched files; only the benign status-file phrase matched"
   ],
@@ -222,12 +245,13 @@
     "OpenProver checkout is not present at the default /Users/yukang/Documents/OpenProver/src path",
     "freshest live combined runtime lineage records generated AlgorithmEngineer repair=1, generated SimulationEngineer repair=1, and Formalizer Lean repair=1, but capability_ready_for_full_ai_statistician remains false",
     "Formalizer/ProofEngineer now has live failed-then-passed local Lean repair sequences, but the compiled candidates are source_theorem_target_known=false diagnostic helpers and not proof of the intended conformal source theorem",
-    "latest Formalizer/Critic blocker remains open formal gaps and unavailable or unproved Mathlib-backed source-theorem obligations in the configured legacy Lean project",
-    "no real kernel-verified subclaim or full frontier theorem proof is present"
+    "latest Formalizer/Critic blocker remains open formal gaps plus missing concrete source-to-bridge premise derivation candidates with source-binding metadata",
+    "legacy Lean project can import selected Mathlib MeasureTheory/Probability submodules after cache population, but root `import Mathlib` remains unavailable because Mathlib.olean is absent",
+    "real kernel-verified helper/subclaim rows are present, but no source theorem or full frontier theorem proof is present"
   ],
   "next_main_worker_actions": [
-    "resume formalize-critic-repair:conformal_prediction_coverage:035b650b and keep Mathlib-backed source-theorem obligations as FORMAL_GAP unless a verified local import/dependency path is found",
-    "turn compiled diagnostic-helper evidence into a source-theorem proof route only through exact local Lean/AXLE kernel verification of the intended conformal claim",
+    "resume formalize-repair:conformal_prediction_coverage:b3bbbf62 and force proof-hole repairs to fail closed as FORMAL_GAP unless a complete probability/measure coverage Lean candidate can be checked",
+    "turn compiled diagnostic-helper evidence into a source-theorem proof route only by emitting concrete source_to_bridge_premise_derivation_candidates with copied source-binding metadata and exact local Lean/AXLE kernel verification",
     "add a second non-conformal task-family capability run before claiming cross-task generality",
     "push this branch and open or update a GitHub PR against the coordination branch when connector support is available"
   ],

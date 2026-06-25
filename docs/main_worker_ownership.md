@@ -149,6 +149,18 @@ Live evidence collected on 2026-06-25:
   preserving one integrated generated AlgorithmEngineer repair sequence, one
   generated SimulationEngineer repair sequence, and one Formalizer Lean
   candidate repair sequence in the same runtime lineage; scorecard 40/49.
+- `runs/main_worker_live_runtime_resume_mathlib_narrow_import_probe/research_agent_runtime_manifest.json`:
+  after `lake exe cache get`, the runtime distinguishes unavailable umbrella
+  `import Mathlib` from verified narrow Mathlib submodules. The live resume
+  reached scorecard 41/49 and 6 real kernel-verified helper/subclaim rows, but
+  still produced zero source-to-bridge work orders or source-theorem promotion
+  seeds.
+- `runs/main_worker_live_runtime_resume_phantom_next_action_normalized_probe/research_agent_runtime_manifest.json`:
+  after adding a packet normalizer for phantom source-to-bridge `next_actions`,
+  the live resume reached 8 real kernel-verified helper/subclaim rows and 5
+  compiled Formalizer diagnostic helpers. It still ended at
+  `MAX_ITERATIONS_REACHED` with pending task
+  `formalize-repair:conformal_prediction_coverage:b3bbbf62`.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
@@ -175,6 +187,16 @@ theorem proof: `n_kernel_verified_subclaims=0`, `n_formal_gaps=7`, the compiled
 Lean candidates are diagnostic helpers with
 `source_theorem_target_known=false`, and the pending task remains a
 Formalizer/Critic repair.
+
+The newest Formalizer probes improve the environment and packet plumbing but
+do not change the proof boundary. The configured Lean project can compile
+narrow imports such as `Mathlib.MeasureTheory.Measure.ProbabilityMeasure` and
+`Mathlib.Probability.IdentDistribIndep`, while root `import Mathlib` still
+fails because `Mathlib.olean` is absent. Compiled candidates remain
+`source_theorem_target_known=false` diagnostic helpers unless a future packet
+emits concrete `source_to_bridge_premise_derivation_candidates` with copied
+source-binding metadata and local Lean/AXLE verifies the intended
+probability/measure coverage claim.
 
 ## Delegation To Other Codex Workers
 

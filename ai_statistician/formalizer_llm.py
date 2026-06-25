@@ -1049,6 +1049,7 @@ def _normalize_formalizer_packet(
         body,
         proof_bank_runtime_memory_summary or {},
     )
+    _drop_phantom_source_to_bridge_next_actions(body)
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -1080,6 +1081,146 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _source_to_bridge_candidate_names(packet: Mapping[str, Any]) -> set[str]:
+    candidate_names: set[str] = set()
+    for row in packet.get("source_to_bridge_premise_derivation_candidates", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        for key in (
+            "candidate_id",
+            "id",
+            "premise_name",
+            "premise_candidate_declaration_name",
+            "target_lean_declaration",
+        ):
+            value = str(row.get(key, "") or "").strip()
+            if value:
+                candidate_names.add(value.lower())
+        premise_names = row.get("premise_names", [])
+        if isinstance(premise_names, list | tuple | set):
+            candidate_names.update(
+                str(value).strip().lower()
+                for value in premise_names
+                if str(value).strip()
+            )
+    return candidate_names
+
+
+def _source_to_bridge_next_action_is_phantom(
+    action: Mapping[str, Any],
+    *,
+    has_candidates: bool,
+    candidate_names: set[str],
+) -> bool:
+    action_text = " ".join(
+        str(action.get(key, "") or "")
+        for key in ("owner_agent", "action", "acceptance_gate")
+    ).lower()
+    if "source_to_bridge_premise_derivation_candidates" not in action_text:
+        return False
+    requests_execution = any(
+        marker in action_text
+        for marker in (
+            "run ",
+            "check",
+            "compile",
+            "verify",
+            "promote",
+            "kernel",
+            "local lean",
+            "axle",
+        )
+    )
+    if not requests_execution:
+        return False
+    if not has_candidates:
+        return True
+    return " entry " in action_text and not any(
+        name and name in action_text for name in candidate_names
+    )
+
+
+def _drop_phantom_source_to_bridge_next_actions(packet: dict[str, Any]) -> None:
+    actions = packet.get("next_actions", [])
+    if not isinstance(actions, list) or not actions:
+        return
+    candidates = [
+        row
+        for row in packet.get("source_to_bridge_premise_derivation_candidates", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    candidate_names = _source_to_bridge_candidate_names(packet)
+    kept: list[Any] = []
+    dropped: list[dict[str, Any]] = []
+    for index, action in enumerate(actions, start=1):
+        if not isinstance(action, Mapping):
+            kept.append(action)
+            continue
+        if _source_to_bridge_next_action_is_phantom(
+            action,
+            has_candidates=bool(candidates),
+            candidate_names=candidate_names,
+        ):
+            dropped.append(
+                {
+                    "index": index,
+                    "owner_agent": str(action.get("owner_agent", "") or ""),
+                    "action": str(action.get("action", "") or "")[:500],
+                    "reason": (
+                        "next action requested execution of absent or unmatched "
+                        "source-to-bridge premise candidate work"
+                    ),
+                }
+            )
+            continue
+        kept.append(action)
+    if not dropped:
+        return
+    if not kept:
+        kept = [
+            {
+                "owner_agent": "Formalizer",
+                "action": (
+                    "Record the missing premise-derivation work as a "
+                    "non-executable gap/dependency until a concrete candidate "
+                    "object with source-binding metadata is emitted."
+                ),
+                "acceptance_gate": (
+                    "gap_taxonomy or lemma_dependency_plan names the missing "
+                    "source-binding metadata"
+                ),
+            }
+        ]
+    packet["next_actions"] = kept
+    existing_dropped = packet.get(
+        "dropped_phantom_source_to_bridge_next_actions",
+        [],
+    )
+    if not isinstance(existing_dropped, list):
+        existing_dropped = []
+    packet["dropped_phantom_source_to_bridge_next_actions"] = [
+        *existing_dropped,
+        *dropped,
+    ]
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Dropped phantom next_actions that requested runtime execution "
+                "of absent source-to-bridge premise candidates. The dropped "
+                "actions are not proof evidence and were converted into a "
+                "non-executable gap/dependency action."
+            ),
+            "proof_evidence_status": "DROPPED_PHANTOM_NEXT_ACTION_NOT_PROOF_EVIDENCE",
+        }
+    )
+    packet["critic_findings"] = findings
 
 
 def _quarantine_unbound_source_to_bridge_candidates(
@@ -1522,6 +1663,21 @@ def _feedback_int(value: Any) -> int:
         return 0
 
 
+def _blocked_import_prefixes_for_prompt(
+    local_lean_repair_contract: Mapping[str, Any],
+) -> list[str]:
+    """Return import prefixes that should remain hard-blocked in prompt text."""
+
+    blocked_import_prefixes = [
+        str(value).strip()
+        for value in local_lean_repair_contract.get("blocked_import_prefixes", []) or []
+        if str(value).strip()
+    ]
+    if local_lean_repair_contract.get("mathlib_import_unavailable"):
+        return [value for value in blocked_import_prefixes if value != "Mathlib"]
+    return blocked_import_prefixes
+
+
 def _formalizer_mode_specific_instructions(
     proof_memory_summary: Mapping[str, Any],
     runtime_environment_feedback: Mapping[str, Any],
@@ -1573,15 +1729,9 @@ def _formalizer_mode_specific_instructions(
             "satisfy runtime_environment_feedback.local_lean_repair_contract before "
             "emitting another NEEDS_KERNEL_CHECK candidate."
         )
-        blocked_import_prefixes = [
-            str(value).strip()
-            for value in carried_local_lean_repair_contract.get(
-                "blocked_import_prefixes",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
+        blocked_import_prefixes = _blocked_import_prefixes_for_prompt(
+            carried_local_lean_repair_contract
+        )
         if blocked_import_prefixes:
             quoted_prefixes = ", ".join(
                 f"`{value}`" for value in blocked_import_prefixes[:8]
@@ -1597,13 +1747,17 @@ def _formalizer_mode_specific_instructions(
         if carried_local_lean_repair_contract.get("mathlib_import_unavailable"):
             instructions.append(
                 "Mandatory Mathlib-root repair: this configured Lean environment "
-                "reported the Mathlib import root as unavailable. Do not retry "
-                "`import Mathlib` or any `import Mathlib.*` line. If the source theorem "
-                "needs Mathlib-only measure/probability APIs, keep the source theorem "
-                "as expected_status=FORMAL_GAP. If capability-eval still needs one "
-                "materialized helper, emit at most one no-import core Lean diagnostic "
-                "helper over Prop variables tied to the semantic bridge; this helper is "
-                "diagnostic only and not source-theorem proof evidence."
+                "reported the umbrella import `import Mathlib` as unavailable. Do "
+                "not retry that umbrella import. This is not by itself proof that "
+                "every `Mathlib.*` submodule is unavailable: use only a narrow "
+                "module import already verified by runtime/precheck, or a listed "
+                "suggested_import_replacement. If the source theorem still needs "
+                "missing measure/probability APIs, keep it as "
+                "expected_status=FORMAL_GAP and name the exact missing import/API. "
+                "If capability-eval still needs one materialized helper, emit at "
+                "most one no-import core Lean diagnostic helper over Prop variables "
+                "tied to the semantic bridge; this helper is diagnostic only and "
+                "not source-theorem proof evidence."
             )
         if carried_local_lean_repair_contract.get("core_lean_only_helper_rule"):
             instructions.append(
@@ -1674,6 +1828,36 @@ def _formalizer_mode_specific_instructions(
                 "source-to-bridge premise candidate; do not reintroduce an unavailable "
                 "module while changing candidate shape."
             )
+    prior_diagnostic_helper_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_diagnostic_helper_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get("formalizer_diagnostic_helper_integration_required")
+        or prior_diagnostic_helper_memory
+        or mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
+    ):
+        instructions.append(
+            "Compiled diagnostic-helper integration is active: prior Lean helpers "
+            "compiled with source_theorem_target_known=false, so they exercise the "
+            "local verifier but are not source-theorem proof. Do not repeat another "
+            "helper-only formal_targets candidate as progress. Keep the source "
+            "theorem as expected_status=FORMAL_GAP unless its probability/measure "
+            "coverage statement can be checked, and either emit a concrete "
+            "source_to_bridge_premise_derivation_candidates object with exact "
+            "source-binding metadata plus semantic-anchor references, or record an "
+            "explicit gap_taxonomy blocker naming the missing source-binding "
+            "premise/API/import/semantic anchor. A source-to-bridge candidate must "
+            "carry premise_name, target_theorem_name, target_lean_declaration, "
+            "premise_derivation_candidate_lean_source, and one copied candidate "
+            "request/source-binding contract; otherwise it is a phantom action and "
+            "must not be listed in next_actions."
+        )
     prior_lean_candidate_proof_state_feedback = [
         row
         for row in proof_memory_summary.get(
@@ -2112,15 +2296,9 @@ def _formalizer_mode_specific_instructions(
                         "derive the fact from known primitives, or emit a FORMAL_GAP "
                         "naming the missing API/dependency."
                     )
-                blocked_import_prefixes = [
-                    str(value).strip()
-                    for value in local_lean_repair_contract.get(
-                        "blocked_import_prefixes",
-                        [],
-                    )
-                    or []
-                    if str(value).strip()
-                ]
+                blocked_import_prefixes = _blocked_import_prefixes_for_prompt(
+                    local_lean_repair_contract
+                )
                 if blocked_import_prefixes:
                     quoted_prefixes = ", ".join(
                         f"`{value}`" for value in blocked_import_prefixes[:8]
@@ -2136,14 +2314,17 @@ def _formalizer_mode_specific_instructions(
                 if local_lean_repair_contract.get("mathlib_import_unavailable"):
                     instructions.append(
                         "Mandatory Mathlib-root repair: this configured Lean environment "
-                        "reported the Mathlib import root as unavailable. Do not retry "
-                        "`import Mathlib` or any `import Mathlib.*` line. If the source "
-                        "theorem needs Mathlib-only measure/probability APIs, keep the "
-                        "source theorem as expected_status=FORMAL_GAP. If capability-eval "
-                        "still needs one materialized helper, emit at most one no-import "
-                        "core Lean diagnostic helper over Prop variables tied to the "
-                        "semantic bridge; this helper is diagnostic only and not source-"
-                        "theorem proof evidence."
+                        "reported the umbrella import `import Mathlib` as unavailable. "
+                        "Do not retry that umbrella import. This is not by itself proof "
+                        "that every `Mathlib.*` submodule is unavailable: use only a "
+                        "narrow module import already verified by runtime/precheck, or "
+                        "a listed suggested_import_replacement. If the source theorem "
+                        "still needs missing measure/probability APIs, keep it as "
+                        "expected_status=FORMAL_GAP and name the exact missing import/"
+                        "API. If capability-eval still needs one materialized helper, "
+                        "emit at most one no-import core Lean diagnostic helper over "
+                        "Prop variables tied to the semantic bridge; this helper is "
+                        "diagnostic only and not source-theorem proof evidence."
                     )
                 if local_lean_repair_contract.get("core_lean_only_helper_rule"):
                     instructions.append(
@@ -2709,7 +2890,12 @@ def _feedback_local_lean_repair_contract(
     classes: list[str] = []
     if "unexpected token" in local_lean_text or "expected term" in local_lean_text:
         classes.append("lean_parser_or_syntax_error")
-    if "unknown module prefix" in local_lean_text or "no directory" in local_lean_text:
+    if (
+        "unknown module prefix" in local_lean_text
+        or "no directory" in local_lean_text
+        or "imports unavailable module" in local_lean_text
+        or "imports unavailable umbrella module" in local_lean_text
+    ):
         classes.append("lean_import_environment_missing")
     if (
         "unknown identifier" in local_lean_text
@@ -2749,18 +2935,33 @@ def _feedback_local_lean_repair_contract(
         ),
     }
     unavailable_prefixes = _feedback_unavailable_import_prefixes(candidate_diagnostics)
-    if unavailable_prefixes:
-        contract["blocked_import_prefixes"] = unavailable_prefixes
+    mathlib_root_import_unavailable = (
+        "Mathlib" in unavailable_prefixes
+        and _feedback_diagnostics_import_exact_module(
+            candidate_diagnostics,
+            "Mathlib",
+        )
+    )
+    blocked_import_prefixes = [
+        value
+        for value in unavailable_prefixes
+        if not (value == "Mathlib" and mathlib_root_import_unavailable)
+    ]
+    if blocked_import_prefixes:
+        contract["blocked_import_prefixes"] = blocked_import_prefixes
         contract["blocked_import_repair_rule"] = (
             "Do not import any blocked prefix or submodule in the next candidate. "
             "Use no imports, an import already verified in this same configured "
             "Lake project, or emit a FORMAL_GAP/dependency blocker."
         )
-    if "Mathlib" in unavailable_prefixes:
+    if mathlib_root_import_unavailable or "Mathlib" in unavailable_prefixes:
         contract["mathlib_import_unavailable"] = True
+        contract["mathlib_root_import_unavailable"] = True
         contract["mathlib_repair_rule"] = (
-            "Do not retry `import Mathlib` or `import Mathlib.*` after local Lean "
-            "reported the Mathlib import root unavailable."
+            "Do not retry the umbrella import `import Mathlib` after local Lean "
+            "reported the Mathlib root module unavailable. This does not block "
+            "narrow `Mathlib.*` module imports that are verified in the configured "
+            "Lake project or listed as suggested_import_replacements."
         )
         contract["core_lean_diagnostic_helper_shape"] = (
             "At most one no-import core Lean Prop helper may be emitted as diagnostic "
@@ -2869,6 +3070,11 @@ def _feedback_unavailable_import_prefixes(
             r"(?P<prefix>[A-Za-z0-9_.]+)",
             re.IGNORECASE,
         ),
+        re.compile(
+            r"Lean candidate imports unavailable umbrella module in configured project:\s*"
+            r"(?P<prefix>[A-Za-z0-9_.]+)",
+            re.IGNORECASE,
+        ),
     )
     prefixes: list[str] = []
     seen: set[str] = set()
@@ -2893,6 +3099,23 @@ def _feedback_unavailable_import_prefixes(
                     seen.add(prefix)
                     prefixes.append(prefix)
     return prefixes[:8]
+
+
+def _feedback_diagnostics_import_exact_module(
+    diagnostics: Sequence[Mapping[str, Any]],
+    module: str,
+) -> bool:
+    pattern = re.compile(r"^\s*import\s+(?P<modules>.+?)\s*$")
+    for row in diagnostics:
+        source = str(row.get("lean_source_excerpt", "") or "")
+        for line in source.splitlines():
+            match = pattern.match(line)
+            if not match:
+                continue
+            modules = [value.strip() for value in match.group("modules").split()]
+            if module in modules:
+                return True
+    return False
 
 
 def _feedback_unknown_identifiers(
@@ -2961,6 +3184,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_exact_candidate_environment_gap",
         "source_theorem_exact_semantic_definition_repair_required",
         "source_theorem_exact_proof_body_repair_required",
+        "formalizer_diagnostic_helper_integration_required",
+        "formalizer_diagnostic_helper_memory",
         "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
         "source_theorem_exact_proof_body_verified_adapter_context_insufficient_target_names",
         "source_theorem_proof_body_adapter_required",
@@ -3168,6 +3393,25 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "local_lean_stdout_excerpt",
                 "local_lean_stderr_excerpt",
                 "next_action",
+                "proof_evidence_status",
+            ),
+            limit=3,
+        )
+    if isinstance(row.get("formalizer_diagnostic_helper_memory"), list):
+        compact["formalizer_diagnostic_helper_memory"] = _compact_rows(
+            row.get("formalizer_diagnostic_helper_memory", []),
+            keys=(
+                "candidate_id",
+                "candidate_kind",
+                "source_field",
+                "source_manifest_path",
+                "artifact_path",
+                "local_lean_compiled",
+                "source_theorem_target_known",
+                "diagnostic_helper_not_source_theorem",
+                "lean_source_excerpt",
+                "next_action",
+                "memory_status",
                 "proof_evidence_status",
             ),
             limit=3,
