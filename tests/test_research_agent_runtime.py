@@ -103,6 +103,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_generated_simulation_feedback_from_learning_memory,
     _formalizer_proof_bank_runtime_memory_summary,
     _formalizer_lean_candidate_materialization_learning_rows,
+    _formalizer_source_to_bridge_metadata_authoring_request_rows,
     _formalizer_source_to_bridge_premise_derivation_work_orders,
     _formalizer_source_theorem_semantic_primitive_work_orders,
     _formalizer_source_theorem_promotion_work_orders,
@@ -4564,6 +4565,196 @@ def test_runtime_learning_memory_routes_metadata_blocker_to_authoring_contract(
     assert "required_semantic_anchor_reference_names" in prompt
     assert "kind=source_to_bridge_metadata_blocker" in prompt
     assert "For source_theorem_exact_proof_body_repair" not in prompt
+
+
+def test_formalizer_metadata_authoring_request_memory_promotes_to_premise_mode(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    request = {
+        "candidate_request_id": (
+            "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+        ),
+        "premise_name": "hGoodCovered",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        "premise_target_type": "{omega | rank omega in BadRanks}ᶜ ⊆ covered",
+        "exact_source_theorem_binders": [
+            {"name": "hexch", "type": "Exchangeable scores"},
+            {"name": "hq", "type": "q_hat = orderStatistic scores"},
+        ],
+        "premise_semantic_anchor_binders": [
+            {"name": "hC", "role": "coverage_event_anchor"}
+        ],
+        "premise_semantic_anchor_binder_names": ["hC"],
+        "required_semantic_anchor_reference_names": ["hexch", "hq", "hC"],
+        "semantic_anchor_reference_gate": (
+            "Lean source must reference hexch, hq, and hC outside comments."
+        ),
+        "adapter_object_names_requiring_source_instantiation": [
+            "covered",
+            "rank",
+            "BadRanks",
+        ],
+        "candidate_contract": (
+            "Derive hGoodCovered from exact source theorem hypotheses."
+        ),
+        "proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_REQUEST_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:metadata_request",
+        "source_to_bridge_premise_derivation_candidate_requests": [request],
+    }
+    prior_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_to_bridge_metadata_authoring_required"
+        ),
+        "source_to_bridge_metadata_authoring_required": True,
+        "source_to_bridge_metadata_authoring_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_to_bridge_metadata_authoring_contract": {
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "required_metadata_fields": [
+                "source_to_bridge_premise_derivation_candidate_request_id",
+                "source_to_bridge_premise_derivation_candidate_request",
+                "premise_name",
+                "target_theorem_name",
+                "target_lean_declaration",
+                "exact_source_theorem_binders",
+                "premise_semantic_anchor_binders",
+                "premise_semantic_anchor_binder_names",
+                "required_semantic_anchor_reference_names",
+                "adapter_object_names_requiring_source_instantiation",
+            ],
+        },
+    }
+
+    request_rows = _formalizer_source_to_bridge_metadata_authoring_request_rows(
+        proposal_packet=proposal_packet,
+        proof_bank_runtime_memory_summary=prior_summary,
+        theorem_goals=[],
+    )
+
+    assert len(request_rows) == 1
+    assert request_rows[0]["request_complete"] is True
+    assert request_rows[0]["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
+    )
+    assert request_rows[0]["missing_required_metadata_fields"] == []
+    assert request_rows[0]["proof_evidence_status"].endswith(
+        "NOT_PROOF_EVIDENCE"
+    )
+
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in request_rows) + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary[
+        "source_to_bridge_metadata_authoring_complete_candidate_requests_available"
+    ] is True
+    assert summary["source_to_bridge_metadata_authoring_required"] is False
+    assert summary["source_to_bridge_premise_derivation_required"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_to_bridge_premise_derivation_required"
+    )
+    assert summary["source_to_bridge_premise_derivation_pending_premise_names"] == [
+        "hGoodCovered"
+    ]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "source_to_bridge_candidate_request_shortcuts" in prompt
+    assert "copy_this_candidate_request_id" in prompt
+    assert (
+        "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+        in prompt
+    )
+    assert "required_semantic_anchor_reference_names" in prompt
+
+
+def test_formalizer_metadata_authoring_next_action_preserved_as_request_shell() -> None:
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:metadata_shell",
+        "next_actions": [
+            {
+                "owner_agent": "TheoryDeveloper/SourceBindingMetadata/Formalizer",
+                "action": (
+                    "Author source_to_bridge_premise_derivation_candidate_request "
+                    "for split_conformal_finite_sample_coverage with "
+                    "exact_source_theorem_binders and semantic anchors"
+                ),
+                "acceptance_gate": (
+                    "proof_bank_runtime_memory_summary exposes a complete request"
+                ),
+            }
+        ],
+    }
+    prior_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_to_bridge_metadata_authoring_required"
+        ),
+        "source_to_bridge_metadata_authoring_required": True,
+        "source_to_bridge_metadata_authoring_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_to_bridge_metadata_authoring_contract": {
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "required_metadata_fields": [
+                "premise_name",
+                "target_theorem_name",
+                "target_lean_declaration",
+                "exact_source_theorem_binders",
+                "premise_semantic_anchor_binders",
+                "premise_semantic_anchor_binder_names",
+                "required_semantic_anchor_reference_names",
+                "adapter_object_names_requiring_source_instantiation",
+            ],
+        },
+    }
+
+    rows = _formalizer_source_to_bridge_metadata_authoring_request_rows(
+        proposal_packet=proposal_packet,
+        proof_bank_runtime_memory_summary=prior_summary,
+        theorem_goals=[],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["request_complete"] is False
+    assert rows[0]["metadata_authoring_status"] == (
+        "INCOMPLETE_SOURCE_TO_BRIDGE_CANDIDATE_REQUEST_SHELL"
+    )
+    assert rows[0]["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+    )
+    assert "exact_source_theorem_binders" in rows[0][
+        "missing_required_metadata_fields"
+    ]
+    assert "source_to_bridge_premise_derivation_candidate_request" in rows[0][
+        "candidate_contract"
+    ]
+    assert rows[0]["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
 def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> None:

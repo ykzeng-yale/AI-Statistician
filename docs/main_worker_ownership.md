@@ -186,6 +186,14 @@ Live evidence collected on 2026-06-25:
   `source_to_bridge_premise_derivation_candidate_request` metadata before
   executable premise candidates are queued; this remains orchestration context,
   not source-theorem proof evidence.
+- `docs/runtime_design_drift_audit_20260625.md` records the design correction
+  for this lane: evidence-boundary guards may stay in the core runtime, but
+  conformal/source-to-bridge tactics should move into typed artifacts, policy
+  packs, or ProofEngineer adapters. The first concrete extraction is
+  `ai_statistician/source_to_bridge_metadata.py`, which owns
+  `SourceToBridgePremiseDerivationCandidateRequest` normalization and
+  request-shell handling while `research_agent_runtime.py` delegates through a
+  thin compatibility wrapper. This is still non-proof orchestration memory.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local

@@ -289,7 +289,22 @@ def build_formalizer_prompt(
         "required_output_contract": FORMALIZER_OUTPUT_CONTRACT,
         "boundary": FORMALIZER_BOUNDARY,
     }
-    if requires_lean_candidate and has_source_theorem_target_drift:
+    metadata_authoring_mode = bool(
+        proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+        or proof_memory_summary.get("recommended_formalizer_target_mode")
+        == "source_to_bridge_metadata_authoring_required"
+    )
+    if requires_lean_candidate and metadata_authoring_mode:
+        lean_candidate_instruction = (
+            "Capability-eval mode is active, but source-to-bridge metadata "
+            "authoring takes priority: do not emit another helper-only Lean "
+            "formal_targets entry just to satisfy the Lean-candidate gate. Keep "
+            "the source theorem as expected_status=FORMAL_GAP, and either emit a "
+            "structured source_to_bridge_premise_derivation_candidate_requests "
+            "object with the exact source-binding metadata, or record the missing "
+            "metadata fields as a source_to_bridge_metadata_blocker. "
+        )
+    elif requires_lean_candidate and has_source_theorem_target_drift:
         lean_candidate_instruction = (
             "Capability-eval mode is active, but target-shape feedback takes "
             "priority: do not force a helper/arithmetic Lean sketch into "
@@ -426,6 +441,22 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "expected_status": "NEEDS_KERNEL_CHECK",
         }
     ],
+    "source_to_bridge_premise_derivation_candidate_requests": [
+        {
+            "candidate_request_id": "request:hGoodCovered",
+            "premise_name": "hGoodCovered",
+            "target_theorem_name": "split_conformal",
+            "target_lean_declaration": "split_conformal",
+            "premise_target_type": "adapter premise Lean type",
+            "exact_source_theorem_binders": [{"name": "hC", "type": "source hyp"}],
+            "premise_semantic_anchor_binders": [{"name": "hC", "role": "anchor"}],
+            "premise_semantic_anchor_binder_names": ["hC"],
+            "required_semantic_anchor_reference_names": ["hC"],
+            "adapter_object_names_requiring_source_instantiation": ["covered"],
+            "candidate_contract": "metadata only; not executable Lean",
+            "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
+        }
+    ],
     "gap_taxonomy": [
         {"gap": "string", "kind": "formal_primitives|semantic_alignment|proof_search|source_theorem|other", "next_owner": "string"}
     ],
@@ -458,6 +489,9 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
         "proof_search_plan": {"type": "object"},
         "proof_bank_obligation_requests": {"type": "array"},
         "source_to_bridge_premise_derivation_candidates": {"type": "array"},
+        "source_to_bridge_premise_derivation_candidate_requests": {
+            "type": "array"
+        },
         "gap_taxonomy": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array", "minItems": 1},
         "next_actions": {"type": "array", "minItems": 1},
@@ -1969,9 +2003,31 @@ def _source_to_bridge_candidate_request_shortcuts(
 
     shortcuts: list[dict[str, Any]] = []
     seen: set[str] = set()
-    diagnostics = proof_memory_summary.get(
-        "source_to_bridge_premise_derivation_diagnostics", []
+    metadata_request_rows = proof_memory_summary.get(
+        "source_to_bridge_metadata_authoring_candidate_requests",
+        [],
     )
+    diagnostics = [
+        *(
+            list(metadata_request_rows)
+            if isinstance(metadata_request_rows, list | tuple)
+            else []
+        ),
+        *(
+            list(
+                proof_memory_summary.get(
+                    "source_to_bridge_premise_derivation_diagnostics", []
+                )
+            )
+            if isinstance(
+                proof_memory_summary.get(
+                    "source_to_bridge_premise_derivation_diagnostics", []
+                ),
+                list | tuple,
+            )
+            else []
+        ),
+    ]
     if not isinstance(diagnostics, list | tuple):
         return shortcuts
     for diagnostic in diagnostics:
@@ -2032,12 +2088,17 @@ def _source_to_bridge_candidate_request_shortcuts(
         candidate_request = diagnostic.get(
             "source_to_bridge_premise_derivation_candidate_request", {}
         )
+        if not candidate_request and str(
+            diagnostic.get("candidate_request_id", "") or ""
+        ).strip():
+            candidate_request = diagnostic
         if isinstance(candidate_request, Mapping) and candidate_request:
             request_id = str(
                 diagnostic.get(
                     "source_to_bridge_premise_derivation_candidate_request_id",
                     "",
                 )
+                or diagnostic.get("candidate_request_id", "")
                 or candidate_request.get("candidate_request_id", "")
                 or ""
             ).strip()
@@ -2394,7 +2455,11 @@ def _formalizer_mode_specific_instructions(
             "and adapter_object_names_requiring_source_instantiation. Emit a "
             "source_to_bridge_premise_derivation_candidates object only if that "
             "candidate includes a copied request object/id and non-vacuous Lean source "
-            "using those binders and anchors. Otherwise keep the source theorem as "
+            "using those binders and anchors. If you can author the metadata but "
+            "not the executable Lean premise derivation yet, put the structured "
+            "request object in source_to_bridge_premise_derivation_candidate_requests "
+            "and do not ask AgentRuntime/AXLE to check it. If you cannot author the "
+            "metadata, keep the source theorem as "
             "expected_status=FORMAL_GAP and record a gap_taxonomy row with "
             "kind=source_to_bridge_metadata_blocker plus next_actions for "
             "AgentRuntime/ProofEngineer to materialize the request metadata. This "
@@ -3757,6 +3822,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_to_bridge_metadata_authoring_statuses",
         "source_to_bridge_metadata_authoring_contract",
         "source_to_bridge_metadata_authoring_diagnostics",
+        "source_to_bridge_metadata_authoring_candidate_requests",
+        "source_to_bridge_metadata_authoring_request_shells",
+        "source_to_bridge_metadata_authoring_complete_candidate_requests_available",
+        "source_to_bridge_metadata_authoring_missing_request_fields",
         "source_theorem_proof_body_adapter_diagnostics",
         "source_theorem_exact_proof_body_repair_target_names",
         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -3893,6 +3962,49 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "owner_subsystem",
                 "target_behavior",
                 "acceptance_gate",
+                "proof_evidence_status",
+            ),
+            limit=4,
+        )
+    if isinstance(row.get("source_to_bridge_metadata_authoring_candidate_requests"), list):
+        compact["source_to_bridge_metadata_authoring_candidate_requests"] = (
+            _compact_rows(
+                row.get("source_to_bridge_metadata_authoring_candidate_requests", []),
+                keys=(
+                    "candidate_request_id",
+                    "premise_name",
+                    "premise_names",
+                    "target_theorem_name",
+                    "target_lean_declaration",
+                    "premise_target_type",
+                    "exact_source_theorem_binders",
+                    "premise_semantic_anchor_binders",
+                    "premise_semantic_anchor_binder_names",
+                    "required_semantic_anchor_reference_names",
+                    "semantic_anchor_reference_gate",
+                    "adapter_object_names_requiring_source_instantiation",
+                    "candidate_contract",
+                    "missing_required_metadata_fields",
+                    "request_complete",
+                    "metadata_authoring_status",
+                    "proof_evidence_status",
+                ),
+                limit=4,
+            )
+        )
+    if isinstance(row.get("source_to_bridge_metadata_authoring_request_shells"), list):
+        compact["source_to_bridge_metadata_authoring_request_shells"] = _compact_rows(
+            row.get("source_to_bridge_metadata_authoring_request_shells", []),
+            keys=(
+                "candidate_request_id",
+                "target_theorem_name",
+                "target_lean_declaration",
+                "target_theorem_goal_ids",
+                "candidate_contract",
+                "required_candidate_fields",
+                "missing_required_metadata_fields",
+                "metadata_authoring_status",
+                "source_formalizer_packet_id",
                 "proof_evidence_status",
             ),
             limit=4,
