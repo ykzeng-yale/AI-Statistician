@@ -9578,6 +9578,290 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
     seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
 
 
+def test_publication_bundle_audit_rejects_llm_request_residual_focus_provenance_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_llm_request_residual_focus"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = root / "standalone_input.json"
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "theorem_statement": (
+                            "A distribution-free rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Probability.exchangeable"],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    target_intake_dir = root / "target_intake"
+    raw_target_json = root / "target_intake_request.json"
+    raw_target_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "target_id": "rank_route",
+                "title": "distribution_free_rank_bound",
+                "theorem_statement": (
+                    "A distribution-free rank bound follows from exchangeability."
+                ),
+                "known_proof_sources": ["conformal_prediction_textbook"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "conformal_prediction_textbook",
+                                "claim": "Exchangeability implies a uniform rank statistic.",
+                                "excerpt": (
+                                    "Under exchangeability, the rank of the test score "
+                                    "among calibration scores is uniformly distributed "
+                                    "up to the tie convention."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    normalize_formalization_gap_planner_target_intake(
+        raw_target_json,
+        target_intake_dir,
+    )
+    component_resource_registry_dir = root / "component_resource_registry"
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    ledger_dir = root / "resource_response_ledger"
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (
+        ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "n_ledger_rows": 1,
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "resource-response:rank_route",
+                        "resource_request_id": "resource-request:rank_route",
+                        "goal_plan_id": "goal:rank_route",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "primitive": "rank_uniformity",
+                        "target_primitives": ["rank_uniformity"],
+                        "resource_id": "paperclip_mcp",
+                        "expected_response_artifact": "source_evidence",
+                        "priority_score": 88,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 90,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=90",
+                        ],
+                        "acceptance_gate": "source evidence must satisfy queued contract fields",
+                        "response_present": True,
+                        "response_contract_minimum_met": True,
+                        "response_contract_ok": True,
+                        "response_summary": (
+                            "Paperclip extracted a source-backed finite-rank "
+                            "uniformity lemma and identified a tie-breaking "
+                            "side condition."
+                        ),
+                        "response_payload": {
+                            "source_snippets": [
+                                {
+                                    "source_ref": "conformal_prediction_textbook",
+                                    "claim": (
+                                        "exchangeability implies rank uniformity "
+                                        "after deterministic tie handling"
+                                    ),
+                                }
+                            ],
+                            "route_revision_recommended": True,
+                        },
+                        "response_artifacts": ["paperclip://rank-uniformity"],
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "request_playbook_present": True,
+                        "response_playbook_grounded": True,
+                        "response_playbook_grounding_terms": [
+                            "rank_uniformity",
+                            "tie handling",
+                        ],
+                        "route_evidence_nodes": [
+                            {
+                                "node_id": "paperclip:rank_uniformity",
+                                "claim": "finite rank uniformity needs deterministic tie handling",
+                            }
+                        ],
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": "Probability.rankUniformityBridge",
+                                "target_prover_family": "lean4",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "coverage_updates": {"rank_uniformity": "bridge_needed"},
+                        "residual_goals": [
+                            "rank_uniformity: deterministic tie handling"
+                        ],
+                        "route_revision_recommended": True,
+                        "route_revision_reasons": [
+                            "add deterministic tie-breaking assumption"
+                        ],
+                        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    llm_dir = root / "llm_route_planner"
+    llm_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        llm_dir,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+        formalization_gap_planner_component_resource_registry_dir=(
+            component_resource_registry_dir
+        ),
+    )
+    assert llm_payload["all_ok"]
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_dir,
+    )
+
+    clean_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_clean",
+    )
+    assert clean_payload["all_ok"]
+    assert clean_payload["n_optional_llm_route_planner_request_schema_checked"] == 1
+    assert clean_payload["n_optional_llm_route_planner_request_schema_valid"] == 1
+
+    requests_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+    )
+    original_requests = [
+        json.loads(line)
+        for line in requests_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(original_requests) == 1
+    request = original_requests[0]
+    residual_focus = next(
+        focus
+        for focus in request["context_packet"]["route_planning_brief"][
+            "planner_focus"
+        ]
+        if focus["focus_id"] == "repair_from_residual_goal_contexts"
+    )
+    assert "context_packet.resource_response_ledger_rows" in residual_focus[
+        "evidence_fields"
+    ]
+
+    drifted_requests = json.loads(json.dumps(original_requests))
+    drifted_focus = next(
+        focus
+        for focus in drifted_requests[0]["context_packet"]["route_planning_brief"][
+            "planner_focus"
+        ]
+        if focus["focus_id"] == "repair_from_residual_goal_contexts"
+    )
+    drifted_focus["evidence_fields"] = [
+        field
+        for field in drifted_focus["evidence_fields"]
+        if field != "context_packet.resource_response_ledger_rows"
+    ]
+    requests_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in drifted_requests) + "\n",
+        encoding="utf-8",
+    )
+
+    rejected_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_request_residual_focus_provenance_drift",
+    )
+    request_checks = [
+        row
+        for row in rejected_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_request_0_schema_valid"
+    ]
+    assert request_checks
+    assert not request_checks[0]["ok"]
+    assert any(
+        "repair_from_residual_goal_contexts evidence_fields missing "
+        "residual-context provenance fields" in error
+        and "context_packet.resource_response_ledger_rows" in error
+        for error in request_checks[0]["errors"]
+    )
+    assert (
+        rejected_payload["n_optional_llm_route_planner_request_schema_valid"]
+        == 0
+    )
+    assert not rejected_payload["all_ok"]
+    requests_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in original_requests) + "\n",
+        encoding="utf-8",
+    )
+
+
 def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_llm_seed")
     bundle_dir = root / "bundle"
