@@ -10126,6 +10126,73 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert "resource_request_dispatch_summaries" in request["prompt_messages"]["user"]
 
 
+def test_llm_route_planner_feedback_need_flags_get_default_next_actions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_need_actions"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    session_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in session_manifest["rows"]:
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["session_state"] = "EXPAND_LITERATURE_EVIDENCE"
+        row["next_interaction_kind"] = ""
+        row["next_owner_agent"] = ""
+        row["next_tools"] = []
+        row["next_queries"] = []
+        row["next_commands"] = []
+        row["resource_request_ids"] = []
+        row["resource_request_resource_ids"] = []
+        row["resource_request_queue_action_kinds"] = []
+        row["resource_request_dispatch_summaries"] = []
+        row["resource_request_execution_commands"] = []
+        row["needs_more_literature"] = True
+        row["needs_more_proof_state_feedback"] = False
+        row["residual_goals"] = []
+        row["triage_class"] = ""
+        row["triage_required_gate"] = ""
+        row["replan_required"] = False
+    session_manifest["decision_policy_rows"] = []
+    manifest_path.write_text(json.dumps(session_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    summary = payload["request_packets"][0]["context_packet"][
+        "feedback_loop_summary"
+    ]
+    assert summary["needs_more_literature"] is True
+    need_actions = [
+        action
+        for action in summary["recommended_next_actions"]
+        if action["source"] == "feedback_loop_summary_need"
+    ]
+    assert len(need_actions) == 1
+    assert need_actions[0]["owner"] == "literature_router"
+    assert (
+        need_actions[0]["action"]
+        == "dispatch_literature_search_for_feedback_need"
+    )
+    assert need_actions[0]["feedback_need"] == "needs_more_literature"
+    assert "source-backed informal route nodes" in need_actions[0][
+        "acceptance_gate"
+    ]
+    assert need_actions[0]["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+
+
 def test_llm_route_planner_interactive_feedback_uses_structured_target_primitives() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_interactive_structured_targets"

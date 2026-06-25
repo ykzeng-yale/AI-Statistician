@@ -934,6 +934,11 @@ feedback-loop need counts as `replan_required`, `needs_more_literature`,
 `needs_more_library_grounding`, and `needs_more_proof_state_feedback` summary
 fields, so a reusable artifact can drive the next interactive loop without
 reopening full request packets.
+When sparse feedback rows set one of the `needs_more_*` flags without a queued
+tool/resource action, the summary now adds a bounded `feedback_loop_summary_need`
+recommended action for literature search, formal-library grounding, or
+proof-state feedback. These rows are dispatch hints only; they do not create
+source evidence or proof evidence.
 Each request packet also carries
 `context_packet.target_theorem_context_packet`, a compact theorem-context
 packet for the route planner. It preserves the target theorem statement,

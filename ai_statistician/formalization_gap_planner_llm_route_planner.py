@@ -31702,6 +31702,43 @@ def _feedback_loop_summary(
             "by_gap_kind",
         ).keys()
     )
+    needs_more_literature = any(
+        _truthy(row.get("needs_more_literature")) for row in all_rows
+    ) or any(
+        "source" in _source_ref_key(gap_kind)
+        or "literature" in _source_ref_key(gap_kind)
+        for gap_kind in route_brief_gap_kinds
+    )
+    needs_more_library_grounding = needs_more_library_grounding or any(
+        "formal_library" in _source_ref_key(gap_kind)
+        or "library" in _source_ref_key(gap_kind)
+        or "declaration" in _source_ref_key(gap_kind)
+        for gap_kind in route_brief_gap_kinds
+    )
+    needs_more_proof_state_feedback = any(
+        _truthy(row.get("needs_more_proof_state_feedback")) for row in all_rows
+    ) or any(
+        "proof_state" in _source_ref_key(gap_kind)
+        or "proof_body" in _source_ref_key(gap_kind)
+        or "prover" in _source_ref_key(gap_kind)
+        for gap_kind in route_brief_gap_kinds
+    )
+    feedback_need_next_actions = _feedback_loop_need_next_actions(
+        existing_actions=recommended_next_actions,
+        needs_more_literature=needs_more_literature,
+        needs_more_library_grounding=needs_more_library_grounding,
+        needs_more_proof_state_feedback=needs_more_proof_state_feedback,
+        residual_goals=residual_goals,
+        repair_focus=repair_focus,
+    )
+    if feedback_need_next_actions:
+        recommended_next_actions = list(
+            _merge_dict_rows(
+                recommended_next_actions,
+                feedback_need_next_actions,
+                key_fields=("source", "action", "feedback_need"),
+            )
+        )
     summary: dict[str, object] = {
         "summary_kind": "formalization_gap_planner_feedback_loop_summary",
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
@@ -31733,30 +31770,9 @@ def _feedback_loop_summary(
             )[:20]
         ),
         "replan_required": replan_required,
-        "needs_more_literature": any(
-            _truthy(row.get("needs_more_literature")) for row in all_rows
-        )
-        or any(
-            "source" in _source_ref_key(gap_kind)
-            or "literature" in _source_ref_key(gap_kind)
-            for gap_kind in route_brief_gap_kinds
-        ),
-        "needs_more_library_grounding": needs_more_library_grounding
-        or any(
-            "formal_library" in _source_ref_key(gap_kind)
-            or "library" in _source_ref_key(gap_kind)
-            or "declaration" in _source_ref_key(gap_kind)
-            for gap_kind in route_brief_gap_kinds
-        ),
-        "needs_more_proof_state_feedback": any(
-            _truthy(row.get("needs_more_proof_state_feedback")) for row in all_rows
-        )
-        or any(
-            "proof_state" in _source_ref_key(gap_kind)
-            or "proof_body" in _source_ref_key(gap_kind)
-            or "prover" in _source_ref_key(gap_kind)
-            for gap_kind in route_brief_gap_kinds
-        ),
+        "needs_more_literature": needs_more_literature,
+        "needs_more_library_grounding": needs_more_library_grounding,
+        "needs_more_proof_state_feedback": needs_more_proof_state_feedback,
         "repair_focus": list(repair_focus[:20]),
         "route_revision_reasons": list(route_revision_reasons[:20]),
         "admissible_source_refs": list(
@@ -32734,6 +32750,99 @@ def _interactive_route_adoption_precondition_summary(
         "n_target_primitives": len(unique_target_primitives),
         "rows": summary_rows[:12],
     }
+
+
+def _feedback_loop_need_next_actions(
+    *,
+    existing_actions: list[dict[str, object]],
+    needs_more_literature: bool,
+    needs_more_library_grounding: bool,
+    needs_more_proof_state_feedback: bool,
+    residual_goals: tuple[str, ...],
+    repair_focus: tuple[str, ...],
+) -> list[dict[str, object]]:
+    focus = list(repair_focus[:8]) or list(residual_goals[:8])
+    specs = (
+        {
+            "enabled": needs_more_literature,
+            "need": "needs_more_literature",
+            "owner": "literature_router",
+            "action": "dispatch_literature_search_for_feedback_need",
+            "markers": ("literature", "source_grounding", "source_discovery"),
+            "acceptance_gate": (
+                "source-backed informal route nodes or search_requests that "
+                "account for the pending route repair"
+            ),
+        },
+        {
+            "enabled": needs_more_library_grounding,
+            "need": "needs_more_library_grounding",
+            "owner": "formal_library_search",
+            "action": "dispatch_library_grounding_for_feedback_need",
+            "markers": (
+                "library",
+                "formal_library",
+                "declaration",
+                "lean",
+                "source_discovery",
+            ),
+            "acceptance_gate": (
+                "formal declarations, coverage rows, or bridge/wrapper "
+                "obligations tied to the pending primitives"
+            ),
+        },
+        {
+            "enabled": needs_more_proof_state_feedback,
+            "need": "needs_more_proof_state_feedback",
+            "owner": "formal_verifier",
+            "action": "dispatch_proof_state_feedback_for_feedback_need",
+            "markers": ("proof_state", "prover", "formal_verifier"),
+            "acceptance_gate": (
+                "target-prover residual feedback rows with diagnostic "
+                "signatures and source-grounded side-condition interpretation"
+            ),
+        },
+    )
+    actions: list[dict[str, object]] = []
+    for spec in specs:
+        if not spec["enabled"]:
+            continue
+        if _feedback_need_already_has_action(
+            existing_actions,
+            markers=tuple(str(marker) for marker in spec["markers"]),
+        ):
+            continue
+        action_row: dict[str, object] = {
+            "source": "feedback_loop_summary_need",
+            "owner": str(spec["owner"]),
+            "action": str(spec["action"]),
+            "feedback_need": str(spec["need"]),
+            "acceptance_gate": str(spec["acceptance_gate"]),
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        if focus:
+            action_row["queries"] = focus
+            action_row["repair_focus"] = focus
+        if residual_goals:
+            action_row["residual_goals"] = list(residual_goals[:8])
+        actions.append(action_row)
+    return actions
+
+
+def _feedback_need_already_has_action(
+    actions: list[dict[str, object]],
+    *,
+    markers: tuple[str, ...],
+) -> bool:
+    for action in actions:
+        haystack = " ".join(
+            str(action.get(field, "") or "").lower()
+            for field in ("source", "owner", "action", "feedback_need")
+        )
+        if any(marker in haystack for marker in markers):
+            return True
+    return False
 
 
 def _feedback_next_actions(
