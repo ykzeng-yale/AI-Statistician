@@ -10434,6 +10434,59 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert any(
         row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_rows_parse"
+        and row["observed"] == "rows=1"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_row_count"
+        and "jsonl=1" in row["observed"]
+        and "manifest=1" in row["observed"]
+        and "manifest_rows=1" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_manifest_match"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_model_tier_decision_ledger_schema_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
         == "optional_llm_route_planner_provider_usage_row_schema_shape"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -11320,6 +11373,10 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
     )
+    model_tier_decision_ledger_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl"
+    )
     alignment_summaries_path = (
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
@@ -11346,6 +11403,85 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert json.loads(alignment_summary_schema_path.read_text(encoding="utf-8"))[
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    original_model_tier_decision_ledger_text = (
+        model_tier_decision_ledger_path.read_text(encoding="utf-8")
+    )
+    model_tier_decision_ledger_path.write_text("", encoding="utf-8")
+    rejected_model_tier_ledger_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_planner_model_tier_ledger_loss",
+        )
+    )
+    model_tier_ledger_failed_names = {
+        row["check_name"]
+        for row in rejected_model_tier_ledger_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_model_tier_ledger_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_model_tier_decision_ledger_row_count"
+        in model_tier_ledger_failed_names
+    )
+    assert (
+        "optional_llm_route_planner_model_tier_decision_ledger_manifest_match"
+        in model_tier_ledger_failed_names
+    )
+    assert (
+        rejected_model_tier_ledger_payload[
+            "n_optional_llm_route_planner_model_tier_decision_ledger_count_valid"
+        ]
+        == 0
+    )
+    model_tier_decision_ledger_path.write_text(
+        original_model_tier_decision_ledger_text,
+        encoding="utf-8",
+    )
+    model_tier_decision_ledger_rows = [
+        json.loads(line)
+        for line in original_model_tier_decision_ledger_text.splitlines()
+        if line.strip()
+    ]
+    assert model_tier_decision_ledger_rows
+    malformed_model_tier_rows = json.loads(
+        json.dumps(model_tier_decision_ledger_rows)
+    )
+    malformed_model_tier_rows[0].pop("request_id", None)
+    model_tier_decision_ledger_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in malformed_model_tier_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_model_tier_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_planner_model_tier_ledger_schema_drift",
+        )
+    )
+    model_tier_schema_checks = [
+        row
+        for row in rejected_model_tier_schema_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_model_tier_decision_ledger_row_0_schema_valid"
+    ]
+    assert model_tier_schema_checks
+    assert not model_tier_schema_checks[0]["ok"]
+    assert any(
+        "request_id required" in error
+        for error in model_tier_schema_checks[0]["errors"]
+    )
+    assert (
+        rejected_model_tier_schema_payload[
+            "n_optional_llm_route_planner_model_tier_decision_ledger_schema_valid"
+        ]
+        == 0
+    )
+    model_tier_decision_ledger_path.write_text(
+        original_model_tier_decision_ledger_text,
+        encoding="utf-8",
+    )
     original_provider_usage_text = provider_usage_path.read_text(encoding="utf-8")
     provider_usage_path.write_text("", encoding="utf-8")
     rejected_provider_usage_payload = audit_formalization_gap_planner_publication_bundle(

@@ -86,7 +86,9 @@ from .formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_row,
+    llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_provider_usage_row_json_schema,
+    _validate_with_schema as _llm_route_planner_validate_with_schema,
     _response_resource_request_alignment_errors as _llm_route_planner_resource_request_alignment_errors,
 )
 from .formalization_gap_planner_route_adoption_blockers import (
@@ -1482,6 +1484,49 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_model_tier_decision_ledger_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_llm_route_planner_model_tier_decision_ledger_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_count_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_model_tier_decision_ledger_row_count"
+        ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_count_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_model_tier_decision_ledger_row_count"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_model_tier_decision_ledger_manifest_match"
+        ),
+        "n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_model_tier_decision_ledger_manifest_match"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_realization_witness_schema_checked": sum(
             1
             for check in checks
@@ -1923,6 +1968,49 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_model_tier_decision_ledger_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_model_tier_decision_ledger_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_count_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_model_tier_decision_ledger_row_count"
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_count_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_model_tier_decision_ledger_row_count"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match"
+        ),
+        "n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match"
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_realization_witness_schema_checked": sum(
@@ -11759,6 +11847,14 @@ def _llm_route_planner_optional_checks(
     row_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_row.schema.json"
     )
+    model_tier_decision_ledger_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl"
+    )
+    model_tier_decision_ledger_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+    )
     provider_usage_jsonl_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
     )
@@ -11795,6 +11891,9 @@ def _llm_route_planner_optional_checks(
         response_payload_validation_row_schema_path
     )
     row_schema = _read_json_no_error(row_schema_path)
+    model_tier_decision_ledger_schema = _read_json_no_error(
+        model_tier_decision_ledger_schema_path
+    )
     provider_usage_row_schema = _read_json_no_error(provider_usage_row_schema_path)
     seed_route_selection_schema = _read_json_no_error(
         seed_route_selection_schema_path
@@ -11811,8 +11910,14 @@ def _llm_route_planner_optional_checks(
         _read_jsonl_dict_rows_no_error(route_planning_briefs_jsonl_path)
     )
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    model_tier_decision_ledger_rows, model_tier_decision_ledger_errors = (
+        _read_jsonl_dict_rows_no_error(model_tier_decision_ledger_jsonl_path)
+    )
     provider_usage_rows, provider_usage_errors = _read_jsonl_dict_rows_no_error(
         provider_usage_jsonl_path
+    )
+    manifest_model_tier_decision_ledger_rows = list(
+        _dict_tuple(manifest.get("model_tier_decision_ledger", []))
     )
     manifest_provider_usage_rows = list(
         _dict_tuple(manifest.get("provider_usage_rows", []))
@@ -12064,6 +12169,29 @@ def _llm_route_planner_optional_checks(
             row_schema.get("$id") == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
         ),
         _check(
+            f"{check_prefix}_model_tier_decision_ledger_schema_file",
+            "optional_artifacts",
+            "LLM route-planner model-tier decision ledger schema exists",
+            str(model_tier_decision_ledger_schema_path.exists()),
+            model_tier_decision_ledger_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_model_tier_decision_ledger_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+            str(model_tier_decision_ledger_schema.get("$id", "")),
+            model_tier_decision_ledger_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_model_tier_decision_ledger_schema_shape",
+            "optional_artifacts",
+            "model-tier decision ledger schema matches canonical builder",
+            str(model_tier_decision_ledger_schema.get("$id", "")),
+            model_tier_decision_ledger_schema
+            == llm_route_planner_model_tier_decision_ledger_json_schema(),
+        ),
+        _check(
             f"{check_prefix}_provider_usage_row_schema_file",
             "optional_artifacts",
             "LLM route-planner provider-usage row schema exists",
@@ -12160,6 +12288,18 @@ def _llm_route_planner_optional_checks(
             "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
             not row_errors,
             errors=row_errors,
+        ),
+        _check(
+            f"{check_prefix}_model_tier_decision_ledger_rows_parse",
+            "optional_artifacts",
+            "LLM route-planner model-tier decision ledger JSONL parses into object rows",
+            (
+                "; ".join(model_tier_decision_ledger_errors)
+                if model_tier_decision_ledger_errors
+                else f"rows={len(model_tier_decision_ledger_rows)}"
+            ),
+            not model_tier_decision_ledger_errors,
+            errors=model_tier_decision_ledger_errors,
         ),
         _check(
             f"{check_prefix}_provider_usage_rows_parse",
@@ -12287,6 +12427,30 @@ def _llm_route_planner_optional_checks(
             len(rows) == int(manifest.get("n_rows", 0) or 0),
         ),
         _check(
+            f"{check_prefix}_model_tier_decision_ledger_row_count",
+            "optional_artifacts",
+            "LLM route-planner model-tier decision ledger rows match manifest count",
+            (
+                f"jsonl={len(model_tier_decision_ledger_rows)} "
+                f"manifest={manifest.get('n_model_tier_decision_ledger_rows', 0)} "
+                f"manifest_rows={len(manifest_model_tier_decision_ledger_rows)}"
+            ),
+            len(model_tier_decision_ledger_rows)
+            == int(manifest.get("n_model_tier_decision_ledger_rows", 0) or 0)
+            == len(manifest_model_tier_decision_ledger_rows),
+        ),
+        _check(
+            f"{check_prefix}_model_tier_decision_ledger_manifest_match",
+            "optional_artifacts",
+            "LLM route-planner model-tier decision ledger JSONL rows match manifest model_tier_decision_ledger",
+            (
+                f"jsonl={len(model_tier_decision_ledger_rows)} "
+                f"manifest_rows={len(manifest_model_tier_decision_ledger_rows)}"
+            ),
+            model_tier_decision_ledger_rows
+            == manifest_model_tier_decision_ledger_rows,
+        ),
+        _check(
             f"{check_prefix}_provider_usage_row_count",
             "optional_artifacts",
             "LLM route-planner provider-usage rows match manifest count",
@@ -12397,6 +12561,21 @@ def _llm_route_planner_optional_checks(
                 _llm_request_generation_policy_observed(request),
                 not generation_policy_errors,
                 errors=generation_policy_errors,
+            )
+        )
+    for idx, ledger_row in enumerate(model_tier_decision_ledger_rows):
+        schema_errors = _llm_route_planner_validate_with_schema(
+            ledger_row,
+            model_tier_decision_ledger_schema,
+        )
+        checks.append(
+            _check(
+                f"{check_prefix}_model_tier_decision_ledger_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "LLM route-planner model-tier decision ledger row validates against public row schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
             )
         )
     for idx, row in enumerate(rows):
@@ -25415,6 +25594,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         ),
         f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
+        f"- Optional LLM route-planner model-tier ledger rows valid: {payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_schema_valid')}/{payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_schema_checked')}",
+        f"- Optional LLM route-planner model-tier ledger manifest match valid: {payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_valid')}/{payload.get('n_optional_llm_route_planner_model_tier_decision_ledger_manifest_match_checked')}",
         f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",
         f"- Optional LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
@@ -25436,6 +25617,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner blocker summary valid: {payload.get('n_optional_llm_route_planner_route_adoption_blocker_summary_valid')}/{payload.get('n_optional_llm_route_planner_route_adoption_blocker_summary_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
+        f"- Optional feedback LLM route-planner model-tier ledger rows valid: {payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_schema_checked')}",
+        f"- Optional feedback LLM route-planner model-tier ledger manifest match valid: {payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_valid')}/{payload.get('n_optional_feedback_llm_route_planner_model_tier_decision_ledger_manifest_match_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",
