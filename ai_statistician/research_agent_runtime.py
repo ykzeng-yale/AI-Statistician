@@ -3294,6 +3294,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     _formalizer_lean_candidate_repair_feedback(
                         lean_candidate_materialization,
                         formal_source_retriever=self.formal_source_retriever,
+                        prior_environment_feedback=(
+                            task.inputs.get("environment_feedback", {})
+                            if isinstance(
+                                task.inputs.get("environment_feedback", {}),
+                                Mapping,
+                            )
+                            else {}
+                        ),
                     )
                 )
                 if lean_candidate_repair_feedback is not None:
@@ -4471,6 +4479,9 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(prior_candidate_reroute_options, (list, tuple))
         else []
     )
+    active_formal_blocker_resource_requests = (
+        _formal_blocker_resource_requests_from_feedback(prior_environment_feedback)
+    )
     if active_target_shape_contract and not active_candidate_reroute_options:
         active_candidate_reroute_options = [
             (
@@ -4526,6 +4537,7 @@ def _formalizer_packet_validation_failure_result(
             "local_lean_repair_contract": active_local_lean_repair_contract,
             "candidate_diagnostics": active_candidate_diagnostics,
             "proofengineer_repair_context": active_proofengineer_repair_context,
+            "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
             "candidate_reroute_options": active_candidate_reroute_options,
             "missing_semantic_anchor_references": missing_anchors,
             "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4604,6 +4616,7 @@ def _formalizer_packet_validation_failure_result(
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
+        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4633,6 +4646,7 @@ def _formalizer_packet_validation_failure_result(
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
+        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -5589,6 +5603,7 @@ def _formalizer_lean_candidate_repair_feedback(
     manifest: Mapping[str, Any],
     *,
     formal_source_retriever: Any | None = None,
+    prior_environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Build direct Formalizer feedback from runtime Lean-candidate diagnostics."""
 
@@ -5690,6 +5705,16 @@ def _formalizer_lean_candidate_repair_feedback(
         target_shape_contract=target_shape_contract,
         formal_source_retriever=formal_source_retriever,
     )
+    formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
+        _formal_blocker_resource_requests_from_feedback(
+            prior_environment_feedback or {}
+        ),
+        _formal_blocker_resource_requests_from_unknown_identifiers(
+            local_lean_repair_contract=local_lean_repair_contract,
+            manifest=manifest,
+            diagnostics=diagnostics,
+        ),
+    )
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
         "failure_classification": failure_classification,
@@ -5738,6 +5763,8 @@ def _formalizer_lean_candidate_repair_feedback(
         ]
     if local_lean_repair_contract:
         feedback["local_lean_repair_contract"] = local_lean_repair_contract
+    if formal_blocker_resource_requests:
+        feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
     return feedback
 
 
@@ -18736,6 +18763,193 @@ def _formal_blocker_resource_request_queries(
         if query not in queries:
             queries.append(query)
     return queries[:5]
+
+
+def _formal_blocker_resource_requests_from_feedback(
+    feedback: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Carry prior typed blocker requests across repair loops."""
+
+    if not isinstance(feedback, Mapping):
+        return []
+    return _merge_formal_blocker_resource_requests(
+        [
+            row
+            for row in feedback.get("formal_blocker_resource_requests", []) or []
+            if isinstance(row, Mapping)
+        ]
+    )
+
+
+def _formal_blocker_resource_requests_from_unknown_identifiers(
+    *,
+    local_lean_repair_contract: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert local Lean unknown identifiers into typed prover/RAG requests."""
+
+    if not isinstance(local_lean_repair_contract, Mapping):
+        return []
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question", {}), Mapping)
+        else {}
+    )
+    target_ids = [
+        str(value).strip()
+        for value in (
+            question.get("id", ""),
+            *[
+                row.get("target_lean_declaration", "")
+                for row in diagnostics
+                if isinstance(row, Mapping)
+            ],
+        )
+        if str(value).strip()
+    ]
+    rows: list[dict[str, Any]] = []
+    source_manifest_id = str(manifest.get("manifest_id", "") or "")
+    for unknown in local_lean_repair_contract.get("unknown_identifiers", []) or []:
+        identifier = str(unknown).strip()
+        if not identifier:
+            continue
+        blocker = (
+            f"{identifier} unknown identifier in configured Lean project during "
+            "local Lean repair; do not reuse it without a verified local declaration "
+            "or smaller primitive."
+        )
+        fingerprint = stable_hash(
+            [
+                "formalizer_lean_candidate_local_lean_feedback",
+                "lean_unknown_identifier",
+                identifier,
+                source_manifest_id,
+            ]
+        )[:20]
+        rows.append(
+            {
+                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "source": "formalizer_lean_candidate_local_lean_feedback",
+                "blocker_kind": "lean_unknown_identifier",
+                "blocker": blocker,
+                "next_owner": "ProofEngineer",
+                "target_ids": target_ids,
+                "formal_source_queries": _formal_blocker_resource_request_queries(
+                    blocker,
+                    blocker_kind="lean_unknown_identifier",
+                    target_ids=target_ids,
+                ),
+                "recommended_tools": [
+                    "formal_source_retriever",
+                    "proof_search",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ],
+                "required_resolution": (
+                    "Retrieve or identify a verified local declaration/import, "
+                    "derive the needed fact from known primitives, or keep the "
+                    "affected theorem as FORMAL_GAP with the exact unknown identifier "
+                    "named. Do not emit an executable candidate that reuses the "
+                    "unknown identifier."
+                ),
+                "proof_evidence_status": (
+                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _merge_formal_blocker_resource_requests(
+    *request_groups: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Normalize, fill defaults, and deduplicate formal blocker requests."""
+
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for group in request_groups:
+        for row in group or []:
+            if not isinstance(row, Mapping):
+                continue
+            blocker = str(row.get("blocker", "") or "").strip()
+            blocker_kind = str(row.get("blocker_kind", "") or "").strip()
+            request_id = str(row.get("request_id", "") or "").strip()
+            if not blocker and not request_id:
+                continue
+            source = str(row.get("source", "") or "").strip() or "formal_blocker"
+            next_owner = (
+                str(row.get("next_owner", "") or "").strip()
+                or "Formalizer/ProofEngineer"
+            )
+            target_ids = [
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            ]
+            if not blocker_kind:
+                blocker_kind = "formal_blocker"
+            if not request_id:
+                request_id = (
+                    "formal_blocker_resource_request:"
+                    + stable_hash([source, blocker_kind, blocker, next_owner])[:20]
+                )
+            fingerprint = stable_hash([request_id, source, blocker_kind, blocker])[:20]
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            formal_source_queries = [
+                str(query).strip()
+                for query in row.get("formal_source_queries", []) or []
+                if str(query).strip()
+            ]
+            if not formal_source_queries and blocker:
+                formal_source_queries = _formal_blocker_resource_request_queries(
+                    blocker,
+                    blocker_kind=blocker_kind,
+                    target_ids=target_ids,
+                )
+            recommended_tools = [
+                str(tool).strip()
+                for tool in row.get("recommended_tools", []) or []
+                if str(tool).strip()
+            ]
+            if not recommended_tools:
+                recommended_tools = [
+                    "formal_source_retriever",
+                    "proof_search",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ]
+            merged.append(
+                {
+                    **dict(row),
+                    "request_id": request_id,
+                    "source": source,
+                    "blocker_kind": blocker_kind,
+                    "blocker": blocker,
+                    "next_owner": next_owner,
+                    "target_ids": target_ids,
+                    "formal_source_queries": formal_source_queries[:5],
+                    "recommended_tools": list(dict.fromkeys(recommended_tools)),
+                    "required_resolution": str(
+                        row.get("required_resolution", "") or ""
+                    )
+                    or (
+                        "Retrieve or identify a verified local declaration/import, "
+                        "formalize a smaller semantic primitive, or keep the theorem "
+                        "as FORMAL_GAP with the exact missing resource named."
+                    ),
+                    "proof_evidence_status": (
+                        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+            if len(merged) >= 8:
+                return merged
+    return merged
 
 
 def _critic_candidate_diagnostics_from_formalization_manifest(

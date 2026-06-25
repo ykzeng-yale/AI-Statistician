@@ -4290,6 +4290,23 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     feedback = _formalizer_lean_candidate_repair_feedback(
         manifest,
         formal_source_retriever=retriever,
+        prior_environment_feedback={
+            "formal_blocker_resource_requests": [
+                {
+                    "request_id": "formal_blocker_resource_request:exchangeable",
+                    "source": "llm_formalizer_gap_taxonomy",
+                    "blocker_kind": "semantic_alignment",
+                    "blocker": "Exchangeable definition not located in Lean project",
+                    "next_owner": "ProofEngineer/Architect",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "formal_source_queries": ["Exchangeable Lean declaration"],
+                    "recommended_tools": ["formal_source_retriever"],
+                    "proof_evidence_status": (
+                        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ]
+        },
     )
 
     assert feedback is not None
@@ -4308,6 +4325,20 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     assert "local Lean/AXLE gate" in proofengineer_context[
         "formal_source_grounding_policy"
     ]
+    blocker_requests = feedback["formal_blocker_resource_requests"]
+    assert blocker_requests[0]["request_id"] == (
+        "formal_blocker_resource_request:exchangeable"
+    )
+    assert blocker_requests[0]["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+    assert blocker_requests[1]["source"] == (
+        "formalizer_lean_candidate_local_lean_feedback"
+    )
+    assert blocker_requests[1]["blocker_kind"] == "lean_unknown_identifier"
+    assert "Nat.ceil Lean declaration" in blocker_requests[1][
+        "formal_source_queries"
+    ]
 
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
@@ -4322,8 +4353,10 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
         environment_feedback=feedback,
     )
     assert "Formal-source grounding hits are available" in prompt
+    assert "formal_blocker_resource_requests" in prompt
     assert "Nat.ceilReplacement_bridge" in prompt
     assert "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE" in prompt
+    assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
 
 
 def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding() -> None:

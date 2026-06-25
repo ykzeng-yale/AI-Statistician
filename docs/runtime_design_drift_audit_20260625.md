@@ -191,3 +191,15 @@ Every request is marked
 `FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`; retrieval hits, LSP
 diagnostics, and proof-search suggestions still become proof evidence only if
 the exact repaired artifact is checked by local Lean/AXLE.
+
+The follow-up live probe
+`runs/main_worker_live_runtime_resume_formal_blocker_request_carry_forward_probe/research_agent_runtime_manifest.json`
+exercised request preservation across the next ProofEngineer loop. The runtime
+generated one source-to-bridge premise derivation work order, then rejected it
+as non-evidence because the candidate missed the required semantic anchors
+`hQuantileThreshold`, `hGoodRank`, and `hExch`. Its local Lean repair feedback
+carried the original 5 requests forward and synthesized a sixth typed request
+for unknown identifier `Finset.univ.filter`. This is the intended design shape:
+the LLM may propose proof objects, but runtime validators and Lean diagnostics
+convert unresolved resources into typed retrieval/prover work without claiming
+proof.

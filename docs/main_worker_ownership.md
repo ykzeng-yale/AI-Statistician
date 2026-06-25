@@ -334,6 +334,20 @@ resolve those requests through verified declarations/imports or keep an honest
 blocker-routing test and guarded suite pass, with the final guarded run at
 `304 passed in 149.49s`.
 
+The live carry-forward probe
+`runs/main_worker_live_runtime_resume_formal_blocker_request_carry_forward_probe/research_agent_runtime_manifest.json`
+confirmed the next repair-loop behavior. Formalizer/ProofEngineer consumed the
+typed requests far enough to emit one source-to-bridge premise derivation work
+order for `hGoodRankImpliesCovered`, but the runtime correctly rejected it before
+Lean because it did not reference `hQuantileThreshold`, `hGoodRank`, or `hExch`
+non-vacuously. The same turn produced a local Lean failure with unknown
+`Finset.univ.filter`; the pending task now carries the original 5 blocker
+requests plus one new `lean_unknown_identifier` request for that API, all tagged
+`FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`. Scorecard is still not
+ready (`40/49` in CLI output), and no source theorem promotion work order was
+emitted. The focused carry-forward tests and guarded suite pass, with the final
+guarded run at `304 passed in 149.99s`.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
