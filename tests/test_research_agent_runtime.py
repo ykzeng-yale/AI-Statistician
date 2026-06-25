@@ -29394,8 +29394,9 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.formalizer_provider == "same"
     assert args.critic_evaluator_provider == "same"
     assert args.local_lean is True
+    assert args.lean_project == "legacy_sources/emperical_process_lean"
     assert args.formalizer_candidate_local_lean is True
-    assert args.formalizer_candidate_lean_project
+    assert args.formalizer_candidate_lean_project == args.lean_project
     assert args.source_theorem_exact_semantic_definition_source_root == [
         "legacy_sources/ai_statistician"
     ]

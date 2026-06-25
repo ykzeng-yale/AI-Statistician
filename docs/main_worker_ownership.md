@@ -90,6 +90,28 @@ readiness separately from AXLE package/API readiness. This matters because
 component capability tests can fail on first-use Lean toolchain installation
 before they reach the actual generated Lean candidate.
 
+Second concrete change in this lane: `research-agent-runtime
+--capability-eval-preset minimal-live` now auto-detects the repo-local
+`legacy_sources/emperical_process_lean` Lake project before falling back to
+machine-specific LeanPractice paths. Future workers should be able to run the
+strict live preset from this repo without manually passing `--lean-project`.
+
+Live evidence collected on 2026-06-25:
+
+- `runs/main_worker_doctor_live_env/doctor_manifest.json`: live environment
+  ready for Anthropic and AXLE when keys are loaded via process environment.
+- `runs/main_worker_live_runtime_minimal/research_agent_runtime_manifest.json`:
+  5-iteration budget reached only SimulationEvaluator repair; scorecard 29/49.
+- `runs/main_worker_live_runtime_minimal12/research_agent_runtime_manifest.json`:
+  12-iteration budget reached generated algorithm fail-then-pass repair and
+  Formalizer/ProofEngineer local Lean diagnostics; scorecard 32/49.
+
+The 12-iteration run is evidence for live generated-code execution, one
+AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
+Lean tool calls, and proof-state feedback rows. It is not source theorem proof:
+`real_kernel_verified_subclaims=0`, `formal_gaps=3`, and the terminal state was
+`MAX_ITERATIONS_REACHED` with a pending ProofEngineer repair task.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

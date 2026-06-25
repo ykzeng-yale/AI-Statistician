@@ -8643,10 +8643,13 @@ def _apply_research_agent_runtime_capability_eval_preset(
         args.local_lean = True
     lean_project = str(getattr(args, "lean_project", "") or "").strip()
     if not lean_project:
-        default_lean_project = Path("/Users/yukang/LeanProjects/LeanPractice")
-        if default_lean_project.exists():
-            args.lean_project = str(default_lean_project)
-            lean_project = str(default_lean_project)
+        for default_lean_project in (
+            _capability_eval_default_lean_project_candidates()
+        ):
+            if _is_lake_project(default_lean_project):
+                args.lean_project = str(default_lean_project)
+                lean_project = str(default_lean_project)
+                break
 
     for field_name in (
         "formalizer_candidate_local_lean",
@@ -8699,6 +8702,37 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if not roots and default_source_root.exists():
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
+
+
+def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
+    project_root = Path(__file__).resolve().parents[1]
+    relative_vendored_project = Path("legacy_sources/emperical_process_lean")
+    repo_vendored_project = project_root / relative_vendored_project
+    candidates = (
+        relative_vendored_project,
+        repo_vendored_project,
+        Path("/Users/yukang/LeanProjects/LeanPractice"),
+    )
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return tuple(unique)
+
+
+def _is_lake_project(path: Path) -> bool:
+    return (
+        path.exists()
+        and path.is_dir()
+        and (
+            (path / "lakefile.lean").exists()
+            or (path / "lakefile.toml").exists()
+        )
+    )
 
 
 def _research_agent_runtime_capability_config_errors(
