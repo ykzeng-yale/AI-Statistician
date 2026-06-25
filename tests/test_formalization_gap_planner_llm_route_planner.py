@@ -6605,6 +6605,14 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "preserve_resource_feedback_minimal_delta_priority",
         "repair_from_residual_goal_contexts",
     }
+    residual_focus = next(
+        focus
+        for focus in route_brief["planner_focus"]
+        if focus["focus_id"] == "repair_from_residual_goal_contexts"
+    )
+    assert "context_packet.resource_response_ledger_rows" in residual_focus[
+        "evidence_fields"
+    ]
     assert inventory["resource_feedback_readiness_summary_present"] is True
     assert inventory["resource_feedback_readiness_row_count"] == 1
     assert inventory["resource_feedback_readiness_reuse_ready_count"] == 0

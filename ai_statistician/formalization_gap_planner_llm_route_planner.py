@@ -10476,6 +10476,7 @@ def _route_planning_brief(
             evidence_fields=(
                 "context_packet.residual_goal_contexts",
                 "context_packet.route_replan_handoff_rows",
+                "context_packet.resource_response_ledger_rows",
                 "context_packet.feedback_loop_summary",
             ),
             required_output_fields=(
