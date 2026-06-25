@@ -3060,12 +3060,16 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        subsystem_name = str(
+            getattr(self, "name", "FormalizationEvaluator")
+            or "FormalizationEvaluator"
+        )
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
-        formalization_control = _architect_control_payload(context, "FormalizationEvaluator")
+        formalization_control = _architect_control_payload(context, subsystem_name)
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
@@ -3140,7 +3144,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     environment_feedback=(
                         _runtime_environment_feedback_with_architect_directive(
                             context=context,
-                            subsystem="FormalizationEvaluator",
+                            subsystem=subsystem_name,
                             feedback=task.inputs.get("environment_feedback", {})
                             if isinstance(
                                 task.inputs.get("environment_feedback", {}),

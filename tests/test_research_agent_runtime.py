@@ -3787,6 +3787,11 @@ def test_agent_runtime_dispatches_proofengineer_to_explicit_subsystem(
             feedback = kwargs.get("environment_feedback", {})
             assert isinstance(feedback, dict)
             assert feedback["runtime_task"]["owner_subsystem"] == "ProofEngineer"
+            assert feedback["architect_subsystem_acceptance_gate"] == (
+                "proofengineer-specific local Lean repair gate"
+            )
+            assert feedback["architect_formal_verification_policy"] == "required"
+            assert feedback["architect_recommended_research_path"] == "proof_first"
             return {
                 "schema_version": 1,
                 "artifact_kind": "FormalizerProofEngineerProposalPacket",
@@ -3861,6 +3866,32 @@ def test_agent_runtime_dispatches_proofengineer_to_explicit_subsystem(
                 "environment_feedback": {
                     "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
                     "repair_owner_agent": "ProofEngineer",
+                },
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "formal_verification_policy": "required",
+                            "recommended_research_path": "proof_first",
+                            "formal_required_for_final": True,
+                        },
+                        "subsystem_execution_plan": [
+                            {
+                                "subsystem": "FormalizationEvaluator",
+                                "acceptance_gate": (
+                                    "wrong formalization gate for this proof repair"
+                                ),
+                            },
+                            {
+                                "subsystem": "ProofEngineer",
+                                "acceptance_gate": (
+                                    "proofengineer-specific local Lean repair gate"
+                                ),
+                                "expected_artifacts": [
+                                    "proofengineer_repair_candidate",
+                                ],
+                            },
+                        ],
+                    },
                 },
             },
             allowed_tools=("model_backend", "local_lean", "lean_lsp_mcp"),
