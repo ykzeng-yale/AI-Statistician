@@ -401,6 +401,90 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     ] == request["candidate_request_id"]
 
 
+def test_premise_bridge_checks_core_candidate_without_injecting_mathlib(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    candidate_source = (
+        "theorem split_conformal_finite_sample_coverage_"
+        "hGoodRankImpliesCovered_source_to_bridge_derivation\n"
+        "    (good_rank_event coverage_event : Prop)\n"
+        "    (hC : good_rank_event -> coverage_event)\n"
+        "    (hGoodRank : good_rank_event) : coverage_event :=\n"
+        "  hC hGoodRank"
+    )
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                work_order_id=(
+                    "source_to_bridge_premise_derivation_work_order:"
+                    "hGoodRankImpliesCovered"
+                ),
+                premise_name="hGoodRankImpliesCovered",
+                target_theorem_name="split_conformal_finite_sample_coverage",
+                target_lean_declaration="split_conformal_finite_sample_coverage",
+                source_candidate_artifact_path="",
+                adapter_candidate_artifact_path="",
+                adapter_declaration_name="",
+                source_to_bridge_premise_derivation_candidate_request_id=(
+                    "request:hGoodRankImpliesCovered"
+                ),
+                source_to_bridge_premise_derivation_candidate_request={
+                    "candidate_request_id": "request:hGoodRankImpliesCovered",
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "premise_target_type": "good_rank_event -> coverage_event",
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "exact_source_theorem_binders": [
+                        {
+                            "name": "hC",
+                            "type": "good_rank_event -> coverage_event",
+                        }
+                    ],
+                    "premise_semantic_anchor_binders": [
+                        {
+                            "name": "hC",
+                            "role": "source coverage-event anchor",
+                        }
+                    ],
+                    "premise_semantic_anchor_binder_names": ["hC"],
+                    "required_semantic_anchor_reference_names": ["hC"],
+                },
+                premise_derivation_candidate_lean_source=candidate_source,
+            )
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=True,
+        lean_command=("true",),
+    )
+
+    assert manifest["n_work_orders"] == 1
+    assert manifest["n_premise_candidate_evidence_eligible"] == 1
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["n_premise_derivation_kernel_verified"] == 1
+    assert manifest["by_failure_classification"] == {"none": 1}
+    row = manifest["rows"][0]
+    assert row["premise_candidate_evidence_eligible"] is True
+    assert row["premise_candidate_references_semantic_anchor"] is True
+    assert row["premise_derivation_kernel_verified"] is True
+    assert row["failure_classification"] == ""
+    materialized = Path(row["premise_candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "import Mathlib" not in materialized
+    assert "hC hGoodRank" in materialized
+
+
 def test_premise_bridge_summarizes_local_lean_skipped_skeletons(tmp_path: Path) -> None:
     queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
     _write_jsonl(

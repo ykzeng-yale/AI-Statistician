@@ -562,8 +562,10 @@ def _premise_derivation_check_row(
     theorem_matches = bool(
         re.search(rf"\btheorem\s+{re.escape(declaration_name)}\b", source)
     )
-    premise_referenced = bool(
-        premise_name and re.search(rf"\b{re.escape(premise_name)}\b", source)
+    premise_referenced = _premise_name_referenced_by_candidate(
+        source,
+        premise_name=premise_name,
+        declaration_name=declaration_name,
     )
     evidence_eligible = bool(
         provided_source
@@ -2647,8 +2649,6 @@ def _premise_derivation_gap(
 
 
 def _normalize_lean_source(source: str) -> str:
-    if "import " not in source:
-        return "import Mathlib\n\n" + source.rstrip() + "\n"
     return source.rstrip() + "\n"
 
 
@@ -2688,8 +2688,43 @@ def _merge_lean_sources(sources: list[str]) -> str:
         body = "\n".join(body_lines).strip()
         if body:
             bodies.append(body)
-    import_block = "\n".join(imports) or "import Mathlib"
-    return import_block + "\n\n" + "\n\n".join(bodies).rstrip() + "\n"
+    body = "\n\n".join(bodies).rstrip()
+    if imports:
+        return "\n".join(imports) + "\n\n" + body + "\n"
+    return body + "\n"
+
+
+def _premise_name_referenced_by_candidate(
+    source: str,
+    *,
+    premise_name: str,
+    declaration_name: str,
+) -> bool:
+    premise = str(premise_name or "").strip()
+    if not premise:
+        return False
+    normalized_premise = _normalize_premise_identifier(premise)
+    if not normalized_premise:
+        return False
+    declaration_segments = {
+        segment
+        for segment in re.split(r"[_'.]+", str(declaration_name or ""))
+        if segment
+    }
+    if premise in declaration_segments:
+        return True
+    if normalized_premise == _normalize_premise_identifier(declaration_name):
+        return True
+    for identifier in re.findall(r"[A-Za-z_][A-Za-z0-9_'.]*", str(source or "")):
+        if identifier == premise:
+            return True
+        if premise in {
+            segment for segment in re.split(r"[_'.]+", identifier) if segment
+        }:
+            return True
+        if normalized_premise == _normalize_premise_identifier(identifier):
+            return True
+    return False
 
 
 def _sanitize_comment_text(value: str) -> str:

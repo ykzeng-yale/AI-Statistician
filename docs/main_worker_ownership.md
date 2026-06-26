@@ -549,6 +549,28 @@ memory says a source-to-bridge premise derivation is pending, progress requires
 a concrete structured candidate with copied request metadata, required semantic
 anchors such as `hC`, and verifier-ready Lean source, or an honest FORMAL_GAP.
 
+The next continuation reached that structured-candidate shape. In
+`runs/main_worker_live_runtime_resume_pending_premise_repair_followup_probe/research_agent_runtime_manifest.json`,
+the Formalizer emitted four source-to-bridge premise derivation work orders,
+including a no-import core `Prop` candidate for `hGoodRankImpliesCovered` whose
+proof body is the exact source anchor application `hC hGoodRank`. The in-run
+bridge still skipped local Lean on that row because the generic premise-name
+check did not recognize premise names embedded as theorem-name segments and the
+bridge injected `import Mathlib` into import-free core candidates. The bridge is
+now patched generically: it preserves import-free source, removes the fallback
+`import Mathlib`, and recognizes premise-name identifier segments in generated
+declaration names. Replaying the live queue through
+`runs/main_worker_live_runtime_resume_pending_premise_repair_followup_probe_after_bridge_patch/source_to_bridge_premise_derivation_bridge/source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json`
+with local Lean verifies one of four rows, the `hGoodRankImpliesCovered`
+premise derivation. The remaining rows still fail for real missing-anchor or
+wrong-declaration reasons. This is premise-derivation evidence only; the full
+`split_conformal_finite_sample_coverage` source theorem and exact semantic
+definitions remain unproved. The latest pending task is now
+`critic:conformal_prediction_coverage:13db26c0`, and the next in-band runtime
+continuation should let Critic/Formalizer consume this verified bridge premise
+through normal runtime learning rather than treating the standalone replay as a
+final theorem result.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
