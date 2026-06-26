@@ -5651,8 +5651,55 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
                     "proof_evidence_status": (
                         "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
                     ),
+                },
+                {
+                    "request_id": "formal_blocker_resource_request:floor-import",
+                    "source": "critic_source_theorem_proof_body_adapter_feedback",
+                    "blocker_kind": (
+                        "source_theorem_proof_body_adapter_unavailable_import"
+                    ),
+                    "blocker": "Mathlib.Algebra.Order.Floor Lean import",
+                    "unavailable_import": "Mathlib.Algebra.Order.Floor",
+                    "unavailable_import_exact": True,
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "formal_source_queries": [
+                        "Mathlib.Algebra.Order.Floor Lean import"
+                    ],
+                    "recommended_tools": [
+                        "formal_source_retriever",
+                        "lean_lsp_mcp",
+                        "local_lean",
+                    ],
+                    "proof_evidence_status": (
+                        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                    ),
                 }
-            ]
+            ],
+            "source_theorem_proof_body_adapter_feedback": {
+                "feedback_kind": "critic_source_theorem_proof_body_adapter_feedback",
+                "adapter_kernel_verified": False,
+                "source_theorem_proof_body_adapter_feedback_available": True,
+                "diagnostics": [
+                    {
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "failure_classification": (
+                            "adapter_lean_import_environment_missing"
+                        ),
+                        "adapter_candidate_artifact_path": "exact_adapter.lean",
+                        "adapter_candidate_imports": [
+                            "Mathlib.Data.Finset.Sort",
+                            "Mathlib.Data.Real.Basic",
+                            "Mathlib.Algebra.Order.Floor",
+                        ],
+                        "unavailable_import": "Mathlib.Algebra.Order.Floor",
+                    }
+                ],
+                "proof_evidence_status": (
+                    "CRITIC_SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            },
         },
     )
 
@@ -5672,6 +5719,22 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     assert "local Lean/AXLE gate" in proofengineer_context[
         "formal_source_grounding_policy"
     ]
+    assert proofengineer_context["formal_blocker_resource_requests"][0][
+        "request_id"
+    ] == "formal_blocker_resource_request:exchangeable"
+    assert any(
+        row.get("unavailable_import") == "Mathlib.Algebra.Order.Floor"
+        for row in proofengineer_context["formal_blocker_resource_requests"]
+    )
+    assert (
+        proofengineer_context["source_theorem_proof_body_adapter_feedback"][
+            "diagnostics"
+        ][0]["unavailable_import"]
+        == "Mathlib.Algebra.Order.Floor"
+    )
+    assert "source_theorem_proof_body_adapter_feedback" in proofengineer_context[
+        "verifier_feedback_sources"
+    ]
     blocker_requests = feedback["formal_blocker_resource_requests"]
     assert blocker_requests[0]["request_id"] == (
         "formal_blocker_resource_request:exchangeable"
@@ -5679,13 +5742,12 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     assert blocker_requests[0]["proof_evidence_status"] == (
         "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
     )
-    assert blocker_requests[1]["source"] == (
-        "formalizer_lean_candidate_local_lean_feedback"
+    assert any(
+        row.get("source") == "formalizer_lean_candidate_local_lean_feedback"
+        and row.get("blocker_kind") == "lean_unknown_identifier"
+        and "Nat.ceil Lean declaration" in row.get("formal_source_queries", [])
+        for row in blocker_requests
     )
-    assert blocker_requests[1]["blocker_kind"] == "lean_unknown_identifier"
-    assert "Nat.ceil Lean declaration" in blocker_requests[1][
-        "formal_source_queries"
-    ]
 
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
@@ -5701,6 +5763,8 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     )
     assert "Formal-source grounding hits are available" in prompt
     assert "formal_blocker_resource_requests" in prompt
+    assert "source_theorem_proof_body_adapter_feedback" in prompt
+    assert "Mathlib.Algebra.Order.Floor" in prompt
     assert "Nat.ceilReplacement_bridge" in prompt
     assert "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt

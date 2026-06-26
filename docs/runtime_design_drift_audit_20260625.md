@@ -399,3 +399,22 @@ resolution rows. This is still non-proof prover/RAG routing context; it simply
 keeps the mature Lean tool observation intact so Claude/ProofEngineer can use
 retrieval, LSP/MCP, and local Lean instead of AgentRuntime inventing a theorem
 patch.
+
+The next Formalizer/ProofEngineer continuation exposed the same context
+fidelity issue one layer later. The exact adapter-import request survived as
+top-level environment feedback, but a failed Formalizer precheck rebuilt
+`proofengineer_repair_context` only from candidate diagnostics. That left the
+ProofEngineer loop without the route-critical adapter feedback inside the
+context packet it is instructed to consume. The runtime now mirrors typed
+`formal_blocker_resource_requests` and
+`source_theorem_proof_body_adapter_feedback` into the ProofEngineer repair
+context whenever Lean-candidate/precheck feedback is generated. A replay of the
+live failing candidate manifest confirms the context carries all 12 blocker
+requests and the exact `Mathlib.Algebra.Order.Floor` unavailable-import adapter
+diagnostic. A patched live rerun
+`runs/main_worker_live_runtime_resume_exact_floor_import_resolution_context_mirror_probe/research_agent_runtime_manifest.json`
+took a different, fail-closed route to Critic rather than exercising the
+precheck branch, but its bounded Critic memory still retained the exact Floor
+adapter rows. This keeps the architecture honest: typed prover/RAG obligations
+travel with the ProofEngineer loop, but they remain non-proof context until a
+later local Lean/AXLE run verifies the exact repaired artifact.

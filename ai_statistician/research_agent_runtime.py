@@ -5761,6 +5761,26 @@ def _formalizer_lean_candidate_repair_feedback(
             diagnostics=diagnostics,
         ),
     )
+    prior_feedback = (
+        prior_environment_feedback if isinstance(prior_environment_feedback, Mapping) else {}
+    )
+    prior_source_theorem_proof_body_adapter_feedback = (
+        prior_feedback.get("source_theorem_proof_body_adapter_feedback", {})
+        if isinstance(
+            prior_feedback.get("source_theorem_proof_body_adapter_feedback", {}),
+            Mapping,
+        )
+        else {}
+    )
+    proofengineer_repair_context = (
+        _proofengineer_repair_context_with_route_feedback(
+            proofengineer_repair_context,
+            formal_blocker_resource_requests=formal_blocker_resource_requests,
+            source_theorem_proof_body_adapter_feedback=(
+                prior_source_theorem_proof_body_adapter_feedback
+            ),
+        )
+    )
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
         "failure_classification": failure_classification,
@@ -5811,6 +5831,10 @@ def _formalizer_lean_candidate_repair_feedback(
         feedback["local_lean_repair_contract"] = local_lean_repair_contract
     if formal_blocker_resource_requests:
         feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
+    if prior_source_theorem_proof_body_adapter_feedback:
+        feedback["source_theorem_proof_body_adapter_feedback"] = (
+            prior_source_theorem_proof_body_adapter_feedback
+        )
     return feedback
 
 
@@ -6079,6 +6103,55 @@ def _proofengineer_repair_context_from_diagnostics(
         formal_source_retriever=formal_source_retriever,
         unknown_identifiers=unknown_identifiers,
     )
+
+
+def _proofengineer_repair_context_with_route_feedback(
+    context: Mapping[str, Any],
+    *,
+    formal_blocker_resource_requests: Sequence[Mapping[str, Any]] = (),
+    source_theorem_proof_body_adapter_feedback: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Mirror typed proof-route blockers into the ProofEngineer repair packet."""
+
+    payload = dict(context) if isinstance(context, Mapping) else {}
+    requests = [
+        dict(row)
+        for row in formal_blocker_resource_requests
+        if isinstance(row, Mapping)
+    ]
+    if requests:
+        payload["formal_blocker_resource_requests"] = requests[:12]
+        payload["n_formal_blocker_resource_requests"] = len(requests)
+    adapter_feedback = (
+        dict(source_theorem_proof_body_adapter_feedback)
+        if isinstance(source_theorem_proof_body_adapter_feedback, Mapping)
+        else {}
+    )
+    if adapter_feedback:
+        adapter_diagnostics = [
+            dict(row)
+            for row in adapter_feedback.get("diagnostics", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if adapter_diagnostics:
+            adapter_feedback["diagnostics"] = adapter_diagnostics[:3]
+        payload["source_theorem_proof_body_adapter_feedback"] = adapter_feedback
+
+    extra_sources: list[str] = []
+    if requests:
+        extra_sources.append("formal_blocker_resource_requests")
+    if adapter_feedback:
+        extra_sources.append("source_theorem_proof_body_adapter_feedback")
+    if extra_sources:
+        verifier_sources = [
+            str(value).strip()
+            for value in payload.get("verifier_feedback_sources", []) or []
+            if str(value).strip()
+        ]
+        verifier_sources.extend(extra_sources)
+        payload["verifier_feedback_sources"] = list(dict.fromkeys(verifier_sources))
+
+    return payload
 
 
 def _formalizer_environment_feedback_with_formal_source_grounding(
