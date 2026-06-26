@@ -515,3 +515,40 @@ whose pending task
 FormalizationEvaluator to consume
 `source_theorem_exact_semantic_definition_repair_feedback` before any
 proof-body retry.
+
+The live FormalizationEvaluator continuation consumed that exact semantic
+feedback and advanced the prover queue rather than rediscovering the same
+adapter rules: it produced 4 source-lookup work orders, 4 closure review
+packets, 4 ProofEngineer repair packets, and 4 Lean repair tasks in
+`runs/main_worker_exact_semantic_definition_formalizer_live/research_agent_runtime_manifest.json`.
+The design bug exposed by this run was in the integrated runtime authoring
+path. Standalone exact semantic-definition authoring could already use Claude,
+but `research-agent-runtime` only accepted `none` or `static` for the same
+authoring worker, and its prompt packets did not tell the model enough about
+the local Lake project constraints. In practice, standalone Claude authoring
+generated syntactically valid packets but initially compiled 0/3 local Lean
+definition candidates because it guessed unavailable imports and hidden
+binders. The runtime now supports explicit live authoring providers behind the
+external-export gate, passes through model/tokens/temperature/repair/timeout
+controls, includes a Lean environment contract in prompt packets, and
+normalizes generated leading `import` lines before materialization. A first
+integrated probe then exposed one more runtime-only bug: the integrated config
+used `provider=anthropic` as the default `model`, which made the API call ask
+for model id `anthropic` and fail 3/3 tasks. The config now keeps provider and
+model selection separate, leaving the model blank unless explicitly requested
+so the existing Sonnet tier resolver chooses `claude-sonnet-4-6`.
+
+After these patches, the standalone environment-contract run compiled 1/3
+definition-only candidates (`coverage_event`), and the integrated run
+`runs/main_worker_exact_semantic_definition_integrated_authoring_model_fix_live/research_agent_runtime_manifest.json`
+called Anthropic from `research-agent-runtime`, proposed 3/3 valid exact
+semantic-definition candidate packets, materialized 3 definition-only Lean
+candidates, checked all 3 locally, and compiled only `coverage_event`. This is
+intentionally not proof promotion: `coverage_event` is queued for semantic
+review, `good_rank_event` remains blocked by a missing import environment,
+`covered` remains blocked by local Lean errors, and `C_n` still needs reviewed
+definition/import closure. The freshest runtime handoff is
+`formalize-critic-repair:conformal_prediction_coverage:9d5dd96f`, still in
+`source_theorem_exact_semantic_definition_repair` mode, and the source theorem
+remains unverified until reviewed exact definitions and the proof body are
+kernel checked by the prover stack.

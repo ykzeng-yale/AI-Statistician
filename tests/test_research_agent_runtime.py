@@ -16803,6 +16803,41 @@ def test_runtime_static_authoring_worker_materializes_repair_candidate(
     )
 
 
+def test_runtime_exact_semantic_authoring_live_provider_config_keeps_export_gate() -> None:
+    config = ResearchAgentRuntimeConfig(
+        source_theorem_exact_semantic_definition_authoring_worker=True,
+        source_theorem_exact_semantic_definition_authoring_worker_provider="anthropic",
+        source_theorem_exact_semantic_definition_authoring_worker_model_tier="sonnet",
+        source_theorem_exact_semantic_definition_authoring_worker_max_tokens=1234,
+        source_theorem_exact_semantic_definition_authoring_worker_temperature=0.0,
+        source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts=2,
+        source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds=17.0,
+        source_theorem_exact_semantic_definition_authoring_worker_max_tasks=2,
+        source_theorem_exact_semantic_definition_authoring_worker_external_export_mode=(
+            "redacted"
+        ),
+    )
+
+    provider = runtime_module._exact_semantic_definition_authoring_worker_provider(
+        config
+    )
+    worker_config = runtime_module._exact_semantic_definition_authoring_worker_config(
+        config
+    )
+
+    assert provider is not None
+    assert getattr(provider, "provider_name", "") == "anthropic"
+    assert worker_config.provider_name == "anthropic"
+    assert worker_config.model == ""
+    assert worker_config.dry_run is False
+    assert worker_config.allow_external_export is False
+    assert worker_config.external_export_mode == "redacted"
+    assert worker_config.model_tier == "sonnet"
+    assert worker_config.max_tokens == 1234
+    assert worker_config.max_repair_attempts == 2
+    assert worker_config.max_tasks == 2
+
+
 def test_selects_latest_available_proof_body_queue_manifest_for_semantic_recheck(
     tmp_path: Path,
 ) -> None:

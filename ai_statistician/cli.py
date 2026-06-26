@@ -411,6 +411,7 @@ from .coding_agent_generated_code_repair_eval import (
     run_coding_agent_generated_code_repair_eval,
 )
 from .model_backend import (
+    CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
@@ -8721,11 +8722,54 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or ""
             ),
+            source_theorem_exact_semantic_definition_authoring_worker_model_tier=str(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_model_tier",
+                    "sonnet",
+                )
+                or "sonnet"
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_max_tokens=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_max_tokens",
+                    4000,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_temperature=float(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_temperature",
+                    0.0,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts=int(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts",
+                    1,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds=float(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+            ),
             source_theorem_exact_semantic_definition_authoring_worker_max_tasks=int(
                 getattr(
                     args,
                     "source_theorem_exact_semantic_definition_authoring_worker_max_tasks",
                     0,
+                )
+            ),
+            source_theorem_exact_semantic_definition_authoring_worker_allow_external_export=bool(
+                getattr(
+                    args,
+                    "source_theorem_exact_semantic_definition_authoring_worker_allow_external_export",
+                    False,
                 )
             ),
             source_theorem_exact_semantic_definition_authoring_worker_external_export_mode=str(
@@ -15741,11 +15785,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-authoring-worker-provider",
-        choices=("none", "static"),
+        choices=("none",) + LIVE_GENERATOR_PROVIDER_CHOICES,
         default="none",
         help=(
             "generator backend for exact semantic-definition authoring tasks; "
-            "none stages prompt packets only, static replays a reviewed JSON response"
+            "none stages prompt packets only, static replays a reviewed JSON "
+            "response, and live providers require explicit external-export approval"
         ),
     )
     research_agent_runtime.add_argument(
@@ -15765,10 +15810,52 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-model-tier",
+        choices=CLAUDE_MODEL_TIERS,
+        default="sonnet",
+        help=(
+            "Claude cost tier for live exact semantic-definition authoring; "
+            "default Sonnet because this is proof/formalization work"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-max-tokens",
+        type=int,
+        default=4000,
+        help="maximum output tokens for each live exact semantic-definition authoring call",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-temperature",
+        type=float,
+        default=0.0,
+        help="generation temperature for live exact semantic-definition authoring",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-max-repair-attempts",
+        type=int,
+        default=1,
+        help="maximum JSON validation repair retries for live authoring calls",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help="wall-clock timeout for each live exact semantic-definition authoring call",
+    )
+    research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-authoring-worker-max-tasks",
         type=int,
         default=0,
         help="optional cap on exact semantic-definition authoring tasks staged by the runtime",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-exact-semantic-definition-authoring-worker-allow-external-export",
+        action="store_true",
+        help=(
+            "allow the integrated runtime authoring worker to send exact "
+            "semantic-definition prompt context to Anthropic/OpenAI; without this, "
+            "live providers emit export-review packets but do not call the API"
+        ),
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-authoring-worker-external-export-mode",

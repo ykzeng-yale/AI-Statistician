@@ -66,10 +66,14 @@ BOUNDARY = (
 SYSTEM_PROMPT = (
     "You are the AI Statistician Formalizer/ProofEngineer authoring worker. "
     "Your task is to propose exact Lean semantic definitions from the given "
-    "source-theorem binders, semantic anchors, and source references. You are a "
-    "generator only: do not claim tool execution, file writes, local Lean "
-    "checking, theorem proof, or kernel verification. Return only one valid "
-    "JSON object satisfying the requested schema."
+    "source-theorem binders, semantic anchors, local Lean constraints, and "
+    "source references. Prefer small definition-only Lean that can be checked in "
+    "the configured Lake project: use minimal imports, make every free variable "
+    "an explicit binder, and report uncertain imports as known gaps rather than "
+    "depending on broad unavailable modules. You are a generator only: do not "
+    "claim tool execution, file writes, local Lean checking, theorem proof, or "
+    "kernel verification. Return only one valid JSON object satisfying the "
+    "requested schema."
 )
 FORBIDDEN_SOURCE_FRAGMENTS = (
     "axiom ",
@@ -857,6 +861,12 @@ def _prompt_payload(
             task.get("semantic_alignment_blockers", []) or []
         )[:8],
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
+        "lean_authoring_environment_contract": (
+            _lean_authoring_environment_contract(
+                task,
+                candidate_definition_request=candidate_definition_request,
+            )
+        ),
         "required_output_contract": {
             "placeholder_symbol": "same placeholder symbol as input",
             "definition_design": (
@@ -888,6 +898,67 @@ def _prompt_payload(
         "local_lean_gate": str(
             candidate_definition_request.get("local_lean_gate", "") or ""
         ),
+    }
+
+
+def _lean_authoring_environment_contract(
+    task: Mapping[str, Any],
+    *,
+    candidate_definition_request: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return local Lean constraints that keep generated definitions checkable."""
+
+    source_binders = list(task.get("exact_source_theorem_binders", []) or [])
+    required_anchor_names = [
+        str(value).strip()
+        for value in candidate_definition_request.get("required_anchor_names", [])
+        or []
+        if str(value).strip()
+    ]
+    return {
+        "candidate_scope": "definition_or_abbrev_only",
+        "source_theorem_binder_count": len(source_binders),
+        "required_anchor_names": required_anchor_names,
+        "import_policy": [
+            (
+                "Use the smallest import list needed by the definition-only "
+                "candidate; prefer no imports when explicit binder types can make "
+                "the candidate self-contained."
+            ),
+            (
+                "Do not add broad probability, measure, topology, tactic, or "
+                "umbrella imports just because the statistical theorem is about "
+                "those domains. If such an import is uncertain in the local Lake "
+                "project, omit it and list the need in known_gaps."
+            ),
+            (
+                "required_imports must contain module names such as "
+                "Mathlib.Data.Set.Basic, not strings starting with `import`."
+            ),
+        ],
+        "binder_policy": [
+            (
+                "Every identifier used in the candidate type or body must be an "
+                "explicit parameter, a documented source_theorem_binder, or a "
+                "required anchor from candidate_definition_request."
+            ),
+            (
+                "If source theorem binders are absent or incomplete, write a "
+                "small generic definition over explicit parameters instead of "
+                "inventing hidden theorem-local names."
+            ),
+        ],
+        "local_lean_policy": [
+            (
+                "The candidate is not proof evidence unless a later local Lean/AXLE "
+                "manifest checks the materialized definition."
+            ),
+            (
+                "Prefer compiling a modest semantic object over generating an "
+                "ambitious theorem-shaped construction that depends on unavailable "
+                "imports or unproved order-statistic infrastructure."
+            ),
+        ],
     }
 
 
@@ -1660,6 +1731,13 @@ def _materialization_row(
     placeholder = str(packet.get("placeholder_symbol", "") or "")
     candidate_packet_id = str(packet.get("candidate_packet_id", "") or "")
     lean_source = str(packet.get("lean_definition_candidate", "") or "")
+    body_imports, lean_source_body = _split_leading_import_lines(lean_source)
+    required_imports = _lean_import_modules(
+        [
+            *(packet.get("required_imports", []) or []),
+            *body_imports,
+        ]
+    )
     validation_errors = validate_authoring_candidate_packet(packet)
     candidate_definition_request = dict(
         packet.get("candidate_definition_request", {}) or {}
@@ -1730,7 +1808,8 @@ def _materialization_row(
         artifact_path.write_text(
             _definition_only_candidate_text(
                 packet,
-                lean_source=lean_source,
+                lean_source=lean_source_body,
+                required_imports=required_imports,
                 include_source_comments=include_source_comments,
             ),
             encoding="utf-8",
@@ -1789,7 +1868,8 @@ def _materialization_row(
             or []
         ),
         "definition_design": str(packet.get("definition_design", "") or ""),
-        "required_imports": list(packet.get("required_imports", []) or []),
+        "required_imports": required_imports,
+        "extracted_candidate_imports": body_imports,
         "binder_usage": list(packet.get("binder_usage", []) or []),
         "semantic_alignment_notes": list(
             packet.get("semantic_alignment_notes", []) or []
@@ -1985,9 +2065,15 @@ def _definition_only_candidate_text(
     packet: Mapping[str, Any],
     *,
     lean_source: str,
+    required_imports: Sequence[Any] | None = None,
     include_source_comments: bool,
 ) -> str:
-    imports = _lean_import_lines(packet.get("required_imports", []) or [])
+    imports = _lean_import_lines(
+        required_imports
+        if required_imports is not None
+        else packet.get("required_imports", [])
+        or []
+    )
     header_lines = [
         "/-",
         "AI Statistician exact semantic-definition candidate.",
@@ -2013,16 +2099,41 @@ def _definition_only_candidate_text(
     return "\n".join([*imports, "", *header_lines, "", body, ""])
 
 
-def _lean_import_lines(values: Sequence[Any]) -> list[str]:
+def _split_leading_import_lines(lean_source: str) -> tuple[list[str], str]:
     imports: list[str] = []
+    lines = str(lean_source or "").splitlines()
+    body_start = 0
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            body_start = index + 1
+            continue
+        if stripped.startswith("import "):
+            module = stripped.removeprefix("import ").strip()
+            if module:
+                imports.append(module)
+            body_start = index + 1
+            continue
+        break
+    return _lean_import_modules(imports), "\n".join(lines[body_start:]).strip()
+
+
+def _lean_import_modules(values: Sequence[Any]) -> list[str]:
+    modules: list[str] = []
     for value in values:
         raw = str(value or "").strip()
         if not raw:
             continue
-        if raw.startswith("import "):
-            line = raw
-        else:
-            line = f"import {raw}"
+        module = raw.removeprefix("import ").strip()
+        if module and module not in modules:
+            modules.append(module)
+    return modules
+
+
+def _lean_import_lines(values: Sequence[Any]) -> list[str]:
+    imports: list[str] = []
+    for module in _lean_import_modules(values):
+        line = f"import {module}"
         if line not in imports:
             imports.append(line)
     return imports

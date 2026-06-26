@@ -67,6 +67,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    OpenAIResponsesGeneratorBackend,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     GeneratorBackend,
     StaticJSONGeneratorBackend,
@@ -83,6 +84,7 @@ from .proof_state_feedback import (
     proof_state_feedback_row_to_json,
 )
 from .research_architect import (
+    AnthropicArchitectLLMProvider,
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
@@ -1394,7 +1396,13 @@ class ResearchAgentRuntimeConfig:
     source_theorem_exact_semantic_definition_authoring_worker_provider: str = "none"
     source_theorem_exact_semantic_definition_authoring_worker_static_response_file: str = ""
     source_theorem_exact_semantic_definition_authoring_worker_model: str = ""
+    source_theorem_exact_semantic_definition_authoring_worker_model_tier: str = "sonnet"
+    source_theorem_exact_semantic_definition_authoring_worker_max_tokens: int = 4000
+    source_theorem_exact_semantic_definition_authoring_worker_temperature: float = 0.0
+    source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts: int = 1
+    source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     source_theorem_exact_semantic_definition_authoring_worker_max_tasks: int = 0
+    source_theorem_exact_semantic_definition_authoring_worker_allow_external_export: bool = False
     source_theorem_exact_semantic_definition_authoring_worker_external_export_mode: str = "redacted"
     source_theorem_exact_semantic_definition_closure_review: bool = False
     source_theorem_exact_semantic_definition_candidate_synthesis: bool = False
@@ -1675,6 +1683,14 @@ def _exact_semantic_definition_authoring_worker_provider(
                 "provider=static requires an existing static response file"
             )
         return StaticJSONGeneratorBackend(response_path.read_text(encoding="utf-8"))
+    timeout_s = float(
+        config.source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds
+        or DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+    )
+    if provider_name == "anthropic":
+        return AnthropicArchitectLLMProvider(timeout_s=timeout_s)
+    if provider_name == "openai":
+        return OpenAIResponsesGeneratorBackend(timeout_s=timeout_s)
     raise ValueError(
         "unsupported source theorem exact semantic-definition authoring worker "
         f"provider: {provider_name}"
@@ -1688,7 +1704,7 @@ def _exact_semantic_definition_authoring_worker_config(
         config.source_theorem_exact_semantic_definition_authoring_worker_provider
         or "none"
     ).strip().lower()
-    if provider_name not in {"none", "static"}:
+    if provider_name not in {"none", *SUPPORTED_LIVE_GENERATOR_PROVIDERS}:
         raise ValueError(
             "unsupported source theorem exact semantic-definition authoring worker "
             f"provider: {provider_name}"
@@ -1697,11 +1713,27 @@ def _exact_semantic_definition_authoring_worker_config(
         provider_name=provider_name,
         model=(
             config.source_theorem_exact_semantic_definition_authoring_worker_model
-            or provider_name
+            or ""
+        ),
+        model_tier=str(
+            config.source_theorem_exact_semantic_definition_authoring_worker_model_tier
+            or "sonnet"
+        ),
+        max_tokens=int(
+            config.source_theorem_exact_semantic_definition_authoring_worker_max_tokens
+        ),
+        temperature=float(
+            config.source_theorem_exact_semantic_definition_authoring_worker_temperature
+        ),
+        max_repair_attempts=int(
+            config.source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts
         ),
         dry_run=provider_name == "none",
         max_tasks=int(
             config.source_theorem_exact_semantic_definition_authoring_worker_max_tasks
+        ),
+        allow_external_export=bool(
+            config.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export
         ),
         external_export_mode=str(
             config.source_theorem_exact_semantic_definition_authoring_worker_external_export_mode

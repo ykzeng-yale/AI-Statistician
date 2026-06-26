@@ -246,6 +246,26 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     assert prompt_payload["authoring_trigger"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
     )
+    environment_contract = prompt_payload["lean_authoring_environment_contract"]
+    assert environment_contract["candidate_scope"] == "definition_or_abbrev_only"
+    assert environment_contract["required_anchor_names"] == [
+        "s",
+        "q_hat",
+        "C",
+        "hC",
+    ]
+    assert any(
+        "smallest import list" in row
+        for row in environment_contract["import_policy"]
+    )
+    assert any(
+        "explicit parameter" in row
+        for row in environment_contract["binder_policy"]
+    )
+    assert any(
+        "not proof evidence" in row
+        for row in environment_contract["local_lean_policy"]
+    )
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
@@ -825,9 +845,14 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
             "Coverage is represented as the held-out score event below q_hat."
         ),
         "lean_definition_candidate": (
+            "import Mathlib.Data.Set.Basic\n"
+            "import Mathlib.Data.Fin.Basic\n\n"
             "def reviewedCovered : Nat := 0"
         ),
-        "required_imports": [],
+        "required_imports": [
+            "Mathlib.Data.Set.Basic",
+            "import Mathlib.Data.Set.Basic",
+        ],
         "binder_usage": [{"name": "hC", "how_used": "semantic anchor"}],
         "semantic_alignment_notes": [
             "Draft is intentionally definition-only and must be reviewed."
@@ -876,7 +901,21 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
     )
     definition_path = Path(rows[0]["definition_only_candidate_artifact_path"])
     assert definition_path.exists()
-    assert "def reviewedCovered : Nat := 0" in definition_path.read_text()
+    definition_text = definition_path.read_text()
+    assert "def reviewedCovered : Nat := 0" in definition_text
+    assert definition_text.count("import Mathlib.Data.Set.Basic") == 1
+    assert definition_text.count("import Mathlib.Data.Fin.Basic") == 1
+    assert definition_text.index("import Mathlib.Data.Fin.Basic") < definition_text.index(
+        "/-"
+    )
+    assert rows[0]["required_imports"] == [
+        "Mathlib.Data.Set.Basic",
+        "Mathlib.Data.Fin.Basic",
+    ]
+    assert rows[0]["extracted_candidate_imports"] == [
+        "Mathlib.Data.Set.Basic",
+        "Mathlib.Data.Fin.Basic",
+    ]
     repair_tasks = [
         json.loads(line)
         for line in Path(
