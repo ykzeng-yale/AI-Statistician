@@ -4831,6 +4831,16 @@ def _formalizer_packet_validation_repair_directives(
             "candidate. Use expected_status=FORMAL_GAP only for an honest source "
             "theorem gap without a Lean sketch."
         )
+    if "must contain a lean theorem or lemma declaration" in error_text:
+        directives.append(
+            "Do not put prose, dependency notes, or informal blockers in "
+            "lean_statement_sketch. If a formal target is executable, its Lean "
+            "sketch must contain a concrete theorem or lemma declaration and use "
+            "expected_status=NEEDS_KERNEL_CHECK; if the source theorem is blocked, "
+            "set expected_status=FORMAL_GAP with an empty lean_statement_sketch and "
+            "record the blocker in gap_taxonomy, lemma_dependency_plan, or "
+            "formal_blocker_resource_requests."
+        )
     if any(
         marker in error_text
         for marker in (
@@ -21464,6 +21474,9 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
         target_ids = list(dict.fromkeys(target_ids))
         failure = str(diagnostic.get("failure_classification", "") or "").strip()
         trigger = str(diagnostic.get("trigger", "") or "").strip()
+        placeholder_symbol = str(
+            diagnostic.get("placeholder_symbol", "") or ""
+        ).strip()
         gate = str(diagnostic.get("proof_body_gate_status", "") or "").strip()
         runtime_queue_status = str(
             diagnostic.get("runtime_queue_status", "") or ""
@@ -21495,6 +21508,8 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             "Exact source-theorem proof-body execution is blocked until exact "
             "semantic definitions are reviewed, imported, or kernel-verified"
         ]
+        if placeholder_symbol:
+            blocker_parts.append(f"placeholder_symbol={placeholder_symbol}")
         if failure:
             blocker_parts.append(f"failure_classification={failure}")
         if gate:
@@ -21522,6 +21537,7 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             [
                 "critic_source_theorem_exact_semantic_definition_repair_feedback",
                 blocker_kind,
+                placeholder_symbol,
                 gate,
                 target_ids,
                 semantic_blockers,
@@ -34516,15 +34532,38 @@ def _runtime_pending_task_with_runtime_learning_memory(
         environment_feedback[
             "runtime_exact_semantic_definition_work_order_feedback"
         ] = exact_semantic_feedback
+        merged_exact_semantic_repair_feedback = (
+            _merge_exact_semantic_definition_repair_feedback_with_work_orders(
+                environment_feedback.get(
+                    "source_theorem_exact_semantic_definition_repair_feedback",
+                    {},
+                ),
+                exact_semantic_feedback,
+            )
+        )
         environment_feedback[
             "source_theorem_exact_semantic_definition_repair_feedback"
-        ] = _merge_exact_semantic_definition_repair_feedback_with_work_orders(
-            environment_feedback.get(
-                "source_theorem_exact_semantic_definition_repair_feedback",
-                {},
-            ),
-            exact_semantic_feedback,
+        ] = merged_exact_semantic_repair_feedback
+        exact_semantic_resource_requests = (
+            _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feedback(
+                merged_exact_semantic_repair_feedback
+            )
         )
+        if exact_semantic_resource_requests:
+            environment_feedback["formal_blocker_resource_requests"] = (
+                _merge_formal_blocker_resource_requests(
+                    exact_semantic_resource_requests,
+                    [
+                        row
+                        for row in environment_feedback.get(
+                            "formal_blocker_resource_requests",
+                            [],
+                        )
+                        or []
+                        if isinstance(row, Mapping)
+                    ],
+                )
+            )
         inputs["environment_feedback"] = environment_feedback
         architect_context["environment_feedback"] = environment_feedback
     inputs["architect_context"] = architect_context

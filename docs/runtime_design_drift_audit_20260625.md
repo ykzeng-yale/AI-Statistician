@@ -740,3 +740,20 @@ for `good_rank_event`, `coverage_event`, and `covered`, and kept `C_n` as the
 named Lakefile/import-environment blocker. This is still not source theorem
 proof: it is a queue-integrity fix so Claude/ProofEngineer works from the full
 runtime frontier rather than a lossy memory sample.
+
+The follow-up Critic and Formalizer continuations tightened the same queue into
+typed prover/RAG work instead of generic prose. The patched Critic resume
+`runs/main_worker_resume_critic_placeholder_resource_requests_live` now attaches
+four `critic_source_theorem_exact_semantic_definition_repair_feedback` blocker
+requests, one each for `good_rank_event`, `C_n`, `coverage_event`, and `covered`,
+with placeholder-specific fingerprints and
+`FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`. The Formalizer resume
+`runs/main_worker_formalizer_after_placeholder_resource_requests_live` consumed
+those requests, kept support subclaims at 72 and formal gaps at 54, and handed
+off `formalize-repair:conformal_prediction_coverage:c297d6c1` after the local
+packet validator rejected a non-theorem `lean_statement_sketch`. The repair
+feedback now explicitly tells the Formalizer to put only theorem/lemma
+declarations in executable Lean sketches, or to use an empty source-theorem
+`FORMAL_GAP` plus typed blockers. This remains a design/contract repair only:
+review packets, blocker requests, and validation feedback are not proof of
+`split_conformal_finite_sample_coverage`.

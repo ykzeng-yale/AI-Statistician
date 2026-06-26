@@ -696,6 +696,24 @@ while adapter failures remain in
 blockers. Scorecard remains 42/49; helper/subclaim rows reached 44, but no
 source theorem or full frontier theorem is proved.
 
+The latest exact-semantic queue cleanup is a design-level handoff fix, not a
+new theorem shortcut. After
+`runs/main_worker_formalizer_after_full_exact_queue_feedback_live`, the Critic
+resume `runs/main_worker_resume_critic_placeholder_resource_requests_live`
+generated four typed exact semantic-definition blocker requests from the full
+queue, preserving `good_rank_event`, `C_n`, `coverage_event`, and `covered` as
+separate placeholder-level work for FormalSourceRetriever/proof search/Lean
+LSP/local Lean. The follow-up Formalizer resume
+`runs/main_worker_formalizer_after_placeholder_resource_requests_live` consumed
+those requests, kept `kernel_verified_subclaims=72` and `formal_gaps=54`, and
+ended with pending task `formalize-repair:conformal_prediction_coverage:c297d6c1`
+because the local packet validator rejected a non-theorem Lean sketch in a
+`formal_targets` row. Repair feedback now explicitly distinguishes executable
+Lean theorem/lemma candidates from empty `FORMAL_GAP` source-theorem rows with
+typed blockers. The source theorem is still unproved; exact proof-body execution
+remains gated by semantic review/import repair and local Lean/AXLE verification
+of the intended declaration.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

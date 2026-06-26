@@ -1054,6 +1054,21 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert repair_feedback["proof_evidence_status"] == (
         "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
     )
+    exact_requests = [
+        row
+        for row in environment_feedback["formal_blocker_resource_requests"]
+        if row["source"]
+        == "critic_source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    assert {row["blocker_kind"] for row in exact_requests} == {
+        "source_theorem_exact_semantic_definition_repair_required"
+    }
+    assert len(exact_requests) == 2
+    assert all(
+        row["proof_evidence_status"]
+        == "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+        for row in exact_requests
+    )
     assert enriched["inputs"]["architect_context"]["environment_feedback"] == (
         environment_feedback
     )
@@ -1071,6 +1086,12 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert {
         row["placeholder_symbol"] for row in queue_only_feedback["diagnostics"]
     } == {"good_rank_event", "C_n"}
+    queue_only_requests = queue_only_enriched["inputs"]["environment_feedback"][
+        "formal_blocker_resource_requests"
+    ]
+    assert {
+        row["source"] for row in queue_only_requests
+    } == {"critic_source_theorem_exact_semantic_definition_repair_feedback"}
 
 
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(
@@ -3543,6 +3564,11 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
                         "split_conformal_finite_sample_coverage_v10 must set "
                         "expected_status=NEEDS_KERNEL_CHECK"
                     ),
+                    (
+                        "capability_eval formal target "
+                        "split_conformal_finite_sample_coverage_source_theorem "
+                        "must contain a Lean theorem or lemma declaration"
+                    ),
                 ],
                 history=[
                     {
@@ -3617,6 +3643,11 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     )
     assert any(
         "Set expected_status=NEEDS_KERNEL_CHECK" in directive
+        for directive in feedback["validation_repair_directives"]
+    )
+    assert any(
+        "Do not put prose" in directive
+        and "empty lean_statement_sketch" in directive
         for directive in feedback["validation_repair_directives"]
     )
     assert feedback["target_shape_contract"]["required_conclusion_family"] == (
