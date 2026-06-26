@@ -20811,6 +20811,34 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         or []
         if isinstance(row, Mapping)
     ]
+    target_ids: list[str] = []
+
+    def add_target_ids(values: Any) -> None:
+        for value in _str_tuple(values):
+            text = str(value or "").strip()
+            if text:
+                target_ids.append(text)
+
+    for key in (
+        "remaining_theorem_goal_ids",
+        "source_theorem_exact_candidate_repair_target_ids",
+        "target_ids",
+        "target_theorem_goal_ids",
+    ):
+        add_target_ids(proof_bank_summary.get(key, []))
+    for row in formalization_manifest.get("deterministic_theorem_goals", []) or []:
+        if isinstance(row, Mapping):
+            add_target_ids(row.get("id", ""))
+    for row in [*raw_diagnostics, *typechecked_candidates]:
+        add_target_ids(
+            _runtime_exact_semantic_definition_target_ids(
+                row,
+                target_theorem_name="",
+            )
+        )
+    if not target_ids:
+        add_target_ids(target_names)
+    target_ids = list(dict.fromkeys(target_ids))
     for row in raw_diagnostics:
         symbol = str(row.get("placeholder_symbol", "") or "").strip()
         if symbol:
@@ -20997,6 +21025,8 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
     selected_rows = [*keyed_rows.values(), *unkeyed_rows]
     compact_keys = (
         "target_theorem_name",
+        "target_ids",
+        "target_theorem_goal_ids",
         "placeholder_symbol",
         "trigger",
         "failure_classification",
@@ -21030,6 +21060,14 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
             for key in compact_keys
             if key in row and row.get(key) not in (None, "", [], {})
         }
+        compact_target_ids = _runtime_exact_semantic_definition_target_ids(
+            row,
+            target_theorem_name="",
+        )
+        if not compact_target_ids:
+            compact_target_ids = list(target_ids)
+        if compact_target_ids:
+            compact["target_ids"] = list(dict.fromkeys(compact_target_ids))
         if compact:
             diagnostics.append(compact)
     proof_body_gate_statuses = list(
@@ -21063,6 +21101,7 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "target_names": list(dict.fromkeys(target_names)),
         "failure_classifications": list(dict.fromkeys(failure_classifications)),
         "triggers": list(dict.fromkeys(triggers)),
+        "target_ids": list(dict.fromkeys(target_ids)),
         "proof_body_gate_statuses": proof_body_gate_statuses,
         "runtime_queue_statuses": runtime_queue_statuses,
         "source_theorem_ready_for_exact_proof_body": bool(
@@ -35215,9 +35254,15 @@ def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
     agenda_id = "formal_gap:source_theorem_exact_semantic_definition_repair"
     target_ids = [
         str(value).strip()
-        for value in repair_feedback.get("target_names", []) or []
+        for value in repair_feedback.get("target_ids", []) or []
         if str(value).strip()
     ]
+    if not target_ids:
+        target_ids = [
+            str(value).strip()
+            for value in repair_feedback.get("target_names", []) or []
+            if str(value).strip()
+        ]
     placeholder_symbols = [
         str(value).strip()
         for value in repair_feedback.get("placeholder_symbols", []) or []
@@ -35239,13 +35284,13 @@ def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
         if isinstance(row, Mapping)
     ]
     if not target_ids:
-        target_ids = list(
-            dict.fromkeys(
-                str(row.get("target_theorem_name", "") or "").strip()
-                for row in diagnostics
-                if str(row.get("target_theorem_name", "") or "").strip()
+        for row in diagnostics:
+            row_target_ids = _runtime_exact_semantic_definition_target_ids(
+                row,
+                target_theorem_name=str(row.get("target_theorem_name", "") or ""),
             )
-        )
+            target_ids.extend(row_target_ids)
+        target_ids = list(dict.fromkeys(target_ids))
     if not placeholder_symbols:
         placeholder_symbols = list(
             dict.fromkeys(
@@ -35489,6 +35534,22 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
                 "source_theorem_kernel_evidence_eligible": False,
             },
         )
+        row_target_ids = _runtime_exact_semantic_definition_target_ids(
+            row,
+            target_theorem_name="",
+        )
+        if row_target_ids:
+            diagnostic["target_ids"] = list(
+                dict.fromkeys(
+                    [
+                        *_runtime_exact_semantic_definition_target_ids(
+                            diagnostic,
+                            target_theorem_name="",
+                        ),
+                        *row_target_ids,
+                    ]
+                )
+            )
         for source_key, target_key in (
             (
                 "definition_only_candidate_artifact_path",
@@ -35527,6 +35588,30 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
         )
     merged_diagnostics = list(by_key.values())
     feedback["diagnostics"] = merged_diagnostics[:8]
+    target_ids = [
+        str(value).strip()
+        for value in feedback.get("target_ids", []) or []
+        if str(value).strip()
+    ]
+    target_ids.extend(
+        str(value).strip()
+        for value in work_order_feedback.get("target_ids", []) or []
+        if str(value).strip()
+    )
+    for row in merged_diagnostics:
+        target_ids.extend(
+            _runtime_exact_semantic_definition_target_ids(
+                row,
+                target_theorem_name="",
+            )
+        )
+    if not target_ids:
+        target_ids.extend(
+            str(value).strip()
+            for value in feedback.get("target_names", []) or []
+            if str(value).strip()
+        )
+    feedback["target_ids"] = list(dict.fromkeys(target_ids))
     feedback["target_names"] = list(
         dict.fromkeys(
             [

@@ -1071,6 +1071,9 @@ def test_critic_exact_semantic_feedback_covers_placeholder_candidate_list() -> N
                     ),
                     "source_theorem_exact_semantic_definition_repair_required": True,
                     "source_theorem_ready_for_exact_proof_body": False,
+                    "remaining_theorem_goal_ids": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
                     "source_theorem_exact_candidate_repair_target_names": [
                         "split_conformal_finite_sample_coverage"
                     ],
@@ -1143,9 +1146,13 @@ def test_critic_exact_semantic_feedback_covers_placeholder_candidate_list() -> N
     }
 
     assert set(diagnostics) == {"coverage_event", "good_rank_event", "C_n"}
+    assert feedback["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert diagnostics["coverage_event"][
         "definition_only_candidate_artifact_path"
     ] == "runs/current/coverage_event_definition_only.lean"
+    assert diagnostics["coverage_event"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert diagnostics["good_rank_event"][
         "definition_only_candidate_artifact_path"
     ] == "runs/current/good_rank_event_definition_only.lean"
@@ -1238,6 +1245,12 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     }
 
     assert work_order_feedback["placeholder_symbols"] == ["good_rank_event", "C_n"]
+    assert work_order_feedback["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert repair_feedback["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert set(diagnostics) == {"good_rank_event", "C_n"}
     assert diagnostics["good_rank_event"][
         "definition_only_candidate_artifact_path"
@@ -1284,6 +1297,9 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert exact_agenda["id"] == (
         "formal_gap:source_theorem_exact_semantic_definition_repair"
     )
+    assert exact_agenda["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert exact_agenda["placeholder_symbols"] == ["good_rank_event", "C_n"]
     assert exact_agenda["proof_body_gate_statuses"] == [
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
@@ -1311,6 +1327,9 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert queue_only_feedback["runtime_queue_statuses"] == [
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
     ]
+    assert queue_only_feedback["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     queue_only_requests = queue_only_enriched["inputs"]["environment_feedback"][
         "formal_blocker_resource_requests"
     ]
@@ -1326,6 +1345,64 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert queue_only_agenda[0]["id"] == (
         "formal_gap:source_theorem_exact_semantic_definition_repair"
     )
+    assert queue_only_agenda[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+
+def test_exact_semantic_repair_feedback_preserves_goal_target_ids() -> None:
+    repair_feedback = {
+        "source_theorem_exact_semantic_definition_repair_required": True,
+        "target_names": ["split_conformal_coverage"],
+        "diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+            }
+        ],
+    }
+    work_order_feedback = (
+        runtime_module._runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+            [
+                {
+                    "target_theorem_name": "split_conformal_coverage",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "target_theorem_goal_ids": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
+                    "placeholder_symbol": "covered",
+                    "runtime_queue_status": (
+                        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                    ),
+                    "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                }
+            ],
+            source="unit-test",
+        )
+    )
+
+    merged = (
+        runtime_module._merge_exact_semantic_definition_repair_feedback_with_work_orders(
+            repair_feedback,
+            work_order_feedback,
+        )
+    )
+    agenda = (
+        runtime_module._high_priority_agenda_with_exact_semantic_definition_repair_feedback(
+            [],
+            merged,
+        )
+    )
+
+    assert merged["target_names"] == ["split_conformal_coverage"]
+    assert merged["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert merged["diagnostics"][0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert agenda[0]["target_ids"] == ["split_conformal_finite_sample_coverage"]
 
 
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(
