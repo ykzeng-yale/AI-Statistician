@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from functools import lru_cache
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -28,44 +29,11 @@ PLACEHOLDER_DEFINITION_OPEN_STATUS = (
 _ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_OBLIGATION_IDS = {
     "source_to_bridge_adapter_goal_shape_mismatch",
 }
-
-_PRIMITIVE_TO_REGISTERED_SUPPORT = {
-    "probability_measure_semantics": (
-        "prob_measure_univ",
-    ),
-    "exchangeability_semantics": (
-        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
-    ),
-    "exchangeability_to_uniform_rank_semantics": (
-        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
-    ),
-    "rank_uniformity_semantics": (
-        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
-    ),
-    "order_statistic_quantile_semantics": (
-        "split_conformal_good_rank_set_inclusion_bridge",
-    ),
-}
-_EXACT_GOAL_SHAPE_TO_REGISTERED_SUPPORT = {
-    "real_probability_lower_bound_from_ennreal_adapter": (
-        "split_conformal_good_rank_coverage_bridge",
-    ),
-    "exchangeability_rank_uniformity_instantiation": (
-        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
-    ),
-    "order_statistic_quantile_rank_instantiation": (
-        "split_conformal_good_rank_set_inclusion_bridge",
-    ),
-    "coverage_event_identification_from_hC": (
-        "split_conformal_good_rank_set_inclusion_bridge",
-    ),
-    "upper_coverage_bound_component": (
-        "split_conformal_upper_coverage_rank_budget_bridge",
-    ),
-    "conjunctive_source_theorem_split": (
-        "source_theorem_conjunction_from_components",
-    ),
-}
+DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH = (
+    Path(__file__).resolve().parent
+    / "policies"
+    / "source_theorem_semantic_primitive_support.split_conformal.json"
+)
 _SOURCE_TO_BRIDGE_PREMISE_CONTEXT_KEYS = (
     "premise_name",
     "premise_target_status",
@@ -87,6 +55,88 @@ _SOURCE_TO_BRIDGE_PREMISE_CONTEXT_LIST_KEYS = (
     "missing_premise_semantic_anchor_binder_names",
     "recommended_repair_tasks",
 )
+
+
+@lru_cache(maxsize=8)
+def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
+    path = Path(policy_path) if policy_path else DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    primitive_support = _normalize_policy_support_map(
+        payload.get("primitive_to_registered_support", {})
+    )
+    exact_goal_shape_support = _normalize_policy_support_map(
+        payload.get("exact_goal_shape_to_registered_support", {})
+    )
+    placeholder_support = _normalize_policy_support_map(
+        payload.get("placeholder_symbol_to_registered_support", {})
+    )
+    return {
+        "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
+        "schema_version": int(payload.get("schema_version", 1) or 1),
+        "scope": str(payload.get("scope", "") or ""),
+        "path": str(path),
+        "primitive_to_registered_support": primitive_support,
+        "placeholder_symbol_to_registered_support": placeholder_support,
+        "exact_goal_shape_to_registered_support": exact_goal_shape_support,
+    }
+
+
+def _normalize_policy_support_map(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, Mapping):
+        return {}
+    rows: dict[str, tuple[str, ...]] = {}
+    for key, raw_items in value.items():
+        item_key = str(key).strip()
+        if not item_key:
+            continue
+        rows[item_key] = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_items or []
+                if str(item).strip()
+            )
+        )
+    return rows
+
+
+def _semantic_support_policy_summary() -> dict[str, Any]:
+    policy = _semantic_support_policy()
+    primitive_support = policy["primitive_to_registered_support"]
+    placeholder_support = policy["placeholder_symbol_to_registered_support"]
+    exact_goal_shape_support = policy["exact_goal_shape_to_registered_support"]
+    return {
+        "policy_id": policy["policy_id"],
+        "schema_version": policy["schema_version"],
+        "scope": policy["scope"],
+        "path": policy["path"],
+        "n_primitive_support_routes": len(primitive_support),
+        "n_placeholder_symbol_support_routes": len(placeholder_support),
+        "n_exact_goal_shape_support_routes": len(exact_goal_shape_support),
+        "boundary": (
+            "Semantic-support policy routes task-family primitive IDs to registered "
+            "support obligations. It is routing metadata only; proof evidence still "
+            "requires kernel_verified=true rows in the proof audit manifest."
+        ),
+    }
+
+
+def registered_support_for_semantic_primitive(
+    primitive_id: str,
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    return policy["primitive_to_registered_support"].get(primitive_id, ())
+
+
+def registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    return policy["placeholder_symbol_to_registered_support"].get(symbol.strip(), ())
+
+
+def registered_support_for_exact_goal_shape_obligation(
+    obligation_id: str,
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    return policy["exact_goal_shape_to_registered_support"].get(obligation_id, ())
 
 
 def resolve_source_semantic_primitive_queue_path(
@@ -459,7 +509,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                         [target_theorem_name] if target_theorem_name else []
                     ),
                     "candidate_registered_obligation_ids": list(
-                        _PRIMITIVE_TO_REGISTERED_SUPPORT.get(primitive_id, ())
+                        registered_support_for_semantic_primitive(primitive_id)
                     ),
                     "proof_mode": "source_theorem_semantic_primitive_closure",
                     "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
@@ -732,7 +782,7 @@ def _inferred_exact_goal_shape_obligation_ids(
 def _registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
 ) -> tuple[str, ...]:
-    return _EXACT_GOAL_SHAPE_TO_REGISTERED_SUPPORT.get(obligation_id, ())
+    return registered_support_for_exact_goal_shape_obligation(obligation_id)
 
 
 def run_source_theorem_semantic_primitive_proofengineer_bridge(
@@ -917,6 +967,7 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         ),
         "kernel_verified_source_theorem_semantic_definition_ids": [],
         "n_kernel_verified_source_theorem_semantic_definition_ids": 0,
+        "semantic_support_policy": _semantic_support_policy_summary(),
         "semantic_closure_status": (
             SEMANTIC_SUPPORT_ONLY_STATUS
             if kernel_verified_candidate_ids
@@ -1464,7 +1515,7 @@ def _candidate_registered_obligation_ids(row: Mapping[str, Any]) -> tuple[str, .
         or _registered_support_for_exact_goal_shape_obligation(
             exact_goal_shape_obligation_id
         )
-        or _PRIMITIVE_TO_REGISTERED_SUPPORT.get(primitive_id, ())
+        or registered_support_for_semantic_primitive(primitive_id)
     )
     if candidates:
         return tuple(

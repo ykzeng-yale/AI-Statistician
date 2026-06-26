@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "policy_id": "split_conformal_registered_semantic_support_v1",
+  "scope": "task_family:split_conformal_finite_sample_coverage",
+  "description": "Registered support obligations for the current split-conformal source-theorem semantic primitive frontier. This policy is routing/support metadata only; kernel proof status still comes from proof audit manifests.",
+  "primitive_to_registered_support": {
+    "probability_measure_semantics": [
+      "prob_measure_univ"
+    ],
+    "exchangeability_semantics": [
+      "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ],
+    "exchangeability_to_uniform_rank_semantics": [
+      "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ],
+    "rank_uniformity_semantics": [
+      "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ],
+    "order_statistic_quantile_semantics": [
+      "split_conformal_good_rank_set_inclusion_bridge"
+    ]
+  },
+  "placeholder_symbol_to_registered_support": {
+    "MeasureProbability": [
+      "prob_measure_univ"
+    ],
+    "Exchangeable": [
+      "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ],
+    "orderStat": [
+      "split_conformal_good_rank_set_inclusion_bridge"
+    ],
+    "orderStatistic": [
+      "split_conformal_good_rank_set_inclusion_bridge"
+    ]
+  },
+  "exact_goal_shape_to_registered_support": {
+    "real_probability_lower_bound_from_ennreal_adapter": [
+      "split_conformal_good_rank_coverage_bridge"
+    ],
+    "exchangeability_rank_uniformity_instantiation": [
+      "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ],
+    "order_statistic_quantile_rank_instantiation": [
+      "split_conformal_good_rank_set_inclusion_bridge"
+    ],
+    "coverage_event_identification_from_hC": [
+      "split_conformal_good_rank_set_inclusion_bridge"
+    ],
+    "upper_coverage_bound_component": [
+      "split_conformal_upper_coverage_rank_budget_bridge"
+    ],
+    "conjunctive_source_theorem_split": [
+      "source_theorem_conjunction_from_components"
+    ]
+  }
+}

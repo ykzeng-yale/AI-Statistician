@@ -62,6 +62,17 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     assert manifest["registered_candidate_obligation_ids"] == [
         "split_conformal_good_rank_set_inclusion_bridge"
     ]
+    assert manifest["semantic_support_policy"]["policy_id"] == (
+        "split_conformal_registered_semantic_support_v1"
+    )
+    assert manifest["semantic_support_policy"]["scope"] == (
+        "task_family:split_conformal_finite_sample_coverage"
+    )
+    assert manifest["semantic_support_policy"]["n_primitive_support_routes"] >= 1
+    assert (
+        manifest["semantic_support_policy"]["n_placeholder_symbol_support_routes"]
+        >= 1
+    )
     assert manifest["runtime_learning_ready"] is False
     assert manifest["proof_evidence_status"] == (
         "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"

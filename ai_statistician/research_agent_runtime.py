@@ -113,6 +113,8 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
+    registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
 from .source_theorem_proof_body_adapter_proofengineer_bridge import (
@@ -35124,35 +35126,13 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
 
 
 def _registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
-    normalized = symbol.strip()
-    if normalized == "MeasureProbability":
-        return ("prob_measure_univ",)
-    if normalized == "Exchangeable":
-        return ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
-    if normalized in {"orderStat", "orderStatistic"}:
-        return ("split_conformal_good_rank_set_inclusion_bridge",)
-    return ()
+    return _policy_registered_support_for_placeholder_symbol(symbol)
 
 
 def _registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
 ) -> tuple[str, ...]:
-    if obligation_id == "real_probability_lower_bound_from_ennreal_adapter":
-        return ("split_conformal_good_rank_coverage_bridge",)
-    if obligation_id == "exchangeability_rank_uniformity_instantiation":
-        return ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
-    if obligation_id in {
-        "order_statistic_quantile_rank_instantiation",
-        "coverage_event_identification_from_hC",
-    }:
-        return ("split_conformal_good_rank_set_inclusion_bridge",)
-    if obligation_id == "upper_coverage_bound_component":
-        return ("split_conformal_upper_coverage_rank_budget_bridge",)
-    if obligation_id == "conjunctive_source_theorem_split":
-        return ("source_theorem_conjunction_from_components",)
-    if obligation_id == "source_to_bridge_adapter_goal_shape_mismatch":
-        return ()
-    return ()
+    return _policy_registered_support_for_exact_goal_shape_obligation(obligation_id)
 
 
 def _runtime_source_theorem_promotion_work_order_rows(
