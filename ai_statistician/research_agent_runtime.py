@@ -32868,7 +32868,68 @@ def _dedupe_runtime_next_action_agenda_rows(
             compacted.append(normalized)
             continue
         _merge_runtime_next_action_agenda_row(existing, normalized)
-    return compacted
+    return _rank_runtime_next_action_agenda_rows(compacted)
+
+
+def _rank_runtime_next_action_agenda_rows(
+    agenda_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for _index, row in sorted(
+            enumerate(agenda_rows),
+            key=lambda item: (
+                _runtime_next_action_agenda_specificity_rank(item[1]),
+                _runtime_next_action_agenda_priority_rank(item[1]),
+                item[0],
+            ),
+        )
+    ]
+
+
+def _runtime_next_action_agenda_specificity_rank(row: Mapping[str, Any]) -> int:
+    row_id = str(row.get("id", "") or "")
+    trigger = str(row.get("trigger", "") or "")
+    runtime_queue_status = str(row.get("runtime_queue_status", "") or "")
+    action = str(row.get("action", "") or "")
+    combined = "\n".join((row_id, trigger, runtime_queue_status, action)).lower()
+    if "source_to_bridge_metadata" in combined:
+        return 0
+    if "source_theorem_formal_environment" in combined:
+        return 1
+    if (
+        "exact_semantic_definition" in combined
+        or "exact semantic-definition" in combined
+        or "exact semantic definition" in combined
+        or "semantic_review_required_before_proof_body" in combined
+    ):
+        return 2
+    if "source_to_bridge_premise_derivation" in combined:
+        return 3
+    if "theorem_reduction_closure" in combined:
+        return 4
+    if "source_theorem_semantic_primitives" in combined:
+        return 5
+    if row_id == "simulation:theory_revision":
+        return 10
+    if row_id == "proof_feedback:kernel_rerun":
+        return 20
+    if row_id == "formal_gap:proof_bank_expansion":
+        return 80
+    if row_id == "formal_gap:gap_planner_handoff":
+        return 85
+    if row_id.startswith("algorithm:"):
+        return 90
+    if row_id.startswith("retrieval:"):
+        return 95
+    return 50
+
+
+def _runtime_next_action_agenda_priority_rank(row: Mapping[str, Any]) -> int:
+    return {"high": 0, "medium": 1, "low": 2}.get(
+        str(row.get("priority", "") or "").lower(),
+        3,
+    )
 
 
 def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any, ...]:

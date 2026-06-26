@@ -22609,6 +22609,15 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
 def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance() -> None:
     generic_rows = [
         {
+            "id": "formal_gap:proof_bank_expansion",
+            "owner_subsystem": "Formalizer/LeanProver",
+            "trigger": "FORMAL_GAP",
+            "action": "promote retrieved formal-source hits",
+            "acceptance_gate": "kernel verifies proof-bank obligation",
+            "target_ids": ["split_conformal_coverage"],
+            "priority": "high",
+        },
+        {
             "id": "formal_gap:gap_planner_handoff",
             "owner_subsystem": "FormalizationGapPlanner",
             "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
@@ -22634,6 +22643,26 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
                 "formal_environment_placeholder_primitives",
                 "source_theorem_semantic_alignment_unreviewed",
             ],
+        },
+        {
+            "id": "formal_gap:source_to_bridge_metadata_authoring",
+            "owner_subsystem": "TheoryDeveloper/SourceBindingMetadata/Formalizer",
+            "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+            "action": "author source-to-bridge metadata",
+            "acceptance_gate": "metadata request is explicit",
+            "target_ids": ["split_conformal_coverage"],
+            "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING",
+            "priority": "high",
+        },
+        {
+            "id": "formal_gap:source_theorem_exact_semantic_definition_repair",
+            "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+            "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+            "action": "review exact semantic definitions",
+            "acceptance_gate": "reviewed definitions pass local Lean",
+            "target_ids": ["split_conformal_coverage"],
+            "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+            "priority": "high",
         },
     ]
     proof_feedback_rows = [
@@ -22668,11 +22697,16 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
     )
 
     assert [row["id"] for row in compacted] == [
-        "formal_gap:gap_planner_handoff",
+        "formal_gap:source_to_bridge_metadata_authoring",
+        "formal_gap:source_theorem_exact_semantic_definition_repair",
         "proof_feedback:source_theorem_exact_semantic_definitions:one",
         "proof_feedback:source_theorem_exact_semantic_definitions:two",
+        "formal_gap:proof_bank_expansion",
+        "formal_gap:gap_planner_handoff",
     ]
-    planner_row = compacted[0]
+    planner_row = next(
+        row for row in compacted if row["id"] == "formal_gap:gap_planner_handoff"
+    )
     assert planner_row["collapsed_agenda_row_count"] == 2
     assert planner_row["supporting_formalization_gap_planner_bridge_ids"] == [
         "bridge:one",
