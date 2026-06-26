@@ -318,6 +318,18 @@
       "tests/test_source_to_bridge_premise_derivation_bridge.py::test_premise_bridge_checks_core_candidate_without_injecting_mathlib",
       "tests/test_research_agent_runtime.py -k 'source_to_bridge_premise or formalizer_premise_derivation or runtime_capability_scorecard_flags_dropped_formalizer'"
     ],
+    "source_to_bridge_verified_premise_runtime_consumption_patch": "Runtime proof-bank summaries and final agenda export now suppress stale source-to-bridge premise-derivation gap rows once a kernel-verified premise derivation exists for the same premise. Verified premise rows route to downstream adapter/exact-proof integration and remain explicitly not full source-theorem proof.",
+    "source_to_bridge_verified_premise_runtime_consumption_probe_manifest": "runs/main_worker_live_runtime_resume_bridge_verified_critic_consumption_after_final_prune_probe/research_agent_runtime_manifest.json",
+    "source_to_bridge_verified_premise_runtime_consumption_probe_scorecard": "42/49",
+    "source_to_bridge_verified_premise_runtime_consumption_probe_pending_next_task": "formalize-critic-repair:conformal_prediction_coverage:f828c460",
+    "source_to_bridge_verified_premise_runtime_consumption_probe_result": "A one-iteration live resume consumed the patched bridge learning row and preserved source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified=1. The final runtime_next_action_agenda.jsonl no longer exports formal_gap:source_to_bridge_premise_derivation or stale hGoodRankImpliesCovered gap rows; it exports one SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED integration action for hGoodRankImpliesCovered plus unnamed adapter-object exact-semantic-definition gaps. The full source theorem and exact semantic definitions remain unproved.",
+    "source_to_bridge_verified_premise_runtime_consumption_tests": [
+      "tests/test_research_agent_runtime.py::test_verified_premise_derivation_supersedes_stale_pending_rows",
+      "tests/test_research_agent_runtime.py::test_verified_source_to_bridge_premise_generates_integration_next_action",
+      "tests/test_research_agent_runtime.py::test_verified_source_to_bridge_premise_prunes_stale_gap_agenda_rows",
+      "tests/test_research_agent_runtime.py::test_source_to_bridge_premise_gap_generates_upstream_next_action",
+      "tests/test_research_agent_runtime.py -k 'source_to_bridge_premise or formalizer_premise_derivation or runtime_capability_scorecard_flags_dropped_formalizer'"
+    ],
     "repeated_syntax_contract_guard_patch": "Formalizer Lean candidate materialization now prechecks project-incompatible Type* syntax, blocks executable source-theorem retries while repeated-syntax fail-closed contracts are active, strips sorry/placeholder sketches from FORMAL_GAP entries under repeated-syntax feedback, refreshes stale local-Lean repair contracts from carried diagnostics, classifies LT/LE Real no-import failures, and rejects no-import core-helper candidates that use Real/order/arithmetic/Mathlib-only constructs when a core-only contract is active.",
     "repeated_syntax_contract_guard_tests": [
       "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_rejects_type_star_syntax",
@@ -547,12 +559,12 @@
     "Formalizer/ProofEngineer now has live failed-then-passed local Lean repair sequences, but the compiled candidates are source_theorem_target_known=false diagnostic helpers and not proof of the intended conformal source theorem",
     "latest Formalizer blocker moved from missing concrete source-to-bridge candidate source to downstream Critic/proof integration: a patched bridge replay verifies the no-import hGoodRankImpliesCovered premise derivation from hC, but the full source theorem and exact semantic definitions are still unproved",
     "proof-hole packet-validation loop moved into candidate precheck/local Lean repair, and Critic feedback now routes missing Mathlib.olean environment failures as typed lean_unavailable_import blocker requests rather than vague local Lean failures",
-    "latest live pending task is critic:conformal_prediction_coverage:13db26c0 from runs/main_worker_live_runtime_resume_pending_premise_repair_followup_probe; the patched standalone source-to-bridge bridge replay verifies 1/4 premise rows, but the runtime needs a follow-up in-band continuation so Critic/Formalizer consumes that verified premise evidence alongside the remaining semantic-definition and source theorem proof-body blockers",
+    "latest in-band continuation consumed the patched hGoodRankImpliesCovered premise derivation evidence and pruned stale premise-gap agenda rows, but the runtime still needs downstream adapter/exact-proof integration and exact semantic-definition repair before any source theorem can be kernel verified",
     "legacy Lean project can import selected Mathlib MeasureTheory/Probability submodules after cache population, but root `import Mathlib` remains unavailable because Mathlib.olean is absent",
     "real kernel-verified helper/subclaim rows are present, but no source theorem or full frontier theorem proof is present"
   ],
   "next_main_worker_actions": [
-    "resume pending Critic task critic:conformal_prediction_coverage:13db26c0 from runs/main_worker_live_runtime_resume_pending_premise_repair_followup_probe after the bridge patch so the in-band runtime source-to-bridge bridge verifies hGoodRankImpliesCovered and exports the learning row for downstream proof-body/semantic-definition routing",
+    "resume pending Formalizer/Critic task formalize-critic-repair:conformal_prediction_coverage:f828c460 from runs/main_worker_live_runtime_resume_bridge_verified_critic_consumption_after_final_prune_probe so the next worker integrates the kernel-verified hGoodRankImpliesCovered premise into the adapter/exact proof path while repairing remaining exact semantic-definition gaps",
     "turn compiled diagnostic-helper evidence into a source-theorem proof route only by emitting concrete source_to_bridge_premise_derivation_candidates with copied source-binding metadata and exact local Lean/AXLE kernel verification; continue resolving Equiv.Perm, Finset.univ.filter, Nat.ceil, Exchangeable, import/API, and source-to-bridge blockers through the prover/RAG stack",
     "add a second non-conformal task-family capability run before claiming cross-task generality",
     "push this branch and open or update a GitHub PR against the coordination branch when connector support is available"

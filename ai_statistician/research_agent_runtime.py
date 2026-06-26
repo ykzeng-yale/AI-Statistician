@@ -11,7 +11,7 @@ import sys
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .agent_runtime import (
     AgentRuntime,
@@ -18346,6 +18346,25 @@ def run_research_agent_runtime(
             )
             _write_jsonl(agenda_path, agenda_rows)
         _write_jsonl(learning_path, learning_rows)
+    stale_gap_pruning_evidence_rows = [
+        *learning_rows,
+        *agenda_rows,
+        *generated_next_action_rows,
+    ]
+    agenda_rows[:] = _prune_stale_source_to_bridge_premise_gap_rows(
+        agenda_rows,
+        stale_gap_pruning_evidence_rows,
+    )
+    generated_next_action_rows = _prune_stale_source_to_bridge_premise_gap_rows(
+        generated_next_action_rows,
+        stale_gap_pruning_evidence_rows,
+    )
+    learning_rows = _prune_stale_source_to_bridge_premise_gap_rows(
+        learning_rows,
+        [*stale_gap_pruning_evidence_rows, *generated_next_action_rows],
+        generated_routing_only=True,
+    )
+    _write_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     manifest.setdefault(
         "n_runtime_source_theorem_semantic_primitive_work_orders_from_runtime_evidence_truth_table",
@@ -21893,6 +21912,101 @@ def _runtime_learning_row_trigger(
     return str(row.get("trigger", "") or "").strip()
 
 
+def _runtime_source_to_bridge_premise_names(row: Mapping[str, Any]) -> tuple[str, ...]:
+    return _runtime_row_string_values(
+        row,
+        "source_to_bridge_premise_name",
+        "premise_name",
+        "source_to_bridge_premise_names",
+        "premise_names",
+    )
+
+
+def _runtime_source_to_bridge_premise_derivation_kernel_verified(
+    row: Mapping[str, Any],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    return bool(
+        row.get("source_to_bridge_premise_derivation_kernel_verified", False)
+        or row.get("premise_derivation_kernel_verified", False)
+        or (
+            input_summary.get(
+                "source_to_bridge_premise_derivation_kernel_verified",
+                False,
+            )
+            if isinstance(input_summary, Mapping)
+            else False
+        )
+        or (
+            input_summary.get("premise_derivation_kernel_verified", False)
+            if isinstance(input_summary, Mapping)
+            else False
+        )
+    )
+
+
+def _runtime_verified_source_to_bridge_premise_names(
+    rows: Iterable[Mapping[str, Any]],
+) -> set[str]:
+    return {
+        value
+        for row in rows
+        if isinstance(row, Mapping)
+        and _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
+        for value in _runtime_source_to_bridge_premise_names(row)
+    }
+
+
+def _runtime_is_source_to_bridge_premise_gap_row(row: Mapping[str, Any]) -> bool:
+    input_summary = row.get("input_summary", {})
+    trigger = _runtime_learning_row_trigger(row, input_summary)
+    return bool(
+        trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
+        or str(row.get("learning_task", "") or "")
+        == "source_to_bridge_premise_semantic_repair_feedback"
+        or str(row.get("premise_derivation_gap_kind", "") or "").strip()
+        or (
+            input_summary.get("premise_derivation_gap_kind", "")
+            if isinstance(input_summary, Mapping)
+            else ""
+        )
+    )
+
+
+def _prune_stale_source_to_bridge_premise_gap_rows(
+    rows: Iterable[dict[str, Any]],
+    evidence_rows: Iterable[Mapping[str, Any]],
+    *,
+    generated_routing_only: bool = False,
+) -> list[dict[str, Any]]:
+    verified_premise_names = _runtime_verified_source_to_bridge_premise_names(
+        [
+            *[row for row in rows if isinstance(row, Mapping)],
+            *[row for row in evidence_rows if isinstance(row, Mapping)],
+        ]
+    )
+    if not verified_premise_names:
+        return [dict(row) for row in rows if isinstance(row, Mapping)]
+    pruned_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if generated_routing_only and str(row.get("learning_task", "") or "") != (
+            "generated_next_action_routing"
+        ):
+            pruned_rows.append(dict(row))
+            continue
+        premise_names = _runtime_source_to_bridge_premise_names(row)
+        if (
+            _runtime_is_source_to_bridge_premise_gap_row(row)
+            and premise_names
+            and set(premise_names).issubset(verified_premise_names)
+        ):
+            continue
+        pruned_rows.append(dict(row))
+    return pruned_rows
+
+
 def _source_theorem_work_order_target_name(row: Mapping[str, Any]) -> str:
     for key in (
         "target_theorem_name",
@@ -25228,6 +25342,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
     verified_source_to_bridge_premise_name_set = set(
         verified_source_to_bridge_premise_names
     )
+
+    def metadata_request_premise_names(row: Mapping[str, Any]) -> tuple[str, ...]:
+        return _runtime_source_to_bridge_premise_names(row)
+
+    pending_source_to_bridge_metadata_request_rows = tuple(
+        row
+        for row in complete_source_to_bridge_metadata_authoring_request_rows
+        if not metadata_request_premise_names(row)
+        or not set(metadata_request_premise_names(row)).issubset(
+            verified_source_to_bridge_premise_name_set
+        )
+    )
     pending_source_to_bridge_premise_derivation_rows = tuple(
         row
         for row in source_to_bridge_premise_derivation_rows
@@ -25271,16 +25397,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
     metadata_authoring_request_premise_names = tuple(
         dict.fromkeys(
             value
-            for row in complete_source_to_bridge_metadata_authoring_request_rows
-            for value in (
-                [
-                    str(row.get("premise_name", "") or "").strip(),
-                    *[
-                        str(item).strip()
-                        for item in row.get("premise_names", []) or []
-                    ],
-                ]
-            )
+            for row in pending_source_to_bridge_metadata_request_rows
+            for value in metadata_request_premise_names(row)
             if value and value not in verified_source_to_bridge_premise_name_set
         )
     )
@@ -25303,7 +25421,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     source_to_bridge_premise_derivation_required = bool(
         pending_source_to_bridge_premise_derivation_rows
-        or complete_source_to_bridge_metadata_authoring_request_rows
+        or pending_source_to_bridge_metadata_request_rows
     )
     source_to_bridge_metadata_authoring_required = bool(
         source_to_bridge_metadata_authoring_rows
@@ -29760,6 +29878,9 @@ def _append_runtime_generated_next_action_rows(
     """Expose post-runtime proof queues to the next Architect/Critic pass."""
     existing_ids = {str(row.get("id", "") or "") for row in agenda_rows}
     appended: list[dict[str, Any]] = []
+    verified_source_to_bridge_premise_names = (
+        _runtime_verified_source_to_bridge_premise_names(generated_rows)
+    )
     for row in generated_rows:
         if not isinstance(row, Mapping):
             continue
@@ -29776,17 +29897,34 @@ def _append_runtime_generated_next_action_rows(
         agenda_id = f"proof_feedback:{queue_name}:{stable_hash(work_order_id)[:12]}"
         if agenda_id in existing_ids:
             continue
-        existing_ids.add(agenda_id)
         learning_task = str(row.get("learning_task", "") or "")
         premise_gap_kind = str(row.get("premise_derivation_gap_kind", "") or "")
         premise_name = str(row.get("premise_name", "") or "")
         premise_target_type = str(row.get("premise_target_type", "") or "")
-        source_to_bridge_premise_gap = bool(
+        premise_derivation_kernel_verified = (
+            _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
+        )
+        source_to_bridge_premise_feedback = bool(
             learning_task == "source_to_bridge_premise_derivation_feedback"
             or learning_task == "source_to_bridge_premise_semantic_repair_feedback"
             or queue_name.startswith("source_to_bridge_premise_derivation")
             or premise_gap_kind
         )
+        source_to_bridge_premise_verified = bool(
+            source_to_bridge_premise_feedback
+            and premise_derivation_kernel_verified
+        )
+        source_to_bridge_premise_gap = bool(
+            source_to_bridge_premise_feedback
+            and not source_to_bridge_premise_verified
+        )
+        premise_names = _runtime_source_to_bridge_premise_names(row)
+        if (
+            source_to_bridge_premise_gap
+            and premise_names
+            and set(premise_names).issubset(verified_source_to_bridge_premise_names)
+        ):
+            continue
         source_target_provenance = (
             row.get("source_theorem_target_provenance", {})
             if isinstance(row.get("source_theorem_target_provenance"), Mapping)
@@ -29812,8 +29950,17 @@ def _append_runtime_generated_next_action_rows(
                 "source-theorem semantic assumptions or lemma plan needed to derive "
                 f"{target_text}; then rerun the premise derivation local Lean gate"
             )
+        elif source_to_bridge_premise_verified and not recommended_next_action:
+            target_text = premise_name or premise_target_type or "the bridge premise"
+            action = (
+                "rerun the source-to-bridge adapter bridge or exact source theorem "
+                "proof-body path with the kernel-verified premise derivation "
+                f"available for {target_text}; do not treat the premise row itself "
+                "as full source theorem proof"
+            )
         if recommended_commands:
             action = action + "; commands: " + "; ".join(recommended_commands)
+        existing_ids.add(agenda_id)
         appended.append(
             {
                 "id": agenda_id,
@@ -29827,10 +29974,14 @@ def _append_runtime_generated_next_action_rows(
                     "TheoryDeveloper/Formalizer/ProofEngineer"
                     if source_to_bridge_premise_gap
                     else "Formalizer/ProofEngineer/LeanProver"
+                    if source_to_bridge_premise_verified
+                    else "Formalizer/ProofEngineer/LeanProver"
                 ),
                 "trigger": (
                     "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
                     if source_to_bridge_premise_gap
+                    else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+                    if source_to_bridge_premise_verified
                     else "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
                 ),
                 "action": action,
@@ -29844,6 +29995,13 @@ def _append_runtime_generated_next_action_rows(
                             "requires a later exact theorem kernel check."
                         )
                         if source_to_bridge_premise_gap
+                        else (
+                            "A downstream local Lean/AXLE run consumes the "
+                            "kernel-verified premise derivation while preserving "
+                            "the boundary that full source theorem proof still "
+                            "requires exact theorem kernel verification."
+                        )
+                        if source_to_bridge_premise_verified
                         else (
                             "AXLE/local Lean kernel verifies the queued target, and the "
                             "manifest keeps queued repair work separate from source theorem proof."
@@ -29865,6 +30023,17 @@ def _append_runtime_generated_next_action_rows(
                 "premise_derivation_gap_kind": premise_gap_kind,
                 "premise_derivation_gap_summary": str(
                     row.get("premise_derivation_gap_summary", "") or ""
+                ),
+                "premise_derivation_kernel_verified": (
+                    premise_derivation_kernel_verified
+                ),
+                "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+                    _runtime_row_string_values(
+                        row,
+                        "kernel_verified_source_to_bridge_premise_derivation_ids",
+                        "source_to_bridge_premise_derivation_check_id",
+                        "premise_derivation_check_id",
+                    )
                 ),
                 "premise_semantic_dependency_status": str(
                     row.get("premise_semantic_dependency_status", "") or ""
@@ -29955,6 +30124,15 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "premise_derivation_gap_summary": str(
                         row.get("premise_derivation_gap_summary", "") or ""
+                    ),
+                    "premise_derivation_kernel_verified": bool(
+                        row.get("premise_derivation_kernel_verified", False)
+                    ),
+                    "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+                        _runtime_row_string_values(
+                            row,
+                            "kernel_verified_source_to_bridge_premise_derivation_ids",
+                        )
                     ),
                     "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
                     "candidate_artifact_path": str(

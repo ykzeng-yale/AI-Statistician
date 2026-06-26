@@ -566,10 +566,22 @@ premise derivation. The remaining rows still fail for real missing-anchor or
 wrong-declaration reasons. This is premise-derivation evidence only; the full
 `split_conformal_finite_sample_coverage` source theorem and exact semantic
 definitions remain unproved. The latest pending task is now
-`critic:conformal_prediction_coverage:13db26c0`, and the next in-band runtime
-continuation should let Critic/Formalizer consume this verified bridge premise
-through normal runtime learning rather than treating the standalone replay as a
-final theorem result.
+`critic:conformal_prediction_coverage:13db26c0`.
+
+The in-band continuation is now recorded at
+`runs/main_worker_live_runtime_resume_bridge_verified_critic_consumption_after_final_prune_probe/research_agent_runtime_manifest.json`.
+It preserves the patched bridge evidence
+(`source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified=1`)
+and fixes the stale-agenda design issue: the final
+`runtime_next_action_agenda.jsonl` no longer carries
+`formal_gap:source_to_bridge_premise_derivation` or stale
+`hGoodRankImpliesCovered` gap rows. It exports one
+`SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED` integration action for
+`hGoodRankImpliesCovered`, while retaining unnamed adapter-object exact
+semantic-definition gaps. The scorecard remains 42/49, the terminal pending
+task is `formalize-critic-repair:conformal_prediction_coverage:f828c460`, and
+the next step is to consume the verified premise in the adapter/exact proof path
+without claiming full source theorem proof.
 
 ## Delegation To Other Codex Workers
 

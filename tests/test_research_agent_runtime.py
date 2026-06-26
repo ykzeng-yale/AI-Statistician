@@ -117,6 +117,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_post_executor_formal_environment_learning_rows,
     _append_runtime_generated_next_action_rows,
     _runtime_generated_next_action_learning_rows,
+    _prune_stale_source_to_bridge_premise_gap_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows,
     _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
@@ -11982,6 +11983,123 @@ def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
     assert learning_rows[0]["input_summary"]["premise_derivation_gap_kind"] == (
         "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
     )
+
+
+def test_verified_source_to_bridge_premise_generates_integration_next_action() -> None:
+    stale_premise_row = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
+        "premise_name": "hGoodCovered",
+        "premise_derivation_kernel_verified": False,
+        "premise_derivation_gap_kind": (
+            "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
+        ),
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
+        "proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    premise_row = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
+        "premise_name": "hGoodCovered",
+        "premise_derivation_kernel_verified": True,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "runtime_queue_status": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+        ),
+    }
+    agenda_rows: list[dict[str, object]] = []
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        [stale_premise_row, premise_row],
+        queue_name="source_to_bridge_premise_derivation_feedback",
+    )
+
+    assert len(generated_rows) == 1
+    generated_row = generated_rows[0]
+    assert generated_row["trigger"] == (
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+    )
+    assert generated_row["owner_subsystem"] == "Formalizer/ProofEngineer/LeanProver"
+    assert generated_row["premise_name"] == "hGoodCovered"
+    assert generated_row["premise_derivation_kernel_verified"] is True
+    assert generated_row["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered"
+    ]
+    assert "kernel-verified premise derivation" in generated_row["action"]
+    assert "full source theorem proof" in generated_row["action"]
+    assert "route upstream to TheoryDeveloper/Formalizer" not in generated_row["action"]
+    learning_rows = _runtime_generated_next_action_learning_rows(generated_rows)
+    assert learning_rows[0]["input_summary"]["trigger"] == (
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+    )
+    assert learning_rows[0]["input_summary"][
+        "premise_derivation_kernel_verified"
+    ] is True
+    assert learning_rows[0]["input_summary"][
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]
+
+
+def test_verified_source_to_bridge_premise_prunes_stale_gap_agenda_rows() -> None:
+    stale_agenda_row = {
+        "id": "formal_gap:source_to_bridge_premise_derivation",
+        "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "premise_names": ["hGoodCovered"],
+        "action": "derive the concrete source-to-bridge premises",
+    }
+    stale_generated_routing_row = {
+        "schema_version": 1,
+        "learning_task": "generated_next_action_routing",
+        "input_summary": {
+            "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+            "premise_name": "hGoodCovered",
+            "work_order_id": "source_theorem_semantic_primitive_work_order:old",
+        },
+        "target_behavior": "route upstream to derive hGoodCovered",
+    }
+    verified_row = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "premise_name": "hGoodCovered",
+        "premise_derivation_kernel_verified": True,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+    }
+    exact_semantic_definition_gap = {
+        "id": "proof_feedback:source_to_bridge_adapter_object_semantic_definition:1",
+        "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "work_order_id": "source_to_bridge_adapter_object_semantic_definition_work_order:1",
+        "premise_name": "",
+        "action": "repair adapter object semantic definition",
+    }
+
+    agenda_rows = _prune_stale_source_to_bridge_premise_gap_rows(
+        [stale_agenda_row, exact_semantic_definition_gap],
+        [verified_row],
+    )
+    assert [row["id"] for row in agenda_rows] == [
+        "proof_feedback:source_to_bridge_adapter_object_semantic_definition:1"
+    ]
+
+    learning_rows = _prune_stale_source_to_bridge_premise_gap_rows(
+        [stale_generated_routing_row, verified_row],
+        [verified_row],
+        generated_routing_only=True,
+    )
+    assert learning_rows == [verified_row]
 
 
 def test_source_to_bridge_premise_gap_generates_semantic_primitive_work_order() -> None:
@@ -26805,6 +26923,36 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
             },
             {
                 "schema_version": 1,
+                "learning_task": "source_to_bridge_metadata_authoring_request",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "candidate_request_id": (
+                    "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                ),
+                "premise_name": "hGoodCovered",
+                "premise_target_type": "{omega | rank omega in GoodRanks} <= covered",
+                "exact_source_theorem_binders": [
+                    {"name": "hC", "type": "good_rank_event -> coverage_event"}
+                ],
+                "premise_semantic_anchor_binders": [
+                    {"name": "hC", "role": "coverage event source anchor"}
+                ],
+                "premise_semantic_anchor_binder_names": ["hC"],
+                "required_semantic_anchor_reference_names": ["hC"],
+                "adapter_object_names_requiring_source_instantiation": [
+                    "covered",
+                    "rank",
+                ],
+                "request_complete": True,
+                "metadata_authoring_status": (
+                    "SOURCE_TO_BRIDGE_METADATA_AUTHORING_REQUEST_COMPLETE"
+                ),
+                "proof_evidence_status": (
+                    "SOURCE_TO_BRIDGE_METADATA_AUTHORING_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            {
+                "schema_version": 1,
                 "learning_task": "source_to_bridge_premise_derivation_feedback",
                 "target_theorem_name": "split_conformal_coverage",
                 "target_lean_declaration": "split_conformal_coverage",
@@ -26850,6 +26998,9 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
 
     assert summary["source_to_bridge_premise_derivation_required"] is False
     assert summary["source_to_bridge_premise_derivation_pending_premise_names"] == []
+    assert summary[
+        "source_to_bridge_metadata_authoring_complete_candidate_requests_available"
+    ] is True
     assert summary["source_to_bridge_premise_derivation_verified_premise_names"] == [
         "hGoodCovered"
     ]
