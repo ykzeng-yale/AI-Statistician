@@ -24,7 +24,7 @@ FORMALIZER_BOUNDARY = (
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
-FORMALIZER_MAX_TEXT_CHARS = 420
+FORMALIZER_MAX_TEXT_CHARS = 360
 
 
 @dataclass(frozen=True)
@@ -118,6 +118,9 @@ class LLMFormalizerProofEngineerAgent:
                     _validate_capability_eval_formalizer_lean_candidate_packet(
                         packet,
                         environment_feedback=environment_feedback or {},
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary or {}
+                        ),
                     )
                 )
             return sorted(set(errors))
@@ -965,6 +968,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
     packet: Mapping[str, Any],
     *,
     environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Require generated Lean candidate evidence for Formalizer capability evals."""
 
@@ -990,10 +994,17 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             or ""
         ).strip()
     ]
+    pending_source_to_bridge_premise_names = (
+        _pending_source_to_bridge_premise_names_for_capability_eval(
+            environment_feedback=environment_feedback,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        )
+    )
     if not candidate_targets and not source_to_bridge_candidate_targets:
         if (
             _feedback_has_source_theorem_target_drift(environment_feedback)
             and _has_explicit_source_theorem_formal_gap_target(formal_targets)
+            and not pending_source_to_bridge_premise_names
         ):
             return []
         return [
@@ -1041,6 +1052,25 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval formal target "
                 f"{target_id} Lean sketch {placeholder_error}"
             )
+    if pending_source_to_bridge_premise_names:
+        candidate_premise_names = {
+            name
+            for row in source_to_bridge_candidate_targets
+            for name in _source_to_bridge_candidate_premise_names(row)
+        }
+        missing_premise_names = [
+            name
+            for name in pending_source_to_bridge_premise_names
+            if name not in candidate_premise_names
+        ]
+        if missing_premise_names:
+            errors.append(
+                "capability_eval source-to-bridge premise derivation contract "
+                "requires source_to_bridge_premise_derivation_candidates for "
+                "pending premise(s): "
+                + ", ".join(missing_premise_names)
+                + "; helper-only formal_targets do not satisfy this gate"
+            )
     for row in source_to_bridge_candidate_targets:
         premise_id = str(
             row.get("premise_name", "")
@@ -1073,6 +1103,109 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
     return errors
 
 
+def _pending_source_to_bridge_premise_names_for_capability_eval(
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> list[str]:
+    contracts: list[Mapping[str, Any]] = []
+    for source in (proof_bank_runtime_memory_summary, environment_feedback):
+        if not isinstance(source, Mapping):
+            continue
+        contracts.append(source)
+        input_summary = source.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            contracts.append(input_summary)
+            nested_input_feedback = input_summary.get(
+                "source_to_bridge_premise_derivation_feedback",
+                {},
+            )
+            if isinstance(nested_input_feedback, Mapping):
+                contracts.append(nested_input_feedback)
+        nested_feedback = source.get("source_to_bridge_premise_derivation_feedback", {})
+        if isinstance(nested_feedback, Mapping):
+            contracts.append(nested_feedback)
+
+    required = False
+    premise_names: list[str] = []
+    for contract in contracts:
+        required = required or bool(
+            contract.get("source_to_bridge_premise_derivation_required", False)
+        )
+        required = required or str(
+            contract.get("recommended_formalizer_target_mode", "") or ""
+        ) == "source_to_bridge_premise_derivation_required"
+        pending_names = _string_list_values(
+            contract,
+            "source_to_bridge_premise_derivation_pending_premise_names",
+            "pending_premise_names",
+        )
+        if pending_names:
+            required = True
+            premise_names.extend(pending_names)
+        for row_key in (
+            "source_to_bridge_premise_derivation_diagnostics",
+            "diagnostics",
+            "source_to_bridge_metadata_authoring_candidate_requests",
+            "source_to_bridge_premise_derivation_candidate_requests",
+        ):
+            rows = contract.get(row_key, [])
+            if not isinstance(rows, list | tuple):
+                continue
+            if rows:
+                required = True
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    continue
+                premise_names.extend(_source_to_bridge_candidate_premise_names(row))
+
+    premise_names = list(dict.fromkeys(name for name in premise_names if name))
+    if not premise_names or not required:
+        return []
+    return premise_names
+
+
+def _source_to_bridge_candidate_premise_names(row: Mapping[str, Any]) -> list[str]:
+    names = _string_list_values(
+        row,
+        "premise_name",
+        "premise_names",
+        "source_to_bridge_premise_name",
+        "source_to_bridge_premise_names",
+    )
+    for nested_key in (
+        "source_to_bridge_premise_derivation_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            names.extend(
+                _string_list_values(
+                    nested,
+                    "premise_name",
+                    "premise_names",
+                    "source_to_bridge_premise_name",
+                    "source_to_bridge_premise_names",
+                )
+            )
+    return list(dict.fromkeys(name for name in names if name))
+
+
+def _string_list_values(row: Mapping[str, Any], *keys: str) -> list[str]:
+    values: list[str] = []
+    for key in keys:
+        raw = row.get(key)
+        candidates = raw if isinstance(raw, list | tuple | set) else [raw]
+        for value in candidates:
+            if isinstance(value, Mapping):
+                text = str(value.get("name", "") or "").strip()
+            else:
+                text = str(value or "").strip()
+            if text:
+                values.append(text)
+    return values
+
+
 def _normalize_formalizer_packet(
     payload: Mapping[str, Any],
     *,
@@ -1089,6 +1222,7 @@ def _normalize_formalizer_packet(
         body,
         proof_bank_runtime_memory_summary or {},
     )
+    _enrich_source_to_bridge_candidates_from_packet_requests(body)
     _quarantine_unbound_source_to_bridge_candidates(
         body,
         proof_bank_runtime_memory_summary or {},
@@ -2166,13 +2300,44 @@ def _enrich_source_to_bridge_candidates_from_memory(
 ) -> None:
     """Attach source-binding request metadata to matching generated candidates."""
 
-    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
-    if not isinstance(candidates, list):
-        return
     shortcuts = _source_to_bridge_candidate_request_shortcuts(
         _compact_proof_bank_runtime_memory_summary(proof_memory_summary)
     )
-    if not shortcuts:
+    _enrich_source_to_bridge_candidates_from_shortcuts(
+        packet,
+        shortcuts,
+        autofill_source="runtime_memory",
+    )
+
+
+def _enrich_source_to_bridge_candidates_from_packet_requests(
+    packet: dict[str, Any],
+) -> None:
+    """Allow a packet to emit request metadata and the executable candidate together."""
+
+    request_rows = packet.get(
+        "source_to_bridge_premise_derivation_candidate_requests", []
+    )
+    if not isinstance(request_rows, list | tuple) or not request_rows:
+        return
+    shortcuts = _source_to_bridge_candidate_request_shortcuts(
+        {"source_to_bridge_metadata_authoring_candidate_requests": list(request_rows)}
+    )
+    _enrich_source_to_bridge_candidates_from_shortcuts(
+        packet,
+        shortcuts,
+        autofill_source="same_packet_candidate_request",
+    )
+
+
+def _enrich_source_to_bridge_candidates_from_shortcuts(
+    packet: dict[str, Any],
+    shortcuts: Sequence[Mapping[str, Any]],
+    *,
+    autofill_source: str,
+) -> None:
+    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
+    if not isinstance(candidates, list) or not shortcuts:
         return
     single_by_premise: dict[str, Mapping[str, Any]] = {}
     grouped_requests: list[Mapping[str, Any]] = []
@@ -2228,11 +2393,19 @@ def _enrich_source_to_bridge_candidates_from_memory(
                 "source_to_bridge_grouped_premise_derivation_candidate_request"
             ] = matched_group["copy_this_grouped_request"]
             _copy_missing_candidate_metadata(candidate, matched_group)
-            candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
+            _mark_source_to_bridge_candidate_metadata_autofill(
+                candidate,
+                autofill_source=autofill_source,
+                autofill_mode="premise_group_match",
+            )
             continue
         if premise_name and premise_name in single_by_premise:
             shortcut = single_by_premise[premise_name]
-            _attach_single_source_to_bridge_request_shortcut(candidate, shortcut)
+            _attach_single_source_to_bridge_request_shortcut(
+                candidate,
+                shortcut,
+                autofill_source=autofill_source,
+            )
             continue
         if (
             allow_single_request_single_candidate_fallback
@@ -2243,6 +2416,7 @@ def _enrich_source_to_bridge_candidates_from_memory(
                 single_request_shortcuts[0],
                 align_premise_name=True,
                 autofill_mode="single_request_single_candidate_fallback",
+                autofill_source=autofill_source,
             )
 
 
@@ -2279,6 +2453,7 @@ def _attach_single_source_to_bridge_request_shortcut(
     *,
     align_premise_name: bool = False,
     autofill_mode: str = "premise_name_match",
+    autofill_source: str = "runtime_memory",
 ) -> None:
     if shortcut.get("copy_this_candidate_request_id"):
         candidate["source_to_bridge_premise_derivation_candidate_request_id"] = (
@@ -2307,7 +2482,26 @@ def _attach_single_source_to_bridge_request_shortcut(
         candidate["premise_names"] = list(
             dict.fromkeys([request_premise_name, *premise_names])
         )
-    candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
+    _mark_source_to_bridge_candidate_metadata_autofill(
+        candidate,
+        autofill_source=autofill_source,
+        autofill_mode=autofill_mode,
+    )
+
+
+def _mark_source_to_bridge_candidate_metadata_autofill(
+    candidate: dict[str, Any],
+    *,
+    autofill_source: str,
+    autofill_mode: str,
+) -> None:
+    if autofill_source == "same_packet_candidate_request":
+        candidate[
+            "source_binding_metadata_autofilled_from_packet_candidate_request"
+        ] = True
+    else:
+        candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
+    candidate["source_binding_metadata_autofill_source"] = autofill_source
     candidate["source_binding_metadata_autofill_mode"] = autofill_mode
 
 

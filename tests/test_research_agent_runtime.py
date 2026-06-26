@@ -1637,6 +1637,76 @@ def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap(
     assert errors == []
 
 
+def test_formalizer_capability_eval_validator_rejects_helper_only_pending_premise_derivation() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "informal_source": (
+                        "source theorem remains a probability coverage source theorem"
+                    ),
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "true",
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                },
+                {
+                    "id": "conformal_coverage_prop_bridge_helper",
+                    "informal_source": (
+                        "diagnostic helper candidate only; not the source theorem"
+                    ),
+                    "lean_statement_sketch": (
+                        "theorem conformal_coverage_prop_bridge_helper "
+                        "(coverage_event good_rank_event : Prop) "
+                        "(hGoodRankImpliesCovered : "
+                        "good_rank_event -> coverage_event) "
+                        "(hGoodRank : good_rank_event) : coverage_event := by\n"
+                        "  exact hGoodRankImpliesCovered hGoodRank\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "false",
+                        "target_lean_declaration": "",
+                    },
+                },
+            ],
+            "source_to_bridge_premise_derivation_candidates": [],
+        },
+        proof_bank_runtime_memory_summary={
+            "recommended_formalizer_target_mode": (
+                "source_to_bridge_premise_derivation_required"
+            ),
+            "source_to_bridge_premise_derivation_required": True,
+            "source_to_bridge_premise_derivation_pending_premise_names": [
+                "hGoodRankImpliesCovered"
+            ],
+            "source_to_bridge_premise_derivation_diagnostics": [
+                {
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "required_semantic_anchor_reference_names": ["hC"],
+                }
+            ],
+        },
+    )
+
+    directives = runtime_module._formalizer_packet_validation_repair_directives(errors)
+
+    assert any(
+        "requires source_to_bridge_premise_derivation_candidates" in error
+        for error in errors
+    )
+    assert any("hGoodRankImpliesCovered" in error for error in errors)
+    assert any("helper-only formal_targets" in error for error in errors)
+    assert any(
+        "pending source-to-bridge premise" in directive for directive in directives
+    )
+
+
 def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
@@ -1668,6 +1738,51 @@ def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate
                 }
             ],
         }
+    )
+
+    assert errors == []
+
+
+def test_formalizer_capability_eval_validator_accepts_pending_premise_candidate() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_coverage",
+                    "informal_source": "source theorem has a remaining adapter gap",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "split_conformal_coverage",
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "premise_derivation_candidate_lean_source": (
+                        "theorem hGoodRankImpliesCovered_source_to_bridge "
+                        "(covered good_rank_event : Prop) "
+                        "(hC : good_rank_event -> covered) : "
+                        "good_rank_event -> covered := by\n"
+                        "  exact fun hg => hC hg\n"
+                    ),
+                    "required_semantic_anchor_reference_names": ["hC"],
+                    "adapter_object_names_requiring_source_instantiation": [],
+                }
+            ],
+        },
+        proof_bank_runtime_memory_summary={
+            "recommended_formalizer_target_mode": (
+                "source_to_bridge_premise_derivation_required"
+            ),
+            "source_to_bridge_premise_derivation_required": True,
+            "source_to_bridge_premise_derivation_pending_premise_names": [
+                "hGoodRankImpliesCovered"
+            ],
+        },
     )
 
     assert errors == []
@@ -21242,6 +21357,154 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
         "rank",
         "BadRanks",
     ]
+    assert validate_formalizer_packet(packet) == []
+
+
+def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    request = {
+        "candidate_request_id": "request:hGoodRankImpliesCovered",
+        "premise_name": "hGoodRankImpliesCovered",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        "premise_target_type": "good_rank_event -> covered",
+        "exact_source_theorem_binders": [
+            {"name": "hC", "type": "good_rank_event -> covered"}
+        ],
+        "premise_semantic_anchor_binders": [
+            {
+                "name": "hC",
+                "role": "anchor tying good rank to coverage",
+            }
+        ],
+        "premise_semantic_anchor_binder_names": ["hC"],
+        "required_semantic_anchor_reference_names": ["hC"],
+        "adapter_object_names_requiring_source_instantiation": [],
+        "candidate_contract": "metadata only; copy into executable candidate",
+        "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
+    }
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "informal_source": "source theorem remains unproved",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "hC",
+                "to": "hGoodRankImpliesCovered",
+                "role": "source-to-bridge premise derivation",
+                "risk": "semantic anchor must appear in proof body",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "source-to-bridge premise derivation hGoodRankImpliesCovered",
+                "target_library": "local",
+                "purpose": "premise derivation",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": [
+                "run local Lean on source-to-bridge premise candidate"
+            ],
+            "known_blockers": [],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidate_requests": [request],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodRankImpliesCovered",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "premise_derivation_candidate_lean_source": (
+                    "theorem split_conformal_hGoodRankImpliesCovered_source_to_bridge "
+                    "(good_rank_event covered : Prop) "
+                    "(hC : good_rank_event -> covered) : "
+                    "good_rank_event -> covered := by\n"
+                    "  intro hGoodRank\n"
+                    "  exact hC hGoodRank\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+        "gap_taxonomy": [
+            {
+                "gap": "full source theorem still needs MeasureTheory primitives",
+                "kind": "formal_primitives",
+                "next_owner": "ProofEngineer",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "same_packet_request_normalizer",
+                "finding": "candidate request metadata should be copied before quarantine",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/local_lean_or_axle",
+                "action": (
+                    "Run local Lean on source_to_bridge_premise_derivation_candidates "
+                    "entry hGoodRankImpliesCovered"
+                ),
+                "acceptance_gate": "local Lean checks exact premise derivation",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:same-packet-request"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "recommended_formalizer_target_mode": (
+                "source_to_bridge_premise_derivation_required"
+            ),
+            "source_to_bridge_premise_derivation_required": True,
+            "source_to_bridge_premise_derivation_pending_premise_names": [
+                "hGoodRankImpliesCovered"
+            ],
+        },
+    )
+
+    assert "dropped_source_to_bridge_premise_derivation_candidates" not in packet
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert (
+        candidate["source_binding_metadata_autofilled_from_packet_candidate_request"]
+        is True
+    )
+    assert (
+        candidate["source_binding_metadata_autofill_source"]
+        == "same_packet_candidate_request"
+    )
+    assert (
+        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
+        == "request:hGoodRankImpliesCovered"
+    )
+    assert candidate["required_semantic_anchor_reference_names"] == ["hC"]
+    assert "hC hGoodRank" in candidate["premise_derivation_candidate_lean_source"]
     assert validate_formalizer_packet(packet) == []
 
 

@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-06-25
+Updated: 2026-06-26
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -525,6 +525,29 @@ first-class `source_to_bridge_premise_derivation_feedback`,
 buried in generic blocker text. This is still repair context, not proof
 evidence; the next worker should consume it through the Formalizer/ProofEngineer
 and prover/RAG path.
+
+The next two live probes exposed and patched the deeper design issue. In
+`runs/main_worker_live_runtime_resume_formalizer_semantic_anchor_consumption_probe/research_agent_runtime_manifest.json`,
+the Formalizer authored a matching `hGoodRankImpliesCovered` request and a core
+Lean helper in the same packet, but the normalizer only autofilled
+source-binding metadata from prior runtime memory. The packet therefore could
+not promote same-packet request/candidate pairs generically. The runtime now
+enriches `source_to_bridge_premise_derivation_candidates` from candidate
+requests emitted in the same Formalizer packet, while preserving the proof
+boundary: copied metadata only makes the candidate eligible for validation and
+later local Lean/AXLE checks.
+
+`runs/main_worker_live_runtime_resume_formalizer_validation_repair_after_pending_premise_gate_probe/research_agent_runtime_manifest.json`
+then reran the helper-only validation-repair handoff. The first LLM attempt was
+rejected with a generic capability-eval error:
+`helper-only formal_targets do not satisfy this gate` for pending premise
+`hGoodRankImpliesCovered`; the retry was also rejected because it emitted a
+source-to-bridge candidate shell without Lean source. The latest pending task is
+`formalize-repair:conformal_prediction_coverage:c75867ab`. This is the right
+design posture: Claude can still use helpers as diagnostics, but once runtime
+memory says a source-to-bridge premise derivation is pending, progress requires
+a concrete structured candidate with copied request metadata, required semantic
+anchors such as `hC`, and verifier-ready Lean source, or an honest FORMAL_GAP.
 
 ## Delegation To Other Codex Workers
 

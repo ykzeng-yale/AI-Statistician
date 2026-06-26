@@ -4828,6 +4828,22 @@ def _formalizer_packet_validation_repair_directives(
             "object with Lean source and source-binding metadata, or rewrite the "
             "action as an explicit FORMAL_GAP/proof-bank dependency task."
         )
+    if any(
+        marker in error_text
+        for marker in (
+            "source-to-bridge premise derivation contract requires",
+            "source_to_bridge_premise_derivation_candidates entry missing lean candidate source",
+        )
+    ):
+        directives.append(
+            "For each pending source-to-bridge premise, either emit a concrete "
+            "source_to_bridge_premise_derivation_candidates object with Lean "
+            "source, expected_status=NEEDS_KERNEL_CHECK, copied source-binding "
+            "request metadata, and required semantic anchors, or emit no "
+            "executable candidate and record the exact semantic/import/API "
+            "blocker as a FORMAL_GAP. Helper-only formal_targets do not satisfy "
+            "a pending source-to-bridge premise derivation contract."
+        )
     if "missing required semantic anchor references" in error_text:
         directives.append(
             "Repair the source-to-bridge premise candidate by referencing every "
