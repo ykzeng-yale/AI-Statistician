@@ -346,3 +346,15 @@ preserved 10 non-proof blocker requests and named
 `Mathlib.Data.Finset.Sort` plus `Mathlib.Data.Real.Basic` as formal-source
 queries for the next Formalizer/ProofEngineer turn. This is still
 import/RAG/prover routing context, not source-theorem proof evidence.
+
+The follow-up Formalizer turn showed why that metadata belongs in the bridge
+schema itself. The live run
+`runs/main_worker_live_runtime_resume_named_adapter_import_consumption_probe/research_agent_runtime_manifest.json`
+increased kernel-verified helper/subclaim rows to 48 and compiled Formalizer
+candidates to 18, but the source-theorem proof-body adapter still had zero
+kernel-verified rows. A replay of the same adapter queue through the patched
+bridge now records `adapter_candidate_imports` and exact
+`unavailable_import=Mathlib.Algebra.Order.Floor` directly in adapter check rows
+and runtime learning rows. That is the intended contract: ProofEngineer bridge
+observations carry precise Lean import blockers before Critic summarization or
+prompt compaction can truncate diagnostics.

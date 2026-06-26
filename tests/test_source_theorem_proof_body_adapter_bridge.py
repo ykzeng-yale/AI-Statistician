@@ -727,6 +727,74 @@ def test_adapter_work_order_goal_shape_list_rejects_bridge_premise_assumptions(
     )
 
 
+def test_adapter_bridge_exports_unavailable_import_metadata(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
+    _write_jsonl(
+        queue,
+        [
+            _adapter_work_order(
+                lean_statement_sketch=(
+                    "import Mathlib.Data.Finset.Sort\n"
+                    "import Mathlib.Algebra.Order.Floor\n\n"
+                    "theorem split_conformal_coverage_source_to_bridge_adapter "
+                    "(source_hypotheses bridge_premises : Prop) "
+                    "(h : source_hypotheses -> bridge_premises) "
+                    "(hs : source_hypotheses) : bridge_premises := by\n"
+                    "  exact h hs"
+                )
+            )
+        ],
+    )
+
+    manifest = run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue,
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; "
+            "print(\"error: object file '/tmp/Mathlib/Algebra/Order/Floor.olean' "
+            "of module Mathlib.Algebra.Order.Floor does not exist\"); "
+            "sys.exit(1)",
+        ),
+    )
+
+    row = manifest["rows"][0]
+    assert row["adapter_generation_mode"] == "formalizer_provided_adapter_candidate"
+    assert row["adapter_candidate_evidence_eligible"] is True
+    assert row["failure_classification"] == "adapter_lean_import_environment_missing"
+    assert row["adapter_candidate_imports"] == (
+        "Mathlib.Data.Finset.Sort",
+        "Mathlib.Algebra.Order.Floor",
+    )
+    assert row["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert manifest["n_adapter_candidate_import_rows"] == 1
+    assert manifest["n_adapter_unavailable_import_rows"] == 1
+    assert manifest["adapter_unavailable_imports"] == [
+        "Mathlib.Algebra.Order.Floor"
+    ]
+    learning_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert learning_rows[0]["adapter_candidate_imports"] == [
+        "Mathlib.Data.Finset.Sort",
+        "Mathlib.Algebra.Order.Floor",
+    ]
+    assert learning_rows[0]["unavailable_import"] == (
+        "Mathlib.Algebra.Order.Floor"
+    )
+    assert learning_rows[0]["input_summary"]["unavailable_import"] == (
+        "Mathlib.Algebra.Order.Floor"
+    )
+
+
 def test_adapter_bridge_rejects_vacuous_compiling_candidate(tmp_path: Path) -> None:
     queue = tmp_path / "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
     _write_jsonl(

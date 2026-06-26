@@ -19479,6 +19479,12 @@ def _critic_source_theorem_proof_body_adapter_feedback(
             "adapter_declaration_name": str(
                 row.get("adapter_declaration_name", "") or ""
             ),
+            "adapter_candidate_imports": [
+                str(value)
+                for value in row.get("adapter_candidate_imports", []) or []
+                if str(value).strip()
+            ][:8],
+            "unavailable_import": str(row.get("unavailable_import", "") or ""),
             "proof_body_goal_excerpt": list(
                 row.get("proof_body_goal_excerpt", []) or []
             )[:5],
@@ -20104,14 +20110,27 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
             if str(value).strip()
         ]
         diagnostic_text = "\n".join(diagnostic_lines)
-        import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
-            [
-                {
-                    "local_lean_stdout_excerpt": diagnostic_text,
-                    "local_lean_stderr_excerpt": diagnostic_text,
-                }
-            ]
+        unavailable_import = str(
+            diagnostic.get("unavailable_import", "") or ""
+        ).strip()
+        candidate_imports = [
+            str(value).strip()
+            for value in diagnostic.get("adapter_candidate_imports", []) or []
+            if str(value).strip()
+        ]
+        structured_imports = (
+            [unavailable_import] if unavailable_import else candidate_imports
         )
+        import_prefixes = list(dict.fromkeys(structured_imports))
+        if not import_prefixes:
+            import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
+                [
+                    {
+                        "local_lean_stdout_excerpt": diagnostic_text,
+                        "local_lean_stderr_excerpt": diagnostic_text,
+                    }
+                ]
+            )
         if (
             not import_prefixes
             and failure == "adapter_lean_import_environment_missing"
@@ -23974,6 +23993,23 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
             if adapter_declaration_values:
                 adapter_declaration_name = adapter_declaration_values[0]
+        adapter_candidate_imports = _runtime_row_string_values(
+            row,
+            "adapter_candidate_imports",
+        )
+        if not adapter_candidate_imports and isinstance(input_summary, Mapping):
+            adapter_candidate_imports = tuple(
+                str(value)
+                for value in input_summary.get("adapter_candidate_imports", []) or []
+                if str(value).strip()
+            )
+        unavailable_import = str(
+            row.get("unavailable_import", "") or ""
+        ).strip()
+        if not unavailable_import and isinstance(input_summary, Mapping):
+            unavailable_import = str(
+                input_summary.get("unavailable_import", "") or ""
+            ).strip()
         adapter_candidate_requires_unproven_bridge_premises = bool(
             row.get("adapter_candidate_requires_unproven_bridge_premises", False)
         )
@@ -24477,6 +24513,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     diagnostics.append(
                         "adapter_declaration_name=" + adapter_declaration_name[:120]
                     )
+                if unavailable_import:
+                    diagnostics.append(
+                        "unavailable_import=" + unavailable_import[:160]
+                    )
                 if adapter_candidate_requires_unproven_bridge_premises:
                     premise_text = (
                         ", ".join(unproven_bridge_premise_names)
@@ -24651,6 +24691,8 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ),
                 "adapter_candidate_artifact_path": adapter_candidate_artifact_path,
                 "adapter_declaration_name": adapter_declaration_name,
+                "adapter_candidate_imports": list(adapter_candidate_imports),
+                "unavailable_import": unavailable_import,
                 "source_to_bridge_premise_name": source_to_bridge_premise_name,
                 "source_to_bridge_premise_names": list(
                     source_to_bridge_premise_names
@@ -27340,6 +27382,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     ),
                     "adapter_declaration_name": str(
                         row.get("adapter_declaration_name", "") or ""
+                    ),
+                    "adapter_candidate_imports": [
+                        str(value)
+                        for value in row.get("adapter_candidate_imports", []) or []
+                        if str(value).strip()
+                    ][:8],
+                    "unavailable_import": str(
+                        row.get("unavailable_import", "") or ""
                     ),
                     "verified_source_to_bridge_premise_derivation_artifact_paths": list(
                         _runtime_row_string_values(

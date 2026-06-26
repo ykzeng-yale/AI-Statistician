@@ -668,6 +668,67 @@ def test_critic_adapter_feedback_names_import_from_adapter_artifact(
     )
 
 
+def test_critic_adapter_feedback_prefers_structured_unavailable_import() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=1,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest={
+            "manifest_id": "formalization_manifest:structured_adapter_import",
+            "counts": {"formal_gap": 1},
+            "deterministic_theorem_goals": [
+                {"id": "frontier_source_theorem"}
+            ],
+            "proof_bank_runtime_memory_summary": {
+                "source_theorem_proof_body_adapter_required": True,
+                "source_theorem_proof_body_adapter_feedback_available": True,
+                "source_theorem_proof_body_adapter_target_names": [
+                    "frontier_source_theorem"
+                ],
+                "source_theorem_proof_body_adapter_diagnostics": [
+                    {
+                        "target_theorem_name": "frontier_source_theorem",
+                        "failure_classification": (
+                            "adapter_lean_import_environment_missing"
+                        ),
+                        "adapter_kernel_verified": False,
+                        "adapter_candidate_artifact_path": "",
+                        "adapter_declaration_name": (
+                            "frontier_source_theorem_adapter"
+                        ),
+                        "adapter_candidate_imports": [
+                            "Mathlib.Data.Finset.Sort",
+                            "Mathlib.Algebra.Order.Floor",
+                        ],
+                        "unavailable_import": "Mathlib.Algebra.Order.Floor",
+                        "diagnostics": ["diagnostic text was truncated"],
+                    }
+                ],
+            },
+        },
+        agenda=[],
+    )
+
+    import_requests = [
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["blocker_kind"]
+        == "source_theorem_proof_body_adapter_unavailable_import"
+    ]
+    assert [row["unavailable_import"] for row in import_requests] == [
+        "Mathlib.Algebra.Order.Floor"
+    ]
+    assert import_requests[0]["formal_source_queries"][0] == (
+        "Mathlib.Algebra.Order.Floor Lean import"
+    )
+
+
 def test_runtime_learning_memory_pins_proof_body_adapter_feedback() -> None:
     adapter_row = {
         "learning_task": "source_theorem_proof_body_adapter_feedback",

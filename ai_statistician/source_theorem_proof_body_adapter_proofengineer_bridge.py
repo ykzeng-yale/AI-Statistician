@@ -65,6 +65,8 @@ class SourceTheoremProofBodyAdapterCheckRow:
     source_candidate_artifact_path: str
     adapter_candidate_artifact_path: str
     adapter_declaration_name: str
+    adapter_candidate_imports: tuple[str, ...]
+    unavailable_import: str
     adapter_generation_mode: str
     adapter_candidate_vacuous: bool
     adapter_candidate_requires_unproven_bridge_premises: bool
@@ -205,6 +207,19 @@ def run_source_theorem_proof_body_adapter_proofengineer_bridge(
         "n_adapter_check_rows": len(rows),
         "n_local_lean_checked": sum(1 for row in rows if row.local_lean_checked),
         "n_local_lean_compiled": sum(1 for row in rows if row.local_lean_compiled),
+        "n_adapter_candidate_import_rows": sum(
+            1 for row in rows if row.adapter_candidate_imports
+        ),
+        "n_adapter_unavailable_import_rows": sum(
+            1 for row in rows if row.unavailable_import
+        ),
+        "adapter_unavailable_imports": sorted(
+            {
+                row.unavailable_import
+                for row in rows
+                if row.unavailable_import
+            }
+        ),
         "n_adapter_candidate_evidence_eligible": sum(
             1 for row in rows if row.adapter_candidate_evidence_eligible
         ),
@@ -306,6 +321,7 @@ def _adapter_check_row(
         source,
         row=row,
     )
+    adapter_candidate_imports = _lean_import_modules_from_source(source)
     premise_derivation_work_items = _source_to_bridge_premise_derivation_work_items(
         row
     )
@@ -346,6 +362,9 @@ def _adapter_check_row(
         forbidden_tokens=forbidden_tokens,
         diagnostics=diagnostics,
     )
+    unavailable_import = ""
+    if failure == "adapter_lean_import_environment_missing":
+        unavailable_import = _unavailable_lean_import_from_diagnostics(diagnostics)
     adapter_verified = bool(local_lean and local_compiled and evidence_eligible)
     check_id = "source_theorem_proof_body_adapter_check:" + stable_hash(
         [work_order_id, str(adapter_path), adapter_verified, failure]
@@ -384,6 +403,8 @@ def _adapter_check_row(
         ),
         adapter_candidate_artifact_path=str(adapter_path),
         adapter_declaration_name=adapter_declaration,
+        adapter_candidate_imports=adapter_candidate_imports,
+        unavailable_import=unavailable_import,
         adapter_generation_mode=generation_mode,
         adapter_candidate_vacuous=vacuous,
         adapter_candidate_requires_unproven_bridge_premises=(
@@ -1015,6 +1036,35 @@ def _forbidden_tokens(source: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(tokens))
 
 
+def _lean_import_modules_from_source(source: str) -> tuple[str, ...]:
+    imports: list[str] = []
+    seen: set[str] = set()
+    for line in source.splitlines()[:80]:
+        match = re.match(r"^\s*import\s+(?P<modules>.+?)\s*$", line)
+        if not match:
+            continue
+        for module in match.group("modules").split():
+            module = module.strip()
+            if module and module not in seen:
+                seen.add(module)
+                imports.append(module)
+    return tuple(imports[:8])
+
+
+def _unavailable_lean_import_from_diagnostics(diagnostics: tuple[str, ...]) -> str:
+    text = "\n".join(str(item or "") for item in diagnostics)
+    patterns = (
+        r"of module\s+(?P<module>[A-Za-z0-9_'.]+)\s+does not exist",
+        r"unknown module prefix\s+'(?P<module>[A-Za-z0-9_'.]+)'",
+        r"No directory\s+'(?P<module>[A-Za-z0-9_'.]+)'",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group("module").strip("'\"")
+    return ""
+
+
 def _adapter_failure_classification(
     *,
     local_lean: bool,
@@ -1079,6 +1129,8 @@ def _export_runtime_learning_rows(
                 "source_acceptance_gate": row.source_acceptance_gate,
                 "source_theorem_kernel_verified": False,
                 "adapter_kernel_verified": row.adapter_kernel_verified,
+                "adapter_candidate_imports": list(row.adapter_candidate_imports),
+                "unavailable_import": row.unavailable_import,
                 "adapter_candidate_requires_unproven_bridge_premises": (
                     row.adapter_candidate_requires_unproven_bridge_premises
                 ),
