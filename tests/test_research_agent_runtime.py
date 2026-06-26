@@ -22816,6 +22816,53 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
     ]
 
 
+def test_runtime_next_action_agenda_merges_algorithm_reviews_across_prototypes() -> None:
+    rows = [
+        {
+            "id": "algorithm:prototype_review",
+            "question_id": "conformal_prediction_coverage",
+            "owner_subsystem": "AlgorithmEngineer",
+            "trigger": "SANDBOX_PROTOTYPE_EXECUTED",
+            "action": (
+                "review sandbox prototype and, if appropriate, promote through "
+                "registered algorithm audit"
+            ),
+            "acceptance_gate": (
+                "production implementation hash, registry entry, tests, and "
+                "simulation rerun pass"
+            ),
+            "target_ids": ["E1"],
+            "priority": "medium",
+        },
+        {
+            "id": "algorithm:prototype_review",
+            "question_id": "conformal_prediction_coverage",
+            "owner_subsystem": "AlgorithmEngineer",
+            "trigger": "SANDBOX_PROTOTYPE_EXECUTED",
+            "action": (
+                "review sandbox prototype and, if appropriate, promote through "
+                "registered algorithm audit"
+            ),
+            "acceptance_gate": (
+                "production implementation hash, registry entry, tests, and "
+                "simulation rerun pass"
+            ),
+            "target_ids": ["split_conformal_interval"],
+            "priority": "medium",
+            "collapsed_agenda_row_count": 45,
+        },
+    ]
+
+    compacted = _dedupe_runtime_next_action_agenda_rows(rows)
+
+    assert len(compacted) == 1
+    row = compacted[0]
+    assert row["id"] == "algorithm:prototype_review"
+    assert row["question_id"] == "conformal_prediction_coverage"
+    assert row["target_ids"] == ["E1", "split_conformal_interval"]
+    assert row["collapsed_agenda_row_count"] == 46
+
+
 def test_verified_adapter_goal_shape_feedback_exports_proof_library_work_orders() -> None:
     learning_row = {
         "schema_version": 1,

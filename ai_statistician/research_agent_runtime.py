@@ -32913,14 +32913,20 @@ def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any,
         "target_id",
         "target_theorem_goal_ids",
     )
+    merge_across_targets = _runtime_next_action_agenda_merge_across_targets(row)
+    if merge_across_targets:
+        target_ids = ()
     if not target_ids:
         target_ids = _runtime_row_string_values(
             row,
             "target_theorem_name",
             "semantic_primitive_id",
         )
+    if merge_across_targets:
+        target_ids = ()
     scalar_keys = (
         "id",
+        "question_id",
         "owner_subsystem",
         "trigger",
         "priority",
@@ -32942,6 +32948,12 @@ def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any,
         tuple(target_ids),
         tuple(_runtime_recommended_commands(row)),
     )
+
+
+def _runtime_next_action_agenda_merge_across_targets(row: Mapping[str, Any]) -> bool:
+    return str(row.get("id", "") or "") in {
+        "algorithm:prototype_review",
+    }
 
 
 def _merge_runtime_next_action_agenda_row(
