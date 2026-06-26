@@ -33071,6 +33071,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_forma
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_work_order_id: dict[str, int] = {}
+    by_semantic_key: dict[tuple[str, str], tuple[int, int, int]] = {}
+    row_order = 0
     for result in results:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
@@ -33122,6 +33124,57 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_forma
                 )
                 work_order_id = str(row.get("work_order_id", "") or "").strip()
                 source_manifest_id = str(row.get("source_formalization_manifest_id", "") or "")
+                semantic_key = (
+                    str(row.get("target_theorem_name", "") or "").strip(),
+                    str(row.get("placeholder_symbol", "") or "").strip(),
+                )
+                row_order += 1
+                row_priority = (
+                    _source_theorem_exact_semantic_definition_candidate_review_priority(
+                        row
+                    )
+                )
+                if semantic_key[0] and semantic_key[1] and semantic_key in by_semantic_key:
+                    existing_index, existing_priority, existing_order = by_semantic_key[
+                        semantic_key
+                    ]
+                    existing = rows[existing_index]
+                    source_ids = [
+                        str(value)
+                        for value in existing.get(
+                            "source_formalization_manifest_ids", []
+                        )
+                        or []
+                        if str(value).strip()
+                    ]
+                    if source_manifest_id and source_manifest_id not in source_ids:
+                        source_ids.append(source_manifest_id)
+                    if (row_priority, row_order) >= (
+                        existing_priority,
+                        existing_order,
+                    ):
+                        _merge_exact_semantic_definition_work_order_candidate_metadata(
+                            row,
+                            existing,
+                        )
+                        row["source_formalization_manifest_ids"] = source_ids
+                        row["n_source_formalization_manifests"] = len(source_ids)
+                        rows[existing_index] = row
+                        by_semantic_key[semantic_key] = (
+                            existing_index,
+                            row_priority,
+                            row_order,
+                        )
+                        if work_order_id:
+                            by_work_order_id[work_order_id] = existing_index
+                    else:
+                        _merge_exact_semantic_definition_work_order_candidate_metadata(
+                            existing,
+                            row,
+                        )
+                        existing["source_formalization_manifest_ids"] = source_ids
+                        existing["n_source_formalization_manifests"] = len(source_ids)
+                    continue
                 if work_order_id in by_work_order_id:
                     existing = rows[by_work_order_id[work_order_id]]
                     source_ids = [
@@ -33142,6 +33195,12 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_forma
                 )
                 if work_order_id:
                     by_work_order_id[work_order_id] = len(rows)
+                if semantic_key[0] and semantic_key[1]:
+                    by_semantic_key[semantic_key] = (
+                        len(rows),
+                        row_priority,
+                        row_order,
+                    )
                 rows.append(row)
     return rows
 

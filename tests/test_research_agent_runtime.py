@@ -13590,6 +13590,146 @@ def test_runtime_exports_formalizer_semantic_definition_repair_work_order() -> N
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_formalizer_repair_work_orders_prefer_current_candidate_artifact() -> None:
+    old_path = "runs/old/coverage_event_definition_only.lean"
+    current_path = "runs/current/coverage_event_definition_only.lean"
+    typechecked_status = (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_"
+        "REVIEW_REQUIRED"
+    )
+
+    def proposal(packet_id: str) -> dict[str, object]:
+        return {
+            "artifact_kind": "LLMFormalizerProofEngineerProposal",
+            "packet_id": packet_id,
+            "question": {
+                "id": "q:split-conformal",
+                "title": "Split conformal coverage",
+            },
+            "formal_targets": [
+                {
+                    "id": "target:source-semantic-definition-repair",
+                    "target_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                }
+            ],
+        }
+
+    def formalization_manifest(
+        *,
+        manifest_id: str,
+        proposal_id: str,
+        candidate_path: str,
+        queue_status: str,
+    ) -> dict[str, object]:
+        return {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": manifest_id,
+            "question": {
+                "id": "q:split-conformal",
+                "title": "Split conformal coverage",
+            },
+            "llm_formalizer_proof_engineer_proposal_id": proposal_id,
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": {
+                "recommended_formalizer_target_mode": (
+                    "source_theorem_exact_semantic_definition_repair"
+                ),
+                "source_theorem_exact_semantic_definition_repair_required": True,
+                "remaining_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "source_theorem_exact_candidate_repair_target_names": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "source_theorem_exact_candidate_repair_placeholder_symbols": [
+                    "coverage_event"
+                ],
+                "source_theorem_exact_candidate_repair_diagnostics": [
+                    {
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "placeholder_symbol": "coverage_event",
+                        "failure_classification": (
+                            "semantic_definition_review_blocked"
+                        ),
+                        "runtime_queue_status": queue_status,
+                        "definition_only_candidate_artifact_path": candidate_path,
+                        "local_definition_lean_compiled": True,
+                        "semantic_definition_typecheck_evidence_status": (
+                            typechecked_status
+                        ),
+                    }
+                ],
+                "source_theorem_exact_semantic_definition_typechecked_candidates": [
+                    {
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "placeholder_symbol": "coverage_event",
+                        "definition_only_candidate_artifact_path": candidate_path,
+                        "local_definition_lean_compiled": True,
+                        "semantic_definition_typecheck_evidence_status": (
+                            typechecked_status
+                        ),
+                        "proof_evidence_status": (
+                            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+        }
+
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "formalizer:old": proposal("formalizer:old"),
+                    "manifest:old": formalization_manifest(
+                        manifest_id="manifest:old",
+                        proposal_id="formalizer:old",
+                        candidate_path=old_path,
+                        queue_status=(
+                            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                        ),
+                    ),
+                    "formalizer:current": proposal("formalizer:current"),
+                    "manifest:current": formalization_manifest(
+                        manifest_id="manifest:current",
+                        proposal_id="formalizer:current",
+                        candidate_path=current_path,
+                        queue_status=(
+                            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+                        ),
+                    ),
+                }
+            }
+        }
+    ]
+
+    rows = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_repair_targets(
+            results
+        )
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["placeholder_symbol"] == "coverage_event"
+    assert row["definition_only_candidate_artifact_path"] == current_path
+    assert row["local_definition_lean_compiled"] is True
+    assert row["semantic_definition_typecheck_evidence_status"] == typechecked_status
+    assert row["source_formalization_manifest_ids"] == [
+        "manifest:old",
+        "manifest:current",
+    ]
+    assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_exact_semantic_definition_work_order_generates_next_action() -> None:
     work_order = _formalizer_source_theorem_exact_semantic_definition_work_orders(
         proposal_packet={

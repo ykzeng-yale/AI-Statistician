@@ -701,3 +701,21 @@ artifacts from that run, and `tests/test_research_agent_runtime.py` passes
 346/346. This is not a conformal theorem shortcut: it is generic evidence
 handoff hygiene so Claude/ProofEngineer reviews the actual current Lean
 candidate instead of rediscovering or repairing stale artifacts.
+
+The follow-up Formalizer continuation
+`runs/main_worker_current_semantic_candidate_handoff_formalizer_live` exercised
+that handoff. It generated fresh current-run review packets for
+`good_rank_event` and `coverage_event`, advanced the local Lean helper/subclaim
+count to 70, and handed back `critic:conformal_prediction_coverage:538650a9`.
+It also exposed the same bug at a second boundary: the Formalizer repair
+work-order extractor iterated every historical formalization manifest on the
+blackboard, so stale exact semantic-definition work orders for the same
+target/placeholder could coexist with the current repair target under different
+work-order ids. The extractor now collapses repair work orders by semantic
+target plus placeholder, chooses the strongest/current candidate artifact by
+evidence priority, and preserves all source formalization manifest ids for
+traceability. A deterministic replay over the live result now returns four
+work orders and selects the current `coverage_event` and `good_rank_event`
+artifacts. This remains orchestration memory only: these definition-only
+candidates are review inputs, not semantic-definition proof or source theorem
+proof.
