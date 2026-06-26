@@ -19082,6 +19082,320 @@ def _formalization_manifest_with_runtime_memory_summary(
     return merged_manifest
 
 
+def _critic_source_to_bridge_premise_derivation_feedback(
+    formalization_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(formalization_manifest, Mapping):
+        return {}
+    proof_bank_memory_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if not proof_bank_memory_summary:
+        return {}
+    diagnostics = [
+        row
+        for row in proof_bank_memory_summary.get(
+            "source_to_bridge_premise_derivation_diagnostics", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    pending_premise_names = [
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_to_bridge_premise_derivation_pending_premise_names", []
+        )
+        or []
+        if str(value).strip()
+    ]
+    derivation_required = bool(
+        proof_bank_memory_summary.get(
+            "source_to_bridge_premise_derivation_required", False
+        )
+        or diagnostics
+        or pending_premise_names
+    )
+    if not derivation_required:
+        return {}
+
+    compact_keys = (
+        "target_theorem_name",
+        "target_lean_declaration",
+        "trigger",
+        "failure_classification",
+        "runtime_queue_status",
+        "premise_name",
+        "premise_names",
+        "premise_target_status",
+        "premise_target_type",
+        "premise_derivation_gap_kind",
+        "premise_derivation_gap_summary",
+        "premise_candidate_evidence_eligible",
+        "premise_candidate_references_semantic_anchor",
+        "missing_premise_semantic_anchor_binder_names",
+        "required_semantic_anchor_reference_names",
+        "premise_semantic_anchor_binder_names",
+        "premise_semantic_anchor_binders",
+        "semantic_anchor_reference_gate",
+        "source_to_bridge_premise_derivation_candidate_request_id",
+        "source_to_bridge_premise_derivation_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
+        "recommended_repair_tasks",
+        "proof_evidence_status",
+    )
+    required_anchor_keys = (
+        "required_semantic_anchor_reference_names",
+        "premise_semantic_anchor_binder_names",
+    )
+
+    def string_values(row: Mapping[str, Any], *keys: str) -> list[str]:
+        values: list[str] = []
+        sources: list[Mapping[str, Any]] = [row]
+        for source in tuple(sources):
+            candidate_request = source.get(
+                "source_to_bridge_premise_derivation_candidate_request",
+                {},
+            )
+            if isinstance(candidate_request, Mapping):
+                sources.append(candidate_request)
+            grouped_candidate_request = source.get(
+                "source_to_bridge_grouped_premise_derivation_candidate_request",
+                {},
+            )
+            if isinstance(grouped_candidate_request, Mapping):
+                sources.append(grouped_candidate_request)
+        for source in sources:
+            for key in keys:
+                raw = source.get(key)
+                candidates = raw if isinstance(raw, list | tuple | set) else [raw]
+                for value in candidates:
+                    if isinstance(value, Mapping):
+                        text = str(value.get("name", "") or "").strip()
+                    else:
+                        text = str(value or "").strip()
+                    if text:
+                        values.append(text)
+        return list(dict.fromkeys(values))
+
+    request_by_premise_name: dict[str, dict[str, Any]] = {}
+    for request_key in (
+        "source_to_bridge_metadata_authoring_candidate_requests",
+        "source_to_bridge_metadata_authoring_request_shells",
+    ):
+        for request_row in proof_bank_memory_summary.get(request_key, []) or []:
+            if not isinstance(request_row, Mapping):
+                continue
+            request_payload = (
+                request_row.get(
+                    "source_to_bridge_premise_derivation_candidate_request",
+                    {},
+                )
+                if isinstance(
+                    request_row.get(
+                        "source_to_bridge_premise_derivation_candidate_request",
+                        {},
+                    ),
+                    Mapping,
+                )
+                else {}
+            )
+            names = string_values(request_row, "premise_name", "premise_names")
+            if isinstance(request_payload, Mapping):
+                names.extend(
+                    string_values(request_payload, "premise_name", "premise_names")
+                )
+            for name in dict.fromkeys(names):
+                request_by_premise_name.setdefault(name, dict(request_row))
+
+    compact_diagnostics: list[dict[str, Any]] = []
+    missing_anchor_references: list[str] = []
+    for row in diagnostics[:4]:
+        row_for_strings = dict(row)
+        matched_request_row: Mapping[str, Any] = {}
+        for premise_name in string_values(row, "premise_name", "premise_names"):
+            matched_request_row = request_by_premise_name.get(premise_name, {})
+            if matched_request_row:
+                break
+        matched_request_payload = (
+            matched_request_row.get(
+                "source_to_bridge_premise_derivation_candidate_request",
+                {},
+            )
+            if isinstance(
+                matched_request_row.get(
+                    "source_to_bridge_premise_derivation_candidate_request",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        )
+        if matched_request_payload and not isinstance(
+            row_for_strings.get(
+                "source_to_bridge_premise_derivation_candidate_request",
+                {},
+            ),
+            Mapping,
+        ):
+            row_for_strings["source_to_bridge_premise_derivation_candidate_request"] = (
+                dict(matched_request_payload)
+            )
+        elif matched_request_payload and not row_for_strings.get(
+            "source_to_bridge_premise_derivation_candidate_request"
+        ):
+            row_for_strings["source_to_bridge_premise_derivation_candidate_request"] = (
+                dict(matched_request_payload)
+            )
+        compact = {
+            key: row[key]
+            for key in compact_keys
+            if key in row and row.get(key) not in (None, "", [], {})
+        }
+        if matched_request_payload:
+            compact.setdefault(
+                "source_to_bridge_premise_derivation_candidate_request",
+                dict(matched_request_payload),
+            )
+            request_id = str(
+                matched_request_row.get(
+                    "source_to_bridge_premise_derivation_candidate_request_id",
+                    "",
+                )
+                or matched_request_payload.get("candidate_request_id", "")
+                or matched_request_row.get("candidate_request_id", "")
+                or ""
+            ).strip()
+            if request_id:
+                compact.setdefault(
+                    "source_to_bridge_premise_derivation_candidate_request_id",
+                    request_id,
+                )
+        required_anchors = string_values(row_for_strings, *required_anchor_keys)
+        if required_anchors:
+            compact["required_semantic_anchor_reference_names"] = required_anchors
+        failure_text = " ".join(
+            str(row.get(key, "") or "")
+            for key in (
+                "failure_classification",
+                "premise_derivation_gap_kind",
+                "premise_derivation_gap_summary",
+            )
+        ).lower()
+        gate_text = str(row.get("semantic_anchor_reference_gate", "") or "").lower()
+        row_missing_anchors = string_values(
+            row_for_strings,
+            "missing_premise_semantic_anchor_binder_names",
+        )
+        if row_missing_anchors:
+            missing_anchor_references.extend(row_missing_anchors)
+        elif (
+            "missing_semantic_anchor" in failure_text
+            or "semantic_anchor_reference" in failure_text
+            or "semantic_anchor_reference" in gate_text
+        ):
+            missing_anchor_references.extend(required_anchors)
+        if compact:
+            compact_diagnostics.append(compact)
+
+    missing_anchor_references = list(dict.fromkeys(missing_anchor_references))
+    return {
+        "feedback_kind": "critic_source_to_bridge_premise_derivation_feedback",
+        "source": "proof_bank_runtime_memory_summary",
+        "source_to_bridge_premise_derivation_required": derivation_required,
+        "pending_premise_names": list(dict.fromkeys(pending_premise_names)),
+        "diagnostics": compact_diagnostics,
+        "missing_semantic_anchor_references": missing_anchor_references,
+        "required_behavior": (
+            "Emit non-vacuous source_to_bridge_premise_derivation_candidates that "
+            "copy candidate request metadata, derive the concrete bridge premise "
+            "from source assumptions, and reference required semantic anchors in "
+            "the Lean proof body outside comments; otherwise report the exact "
+            "semantic primitive or dependency blocker as FORMAL_GAP."
+        ),
+        "acceptance_gate": (
+            "local Lean/AXLE verifies the exact source-to-bridge premise derivation "
+            "before the row can count as proof evidence"
+        ),
+        "proof_evidence_status": (
+            "CRITIC_SOURCE_TO_BRIDGE_PREMISE_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _critic_semantic_anchor_blocker_feedback(
+    formal_blocker_resource_requests: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    blockers: list[dict[str, Any]] = []
+    anchors: list[str] = []
+    for row in formal_blocker_resource_requests:
+        if not isinstance(row, Mapping):
+            continue
+        blocker_kind = str(row.get("blocker_kind", "") or "")
+        blocker = str(row.get("blocker", "") or "")
+        haystack = f"{blocker_kind} {blocker}".lower()
+        if not (
+            "semantic_anchor" in haystack
+            or "semantic anchor" in haystack
+            or "anchor binder" in haystack
+        ):
+            continue
+        blockers.append(
+            {
+                "request_id": str(row.get("request_id", "") or ""),
+                "source": str(row.get("source", "") or ""),
+                "blocker_kind": blocker_kind,
+                "blocker": blocker,
+                "next_owner": str(row.get("next_owner", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+            }
+        )
+        for match in re.finditer(
+            r"(?:anchor binder|semantic anchor(?: reference)?(?: binder)?)\s+"
+            r"`?([A-Za-z_][A-Za-z0-9_']*)`?",
+            blocker,
+        ):
+            anchors.append(match.group(1))
+        for quoted in re.findall(r"`([A-Za-z_][A-Za-z0-9_']*)`", blocker):
+            anchors.append(quoted)
+    ignored_anchor_tokens = {
+        "a",
+        "an",
+        "binder",
+        "binders",
+        "name",
+        "names",
+        "reference",
+        "references",
+        "the",
+    }
+    anchors = list(
+        dict.fromkeys(
+            anchor
+            for anchor in anchors
+            if anchor and anchor.lower() not in ignored_anchor_tokens
+        )
+    )
+    if not blockers and not anchors:
+        return {}
+    return {
+        "semantic_alignment_blockers": blockers,
+        "missing_semantic_anchor_references": anchors,
+        "proof_evidence_status": (
+            "CRITIC_SEMANTIC_ANCHOR_BLOCKER_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
 def _critic_repair_feedback(
     *,
     question: OpenResearchQuestion,
@@ -19109,6 +19423,11 @@ def _critic_repair_feedback(
         formalization_manifest=formalization_manifest,
         agenda=agenda,
     )
+    source_to_bridge_premise_feedback = (
+        _critic_source_to_bridge_premise_derivation_feedback(
+            formalization_manifest
+        )
+    )
     if formalizer_local_lean_contract:
         formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
             formal_blocker_resource_requests,
@@ -19127,6 +19446,39 @@ def _critic_repair_feedback(
                 source="critic_local_lean_formalization_feedback",
             ),
         )
+    semantic_anchor_blocker_feedback = _critic_semantic_anchor_blocker_feedback(
+        formal_blocker_resource_requests
+    )
+    if source_to_bridge_premise_feedback and semantic_anchor_blocker_feedback:
+        source_to_bridge_premise_feedback = dict(source_to_bridge_premise_feedback)
+        blockers = semantic_anchor_blocker_feedback.get(
+            "semantic_alignment_blockers", []
+        )
+        if blockers:
+            source_to_bridge_premise_feedback["semantic_alignment_blockers"] = (
+                blockers
+            )
+        merged_anchor_references = list(
+            dict.fromkeys(
+                [
+                    *(
+                        source_to_bridge_premise_feedback.get(
+                            "missing_semantic_anchor_references", []
+                        )
+                        or []
+                    ),
+                    *(
+                        semantic_anchor_blocker_feedback.get(
+                            "missing_semantic_anchor_references", []
+                        )
+                        or []
+                    ),
+                ]
+            )
+        )
+        source_to_bridge_premise_feedback[
+            "missing_semantic_anchor_references"
+        ] = merged_anchor_references
     required_repair = (
         "Revise theorem statements, assumptions, estimator specification, or proof plan "
         "to address formal gaps and non-kernel proof feedback. Do not claim proof evidence "
@@ -19164,6 +19516,24 @@ def _critic_repair_feedback(
     }
     if formal_blocker_resource_requests:
         feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
+    if semantic_anchor_blocker_feedback:
+        feedback["semantic_anchor_blocker_feedback"] = semantic_anchor_blocker_feedback
+    if source_to_bridge_premise_feedback:
+        feedback["source_to_bridge_premise_derivation_feedback"] = (
+            source_to_bridge_premise_feedback
+        )
+        diagnostics = source_to_bridge_premise_feedback.get("diagnostics", [])
+        if diagnostics:
+            feedback["source_to_bridge_premise_derivation_diagnostics"] = diagnostics
+        missing_anchor_references = source_to_bridge_premise_feedback.get(
+            "missing_semantic_anchor_references", []
+        )
+        if missing_anchor_references:
+            feedback["missing_semantic_anchor_references"] = missing_anchor_references
+    elif semantic_anchor_blocker_feedback.get("missing_semantic_anchor_references"):
+        feedback["missing_semantic_anchor_references"] = (
+            semantic_anchor_blocker_feedback["missing_semantic_anchor_references"]
+        )
     if formalizer_local_lean_contract:
         feedback["local_lean_repair_contract"] = formalizer_local_lean_contract
     if formalizer_candidate_diagnostics:

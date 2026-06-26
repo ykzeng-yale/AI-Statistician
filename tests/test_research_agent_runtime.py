@@ -274,8 +274,9 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
                     },
                     {
                         "gap": (
-                            "Exchangeable type for hExch binder not located in "
-                            "configured project scope"
+                            "hGoodCovered premise derivation missing semantic "
+                            "anchor reference; prior candidate did not reference "
+                            "the anchor binder hC in the proof body."
                         ),
                         "kind": "semantic_alignment",
                         "next_owner": "ProofEngineer/Architect",
@@ -291,8 +292,57 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
                     ],
                     "source_to_bridge_premise_derivation_diagnostics": [
                         {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "target_lean_declaration": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
                             "premise_name": "hGoodCovered",
                             "premise_target_type": "good_rank_event_subset",
+                            "premise_derivation_gap_kind": (
+                                "premise_derivation_candidate_missing_semantic_anchor_reference"
+                            ),
+                            "premise_derivation_gap_summary": (
+                                "Candidate did not reference the exact source "
+                                "coverage anchor hC in the proof body."
+                            ),
+                            "failure_classification": (
+                                "premise_derivation_candidate_missing_semantic_anchor_reference"
+                            ),
+                            "runtime_queue_status": (
+                                "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
+                            ),
+                            "premise_candidate_references_semantic_anchor": False,
+                            "missing_premise_semantic_anchor_binder_names": ["hC"],
+                        }
+                    ],
+                    "source_to_bridge_metadata_authoring_candidate_requests": [
+                        {
+                            "candidate_request_id": (
+                                "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                            ),
+                            "source_to_bridge_premise_derivation_candidate_request_id": (
+                                "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                            ),
+                            "premise_name": "hGoodCovered",
+                            "source_to_bridge_premise_derivation_candidate_request": {
+                                "candidate_request_id": (
+                                    "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                                ),
+                                "premise_name": "hGoodCovered",
+                                "premise_target_type": "good_rank_event_subset",
+                                "required_semantic_anchor_reference_names": [
+                                    "hGoodRank",
+                                    "hC",
+                                ],
+                                "premise_semantic_anchor_binders": [
+                                    {
+                                        "name": "hC",
+                                        "role": "coverage_event_anchor",
+                                    }
+                                ],
+                            },
                         }
                     ],
                 },
@@ -337,6 +387,26 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     )
     assert blocker_requests[1]["blocker_kind"] == "semantic_alignment"
     assert "formal_source_retriever" in blocker_requests[0]["recommended_tools"]
+    assert feedback["missing_semantic_anchor_references"] == ["hC"]
+    assert feedback["semantic_anchor_blocker_feedback"][
+        "missing_semantic_anchor_references"
+    ] == ["hC"]
+    assert "anchor binder hC" in feedback["semantic_anchor_blocker_feedback"][
+        "semantic_alignment_blockers"
+    ][0]["blocker"]
+    premise_feedback = feedback["source_to_bridge_premise_derivation_feedback"]
+    assert premise_feedback["source_to_bridge_premise_derivation_required"] is True
+    assert premise_feedback["pending_premise_names"] == ["hGoodCovered"]
+    assert premise_feedback["diagnostics"][0]["premise_name"] == "hGoodCovered"
+    assert premise_feedback["diagnostics"][0][
+        "required_semantic_anchor_reference_names"
+    ] == ["hGoodRank", "hC"]
+    assert (
+        premise_feedback["diagnostics"][0][
+            "source_to_bridge_premise_derivation_candidate_request"
+        ]["candidate_request_id"]
+        == "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+    )
     prompt = build_formalizer_prompt(
         question=question,
         theory_packet=_runtime_sample_response(),
@@ -351,6 +421,10 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     assert "Formal blocker resource requests are active" in prompt
     assert "formal_blocker_resource_requests" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
+    assert "source_to_bridge_premise_derivation_feedback" in prompt
+    assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
+    assert "missing_semantic_anchor_references" in prompt
+    assert "hC" in prompt
     critic_manifest = next(
         artifact
         for artifact in result.produced_artifacts.values()

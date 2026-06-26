@@ -3396,6 +3396,16 @@ def _compact_formalizer_environment_feedback(
             feedback.get("missing_semantic_anchor_references", [])
             or input_summary.get("missing_semantic_anchor_references", [])
         ),
+        "source_to_bridge_premise_derivation_feedback": _compact_value(
+            feedback.get("source_to_bridge_premise_derivation_feedback", {})
+            or input_summary.get("source_to_bridge_premise_derivation_feedback", {})
+        ),
+        "source_to_bridge_premise_derivation_diagnostics": _compact_value(
+            feedback.get("source_to_bridge_premise_derivation_diagnostics", [])
+            or input_summary.get(
+                "source_to_bridge_premise_derivation_diagnostics", []
+            )
+        ),
         "uninstantiated_adapter_object_binders": _compact_value(
             feedback.get("uninstantiated_adapter_object_binders", [])
             or input_summary.get("uninstantiated_adapter_object_binders", [])

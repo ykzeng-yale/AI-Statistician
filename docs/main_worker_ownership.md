@@ -513,6 +513,19 @@ The remaining formal blocker is still the mature prover/RAG work: derive
 `FORMAL_GAP`; do not treat the helper as proof of
 `split_conformal_finite_sample_coverage`.
 
+A follow-up Critic handoff probe is recorded at
+`runs/main_worker_live_runtime_resume_critic_semantic_anchor_feedback_join_probe/research_agent_runtime_manifest.json`.
+It leaves the scorecard at 42/49 and the evidence counts unchanged, but fixes a
+design-level feedback loss: the pending Formalizer repair task
+`formalize-critic-repair:conformal_prediction_coverage:318aa3cf` now carries
+first-class `source_to_bridge_premise_derivation_feedback`,
+`semantic_anchor_blocker_feedback`, and
+`missing_semantic_anchor_references=["hC"]` for the
+`hGoodRankImpliesCovered` premise instead of leaving the semantic-anchor failure
+buried in generic blocker text. This is still repair context, not proof
+evidence; the next worker should consume it through the Formalizer/ProofEngineer
+and prover/RAG path.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
