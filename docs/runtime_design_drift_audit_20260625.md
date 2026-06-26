@@ -434,3 +434,24 @@ emits exactly one
 diagnostics as non-proof feedback. This keeps the ProofEngineer/RAG loop focused
 on one resource-resolution obligation rather than replaying the same missing
 import under multiple artifact paths.
+
+The next Formalizer/ProofEngineer pass produced the first kernel-verified
+source-theorem proof-body adapter helper, but exposed another design-level
+handoff bug. The verified adapter row was present in
+`runtime_learning_rows.jsonl` and the adapter bridge export with
+`adapter_kernel_verified=true` and
+`kernel_verified_source_theorem_proof_body_adapter_ids`, while the pending
+Critic task's bounded runtime memory still had zero verified adapter rows. This
+was not a Lean theorem-discovery problem; it was orchestration memory dropping
+the prover output before the next agent could use it. Runtime memory retention
+now prioritizes kernel-verified adapter feedback above lower-confidence
+blockers, gives verified adapter rows their own pin identity instead of letting
+verified premise ids dedupe them away, and mirrors the current run's bounded
+learning memory into serialized pending tasks. The live Critic continuation
+`runs/main_worker_verified_adapter_memory_handoff_critic_live/research_agent_runtime_manifest.json`
+confirms the next Formalizer/ProofEngineer handoff carries verified adapter ids
+including `source_theorem_proof_body_adapter_check:ff5a994ae6182eae8587`.
+This remains non-proof orchestration context: the adapter helper compiled, but
+`source_theorem_kernel_verified=false`, so the full conformal source theorem and
+frontier theorem remain formal gaps until the exact source theorem target is
+verified by local Lean/AXLE.

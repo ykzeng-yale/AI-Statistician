@@ -856,6 +856,146 @@ def test_runtime_learning_memory_loader_pins_adapter_import_feedback(
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
+def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    verified_adapter = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "adapter_kernel_verified": True,
+        "source_theorem_kernel_verified": False,
+        "runtime_queue_status": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED",
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        ),
+        "adapter_candidate_artifact_path": "adapter_core_prop_bridge.lean",
+        "adapter_declaration_name": (
+            "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+            "source_theorem_proof_body_adapter_check:verified"
+        ],
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:shared"
+        ],
+    }
+    lower_priority_pins = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "runtime_queue_status": (
+                "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+            ),
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+            ),
+            "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                f"source_to_bridge_premise_derivation_check:{index}"
+            ],
+        }
+        for index in range(12)
+    ]
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                verified_adapter,
+                *lower_priority_pins,
+                {"learning_task": "generated_next_action_routing", "index": 99},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    adapter_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+    ]
+    assert len(adapter_rows) == 1
+    assert adapter_rows[0]["adapter_kernel_verified"] is True
+    assert adapter_rows[0]["kernel_verified_source_theorem_proof_body_adapter_ids"] == [
+        "source_theorem_proof_body_adapter_check:verified"
+    ]
+    assert adapter_rows[0]["source_theorem_kernel_verified"] is False
+
+
+def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -> None:
+    pending_task = {
+        "task_id": "critic:conformal_prediction_coverage:next",
+        "owner_subsystem": "CriticEvaluator",
+        "objective": "Evaluate runtime artifacts.",
+        "inputs": {
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "source_paths": ["runs/previous/runtime_learning_rows.jsonl"],
+                    "counts": {"max_rows": 3},
+                    "rows": [
+                        {
+                            "learning_task": "source_theorem_proof_body_adapter_feedback",
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "adapter_kernel_verified": False,
+                            "kernel_verified_source_theorem_proof_body_adapter_ids": [],
+                        }
+                    ],
+                }
+            }
+        },
+    }
+    same_run_memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:premise"
+                ],
+            },
+            {
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "adapter_kernel_verified": True,
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+                ),
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+            },
+        ],
+        max_rows=3,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        same_run_memory,
+    )
+
+    memory = enriched["inputs"]["architect_context"]["runtime_learning_memory"]
+    assert "runs/current/runtime_learning_rows.jsonl" in memory["source_paths"]
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert any(
+        row.get("adapter_kernel_verified") is True
+        and row.get("kernel_verified_source_theorem_proof_body_adapter_ids")
+        == ["source_theorem_proof_body_adapter_check:verified"]
+        and row.get("source_theorem_kernel_verified") is False
+        for row in memory["rows"]
+    )
+    assert "orchestration memory only" in memory["handoff_boundary"]
+
+
 def test_critic_handoff_prioritizes_exact_adapter_import_from_runtime_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     stale_rows = [
@@ -31051,7 +31191,11 @@ def test_verified_proof_body_adapter_feedback_routes_back_to_exact_proof_body(
         encoding="utf-8",
     )
     loaded_memory = _load_runtime_learning_memory([learning_path])
-    loaded_adapter_row = loaded_memory["rows"][2]
+    loaded_adapter_row = next(
+        row
+        for row in loaded_memory["rows"]
+        if row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+    )
     assert loaded_adapter_row["adapter_kernel_verified"] is True
     assert loaded_adapter_row[
         "kernel_verified_source_theorem_proof_body_adapter_ids"

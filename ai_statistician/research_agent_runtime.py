@@ -18501,8 +18501,35 @@ def run_research_agent_runtime(
         generated_next_action_rows
     )
     manifest["n_runtime_learning_rows"] = len(learning_rows)
+    pending_memory_context = _runtime_learning_memory_context_from_rows(
+        learning_rows,
+        max_rows=_runtime_learning_memory_context_row_limit(
+            runtime_architect_context,
+            architect_context,
+        ),
+        source_paths=[learning_path],
+    )
     pending_next_task = manifest.get("incomplete_pending_next_task")
     if isinstance(pending_next_task, Mapping) and pending_next_task:
+        pending_next_task = _runtime_pending_task_with_runtime_learning_memory(
+            pending_next_task,
+            pending_memory_context,
+        )
+        manifest["incomplete_pending_next_task"] = pending_next_task
+        failure_summary["pending_next_task"] = pending_next_task
+        manifest["runtime_failure_summary"] = failure_summary
+        completion_rows = manifest.get("runtime_completion_summary", {}).get(
+            "rows",
+            [],
+        )
+        if isinstance(completion_rows, list):
+            for row in completion_rows:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("pending_next_task_id", "") or "") == str(
+                    failure_summary.get("pending_next_task_id", "") or ""
+                ):
+                    row["pending_next_task"] = pending_next_task
         pending_next_task_path = out_dir / "runtime_pending_next_task.json"
         pending_next_task_payload = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -18777,11 +18804,12 @@ def _merge_runtime_learning_memory_context(
         ),
         0,
     )
-    pinned_rows = [
-        row for row in rows if _runtime_learning_memory_should_pin_context_row(row)
-    ]
+    pinned_rows = _prioritized_runtime_learning_memory_context_rows(
+        rows,
+        row_limit=row_limit,
+    )
     retention_candidates = (
-        [*pinned_rows[-row_limit:], *rows[-row_limit:]] if row_limit else rows
+        [*pinned_rows, *rows[-row_limit:]] if row_limit else rows
     )
     deduped_rows: list[dict[str, Any]] = []
     seen_rows: set[str] = set()
@@ -18840,6 +18868,103 @@ def _merge_runtime_learning_memory_context(
         ) + int((incoming_context.get("counts", {}) or {}).get("errors", 0) or 0)
     merged["counts"] = counts
     return merged
+
+
+def _prioritized_runtime_learning_memory_context_rows(
+    rows: list[Mapping[str, Any]],
+    *,
+    row_limit: int,
+) -> list[Mapping[str, Any]]:
+    pinned_candidates = [
+        (_runtime_learning_memory_context_pin_priority(row), index, row)
+        for index, row in enumerate(rows)
+        if _runtime_learning_memory_should_pin_context_row(row)
+    ]
+    if not row_limit:
+        return [row for _priority, _index, row in pinned_candidates]
+    selected = sorted(
+        pinned_candidates,
+        key=lambda item: (item[0], item[1]),
+        reverse=True,
+    )[:row_limit]
+    selected.sort(key=lambda item: item[1])
+    return [row for _priority, _index, row in selected]
+
+
+def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    proof_evidence_status = str(
+        row.get("proof_evidence_status", "")
+        or input_summary.get("proof_evidence_status", "")
+        or ""
+    )
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    if learning_task == "source_theorem_proof_body_adapter_feedback" and (
+        bool(row.get("adapter_kernel_verified", False))
+        or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
+        or bool(input_summary.get("adapter_kernel_verified", False))
+        or bool(
+            input_summary.get(
+                "source_theorem_proof_body_adapter_kernel_verified",
+                False,
+            )
+        )
+        or _sorted_str_tuple(
+            row.get(
+                "kernel_verified_source_theorem_proof_body_adapter_ids",
+                input_summary.get(
+                    "kernel_verified_source_theorem_proof_body_adapter_ids",
+                    [],
+                ),
+            )
+        )
+        or proof_evidence_status
+        == "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        or runtime_queue_status
+        == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
+    ):
+        return 100
+    if (
+        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or bool(row.get("premise_derivation_kernel_verified", False))
+        or bool(
+            input_summary.get(
+                "source_to_bridge_premise_derivation_kernel_verified",
+                False,
+            )
+        )
+        or bool(input_summary.get("premise_derivation_kernel_verified", False))
+        or _sorted_str_tuple(
+            row.get(
+                "kernel_verified_source_to_bridge_premise_derivation_ids",
+                input_summary.get(
+                    "kernel_verified_source_to_bridge_premise_derivation_ids",
+                    [],
+                ),
+            )
+        )
+        or proof_evidence_status
+        == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+    ):
+        return 90
+    if learning_task == "source_theorem_proof_body_adapter_feedback":
+        return 80
+    if learning_task == "source_theorem_exact_semantic_definition_work_order":
+        return 70
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return 60
+    return 10
 
 
 def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> bool:
@@ -32807,18 +32932,45 @@ def _runtime_source_theorem_promotion_work_order_rows(
 
 def _runtime_learning_memory_context_from_rows(
     learning_rows: list[dict[str, Any]],
+    *,
+    max_rows: int | None = None,
+    source_paths: Sequence[str | Path] = (),
 ) -> dict[str, Any]:
-    rows = [dict(row) for row in learning_rows if isinstance(row, Mapping)]
+    all_rows = [dict(row) for row in learning_rows if isinstance(row, Mapping)]
+    row_limit = max(int(max_rows or 0), 0) if max_rows is not None else 0
+    if row_limit:
+        pinned_rows = _prioritized_runtime_learning_memory_context_rows(
+            all_rows,
+            row_limit=row_limit,
+        )
+        latest_rows = all_rows[-row_limit:]
+        rows = []
+        seen_rows: set[str] = set()
+        for row in [*pinned_rows, *latest_rows]:
+            fingerprint = stable_hash(row)
+            if fingerprint in seen_rows:
+                continue
+            seen_rows.add(fingerprint)
+            rows.append(dict(row))
+            if len(rows) >= row_limit:
+                break
+    else:
+        rows = all_rows
+    source_path_values = [str(path) for path in source_paths if str(path).strip()]
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLearningMemoryContext",
-        "source_paths": [],
+        "source_paths": source_path_values,
         "rows": rows,
         "counts": {
             "rows_loaded": len(rows),
-            "source_paths": 0,
+            "rows_seen": len(all_rows),
+            "source_paths": len(source_path_values),
             "errors": 0,
-            "max_rows": len(rows),
+            "max_rows": row_limit if max_rows is not None else len(rows),
+            "retention_policy": (
+                "priority_pinned_latest_rows" if row_limit else "all_rows"
+            ),
         },
         "errors": [],
         "boundary": (
@@ -32827,6 +32979,66 @@ def _runtime_learning_memory_context_from_rows(
             "manifests, but they are not themselves theorem proof evidence."
         ),
     }
+
+
+def _runtime_learning_memory_context_row_limit(
+    *contexts: Mapping[str, Any] | None,
+    default: int = 20,
+) -> int:
+    for context in contexts:
+        if not isinstance(context, Mapping):
+            continue
+        memory = (
+            context
+            if context.get("artifact_kind") == "RuntimeLearningMemoryContext"
+            else context.get("runtime_learning_memory", {})
+        )
+        if not isinstance(memory, Mapping):
+            continue
+        counts = memory.get("counts", {})
+        if not isinstance(counts, Mapping):
+            continue
+        try:
+            row_limit = int(counts.get("max_rows", 0) or 0)
+        except (TypeError, ValueError):
+            row_limit = 0
+        if row_limit > 0:
+            return row_limit
+    return max(int(default or 0), 0)
+
+
+def _runtime_pending_task_with_runtime_learning_memory(
+    pending_next_task: Mapping[str, Any],
+    memory_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    pending = dict(pending_next_task)
+    if not isinstance(memory_context, Mapping):
+        return pending
+    if not memory_context.get("rows"):
+        return pending
+    inputs = (
+        dict(pending.get("inputs", {}))
+        if isinstance(pending.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        dict(inputs.get("architect_context", {}))
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    existing_memory = architect_context.get("runtime_learning_memory", {})
+    architect_context["runtime_learning_memory"] = _merge_runtime_learning_memory_context(
+        existing_memory,
+        memory_context,
+    )
+    architect_context["runtime_learning_memory"]["handoff_boundary"] = (
+        "Pending-task runtime learning memory is orchestration memory only. "
+        "Rows may prioritize future Lean/R/Python work when they cite verifier or "
+        "execution artifacts, but they are not theorem proof or simulation evidence."
+    )
+    inputs["architect_context"] = architect_context
+    pending["inputs"] = inputs
+    return pending
 
 
 def _runtime_learning_rows_with_input_memory(

@@ -766,20 +766,28 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
     rows: list[dict[str, object]] = []
     retention_policy = "latest_rows"
     if row_limit:
-        pinned_rows: list[dict[str, object]] = []
-        seen_pin_keys: set[str] = set()
-        for row in reversed(all_rows):
+        pinned_by_key: dict[str, tuple[int, int, dict[str, object]]] = {}
+        for row_index, row in enumerate(all_rows):
             if not _runtime_learning_memory_should_pin_row(row):
                 continue
             pin_key = _runtime_learning_memory_pin_key(row)
-            if pin_key and pin_key in seen_pin_keys:
+            if not pin_key:
+                pin_key = f"runtime_learning_row:{row_index}"
+            priority = _runtime_learning_memory_pin_priority(row)
+            existing = pinned_by_key.get(pin_key)
+            if existing is not None and (existing[0], existing[1]) >= (
+                priority,
+                row_index,
+            ):
                 continue
-            if pin_key:
-                seen_pin_keys.add(pin_key)
-            pinned_rows.append(row)
-            if len(pinned_rows) >= row_limit:
-                break
-        pinned_rows.reverse()
+            pinned_by_key[pin_key] = (priority, row_index, row)
+        prioritized_pins = sorted(
+            pinned_by_key.values(),
+            key=lambda item: (item[0], item[1]),
+            reverse=True,
+        )[:row_limit]
+        prioritized_pins.sort(key=lambda item: item[1])
+        pinned_rows = [row for _priority, _row_index, row in prioritized_pins]
         latest_rows = all_rows[-row_limit:]
         seen: set[str] = set()
         for row in [*pinned_rows, *latest_rows]:
@@ -813,6 +821,74 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
     }
 
 
+def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    learning_task = str(row.get("learning_task", "") or "")
+    proof_evidence_status = str(
+        row.get("proof_evidence_status", "")
+        or input_summary.get("proof_evidence_status", "")
+        or ""
+    )
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    if learning_task == "source_theorem_proof_body_adapter_feedback" and (
+        bool(row.get("adapter_kernel_verified", False))
+        or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
+        or bool(input_summary.get("adapter_kernel_verified", False))
+        or bool(
+            input_summary.get(
+                "source_theorem_proof_body_adapter_kernel_verified",
+                False,
+            )
+        )
+        or bool(
+            _runtime_learning_memory_string_values(
+                row,
+                "kernel_verified_source_theorem_proof_body_adapter_ids",
+            )
+        )
+        or proof_evidence_status
+        == "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        or runtime_queue_status
+        == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
+    ):
+        return 100
+    if (
+        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or bool(row.get("premise_derivation_kernel_verified", False))
+        or bool(
+            input_summary.get(
+                "source_to_bridge_premise_derivation_kernel_verified",
+                False,
+            )
+        )
+        or bool(input_summary.get("premise_derivation_kernel_verified", False))
+        or bool(
+            _runtime_learning_memory_string_values(
+                row,
+                "kernel_verified_source_to_bridge_premise_derivation_ids",
+            )
+        )
+        or proof_evidence_status
+        == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+    ):
+        return 90
+    if learning_task == "source_theorem_proof_body_adapter_feedback":
+        return 80
+    if learning_task == "source_theorem_exact_semantic_definition_work_order":
+        return 70
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return 60
+    return 10
+
+
 def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
@@ -833,6 +909,43 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         and placeholder
     ):
         return f"{learning_task}:{target}:{placeholder}"
+    if learning_task == "source_theorem_proof_body_adapter_feedback":
+        adapter_ids = _runtime_learning_memory_string_values(
+            row,
+            "kernel_verified_source_theorem_proof_body_adapter_ids",
+        )
+        adapter_artifacts = _runtime_learning_memory_string_values(
+            row,
+            "adapter_candidate_artifact_path",
+            "verified_source_theorem_proof_body_adapter_artifact_paths",
+        )
+        adapter_declarations = _runtime_learning_memory_string_values(
+            row,
+            "adapter_declaration_name",
+            "verified_source_theorem_proof_body_adapter_declarations",
+        )
+        adapter_kernel_verified = (
+            bool(row.get("adapter_kernel_verified", False))
+            or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
+            or bool(input_summary.get("adapter_kernel_verified", False))
+            or bool(
+                input_summary.get(
+                    "source_theorem_proof_body_adapter_kernel_verified",
+                    False,
+                )
+            )
+        )
+        if adapter_ids or adapter_kernel_verified:
+            return (
+                "verified_source_theorem_proof_body_adapter:"
+                + target
+                + ":"
+                + ",".join(adapter_ids)
+                + ":"
+                + ",".join(adapter_declarations)
+                + ":"
+                + ",".join(adapter_artifacts)
+            )
     premise_names = _runtime_learning_memory_string_values(
         row,
         "source_to_bridge_premise_name",
@@ -936,6 +1049,11 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         or ""
     )
     learning_task = str(row.get("learning_task", "") or "")
+    if (
+        learning_task == "source_theorem_proof_body_adapter_feedback"
+        and _runtime_learning_memory_pin_priority(row) >= 100
+    ):
+        return True
     if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
         row.get("premise_derivation_kernel_verified", False)
     ) or bool(
