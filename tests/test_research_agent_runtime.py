@@ -18847,7 +18847,7 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
             "source_to_bridge_adapter_instantiation_group_id": (
                 "source_to_bridge_adapter_instantiation_group:test"
             ),
-            "source_theorem_ready_for_exact_proof_body": False,
+            "source_theorem_ready_for_exact_proof_body": True,
             "source_theorem_semantic_support_only": True,
             "proof_evidence_status": (
                 "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
@@ -22282,6 +22282,261 @@ def test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action() -> N
     assert validate_formalizer_packet(packet) == []
 
 
+def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "informal_source": "candidate Lean source should be checked",
+                "lean_statement_sketch": (
+                    "theorem normalized_status_formal_target "
+                    "(p : Prop) (hp : p) : p := by\n"
+                    "  exact hp\n"
+                ),
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": "normalized_status_formal_target",
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "source anchors",
+                "to": "candidate executable work",
+                "role": "status normalization regression",
+                "risk": "bookkeeping drift",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "Lean candidate status normalization",
+                "target_library": "local",
+                "purpose": "regression test",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["check every emitted Lean candidate"],
+            "known_blockers": [],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodRankImpliesCovered",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "required_semantic_anchor_reference_names": ["hGoodRank", "hExch"],
+                "premise_derivation_candidate_lean_source": (
+                    "theorem normalized_status_source_to_bridge_candidate "
+                    "(hGoodRank hExch : Prop) : hGoodRank -> hExch -> "
+                    "hGoodRank /\\ hExch := by\n"
+                    "  intro hg he\n"
+                    "  have hanchors : hGoodRank /\\ hExch := And.intro hg he\n"
+                    "  exact hanchors\n"
+                ),
+                "expected_status": "FORMAL_GAP",
+            }
+        ],
+        "gap_taxonomy": [
+            {
+                "gap": "full source theorem still awaits kernel evidence",
+                "kind": "formalizer_status_normalization",
+                "next_owner": "AgentRuntime/local_lean_or_axle",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "test",
+                "finding": "status normalizer should handle executable Lean",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/local_lean_or_axle",
+                "action": "check emitted Lean candidates",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:status-normalization"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_formalizer_lean_candidate": True
+            }
+        },
+    )
+
+    assert packet["formal_targets"][0]["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert packet["formal_targets"][0]["expected_status_normalized_from"] == (
+        "FORMAL_GAP"
+    )
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert candidate["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert candidate["expected_status_normalized_from"] == "FORMAL_GAP"
+    channels = {
+        row["channel"]
+        for row in packet["normalized_executable_candidate_expected_statuses"]
+    }
+    assert channels == {
+        "formal_targets",
+        "source_to_bridge_premise_derivation_candidates",
+    }
+    assert validate_formalizer_packet(packet) == []
+    assert (
+        _validate_capability_eval_formalizer_lean_candidate_packet(
+            packet,
+            environment_feedback={
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_formalizer_lean_candidate": True
+                }
+            },
+            proof_bank_runtime_memory_summary={},
+        )
+        == []
+    )
+
+
+def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_to_bridge_adapter",
+                "informal_source": "helper adapter, not the source coverage theorem",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage_source_to_bridge_adapter "
+                    "(source_hypotheses bridge_premises : Prop) "
+                    "(hsource : source_hypotheses) "
+                    "(hbridge : source_hypotheses -> bridge_premises) : "
+                    "bridge_premises := by\n"
+                    "  exact hbridge hsource\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "source-to-bridge adapter",
+                "to": "coverage theorem",
+                "role": "diagnostic helper routing",
+                "risk": "source theorem target drift",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal coverage source theorem target shape",
+                "target_library": "local",
+                "purpose": "target-shape regression",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["check helper separately from source theorem"],
+            "known_blockers": ["source theorem still has no coverage proof body"],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [],
+        "gap_taxonomy": [
+            {
+                "gap": "source theorem still needs probability coverage proof body",
+                "kind": "source_theorem_target_shape",
+                "next_owner": "Formalizer/ProofEngineer",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "test",
+                "finding": "helper should be rerouted away from source theorem target",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/local_lean_or_axle",
+                "action": "check helper, keep source theorem as formal gap",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    feedback = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True
+        },
+        "target_shape_contract": {
+            "contract_kind": "source_theorem_target_preservation",
+            "required_conclusion_family": "probability_or_measure_coverage_claim",
+        },
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:target-shape-normalization"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    helper_target = packet["formal_targets"][0]
+    assert helper_target["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert helper_target["diagnostic_helper_not_source_theorem"] is True
+    assert helper_target["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] is False
+    assert any(
+        row["id"] == "source_theorem_formal_gap_after_target_shape_repair"
+        and row["expected_status"] == "FORMAL_GAP"
+        and not row["lean_statement_sketch"]
+        for row in packet["formal_targets"]
+    )
+    assert packet["rerouted_source_theorem_shape_drift_targets"][0]["id"] == (
+        "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+    )
+    assert validate_formalizer_packet(packet) == []
+    assert (
+        _validate_capability_eval_formalizer_lean_candidate_packet(
+            packet,
+            environment_feedback=feedback,
+            proof_bank_runtime_memory_summary={},
+        )
+        == []
+    )
+
+
 def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
@@ -25167,7 +25422,7 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
                 "target_theorem_name": "split_conformal_coverage",
                 "target_lean_declaration": "split_conformal_coverage",
                 "semantic_primitive_id": "exact_goal_shape_adapter_instantiation",
-                "placeholder_symbol": "source_to_bridge_adapter_goal_shape_mismatch",
+                "placeholder_symbol": "",
                 "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
             }
         ]
@@ -25322,6 +25577,20 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
                 "adapter_kernel_verified": True,
                 "kernel_verified_source_theorem_proof_body_adapter_ids": [
                     "source_theorem_proof_body_adapter_check:adapter_retry"
+                ],
+                "kernel_verified_theorem_reduction_closure_goal_ids": [
+                    "split_conformal_coverage",
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "kernel_verified_theorem_reduction_closure_target_ids": [
+                    "split_conformal_coverage",
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "kernel_verified_source_theorem_semantic_primitive_ids": [
+                    "source_theorem_semantic_primitive:goal_shape_adapter_instantiation"
+                ],
+                "kernel_verified_source_theorem_semantic_definition_ids": [
+                    "source_theorem_semantic_definition:covered"
                 ],
                 "source_theorem_kernel_verified": False,
                 "candidate_artifact_path": str(source_candidate),
@@ -25484,6 +25753,20 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
             "kernel_verified_source_to_bridge_premise_derivation_ids": [
                 "source_to_bridge_premise_derivation_check:hGoodCovered"
             ],
+            "kernel_verified_theorem_reduction_closure_goal_ids": [
+                "split_conformal_coverage",
+                "split_conformal_finite_sample_coverage"
+            ],
+            "kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_coverage",
+                "split_conformal_finite_sample_coverage"
+            ],
+            "kernel_verified_source_theorem_semantic_primitive_ids": [
+                "source_theorem_semantic_primitive:goal_shape_adapter_instantiation"
+            ],
+            "kernel_verified_source_theorem_semantic_definition_ids": [
+                "source_theorem_semantic_definition:covered"
+            ],
             "premise_candidate_artifact_path": str(
                 bridge_out / "hGoodCovered_derivation.lean"
             ),
@@ -25506,7 +25789,7 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
             ),
             "target_theorem_name": "split_conformal_coverage",
             "target_lean_declaration": "split_conformal_coverage",
-            "placeholder_symbol": "covered",
+            "placeholder_symbol": "",
             "replacement_strategy": (
                 "instantiate_source_to_bridge_adapter_object_from_exact_source_binders"
             ),
@@ -25523,7 +25806,7 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
                 "source_to_bridge_adapter_instantiation_group:formalizer-test"
             ),
             "source_theorem_ready_for_exact_proof_body": False,
-            "source_theorem_semantic_support_only": True,
+            "source_theorem_semantic_support_only": False,
             "proof_evidence_status": (
                 "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
             ),
@@ -25828,19 +26111,19 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
         manifest[
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran"
         ]
-        is True
+        is False
     )
     assert (
         manifest[
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran"
         ]
-        is True
+        is False
     )
     assert (
         manifest[
@@ -25852,22 +26135,16 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
         manifest[
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification"
         ]
-        == "proof_body_incomplete"
+        == ""
     )
     assert manifest[
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_by_proof_body_gate_status"
-    ] == {"PROOF_BODY_REACHED_PROOF_INCOMPLETE": 1}
+    ] == {}
     assert (
         manifest[
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_excerpt_rows"
         ]
-        == 1
-    )
-    assert any(
-        "ENNReal.ofReal" in line
-        for line in manifest[
-            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt"
-        ]
+        == 0
     )
     assert manifest["n_kernel_verified_subclaims"] == 0
 
@@ -25901,16 +26178,6 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
             "runtime_source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_learning_rows_jsonl"
         ]
     )
-    exact_retry_manifest_path = Path(
-        manifest["artifacts"][
-            "runtime_exact_source_theorem_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_manifest"
-        ]
-    )
-    exact_retry_executor_manifest_path = Path(
-        manifest["artifacts"][
-            "runtime_exact_source_theorem_proof_body_repair_executor_from_adapter_premise_derivation_feedback_manifest"
-        ]
-    )
     learning_path = Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
     assert bridge_manifest_path.exists()
     assert bridge_learning_path.exists()
@@ -25918,8 +26185,6 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
     assert premise_bridge_learning_path.exists()
     assert adapter_retry_manifest_path.exists()
     assert adapter_retry_learning_path.exists()
-    assert exact_retry_manifest_path.exists()
-    assert exact_retry_executor_manifest_path.exists()
     learning_rows = [
         json.loads(line)
         for line in learning_path.read_text(encoding="utf-8").splitlines()

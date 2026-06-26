@@ -1236,6 +1236,11 @@ def _normalize_formalizer_packet(
         body,
         environment_feedback or {},
     )
+    _normalize_executable_candidate_expected_statuses(body)
+    _normalize_source_theorem_target_shape_drift(
+        body,
+        environment_feedback or {},
+    )
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -1267,6 +1272,250 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _normalize_executable_candidate_expected_statuses(
+    packet: dict[str, Any],
+) -> None:
+    """Generated Lean is executable work and must be sent through kernel checking."""
+
+    normalized: list[dict[str, Any]] = []
+    for index, row in enumerate(packet.get("formal_targets", []) or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        lean_source = str(row.get("lean_statement_sketch", "") or "")
+        if not lean_source.strip():
+            continue
+        if _lean_source_is_descriptive_placeholder(lean_source):
+            continue
+        previous = str(row.get("expected_status", "") or "")
+        if previous == "NEEDS_KERNEL_CHECK":
+            continue
+        if previous not in {"", "OPEN", "FORMAL_GAP"}:
+            continue
+        row["expected_status"] = "NEEDS_KERNEL_CHECK"
+        row["expected_status_normalized_from"] = previous or "<missing>"
+        row["expected_status_normalizer_status"] = (
+            "EXECUTABLE_LEAN_CANDIDATE_REQUIRES_KERNEL_CHECK"
+        )
+        row.setdefault(
+            "proof_evidence_status",
+            "FORMALIZER_EXECUTABLE_CANDIDATE_STATUS_NORMALIZED_NOT_PROOF_EVIDENCE",
+        )
+        normalized.append(
+            {
+                "channel": "formal_targets",
+                "index": index,
+                "id": str(row.get("id", "") or ""),
+                "previous_expected_status": previous or "<missing>",
+                "new_expected_status": "NEEDS_KERNEL_CHECK",
+                "lean_source_fingerprint": stable_hash(lean_source)[:20],
+            }
+        )
+
+    for index, row in enumerate(
+        packet.get("source_to_bridge_premise_derivation_candidates", []) or [],
+        start=1,
+    ):
+        if not isinstance(row, dict):
+            continue
+        lean_source = str(
+            row.get("premise_derivation_candidate_lean_source", "")
+            or row.get("lean_statement_sketch", "")
+            or row.get("candidate_lean_source", "")
+            or ""
+        )
+        if not lean_source.strip():
+            continue
+        if _lean_source_is_descriptive_placeholder(lean_source):
+            continue
+        previous = str(row.get("expected_status", "") or "")
+        if previous == "NEEDS_KERNEL_CHECK":
+            continue
+        if previous not in {"", "OPEN", "FORMAL_GAP"}:
+            continue
+        row["expected_status"] = "NEEDS_KERNEL_CHECK"
+        row["expected_status_normalized_from"] = previous or "<missing>"
+        row["expected_status_normalizer_status"] = (
+            "EXECUTABLE_SOURCE_TO_BRIDGE_CANDIDATE_REQUIRES_KERNEL_CHECK"
+        )
+        row.setdefault(
+            "proof_evidence_status",
+            "FORMALIZER_EXECUTABLE_CANDIDATE_STATUS_NORMALIZED_NOT_PROOF_EVIDENCE",
+        )
+        normalized.append(
+            {
+                "channel": "source_to_bridge_premise_derivation_candidates",
+                "index": index,
+                "premise_name": str(row.get("premise_name", "") or ""),
+                "previous_expected_status": previous or "<missing>",
+                "new_expected_status": "NEEDS_KERNEL_CHECK",
+                "lean_source_fingerprint": stable_hash(lean_source)[:20],
+            }
+        )
+
+    if not normalized:
+        return
+
+    existing = packet.get("normalized_executable_candidate_expected_statuses", [])
+    if not isinstance(existing, list):
+        existing = []
+    packet["normalized_executable_candidate_expected_statuses"] = [
+        *existing,
+        *normalized,
+    ]
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Normalized Lean-bearing formalizer candidates to "
+                "expected_status=NEEDS_KERNEL_CHECK. FORMAL_GAP is reserved "
+                "for empty, non-executable gap records."
+            ),
+            "proof_evidence_status": (
+                "EXECUTABLE_CANDIDATE_STATUS_NORMALIZATION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["critic_findings"] = findings
+
+
+def _normalize_source_theorem_target_shape_drift(
+    packet: dict[str, Any],
+    environment_feedback: Mapping[str, Any],
+) -> None:
+    if not _feedback_requires_probability_measure_coverage_shape(environment_feedback):
+        return
+
+    formal_targets = [
+        row
+        for row in packet.get("formal_targets", []) or []
+        if isinstance(row, dict)
+    ]
+    rerouted: list[dict[str, Any]] = []
+    first_source_target_declaration = ""
+    first_source_goal_id = ""
+    for index, row in enumerate(formal_targets, start=1):
+        lean_source = str(row.get("lean_statement_sketch", "") or "")
+        if not lean_source.strip():
+            continue
+        if _lean_source_is_descriptive_placeholder(lean_source):
+            continue
+        if not _formal_target_is_source_theorem_candidate(row):
+            continue
+        if _lean_source_has_probability_or_measure_shape(lean_source):
+            continue
+        provenance = row.get("source_theorem_target_provenance", {})
+        previous_provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
+        declaration = str(
+            previous_provenance.get("target_lean_declaration", "")
+            or row.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        goal_id = str(previous_provenance.get("source_theorem_goal_id", "") or "").strip()
+        if declaration and not first_source_target_declaration:
+            first_source_target_declaration = declaration
+        if goal_id and not first_source_goal_id:
+            first_source_goal_id = goal_id
+        previous_provenance["source_theorem_target_known"] = False
+        previous_provenance[
+            "diagnostic_helper_from_source_theorem_shape_drift"
+        ] = True
+        row["source_theorem_target_provenance"] = previous_provenance
+        row["diagnostic_helper_not_source_theorem"] = True
+        row["source_theorem_shape_normalizer_status"] = (
+            "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_TO_DIAGNOSTIC_HELPER"
+        )
+        row.setdefault(
+            "proof_evidence_status",
+            "SOURCE_THEOREM_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE",
+        )
+        rerouted.append(
+            {
+                "index": index,
+                "id": str(row.get("id", "") or ""),
+                "previous_target_lean_declaration": declaration,
+                "previous_source_theorem_goal_id": goal_id,
+                "lean_source_fingerprint": stable_hash(lean_source)[:20],
+            }
+        )
+
+    if not rerouted:
+        return
+
+    if not _has_explicit_source_theorem_formal_gap_target(formal_targets):
+        formal_targets.append(
+            {
+                "id": "source_theorem_formal_gap_after_target_shape_repair",
+                "informal_source": (
+                    "source theorem remains a formal gap because the emitted "
+                    "Lean candidate had helper/adapter shape rather than the "
+                    "required probability or measure coverage conclusion"
+                ),
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": first_source_target_declaration,
+                    "source_theorem_goal_id": first_source_goal_id,
+                },
+                "proof_evidence_status": (
+                    "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_FORMAL_GAP_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        packet["formal_targets"] = formal_targets
+
+    existing = packet.get("rerouted_source_theorem_shape_drift_targets", [])
+    if not isinstance(existing, list):
+        existing = []
+    packet["rerouted_source_theorem_shape_drift_targets"] = [
+        *existing,
+        *rerouted,
+    ]
+    gap_rows = packet.get("gap_taxonomy", [])
+    if not isinstance(gap_rows, list):
+        gap_rows = []
+    gap_rows.append(
+        {
+            "gap": (
+                "A Lean candidate marked as the source theorem did not preserve "
+                "the required probability/measure coverage conclusion, so it was "
+                "rerouted as diagnostic helper work and the source theorem remains "
+                "FORMAL_GAP."
+            ),
+            "kind": "source_theorem_target_shape_drift_rerouted",
+            "next_owner": "Formalizer/ProofEngineer",
+            "proof_evidence_status": (
+                "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["gap_taxonomy"] = gap_rows
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Rerouted source-theorem-shaped provenance from Lean candidates "
+                "whose conclusion was helper/adapter shaped instead of the "
+                "required probability or measure coverage target."
+            ),
+            "proof_evidence_status": (
+                "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["critic_findings"] = findings
+
+
+def _lean_source_is_descriptive_placeholder(source: str) -> bool:
+    return bool(re.search(r"\.\.\.", str(source or "")))
 
 
 def _feedback_requests_placeholder_fail_closed(

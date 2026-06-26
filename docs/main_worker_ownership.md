@@ -645,14 +645,29 @@ semantic-definition work orders, and one kernel-verified premise derivation.
 This is still non-proof routing context until local Lean/AXLE verifies the
 exact semantic definitions, adapter proof, and full source theorem.
 
+The current design cleanup addresses the brittleness behind the latest live
+packet-validation loop. Formalizer packet normalization now treats any emitted
+Lean source as executable work and marks it
+`expected_status=NEEDS_KERNEL_CHECK`; only empty source-theorem gap rows remain
+`FORMAL_GAP`. It also reroutes helper/adapter-shaped Lean candidates that were
+mislabeled as probability/coverage source-theorem targets into diagnostic
+helper rows, then adds an explicit empty source-theorem `FORMAL_GAP`. This is
+artifact-contract repair, not proof evidence. The live follow-up at
+`runs/main_worker_live_runtime_resume_target_shape_normalizer_probe/research_agent_runtime_manifest.json`
+still reports scorecard 42/49, but the validator failure has narrowed to the
+real semantic blocker: the source-to-bridge candidate must reference
+`hQuantileThreshold` and `hGoodRank` non-vacuously, or emit no executable
+candidate and report that exact semantic-anchor gap.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
 outputs into the runtime path:
 
-- Formalizer/ProofEngineer worker: fix conformal target-shape drift and ensure
-  repaired candidates preserve the probability/coverage theorem shape without
-  sorry/hole placeholders or phantom source-to-bridge actions.
+- Formalizer/ProofEngineer worker: repair the remaining semantic-anchor gap for
+  `hQuantileThreshold` and `hGoodRank`, and keep helper/adapter candidates out
+  of source-theorem proof evidence unless local Lean/AXLE verifies the intended
+  formal claim.
 - Algorithm/Simulation worker: promote the integrated generated
   AlgorithmEngineer and SimulationEngineer repair evidence into registered
   production algorithms only after registry tests and reruns pass.
