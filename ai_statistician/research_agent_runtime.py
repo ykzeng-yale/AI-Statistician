@@ -19813,6 +19813,258 @@ def _critic_source_theorem_proof_body_adapter_feedback(
     }
 
 
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE = (
+    "source_theorem_exact_semantic_definition_repair"
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS = (
+    "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES = frozenset(
+    {
+        "source_theorem_semantic_alignment_unreviewed",
+        "proof_body_reached_semantic_alignment_unreviewed",
+        "semantic_definition_review_blocked",
+        "typechecked_exact_semantic_definition_candidate_review_required",
+        "exact_semantic_definition_authoring_required",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS = frozenset(
+    {
+        "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
+        "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES = frozenset(
+    {
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+    }
+)
+
+
+def _critic_source_theorem_exact_semantic_definition_repair_feedback(
+    formalization_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compact exact semantic-definition repair feedback for the next agent."""
+
+    if not isinstance(formalization_manifest, Mapping):
+        return {}
+    proof_bank_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if not proof_bank_summary:
+        return {}
+    target_mode = str(
+        proof_bank_summary.get("recommended_formalizer_target_mode", "") or ""
+    ).strip()
+    repair_required = bool(
+        proof_bank_summary.get(
+            "source_theorem_exact_semantic_definition_repair_required",
+            False,
+        )
+        or target_mode == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
+    )
+    if not repair_required:
+        return {}
+    raw_diagnostics = [
+        row
+        for row in proof_bank_summary.get(
+            "source_theorem_exact_candidate_repair_diagnostics",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+
+    def is_semantic_repair_row(row: Mapping[str, Any]) -> bool:
+        failure = str(row.get("failure_classification", "") or "")
+        trigger = str(row.get("trigger", "") or "")
+        gate = str(row.get("proof_body_gate_status", "") or "")
+        runtime_queue_status = str(row.get("runtime_queue_status", "") or "")
+        return bool(
+            failure in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+            or trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
+            or gate in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES
+            or runtime_queue_status
+            == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+            or row.get("semantic_alignment_blockers")
+            or row.get("semantic_definition_risks")
+        )
+
+    failure_classifications = [
+        str(value).strip()
+        for value in proof_bank_summary.get(
+            "source_theorem_exact_candidate_failure_classifications",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    triggers = [
+        str(value).strip()
+        for value in proof_bank_summary.get(
+            "source_theorem_exact_candidate_repair_triggers",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    target_names = [
+        str(value).strip()
+        for value in (
+            proof_bank_summary.get("source_theorem_exact_candidate_repair_target_names", [])
+            or proof_bank_summary.get(
+                "source_theorem_exact_proof_body_repair_target_names",
+                [],
+            )
+            or []
+        )
+        if str(value).strip()
+    ]
+    semantic_rows = [row for row in raw_diagnostics if is_semantic_repair_row(row)]
+    semantic_review_failure = next(
+        (
+            value
+            for value in failure_classifications
+            if value in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+        ),
+        "",
+    )
+    semantic_review_trigger = next(
+        (
+            value
+            for value in triggers
+            if value in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
+        ),
+        "",
+    )
+    if semantic_rows:
+        selected_rows = semantic_rows
+    elif semantic_review_failure or semantic_review_trigger:
+        selected_rows = [
+            {
+                "target_theorem_name": target_names[0] if target_names else "",
+                "trigger": semantic_review_trigger
+                or "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
+                "failure_classification": semantic_review_failure
+                or "source_theorem_exact_semantic_definition_repair_required",
+                "runtime_queue_status": (
+                    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+                ),
+                "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+                "source_theorem_kernel_evidence_eligible": False,
+                "adapter_kernel_verified": bool(
+                    proof_bank_summary.get(
+                        "source_theorem_proof_body_adapter_kernel_verified",
+                        False,
+                    )
+                ),
+                "kernel_verified_source_theorem_proof_body_adapter_ids": list(
+                    proof_bank_summary.get(
+                        "kernel_verified_source_theorem_proof_body_adapter_ids",
+                        [],
+                    )
+                    or []
+                )[:5],
+                "recommended_repair_tasks": [
+                    "review or kernel-verify exact semantic definitions before retrying the exact proof body",
+                    "preserve verified adapter rows as context only until the source theorem itself passes local Lean/AXLE",
+                ],
+            }
+        ]
+    else:
+        selected_rows = raw_diagnostics[:3]
+    compact_keys = (
+        "target_theorem_name",
+        "trigger",
+        "failure_classification",
+        "runtime_queue_status",
+        "candidate_artifact_path",
+        "candidate_source_file",
+        "definition_only_candidate_artifact_path",
+        "definition_candidate_review_mode",
+        "proof_body_gate_status",
+        "proof_body_goal_reached",
+        "source_theorem_kernel_evidence_eligible",
+        "source_theorem_target_identity_status",
+        "adapter_kernel_verified",
+        "kernel_verified_source_theorem_proof_body_adapter_ids",
+        "verified_source_theorem_proof_body_adapter_artifact_paths",
+        "verified_source_theorem_proof_body_adapter_declarations",
+        "semantic_alignment_constraints",
+        "semantic_alignment_blockers",
+        "semantic_definition_risks",
+        "recommended_repair_tasks",
+        "diagnostics",
+    )
+    diagnostics: list[dict[str, Any]] = []
+    for row in selected_rows[:4]:
+        compact: dict[str, Any] = {
+            key: row[key]
+            for key in compact_keys
+            if key in row and row.get(key) not in (None, "", [], {})
+        }
+        if compact:
+            diagnostics.append(compact)
+    return {
+        "feedback_kind": (
+            "critic_source_theorem_exact_semantic_definition_repair_feedback"
+        ),
+        "source": "proof_bank_runtime_memory_summary",
+        "source_theorem_exact_semantic_definition_repair_required": True,
+        "recommended_formalizer_target_mode": target_mode,
+        "recommended_source_theorem_integration_action": str(
+            proof_bank_summary.get(
+                "recommended_source_theorem_integration_action",
+                "",
+            )
+            or ""
+        ),
+        "target_names": list(dict.fromkeys(target_names)),
+        "failure_classifications": list(dict.fromkeys(failure_classifications)),
+        "triggers": list(dict.fromkeys(triggers)),
+        "source_theorem_ready_for_exact_proof_body": bool(
+            proof_bank_summary.get("source_theorem_ready_for_exact_proof_body", False)
+        ),
+        "source_theorem_proof_body_adapter_kernel_verified": bool(
+            proof_bank_summary.get(
+                "source_theorem_proof_body_adapter_kernel_verified",
+                False,
+            )
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": list(
+            proof_bank_summary.get(
+                "kernel_verified_source_theorem_proof_body_adapter_ids",
+                [],
+            )
+            or []
+        )[:5],
+        "diagnostics": diagnostics,
+        "required_behavior": (
+            "Review, retrieve, import, or formalize the exact source-theorem semantic "
+            "definitions before spending proof-body budget. A kernel-verified "
+            "source-to-bridge adapter is routing context only; do not claim source "
+            "theorem proof until the exact theorem is checked by local Lean/AXLE."
+        ),
+        "acceptance_gate": (
+            "proof_bank_runtime_memory_summary records reviewed or kernel-verified "
+            "exact semantic definitions, then the exact source theorem proof-body "
+            "executor reruns and local Lean/AXLE verifies the intended declaration"
+        ),
+        "proof_evidence_status": (
+            "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
 def _critic_semantic_anchor_blocker_feedback(
     formal_blocker_resource_requests: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -19917,10 +20169,22 @@ def _critic_repair_feedback(
             formalization_manifest
         )
     )
+    exact_semantic_definition_repair_feedback = (
+        _critic_source_theorem_exact_semantic_definition_repair_feedback(
+            formalization_manifest
+        )
+    )
     if source_theorem_proof_body_adapter_feedback:
         formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
             _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_feedback(
                 source_theorem_proof_body_adapter_feedback
+            ),
+            formal_blocker_resource_requests,
+        )
+    if exact_semantic_definition_repair_feedback:
+        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
+            _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feedback(
+                exact_semantic_definition_repair_feedback
             ),
             formal_blocker_resource_requests,
         )
@@ -20037,6 +20301,10 @@ def _critic_repair_feedback(
     if source_theorem_proof_body_adapter_feedback:
         feedback["source_theorem_proof_body_adapter_feedback"] = (
             source_theorem_proof_body_adapter_feedback
+        )
+    if exact_semantic_definition_repair_feedback:
+        feedback["source_theorem_exact_semantic_definition_repair_feedback"] = (
+            exact_semantic_definition_repair_feedback
         )
     return feedback
 
@@ -20502,6 +20770,154 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                     "premises from exact source hypotheses, retrieve/prove any "
                     "missing smaller primitive, rerun local Lean/AXLE, or keep the "
                     "source theorem as FORMAL_GAP with the adapter blocker named."
+                ),
+                "proof_evidence_status": (
+                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feedback(
+    feedback: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Convert exact semantic-definition review blockers into typed RAG/prover work."""
+
+    if not isinstance(feedback, Mapping):
+        return []
+    if not feedback.get("source_theorem_exact_semantic_definition_repair_required"):
+        return []
+    default_targets = [
+        str(value).strip()
+        for value in feedback.get("target_names", []) or []
+        if str(value).strip()
+    ]
+    diagnostics = [
+        row
+        for row in feedback.get("diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not diagnostics:
+        diagnostics = [
+            {
+                "target_theorem_name": target,
+                "failure_classification": (
+                    "source_theorem_exact_semantic_definition_repair_required"
+                ),
+            }
+            for target in default_targets[:3]
+        ] or [
+            {
+                "failure_classification": (
+                    "source_theorem_exact_semantic_definition_repair_required"
+                )
+            }
+        ]
+    rows: list[dict[str, Any]] = []
+    for diagnostic in diagnostics[:4]:
+        target_ids = [
+            str(value).strip()
+            for value in [
+                diagnostic.get("target_theorem_name", ""),
+                *default_targets,
+            ]
+            if str(value).strip()
+        ]
+        target_ids = list(dict.fromkeys(target_ids))
+        failure = str(diagnostic.get("failure_classification", "") or "").strip()
+        trigger = str(diagnostic.get("trigger", "") or "").strip()
+        gate = str(diagnostic.get("proof_body_gate_status", "") or "").strip()
+        runtime_queue_status = str(
+            diagnostic.get("runtime_queue_status", "") or ""
+        ).strip()
+        candidate_path = str(
+            diagnostic.get("candidate_artifact_path", "") or ""
+        ).strip()
+        semantic_blockers = [
+            str(value).strip()
+            for value in diagnostic.get("semantic_alignment_blockers", []) or []
+            if str(value).strip()
+        ]
+        adapter_ids = [
+            str(value).strip()
+            for value in (
+                diagnostic.get(
+                    "kernel_verified_source_theorem_proof_body_adapter_ids",
+                    [],
+                )
+                or feedback.get(
+                    "kernel_verified_source_theorem_proof_body_adapter_ids",
+                    [],
+                )
+                or []
+            )
+            if str(value).strip()
+        ]
+        blocker_parts = [
+            "Exact source-theorem proof-body execution is blocked until exact "
+            "semantic definitions are reviewed, imported, or kernel-verified"
+        ]
+        if failure:
+            blocker_parts.append(f"failure_classification={failure}")
+        if gate:
+            blocker_parts.append(f"proof_body_gate_status={gate}")
+        if runtime_queue_status:
+            blocker_parts.append(f"runtime_queue_status={runtime_queue_status}")
+        if candidate_path:
+            blocker_parts.append(f"candidate_artifact={candidate_path}")
+        if semantic_blockers:
+            blocker_parts.append(
+                "semantic_alignment_blockers="
+                + ", ".join(semantic_blockers[:4])
+            )
+        if adapter_ids:
+            blocker_parts.append(
+                "verified_adapter_context_ids=" + ", ".join(adapter_ids[:4])
+            )
+        blocker = "; ".join(blocker_parts)
+        blocker_kind = (
+            failure
+            or trigger
+            or "source_theorem_exact_semantic_definition_repair_required"
+        )
+        fingerprint = stable_hash(
+            [
+                "critic_source_theorem_exact_semantic_definition_repair_feedback",
+                blocker_kind,
+                gate,
+                target_ids,
+                semantic_blockers,
+            ]
+        )[:20]
+        rows.append(
+            {
+                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "source": (
+                    "critic_source_theorem_exact_semantic_definition_repair_feedback"
+                ),
+                "blocker_kind": blocker_kind,
+                "blocker": blocker,
+                "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+                "target_ids": target_ids,
+                "formal_source_queries": _formal_blocker_resource_request_queries(
+                    blocker,
+                    blocker_kind=blocker_kind,
+                    target_ids=target_ids,
+                ),
+                "recommended_tools": [
+                    "formal_source_retriever",
+                    "proof_search",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ],
+                "required_resolution": (
+                    "Resolve the exact source-theorem semantic definitions and "
+                    "target provenance before retrying proof-body tactics. A verified "
+                    "adapter may be consumed as context, but source-theorem proof "
+                    "evidence requires local Lean/AXLE verification of the exact "
+                    "declaration."
                 ),
                 "proof_evidence_status": (
                     "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
@@ -20997,6 +21413,9 @@ def _compact_agenda_item(row: Mapping[str, Any]) -> dict[str, Any]:
         "diagnostic_helper_candidate_ids",
         "source_formalizer_packet_id",
         "recommended_formalizer_target_mode",
+        "failure_classifications",
+        "proof_body_gate_statuses",
+        "semantic_alignment_blockers",
     ):
         if key in row:
             compact[key] = row.get(key)
@@ -21587,6 +22006,101 @@ def _source_to_bridge_metadata_blocker_agenda_item(
     }
 
 
+def _source_theorem_exact_semantic_definition_repair_agenda_item(
+    *,
+    proof_bank_memory_summary: Mapping[str, Any],
+    fallback_target_ids: list[str],
+) -> dict[str, Any]:
+    target_ids = [
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_repair_target_names",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ] or [value for value in fallback_target_ids if value]
+    failure_classifications = [
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_failure_classifications",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    triggers = [
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_repair_triggers",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    diagnostics = [
+        row
+        for row in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_repair_diagnostics",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    proof_body_gate_statuses = list(
+        dict.fromkeys(
+            str(row.get("proof_body_gate_status", "") or "").strip()
+            for row in diagnostics
+            if str(row.get("proof_body_gate_status", "") or "").strip()
+        )
+    )
+    if not proof_body_gate_statuses and any(
+        failure in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+        for failure in failure_classifications
+    ):
+        proof_body_gate_statuses = ["SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"]
+    semantic_alignment_blockers = list(
+        dict.fromkeys(
+            str(value).strip()
+            for row in diagnostics
+            for value in row.get("semantic_alignment_blockers", []) or []
+            if str(value).strip()
+        )
+    )
+    return {
+        "id": "formal_gap:source_theorem_exact_semantic_definition_repair",
+        "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+        "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+        "action": (
+            "review, retrieve, import, or formalize exact source-theorem semantic "
+            "definitions before retrying the exact proof body"
+        ),
+        "acceptance_gate": (
+            "proof_bank_runtime_memory_summary records reviewed or kernel-verified "
+            "exact semantic definitions, then local Lean/AXLE reruns the exact "
+            "source theorem proof body; verified adapter rows remain context only"
+        ),
+        "target_ids": list(dict.fromkeys(target_ids)),
+        "failure_classifications": list(dict.fromkeys(failure_classifications)),
+        "source_theorem_exact_candidate_repair_triggers": list(
+            dict.fromkeys(triggers)
+        ),
+        "proof_body_gate_statuses": proof_body_gate_statuses,
+        "semantic_alignment_blockers": semantic_alignment_blockers[:8],
+        "recommended_formalizer_target_mode": (
+            _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
+        ),
+        "runtime_queue_status": _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS,
+        "priority": "high",
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "Exact semantic-definition review is orchestration and repair guidance, "
+            "not proof evidence. Source-theorem proof evidence requires local "
+            "Lean/AXLE verification of the exact theorem declaration."
+        ),
+    }
+
+
 def _critic_next_action_agenda(
     *,
     question: OpenResearchQuestion,
@@ -21617,6 +22131,20 @@ def _critic_next_action_agenda(
             for row in formalization_manifest.get("deterministic_theorem_goals", []) or []
             if isinstance(row, Mapping)
         ]
+        exact_semantic_definition_repair_required = bool(
+            proof_bank_memory_summary.get(
+                "source_theorem_exact_semantic_definition_repair_required",
+                False,
+            )
+            or str(
+                proof_bank_memory_summary.get(
+                    "recommended_formalizer_target_mode",
+                    "",
+            )
+            or ""
+        )
+            == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
+        )
         if proof_bank_memory_summary.get(
             "source_theorem_exact_candidate_environment_gap", False
         ):
@@ -21654,6 +22182,13 @@ def _critic_next_action_agenda(
                     "priority": "high",
                     "proof_boundary": KERNEL_PROOF_BOUNDARY,
                 }
+            )
+        elif exact_semantic_definition_repair_required:
+            agenda.append(
+                _source_theorem_exact_semantic_definition_repair_agenda_item(
+                    proof_bank_memory_summary=proof_bank_memory_summary,
+                    fallback_target_ids=[row for row in gap_goals if row],
+                )
             )
         elif source_to_bridge_metadata_blocker:
             agenda.append(

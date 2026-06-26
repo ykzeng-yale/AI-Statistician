@@ -499,3 +499,19 @@ exact proof-body executor. The executor correctly fails closed with
 `source_theorem_semantic_alignment_unreviewed` and
 `source_theorem_kernel_verified=false`: verified adapter ids remain routing
 context only, not theorem proof.
+
+The follow-up Critic replay exposed the next design drift: that exact
+proof-body executor failure was initially collapsed into generic
+`formal_gap:proof_bank_expansion`, even though the live blocker was not "find
+more helper proofs" but "review the exact semantic definitions before retrying
+the source-theorem proof body." Critic routing now treats
+`source_theorem_exact_semantic_definition_repair` as a first-class agenda item,
+repair feedback packet, and formal-blocker resource request, with an explicit
+proof boundary that semantic review and verified adapter ids are routing
+context only, not source-theorem proof evidence. The fresh live manifest is
+`runs/main_worker_exact_semantic_definition_repair_critic_live/research_agent_runtime_manifest.json`,
+whose pending task
+`formalize-critic-repair:conformal_prediction_coverage:5f32ce57` now asks the
+FormalizationEvaluator to consume
+`source_theorem_exact_semantic_definition_repair_feedback` before any
+proof-body retry.

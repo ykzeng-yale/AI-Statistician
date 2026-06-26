@@ -596,6 +596,160 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
     assert "Adapter rows are not full source-theorem proof evidence" in prompt
 
 
+def test_critic_routes_exact_semantic_definition_review_before_proof_bank() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:semantic_review_before_proof_body",
+        "counts": {"formal_gap": 1, "kernel_verified": 2, "proved": 2, "failed": 1},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage", "status": "FORMAL_GAP"}
+        ],
+        "formal_subclaims": [
+            {
+                "id": "conformal:prob_compl",
+                "claim_type": "lean_obligation",
+                "proof_obligation_id": "prob_compl",
+                "status": "FAILED",
+                "kernel_verified": False,
+            },
+            {
+                "id": "conformal:split_conformal_finite_sample_coverage",
+                "claim_type": "theorem_goal",
+                "status": "FORMAL_GAP",
+            },
+        ],
+        "proof_obligation_control": {
+            "candidate_proof_obligation_ids": ["prob_compl"],
+            "selected_proof_obligation_ids": ["prob_compl"],
+            "proof_bank_bridge_catalog_exhausted_by_memory": False,
+            "theorem_reduction_closure_required": False,
+        },
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_semantic_definition_repair"
+            ),
+            "recommended_source_theorem_integration_action": (
+                "repair_reviewed_exact_semantic_definitions"
+            ),
+            "source_theorem_exact_semantic_definition_repair_required": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+            "source_theorem_exact_candidate_repair_target_names": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_theorem_exact_candidate_failure_classifications": [
+                "source_theorem_semantic_alignment_unreviewed"
+            ],
+            "source_theorem_exact_candidate_repair_triggers": [
+                "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED"
+            ],
+            "source_theorem_exact_candidate_repair_diagnostics": [
+                {
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "trigger": "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
+                    "failure_classification": (
+                        "source_theorem_semantic_alignment_unreviewed"
+                    ),
+                    "runtime_queue_status": (
+                        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+                    ),
+                    "proof_body_gate_status": (
+                        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                    ),
+                    "proof_body_goal_reached": False,
+                    "candidate_artifact_path": (
+                        "runs/exact/candidate_artifacts/"
+                        "split_conformal_finite_sample_coverage.lean"
+                    ),
+                    "source_theorem_kernel_evidence_eligible": False,
+                    "semantic_alignment_blockers": [
+                        "review exact coverage_event and good_rank_event definitions"
+                    ],
+                    "semantic_alignment_constraints": [
+                        "verified adapter is context only, not theorem proof"
+                    ],
+                    "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                        "source_theorem_proof_body_adapter_check:ok"
+                    ],
+                }
+            ],
+            "source_theorem_proof_body_adapter_kernel_verified": True,
+            "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                "source_theorem_proof_body_adapter_check:ok"
+            ],
+        },
+    }
+
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 0},
+        formalization_manifest=formalization_manifest,
+    )
+    agenda_by_id = {row["id"]: row for row in agenda}
+
+    assert agenda[0]["id"] == (
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    )
+    semantic_agenda = agenda_by_id[
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    ]
+    assert semantic_agenda["trigger"] == (
+        "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED"
+    )
+    assert semantic_agenda["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    )
+    assert semantic_agenda["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
+    assert "formal_gap:proof_bank_expansion" not in agenda_by_id
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=1,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest=formalization_manifest,
+        agenda=agenda,
+    )
+
+    semantic_feedback = feedback[
+        "source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    assert semantic_feedback[
+        "source_theorem_exact_semantic_definition_repair_required"
+    ] is True
+    assert semantic_feedback["diagnostics"][0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert semantic_feedback["diagnostics"][0][
+        "source_theorem_kernel_evidence_eligible"
+    ] is False
+    agenda_feedback = feedback["high_priority_agenda"][0]
+    assert agenda_feedback["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantic_definition_repair"
+    )
+    request = next(
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["source"]
+        == "critic_source_theorem_exact_semantic_definition_repair_feedback"
+    )
+    assert request["blocker_kind"] == "source_theorem_semantic_alignment_unreviewed"
+    assert "verified_adapter_context_ids" in request["blocker"]
+    assert request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_critic_formalizer_handoff_refreshes_nested_adapter_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     blackboard = BlackboardState(project_id="critic-formalizer-context-refresh-test")
