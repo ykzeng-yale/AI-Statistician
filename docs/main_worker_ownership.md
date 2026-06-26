@@ -457,6 +457,27 @@ now requires either a pure core-Lean `Prop` support helper or a verified import
 route through FormalSourceRetriever/Lean LSP/local Lean before any executable
 claim can be promoted.
 
+The next continuation exercised that contract rather than adding another local
+rewrite. In
+`runs/main_worker_live_runtime_resume_core_helper_precheck_followup_probe/research_agent_runtime_manifest.json`,
+the model emitted a no-import core `Prop` helper and local Lean compiled it.
+The runtime counted it as a diagnostic helper only:
+`source_theorem_target_known=false`, `source_theorem_kernel_verified=false`, 25
+local Lean-checked Formalizer candidates, 11 compiled candidate artifacts, 28
+kernel-verified helper/subclaim rows, and 32 formal gaps. A follow-up Critic
+continuation at
+`runs/main_worker_live_runtime_resume_compiled_core_helper_critic_typed_import_request_probe/research_agent_runtime_manifest.json`
+kept the helper out of the source-theorem proof lane and moved the remaining
+formalization blocker to an import/environment route. The pending task is now
+`formalize-critic-repair:conformal_prediction_coverage:dbe373a3`; its feedback
+classifies the `Mathlib.olean` missing-object-file diagnostic as
+`lean_import_environment_missing` and carries a typed `lean_unavailable_import`
+blocker request from `critic_local_lean_formalization_feedback`. That request is
+non-proof evidence and asks the prover/RAG stack to use a verified local import,
+remove the guessed import, or fail closed with a dependency `FORMAL_GAP`.
+Successful local Lean exits with only warnings are no longer converted into
+`lean_local_check_failed` repair contracts when replayed through runtime memory.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

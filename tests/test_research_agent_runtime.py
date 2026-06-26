@@ -368,6 +368,54 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     )
 
 
+def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=0,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest={
+            "manifest_id": "formalization_manifest:mathlib_olean_missing",
+            "counts": {"formal_gap": 1},
+            "formal_subclaims": [
+                {
+                    "id": "conformal_prediction_coverage:event_probability_mono",
+                    "claim_type": "kernel_helper",
+                    "status": "FAILED",
+                    "kernel_verified": False,
+                    "errors": [
+                        "error: object file "
+                        "'/tmp/project/.lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean' "
+                        "of module Mathlib does not exist"
+                    ],
+                }
+            ],
+        },
+        agenda=[],
+    )
+
+    assert feedback["local_lean_repair_contract"]["diagnostic_classes"] == [
+        "lean_import_environment_missing"
+    ]
+    import_request = next(
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["blocker_kind"] == "lean_unavailable_import"
+    )
+    assert import_request["source"] == "critic_local_lean_formalization_feedback"
+    assert import_request["unavailable_import"] == "Mathlib"
+    assert import_request["target_ids"] == ["conformal_prediction_coverage"]
+    assert "Mathlib Lean import" in import_request["formal_source_queries"]
+    assert import_request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_critic_handoff_recomputes_materialization_request_from_runtime_memory(
     tmp_path: Path,
 ) -> None:
@@ -2751,9 +2799,83 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     assert Path(learning_rows[0]["source_manifest_path"]) == manifest_path
     assert learning_rows[0]["kernel_verified"] is True
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert learning_rows[0]["local_lean_diagnostic_classes"] == []
+    assert learning_rows[0]["local_lean_repair_contract"] == {}
     assert learning_rows[0]["memory_status"] == (
         "EXACT_FORMALIZER_CANDIDATE_KERNEL_VERIFIED"
     )
+
+
+def test_formalizer_candidate_learning_rows_do_not_repair_success_warnings() -> None:
+    manifest = {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:warning_success",
+        "manifest_path": "runs/warning_success/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": "formalize-lean-repair:conformal_prediction_coverage:warning_success",
+        "source_formalizer_packet_id": "formalizer_proposal:warning_success",
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_core_prop_bridge",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "warning-success-source",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_core_prop_bridge "
+                    "(covered_event bad_rank_event : Prop) "
+                    "(h : Not bad_rank_event -> covered_event) "
+                    "(h_no_bad : Not bad_rank_event) : covered_event :=\n"
+                    "  h h_no_bad\n"
+                ),
+                "artifact_path": "runs/warning_success/001_core_prop.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "local_lean_exit_status": "0",
+                "local_lean_stdout": (
+                    "warning: Variable name `bad_rank_event` is not explicitly "
+                    "referenced."
+                ),
+                "local_lean_stderr": "",
+                "local_lean_project": "legacy_sources/emperical_process_lean",
+                "local_lean_timeout": 30,
+                "local_lean_skipped_reason": "",
+                "kernel_verified": True,
+                "source_theorem_target_known": False,
+                "diagnostic_helper_not_source_theorem": True,
+                "proof_evidence_status": (
+                    "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        ],
+    }
+
+    learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
+        manifest
+    )
+
+    assert len(learning_rows) == 1
+    assert "warning:" in learning_rows[0]["local_lean_stdout_excerpt"]
+    assert learning_rows[0]["local_lean_diagnostic_classes"] == []
+    assert learning_rows[0]["local_lean_repair_contract"] == {}
+    assert runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+        [
+            {
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "local_lean_exit_status": "0",
+                "local_lean_stdout_excerpt": "warning: unused variable",
+                "local_lean_stderr_excerpt": "",
+            }
+        ]
+    ) == {}
 
 
 def test_formalizer_candidate_materialization_mirrors_project_local_lsp_artifact(
@@ -4556,6 +4678,38 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     assert "no-import core Lean theorem over Prop variables" in (
         live_mathlib_root_contract["core_lean_diagnostic_helper_shape"]
     )
+    live_mathlib_olean_contract = (
+        runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                {
+                    "precheck_errors": [],
+                    "precheck_status": "FAILED",
+                    "lean_source_excerpt": (
+                        "import Mathlib\n"
+                        "theorem event_probability_mono : True := by\n"
+                        "  trivial\n"
+                    ),
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: object file "
+                        "'/tmp/project/.lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean' "
+                        "of module Mathlib does not exist"
+                    ),
+                }
+            ]
+        )
+    )
+    assert live_mathlib_olean_contract["diagnostic_classes"] == [
+        "lean_import_environment_missing"
+    ]
+    assert live_mathlib_olean_contract["mathlib_root_import_unavailable"] is True
+    assert (
+        "Do not retry the umbrella import `import Mathlib`"
+        in live_mathlib_olean_contract["mathlib_repair_rule"]
+    )
+    assert "blocked_import_prefixes" not in live_mathlib_olean_contract
     live_no_import_arithmetic_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [

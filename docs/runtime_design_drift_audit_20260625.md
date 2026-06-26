@@ -285,3 +285,15 @@ tactics, `Finset`, `MeasureTheory`, or `ENNReal` are routed to a core-Lean-only
 is still generic runtime loop control for Claude plus Lean/RAG/OpenProver
 adapters; it does not add a special proof of
 `split_conformal_finite_sample_coverage` to Python.
+
+The compiled-helper follow-up added one more boundary fix. A no-import core
+`Prop` helper can be useful diagnostic evidence after local Lean compiles it,
+but warnings on a successful exit must not become `lean_local_check_failed`
+repair contracts in runtime memory. The replay classifier now builds repair
+contracts only from failed prechecks or failed verifier exits. The same live
+chain also exposed a Lean environment diagnostic shape from Critic-owned
+formal-subclaim checks: `Mathlib.olean` missing as an object file. That is now
+classified as `lean_import_environment_missing` and routed as a typed
+`lean_unavailable_import` blocker request from Critic feedback. This keeps the
+fix in the prover/RAG/import-resolution lane, not in theorem-specific runtime
+logic.

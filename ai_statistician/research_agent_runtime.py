@@ -5342,6 +5342,8 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             )[:500],
             "precheck_status": str(candidate.get("precheck_status", "") or ""),
             "precheck_errors": list(candidate.get("precheck_errors", []) or []),
+            "local_lean_attempted": local_lean_attempted,
+            "local_lean_compiled": local_lean_compiled,
             "local_lean_exit_status": str(
                 candidate.get("local_lean_exit_status", "") or ""
             ),
@@ -6690,6 +6692,13 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
 ) -> dict[str, Any]:
     """Build a focused repair contract from local Lean diagnostics."""
 
+    repair_diagnostics = [
+        row
+        for row in diagnostics
+        if _formalizer_diagnostic_row_requires_repair(row)
+    ]
+    if not repair_diagnostics:
+        return {}
     local_lean_text = " ".join(
         " ".join(
             [
@@ -6703,10 +6712,11 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
                 str(row.get("local_lean_stderr_excerpt", "") or ""),
             ]
         )
-        for row in diagnostics
+        for row in repair_diagnostics
     ).lower()
     candidate_source_text = " ".join(
-        str(row.get("lean_source_excerpt", "") or "") for row in diagnostics
+        str(row.get("lean_source_excerpt", "") or "")
+        for row in repair_diagnostics
     ).lower()
     if not local_lean_text.strip():
         return {}
@@ -6725,6 +6735,11 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         or "imports unavailable module" in local_lean_text
         or "imports unavailable umbrella module" in local_lean_text
         or "unavailable module" in local_lean_text
+        or (
+            "object file" in local_lean_text
+            and "of module" in local_lean_text
+            and "does not exist" in local_lean_text
+        )
     ):
         classes.append("lean_import_environment_missing")
     if (
@@ -6784,11 +6799,14 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "blocker instead of retrying the same module path."
         )
         unavailable_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
-            diagnostics
+            repair_diagnostics
         )
         mathlib_root_import_unavailable = (
             "Mathlib" in unavailable_prefixes
-            and _formalizer_diagnostics_import_exact_module(diagnostics, "Mathlib")
+            and _formalizer_diagnostics_import_exact_module(
+                repair_diagnostics,
+                "Mathlib",
+            )
         )
         blocked_import_prefixes = [
             value
@@ -6822,7 +6840,7 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
                 "diagnostic helper evidence only, not source-theorem proof evidence."
             )
         import_replacements = _formalizer_import_replacement_suggestions(
-            diagnostics
+            repair_diagnostics
         )
         if import_replacements:
             contract["suggested_import_replacements"] = import_replacements
@@ -6833,7 +6851,7 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "with known identifiers, or a FORMAL_GAP naming the missing API/dependency."
         )
         unknown_identifiers = _formalizer_unknown_identifiers_from_diagnostics(
-            diagnostics
+            repair_diagnostics
         )
         if unknown_identifiers:
             contract["unknown_identifiers"] = unknown_identifiers
@@ -6887,6 +6905,24 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "the helper through a support-lemma or source-to-bridge premise channel."
         )
     return contract
+
+
+def _formalizer_diagnostic_row_requires_repair(row: Mapping[str, Any]) -> bool:
+    """Return true when a diagnostic row represents failed verifier/precheck work."""
+
+    precheck_status = str(row.get("precheck_status", "") or "").strip()
+    if precheck_status == "REJECTED_BY_RUNTIME_PRECHECK":
+        return True
+    if row.get("precheck_errors"):
+        return True
+    exit_status = str(row.get("local_lean_exit_status", "") or "").strip().lower()
+    if exit_status and exit_status not in {"0", "ok", "success"}:
+        return True
+    if bool(row.get("local_lean_attempted", False)):
+        compiled_value = row.get("local_lean_compiled", None)
+        if compiled_value is not None and not bool(compiled_value):
+            return True
+    return False
 
 
 def _formalizer_merge_local_lean_repair_contracts(
@@ -6967,6 +7003,11 @@ def _formalizer_unavailable_import_prefixes_from_diagnostics(
         re.compile(
             r"Lean candidate imports unavailable umbrella module in configured project:\s*"
             r"(?P<prefix>[A-Za-z0-9_.]+)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"object file\s+[`']?[^`']+?[`']?\s+of module\s+"
+            r"(?P<prefix>[A-Za-z0-9_.]+)\s+does not exist",
             re.IGNORECASE,
         ),
     )
@@ -19053,6 +19094,24 @@ def _critic_repair_feedback(
         formalization_manifest=formalization_manifest,
         agenda=agenda,
     )
+    if formalizer_local_lean_contract:
+        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
+            formal_blocker_resource_requests,
+            _formal_blocker_resource_requests_from_unavailable_imports(
+                local_lean_repair_contract=formalizer_local_lean_contract,
+                manifest={
+                    "manifest_id": str(
+                        formalization_manifest.get("manifest_id", "") or ""
+                    ),
+                    "question": {
+                        "id": question.id,
+                        "title": question.title,
+                    },
+                },
+                diagnostics=formalizer_candidate_diagnostics,
+                source="critic_local_lean_formalization_feedback",
+            ),
+        )
     required_repair = (
         "Revise theorem statements, assumptions, estimator specification, or proof plan "
         "to address formal gaps and non-kernel proof feedback. Do not claim proof evidence "
@@ -19400,6 +19459,7 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
     local_lean_repair_contract: Mapping[str, Any],
     manifest: Mapping[str, Any],
     diagnostics: Sequence[Mapping[str, Any]],
+    source: str = "formalizer_lean_candidate_local_lean_feedback",
 ) -> list[dict[str, Any]]:
     """Convert unavailable Lean imports into typed prover/RAG requests."""
 
@@ -19453,6 +19513,7 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
         blocked_modules = ["Mathlib"]
     rows: list[dict[str, Any]] = []
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
+    source_label = str(source or "formalizer_lean_candidate_local_lean_feedback")
     for module in blocked_modules:
         replacement = next(
             (
@@ -19485,7 +19546,7 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
             blocker += " Use a verified local import or fail closed with a dependency FORMAL_GAP."
         fingerprint = stable_hash(
             [
-                "formalizer_lean_candidate_local_lean_feedback",
+                source_label,
                 "lean_unavailable_import",
                 module,
                 suggested_modules,
@@ -19504,7 +19565,7 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
         rows.append(
             {
                 "request_id": f"formal_blocker_resource_request:{fingerprint}",
-                "source": "formalizer_lean_candidate_local_lean_feedback",
+                "source": source_label,
                 "blocker_kind": "lean_unavailable_import",
                 "blocker": blocker,
                 "next_owner": "ProofEngineer",
