@@ -334,3 +334,15 @@ adapter/proof-route feedback rows in rolling runtime memory. This is intended
 as a reusable proof-route contract: Claude and prover/RAG adapters receive the
 actual bridge failure, artifact path, declaration, and diagnostics, while the
 evidence boundary still says adapter rows are not full source-theorem proof.
+
+The next Critic handoff tightened that contract without adding a theorem
+shortcut. Some adapter diagnostics are truncated by the time they reach
+environment feedback, so an import-environment failure can lose the exact Lean
+module name. The runtime now recovers import declarations from the generated
+adapter Lean artifact itself and turns them into typed
+`source_theorem_proof_body_adapter_unavailable_import` requests. The live probe
+`runs/main_worker_live_runtime_resume_critic_after_adapter_feedback_import_named_probe/research_agent_runtime_manifest.json`
+preserved 10 non-proof blocker requests and named
+`Mathlib.Data.Finset.Sort` plus `Mathlib.Data.Real.Basic` as formal-source
+queries for the next Formalizer/ProofEngineer turn. This is still
+import/RAG/prover routing context, not source-theorem proof evidence.

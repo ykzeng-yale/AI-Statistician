@@ -20036,6 +20036,31 @@ def _formal_blocker_resource_request_queries(
     return queries[:5]
 
 
+def _lean_import_modules_from_artifact_path(artifact_path: str) -> list[str]:
+    path_text = str(artifact_path or "").strip()
+    if not path_text:
+        return []
+    path = Path(path_text)
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    imports: list[str] = []
+    seen: set[str] = set()
+    for line in source.splitlines()[:80]:
+        match = re.match(r"^\s*import\s+(?P<modules>.+?)\s*$", line)
+        if not match:
+            continue
+        for module in match.group("modules").split():
+            module = module.strip()
+            if module and module not in seen:
+                seen.add(module)
+                imports.append(module)
+    return imports[:8]
+
+
 def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_feedback(
     feedback: Mapping[str, Any] | None,
 ) -> list[dict[str, Any]]:
@@ -20087,6 +20112,11 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                 }
             ]
         )
+        if (
+            not import_prefixes
+            and failure == "adapter_lean_import_environment_missing"
+        ):
+            import_prefixes = _lean_import_modules_from_artifact_path(artifact_path)
         if import_prefixes:
             for module in import_prefixes[:2]:
                 blocker = (
@@ -20111,6 +20141,16 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                         artifact_path,
                     ]
                 )[:20]
+                formal_source_queries = [
+                    f"{module} Lean import",
+                    *_formal_blocker_resource_request_queries(
+                        blocker,
+                        blocker_kind=(
+                            "source_theorem_proof_body_adapter_unavailable_import"
+                        ),
+                        target_ids=target_ids,
+                    ),
+                ]
                 rows.append(
                     {
                         "request_id": (
@@ -20126,15 +20166,8 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                         "next_owner": "Formalizer/ProofEngineer/LeanProver",
                         "target_ids": target_ids,
                         "unavailable_import": module,
-                        "formal_source_queries": (
-                            _formal_blocker_resource_request_queries(
-                                blocker,
-                                blocker_kind=(
-                                    "source_theorem_proof_body_adapter_unavailable_import"
-                                ),
-                                target_ids=target_ids,
-                            )
-                            + [f"{module} Lean import"]
+                        "formal_source_queries": list(
+                            dict.fromkeys(formal_source_queries)
                         )[:5],
                         "recommended_tools": [
                             "formal_source_retriever",

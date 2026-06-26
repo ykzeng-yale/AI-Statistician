@@ -596,6 +596,78 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
     assert "Adapter rows are not full source-theorem proof evidence" in prompt
 
 
+def test_critic_adapter_feedback_names_import_from_adapter_artifact(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    adapter_artifact = tmp_path / "frontier_source_theorem_adapter.lean"
+    adapter_artifact.write_text(
+        "import Mathlib.Algebra.Order.Floor\n\n"
+        "theorem frontier_source_theorem_adapter : True := by\n"
+        "  trivial\n",
+        encoding="utf-8",
+    )
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=1,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest={
+            "manifest_id": "formalization_manifest:adapter_import_feedback",
+            "counts": {"formal_gap": 1},
+            "deterministic_theorem_goals": [
+                {"id": "frontier_source_theorem"}
+            ],
+            "proof_bank_runtime_memory_summary": {
+                "source_theorem_proof_body_adapter_required": True,
+                "source_theorem_proof_body_adapter_feedback_available": True,
+                "source_theorem_proof_body_adapter_target_names": [
+                    "frontier_source_theorem"
+                ],
+                "source_theorem_proof_body_adapter_diagnostics": [
+                    {
+                        "target_theorem_name": "frontier_source_theorem",
+                        "failure_classification": (
+                            "adapter_lean_import_environment_missing"
+                        ),
+                        "adapter_kernel_verified": False,
+                        "adapter_candidate_artifact_path": str(adapter_artifact),
+                        "adapter_declaration_name": (
+                            "frontier_source_theorem_adapter"
+                        ),
+                        "diagnostics": [
+                            "frontier_source_theorem_adapter.lean:1:0: "
+                            "error: object file '/tmp/...'",
+                        ],
+                    }
+                ],
+            },
+        },
+        agenda=[],
+    )
+
+    import_request = next(
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["blocker_kind"]
+        == "source_theorem_proof_body_adapter_unavailable_import"
+    )
+    assert import_request["source"] == (
+        "critic_source_theorem_proof_body_adapter_feedback"
+    )
+    assert import_request["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert "Mathlib.Algebra.Order.Floor Lean import" in import_request[
+        "formal_source_queries"
+    ]
+    assert import_request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_runtime_learning_memory_pins_proof_body_adapter_feedback() -> None:
     adapter_row = {
         "learning_task": "source_theorem_proof_body_adapter_feedback",
