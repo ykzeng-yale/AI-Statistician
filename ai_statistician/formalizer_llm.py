@@ -2449,14 +2449,14 @@ def _formalizer_mode_specific_instructions(
             )
         if carried_local_lean_repair_contract.get("core_lean_only_helper_rule"):
             instructions.append(
-                "Mandatory core-Lean helper repair: the previous no-import helper "
-                "used arithmetic, typeclasses, or tactics unavailable without imports. "
-                "If Mathlib remains unavailable, emit only a Prop-level helper using "
-                "Prop, Not, arrows, lambda/fun, and `exact`; do not use Real, <=, "
-                "Nat.ceil, Finset, MeasureTheory, ENNReal, `linarith`, `ring`, or "
-                "`norm_num` in the helper. The source theorem itself must remain "
-                "expected_status=FORMAL_GAP unless the real probability/measure "
-                "statement can be checked."
+                "Mandatory core-Lean helper repair: the active import/local Lean "
+                "contract restricts no-import diagnostic helpers to Prop-level core "
+                "Lean using Prop, Not, arrows, lambda/fun, and `exact`; do not use "
+                "Real, <=, Nat.ceil, Finset, MeasureTheory, ENNReal, `linarith`, "
+                "`ring`, or `norm_num` unless a narrow import providing those APIs "
+                "has already been verified in this project. The source theorem itself "
+                "must remain expected_status=FORMAL_GAP unless the real probability/"
+                "measure statement can be checked."
             )
     prior_lean_candidate_repair_memory = [
         row
@@ -3042,14 +3042,15 @@ def _formalizer_mode_specific_instructions(
                     )
                 if local_lean_repair_contract.get("core_lean_only_helper_rule"):
                     instructions.append(
-                        "Mandatory core-Lean helper repair: the previous no-import "
-                        "helper used arithmetic, typeclasses, or tactics unavailable "
-                        "without imports. If Mathlib remains unavailable, emit only a "
-                        "Prop-level helper using Prop, Not, arrows, lambda/fun, and "
-                        "`exact`; do not use Real, <=, Nat.ceil, Finset, MeasureTheory, "
-                        "ENNReal, `linarith`, `ring`, or `norm_num` in the helper. "
-                        "The source theorem itself must remain expected_status=FORMAL_GAP "
-                        "unless the real probability/measure statement can be checked."
+                        "Mandatory core-Lean helper repair: the active import/local "
+                        "Lean contract restricts no-import diagnostic helpers to "
+                        "Prop-level core Lean using Prop, Not, arrows, lambda/fun, "
+                        "and `exact`; do not use Real, <=, Nat.ceil, Finset, "
+                        "MeasureTheory, ENNReal, `linarith`, `ring`, or `norm_num` "
+                        "unless a narrow import providing those APIs has already been "
+                        "verified in this project. The source theorem itself must "
+                        "remain expected_status=FORMAL_GAP unless the real probability/"
+                        "measure statement can be checked."
                     )
                 if local_lean_repair_contract.get("repeated_syntax_failure"):
                     instructions.append(
@@ -3708,6 +3709,21 @@ def _feedback_local_lean_repair_contract(
             "At most one no-import core Lean Prop helper may be emitted as diagnostic "
             "tooling evidence; it is not source-theorem proof evidence."
         )
+        contract["core_lean_only_helper_rule"] = (
+            "When the Mathlib root import is unavailable, any no-import diagnostic "
+            "helper must use only core Lean propositions and functions: Prop, Not, "
+            "->, lambda/fun, and `exact`. Do not use Real, <=, Nat.ceil, Finset, "
+            "MeasureTheory, ENNReal, linarith, ring, or norm_num unless a narrow "
+            "import providing those APIs has already been verified in the configured "
+            "Lean project."
+        )
+        contract["core_lean_only_helper_example"] = (
+            "theorem core_prop_bridge "
+            "(target support : Prop) "
+            "(h : support -> target) "
+            "(hs : support) : target := by\n"
+            "  exact h hs"
+        )
     unknown_identifiers = _feedback_unknown_identifiers(candidate_diagnostics)
     if unknown_identifiers:
         contract["unknown_identifiers"] = unknown_identifiers
@@ -3728,11 +3744,11 @@ def _feedback_local_lean_repair_contract(
             "MeasureTheory, ENNReal, linarith, ring, or norm_num."
         )
         contract["core_lean_only_helper_example"] = (
-            "theorem split_conformal_core_prop_bridge "
-            "(coverage_event no_bad_rank : Prop) "
-            "(h : no_bad_rank -> coverage_event) "
-            "(h_no_bad_rank : no_bad_rank) : coverage_event := by\n"
-            "  exact h h_no_bad_rank"
+            "theorem core_prop_bridge "
+            "(target support : Prop) "
+            "(h : support -> target) "
+            "(hs : support) : target := by\n"
+            "  exact h hs"
         )
     return _merge_feedback_local_lean_repair_contracts(
         explicit_contract,
@@ -4297,10 +4313,36 @@ def _compact_value(value: Any) -> Any:
     if isinstance(value, str):
         return value[:FORMALIZER_MAX_TEXT_CHARS]
     if isinstance(value, Mapping):
+        priority_keys = (
+            "contract_kind",
+            "diagnostic_classes",
+            "required_behavior",
+            "blocked_import_prefixes",
+            "mathlib_import_unavailable",
+            "mathlib_root_import_unavailable",
+            "core_lean_only_helper_rule",
+            "core_lean_only_helper_example",
+            "core_lean_diagnostic_helper_shape",
+            "mathlib_repair_rule",
+            "import_repair_rule",
+            "suggested_import_replacements",
+            "unknown_identifiers",
+            "unknown_identifier_repair_rule",
+            "repeated_syntax_failure",
+            "repeated_syntax_failure_rule",
+        )
+        ordered_keys: list[Any] = [
+            key
+            for key in priority_keys
+            if key in value and value.get(key) not in (None, "", [], {})
+        ]
+        for key in value:
+            if key not in ordered_keys and value.get(key) not in (None, "", [], {}):
+                ordered_keys.append(key)
         return {
             str(key): _compact_value(child)
-            for key, child in list(value.items())[:10]
-            if child not in (None, "", [], {})
+            for key in ordered_keys[:16]
+            for child in (value.get(key),)
         }
     if isinstance(value, list | tuple):
         return [_compact_value(child) for child in list(value)[:5]]

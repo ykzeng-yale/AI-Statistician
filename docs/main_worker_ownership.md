@@ -478,6 +478,41 @@ remove the guessed import, or fail closed with a dependency `FORMAL_GAP`.
 Successful local Lean exits with only warnings are no longer converted into
 `lean_local_check_failed` repair contracts when replayed through runtime memory.
 
+The next live continuation shows why this should stay a design-level repair
+rather than a conformal-specific patch. In
+`runs/main_worker_live_runtime_resume_typed_import_blocker_followup_probe/research_agent_runtime_manifest.json`,
+the pending `formalize-critic-repair:conformal_prediction_coverage:dbe373a3`
+task consumed the typed `lean_unavailable_import`/`Mathlib.olean` blocker, but
+the model still emitted a no-import helper using `Real`, order typeclasses, and
+`linarith`. Local Lean rejected the exact artifact with `lean_unknown_tactic`
+and `lean_no_import_noncore_arithmetic`; the run ended at scorecard `42/49`
+with pending task `formalize-lean-repair:conformal_prediction_coverage:8133e814`,
+26 local Lean-checked Formalizer candidates, 11 compiled candidate artifacts,
+30 kernel-verified helper/subclaim rows, and 33 formal gaps. The fix is now in
+the generic contract path: when the Mathlib root import is unavailable, any
+no-import diagnostic helper is prechecked as core-Lean-only unless a narrow
+import has already been verified in the configured project, the prompt compactor
+preserves that repair rule, and the helper example is a generic `core_prop_bridge`
+rather than a split-conformal-specific name. This keeps Claude acting as a
+ProofEngineer over exact diagnostics and prover/RAG resource requests instead of
+learning another runtime corner case.
+
+The patched live continuation confirmed the intended behavior. In
+`runs/main_worker_live_runtime_resume_mathlib_root_core_helper_gate_probe/research_agent_runtime_manifest.json`,
+the ProofEngineer task `formalize-lean-repair:conformal_prediction_coverage:8133e814`
+returned a no-import core `Prop` bridge,
+`split_conformal_core_prop_bridge_repair`, and local Lean compiled the exact
+artifact. The manifest records it as
+`FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF`
+with `source_theorem_target_known=false`, 27 local Lean-checked Formalizer
+candidates, 12 compiled candidates, 32 kernel-verified helper/subclaim rows, 34
+formal gaps, and next task `critic:conformal_prediction_coverage:ad2b4eaa`.
+The remaining formal blocker is still the mature prover/RAG work: derive
+`hGoodRankImpliesCovered` from exact source semantic anchors such as
+`hQuantileThreshold` and `hExch`, or report the dependency as a source-theorem
+`FORMAL_GAP`; do not treat the helper as proof of
+`split_conformal_finite_sample_coverage`.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

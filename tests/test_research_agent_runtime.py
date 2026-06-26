@@ -2298,6 +2298,9 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
                         "candidate_id": "split_conformal_marginal_coverage_sketch",
                         "source_field": "formal_targets",
                         "lean_source_excerpt": "import Mathlib\n\ntheorem bad : True := by\n  trivial\n",
+                        "local_lean_attempted": True,
+                        "local_lean_compiled": False,
+                        "local_lean_exit_status": "1",
                         "local_lean_stdout_excerpt": (
                             "error: unknown module prefix 'Mathlib'\n"
                             "No directory 'Mathlib' or file 'Mathlib.olean'"
@@ -2317,6 +2320,9 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
         "Mathlib"
     ]
     assert feedback["local_lean_repair_contract"]["mathlib_import_unavailable"] is True
+    assert "Do not use Real" in feedback["local_lean_repair_contract"][
+        "core_lean_only_helper_rule"
+    ]
     assert feedback["candidate_diagnostics"][0]["candidate_id"] == (
         "split_conformal_marginal_coverage_sketch"
     )
@@ -2338,6 +2344,7 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
     assert "Mandatory Mathlib-root repair" in prompt
     assert "Do not retry that umbrella import" in prompt
     assert "narrow module import already verified by runtime/precheck" in prompt
+    assert "Mandatory core-Lean helper repair" in prompt
     assert "Mandatory next_action_reference_contract repair" in prompt
     assert "Mandatory target-shape packet repair" in prompt
 
@@ -2411,6 +2418,9 @@ def test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contrac
                             "    1 - alpha <= pCoverage := by\n"
                             "  linarith\n"
                         ),
+                        "local_lean_attempted": True,
+                        "local_lean_compiled": False,
+                        "local_lean_exit_status": "1",
                         "local_lean_stdout_excerpt": (
                             "error: unknown tactic\n"
                             "error(lean.synthInstanceFailed): failed to synthesize "
@@ -2448,7 +2458,7 @@ def test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contrac
     )
     assert "Mandatory core-Lean helper repair" in prompt
     assert "do not use Real, <=" in prompt
-    assert "split_conformal_core_prop_bridge" in prompt
+    assert "core_prop_bridge" in prompt
 
 
 def test_agent_runtime_retries_formalizer_after_validation_feedback(tmp_path: Path) -> None:
@@ -3294,6 +3304,86 @@ def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
     assert "<=" in errors
 
 
+def test_mathlib_root_unavailable_contract_precheck_rejects_no_import_real_helper(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    mathlib_root_contract = (
+        runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                {
+                    "precheck_errors": [],
+                    "precheck_status": "FAILED",
+                    "lean_source_excerpt": (
+                        "import Mathlib\n"
+                        "theorem event_probability_mono : True := by\n"
+                        "  trivial\n"
+                    ),
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error: object file "
+                        "'/tmp/project/.lake/packages/mathlib/.lake/build/lib/lean/"
+                        "Mathlib.olean' of module Mathlib does not exist"
+                    ),
+                }
+            ]
+        )
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:test:mathlib_core_helper",
+        owner_subsystem="ProofEngineer",
+        objective="reject no-import non-core helper after Mathlib root blocker",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "local_lean_repair_contract": mathlib_root_contract,
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:mathlib_root_core_helper_contract",
+            "formal_targets": [
+                {
+                    "id": "real_support_helper",
+                    "informal_source": "bad no-import Real helper",
+                    "lean_statement_sketch": (
+                        "theorem real_support_helper "
+                        "(p q : Real) (h : p <= q) : p <= q := h\n"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "real_support_helper",
+                        "source_theorem_goal_id": "source_theorem",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    assert row["local_lean_attempted"] is False
+    errors = " ".join(row["precheck_errors"])
+    assert "core-Lean-only helper contract violation" in errors
+    assert "Real" in errors
+    assert "<=" in errors
+
+
 def test_formalizer_candidate_materialization_rejects_source_theorem_target_drift(
     tmp_path: Path,
 ) -> None:
@@ -3666,6 +3756,7 @@ def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
     assert contract["mathlib_root_import_unavailable"] is True
     assert "blocked_import_prefixes" not in contract
     assert "narrow `Mathlib.*` module imports" in contract["mathlib_repair_rule"]
+    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
 
 
 def test_formalizer_candidate_materialization_rejects_import_without_lean_project(
@@ -4199,7 +4290,7 @@ def test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic() -> None
     )
 
     assert "Mandatory core-Lean helper repair" in prompt
-    assert "Prop-level helper" in prompt
+    assert "Prop-level core Lean" in prompt
     assert "do not use Real" in prompt
     assert "`linarith`" in prompt
     assert "expected_status=FORMAL_GAP" in prompt
@@ -4678,6 +4769,9 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     assert "no-import core Lean theorem over Prop variables" in (
         live_mathlib_root_contract["core_lean_diagnostic_helper_shape"]
     )
+    assert "Do not use Real" in live_mathlib_root_contract[
+        "core_lean_only_helper_rule"
+    ]
     live_mathlib_olean_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [
@@ -4710,6 +4804,9 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
         in live_mathlib_olean_contract["mathlib_repair_rule"]
     )
     assert "blocked_import_prefixes" not in live_mathlib_olean_contract
+    assert "Do not use Real" in live_mathlib_olean_contract[
+        "core_lean_only_helper_rule"
+    ]
     live_no_import_arithmetic_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [
@@ -4747,7 +4844,7 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     assert "Do not use Real" in live_no_import_arithmetic_contract[
         "core_lean_only_helper_rule"
     ]
-    assert "split_conformal_core_prop_bridge" in live_no_import_arithmetic_contract[
+    assert "core_prop_bridge" in live_no_import_arithmetic_contract[
         "core_lean_only_helper_example"
     ]
     live_lt_real_contract = (

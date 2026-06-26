@@ -297,3 +297,26 @@ classified as `lean_import_environment_missing` and routed as a typed
 `lean_unavailable_import` blocker request from Critic feedback. This keeps the
 fix in the prover/RAG/import-resolution lane, not in theorem-specific runtime
 logic.
+
+The follow-up run from that typed import handoff exposed the remaining design
+gap: the Formalizer/ProofEngineer turn respected the handoff structurally, but
+still satisfied capability pressure by emitting a no-import helper over `Real`
+and `linarith`. That is exactly the kind of mature-prover rule the runtime should
+not rediscover by repeated failure. The contract now promotes the Mathlib-root
+environment blocker into a generic no-import core-helper gate: if the agent has
+not verified a narrow import in the configured Lake project, helper candidates
+may use only core Lean `Prop`/arrow/`exact` structure and are prechecked before
+artifact materialization. The prompt compactor also preserves these repair keys
+instead of dropping them after generic context truncation. This is a reusable
+Claude-plus-Lean/RAG orchestration rule, not a hand-coded conformal proof step.
+
+The live replay after this patch moved in the right direction: the
+ProofEngineer emitted a no-import core `Prop` implication helper and local Lean
+compiled it. AgentRuntime still marked it as diagnostic-helper evidence only,
+not source-theorem proof, and routed onward to Critic. The remaining failure
+mode is now appropriately semantic rather than syntactic/import-level: the
+source-to-bridge derivation must connect `hGoodRankImpliesCovered` to exact
+source anchors such as `hQuantileThreshold` and `hExch`. That is the right
+handoff for TheoryDeveloper/Formalizer/ProofEngineer plus formal-source
+retrieval, because it asks the system to derive or retrieve the missing theorem
+structure instead of accumulating local Lean corner-case rewrites.

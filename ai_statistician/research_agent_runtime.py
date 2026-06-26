@@ -6839,6 +6839,21 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
                 "bridge, for example a premise-to-coverage implication helper. This is "
                 "diagnostic helper evidence only, not source-theorem proof evidence."
             )
+            contract["core_lean_only_helper_rule"] = (
+                "When the Mathlib root import is unavailable, any no-import diagnostic "
+                "helper must use only core Lean propositions and functions: Prop, Not, "
+                "->, lambda/fun, and `exact`. Do not use Real, <=, Nat.ceil, Finset, "
+                "MeasureTheory, ENNReal, `linarith`, `ring`, or `norm_num` unless a "
+                "narrow import providing those APIs has already been verified in the "
+                "configured Lean project."
+            )
+            contract["core_lean_only_helper_example"] = (
+                "theorem core_prop_bridge "
+                "(target support : Prop) "
+                "(h : support -> target) "
+                "(hs : support) : target := by\n"
+                "  exact h hs"
+            )
         import_replacements = _formalizer_import_replacement_suggestions(
             repair_diagnostics
         )
@@ -6876,11 +6891,11 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "`linarith`, `ring`, or `norm_num` in a no-import helper."
         )
         contract["core_lean_only_helper_example"] = (
-            "theorem split_conformal_core_prop_bridge "
-            "(coverage_event no_bad_rank : Prop) "
-            "(h : no_bad_rank -> coverage_event) "
-            "(h_no_bad_rank : no_bad_rank) : coverage_event := by\n"
-            "  exact h h_no_bad_rank"
+            "theorem core_prop_bridge "
+            "(target support : Prop) "
+            "(h : support -> target) "
+            "(hs : support) : target := by\n"
+            "  exact h hs"
         )
     if "lean_timeout" in classes:
         contract["timeout_repair_rule"] = (
