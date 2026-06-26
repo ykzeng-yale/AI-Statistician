@@ -968,6 +968,15 @@ def test_premise_bridge_preserves_upstream_shared_instantiation_contract(
     assert semantic_by_symbol["covered"]["proof_evidence_status"] == (
         "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
+    assert semantic_by_symbol["covered"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
+    covered_request = semantic_by_symbol["covered"]["candidate_definition_request"]
+    assert covered_request["placeholder_symbol"] == "covered"
+    assert covered_request["target_ids"] == ["split_conformal_coverage"]
+    assert covered_request[
+        "source_to_bridge_adapter_instantiation_group_ids"
+    ] == [group_id]
     assert semantic_by_symbol["covered"][
         "source_to_bridge_adapter_instantiation_group_id"
     ] == group_id
@@ -980,6 +989,7 @@ def test_premise_bridge_preserves_upstream_shared_instantiation_contract(
         .splitlines()[0]
     )
     assert learning_row["adapter_instantiation_group_id"] == group_id
+    assert learning_row["target_ids"] == ["split_conformal_coverage"]
     assert learning_row[
         "required_bridge_premise_names_for_shared_instantiation"
     ] == ["hGoodCovered", "hRank"]
@@ -1127,11 +1137,19 @@ def test_premise_bridge_merges_adapter_object_definition_work_across_groups(
     }
     for symbol in ("covered", "rank"):
         row = semantic_by_symbol[symbol]
+        assert row["target_ids"] == ["split_conformal_coverage"]
         assert row["source_to_bridge_adapter_instantiation_group_id"] == group_a
         assert row["source_to_bridge_adapter_instantiation_group_ids"] == [
             group_a,
             group_b,
         ]
+        assert row["candidate_definition_request"]["placeholder_symbol"] == symbol
+        assert row["candidate_definition_request"]["target_ids"] == [
+            "split_conformal_coverage"
+        ]
+        assert row["candidate_definition_request"][
+            "source_to_bridge_adapter_instantiation_group_ids"
+        ] == [group_a, group_b]
         assert row[
             "required_bridge_premise_names_for_shared_instantiation"
         ] == ["hCovered", "hRank"]

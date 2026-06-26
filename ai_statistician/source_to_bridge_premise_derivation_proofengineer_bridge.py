@@ -64,6 +64,7 @@ class SourceToBridgePremiseDerivationCheckRow:
     question_title: str
     target_theorem_name: str
     target_lean_declaration: str
+    target_ids: tuple[str, ...]
     target_theorem_goal_ids: tuple[str, ...]
     premise_name: str
     required_derivation: str
@@ -659,6 +660,11 @@ def _premise_derivation_check_row(
         question_title=str(row.get("question_title", "") or ""),
         target_theorem_name=str(row.get("target_theorem_name", "") or ""),
         target_lean_declaration=target_declaration,
+        target_ids=_target_ids_from_work_order(
+            row,
+            fallback_target=target_declaration
+            or str(row.get("target_theorem_name", "") or ""),
+        ),
         target_theorem_goal_ids=_str_tuple(row.get("target_theorem_goal_ids", [])),
         premise_name=premise_name,
         required_derivation=str(row.get("required_derivation", "") or ""),
@@ -1391,6 +1397,7 @@ def _export_runtime_learning_rows(
                 "learning_task": "source_to_bridge_premise_derivation_feedback",
                 "target_theorem_name": row.target_theorem_name,
                 "target_lean_declaration": row.target_lean_declaration,
+                "target_ids": list(row.target_ids),
                 "target_theorem_goal_ids": list(row.target_theorem_goal_ids),
                 "source_adapter_check_id": row.source_adapter_check_id,
                 "source_adapter_work_order_id": row.source_adapter_work_order_id,
@@ -1670,6 +1677,7 @@ def _adapter_object_semantic_definition_work_order_rows(
             if not existing.get(field) and candidate.get(field):
                 existing[field] = candidate[field]
         for field in (
+            "target_ids",
             "target_theorem_goal_ids",
             "search_targets",
             "candidate_registered_obligation_ids",
@@ -1691,6 +1699,10 @@ def _adapter_object_semantic_definition_work_order_rows(
             "verified_theorem_reduction_closure_artifact_paths",
         ):
             extend_unique(existing, field, candidate.get(field, []) or [])
+        _merge_candidate_definition_request(
+            existing,
+            candidate.get("candidate_definition_request", {}),
+        )
 
         existing_summary = existing.setdefault("input_summary", {})
         candidate_summary = dict(candidate.get("input_summary", {}) or {})
@@ -1698,6 +1710,7 @@ def _adapter_object_semantic_definition_work_order_rows(
             "target_theorem_name",
             "target_lean_declaration",
             "placeholder_symbol",
+            "candidate_definition_request",
             "adapter_object_name",
             "source_to_bridge_adapter_instantiation_group_id",
             "work_order_id",
@@ -1705,6 +1718,7 @@ def _adapter_object_semantic_definition_work_order_rows(
             if not existing_summary.get(field) and candidate_summary.get(field):
                 existing_summary[field] = candidate_summary[field]
         for field in (
+            "target_ids",
             "source_to_bridge_adapter_instantiation_group_ids",
             "source_to_bridge_grouped_premise_derivation_candidate_request_ids",
             "required_bridge_premise_names_for_shared_instantiation",
@@ -1719,6 +1733,10 @@ def _adapter_object_semantic_definition_work_order_rows(
                 field,
                 candidate_summary.get(field, []) or [],
             )
+        _merge_candidate_definition_request(
+            existing_summary,
+            candidate_summary.get("candidate_definition_request", {}),
+        )
 
     grouped: dict[str, list[SourceToBridgePremiseDerivationCheckRow]] = {}
     for row in rows:
@@ -1780,6 +1798,19 @@ def _adapter_object_semantic_definition_work_order_rows(
                 for row in group_rows
                 for value in row.target_theorem_goal_ids
                 if value
+            )
+        )
+        target_ids = tuple(
+            dict.fromkeys(
+                [
+                    *[
+                        value
+                        for row in group_rows
+                        for value in row.target_ids
+                        if value
+                    ],
+                    *target_goal_ids,
+                ]
             )
         )
         source_binders = _merge_named_mapping_rows(
@@ -1901,6 +1932,21 @@ def _adapter_object_semantic_definition_work_order_rows(
                     ]
                 )
             )
+            candidate_definition_request = (
+                _adapter_object_candidate_definition_request(
+                    placeholder_symbol=adapter_object,
+                    target_theorem_name=target_theorem_name,
+                    target_lean_declaration=target_lean_declaration,
+                    target_ids=target_ids,
+                    group_id=group_id,
+                    premise_names=premise_names,
+                    source_binders=source_binders,
+                    semantic_anchor_binders=semantic_anchor_binders,
+                    semantic_anchor_names=semantic_anchor_names,
+                    semantic_requirements=semantic_requirements,
+                    adapter_objects=adapter_objects,
+                )
+            )
             work_orders.append(
                 {
                     "schema_version": 1,
@@ -1914,8 +1960,10 @@ def _adapter_object_semantic_definition_work_order_rows(
                     "question_title": question_title,
                     "target_theorem_name": target_theorem_name,
                     "target_lean_declaration": target_lean_declaration,
+                    "target_ids": list(target_ids),
                     "target_theorem_goal_ids": list(target_goal_ids),
                     "placeholder_symbol": adapter_object,
+                    "candidate_definition_request": candidate_definition_request,
                     "replacement_strategy": (
                         "instantiate_source_to_bridge_adapter_object_from_exact_source_binders"
                     ),
@@ -2003,7 +2051,11 @@ def _adapter_object_semantic_definition_work_order_rows(
                         "work_order_id": work_order_id,
                         "target_theorem_name": target_theorem_name,
                         "target_lean_declaration": target_lean_declaration,
+                        "target_ids": list(target_ids),
                         "placeholder_symbol": adapter_object,
+                        "candidate_definition_request": (
+                            candidate_definition_request
+                        ),
                         "adapter_object_name": adapter_object,
                         "source_to_bridge_adapter_instantiation_group_id": group_id,
                         "source_to_bridge_adapter_instantiation_group_ids": [
@@ -2036,6 +2088,175 @@ def _adapter_object_semantic_definition_work_order_rows(
                 continue
             work_orders_by_key[key] = work_orders[-1]
     return work_orders
+
+
+def _target_ids_from_work_order(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> tuple[str, ...]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or fallback_target
+    )
+    return tuple(dict.fromkeys(_str_tuple(raw_values)))
+
+
+def _adapter_object_candidate_definition_request(
+    *,
+    placeholder_symbol: str,
+    target_theorem_name: str,
+    target_lean_declaration: str,
+    target_ids: Sequence[str],
+    group_id: str,
+    premise_names: Sequence[str],
+    source_binders: Sequence[Mapping[str, Any]],
+    semantic_anchor_binders: Sequence[Mapping[str, Any]],
+    semantic_anchor_names: Sequence[str],
+    semantic_requirements: Sequence[str],
+    adapter_objects: Sequence[str],
+) -> dict[str, Any]:
+    available_adapter_object_names = [
+        str(value).strip()
+        for value in adapter_objects
+        if str(value).strip()
+    ]
+    required_anchor_names = [
+        str(value).strip()
+        for value in semantic_anchor_names
+        if str(value).strip()
+    ]
+    return {
+        "schema_version": 1,
+        "request_kind": "source_theorem_exact_semantic_definition_candidate",
+        "request_source": "source_to_bridge_adapter_object_semantic_definition",
+        "target_theorem_name": target_theorem_name,
+        "target_lean_declaration": target_lean_declaration,
+        "target_ids": list(target_ids),
+        "placeholder_symbol": placeholder_symbol,
+        "semantic_goal": (
+            "Define this source-to-bridge adapter object from the exact source "
+            "theorem binders and listed semantic anchors before retrying premise "
+            "derivation or source-theorem proof-body work."
+        ),
+        "required_anchor_names": required_anchor_names,
+        "available_anchor_names": required_anchor_names,
+        "missing_required_anchor_names": [],
+        "required_binders": [dict(row) for row in semantic_anchor_binders],
+        "exact_source_theorem_binders": [dict(row) for row in source_binders],
+        "required_adapter_object_names": [placeholder_symbol],
+        "available_adapter_object_names": available_adapter_object_names,
+        "missing_required_adapter_object_names": (
+            []
+            if placeholder_symbol in available_adapter_object_names
+            else [placeholder_symbol]
+        ),
+        "source_to_bridge_adapter_instantiation_group_id": group_id,
+        "source_to_bridge_adapter_instantiation_group_ids": (
+            [group_id] if group_id else []
+        ),
+        "required_bridge_premise_names_for_shared_instantiation": list(
+            premise_names
+        ),
+        "premise_semantic_dependency_requirements": list(semantic_requirements),
+        "expected_outputs": {
+            "definition_only_candidate_artifact_path": (
+                "Lean file containing only exact semantic definitions and imports"
+            ),
+            "local_definition_lean_checked": False,
+            "local_definition_lean_compiled": False,
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+            ),
+        },
+        "forbidden_shortcuts": [
+            "do not define the placeholder as True",
+            "do not add axiom/sorry/admit/unsafe",
+            "do not assume or restate the source theorem target",
+            "do not introduce stronger assumptions than the source theorem binders",
+        ],
+        "local_lean_gate": (
+            "The definition-only candidate must compile under local Lean/AXLE "
+            "before proof-body execution can use it; this is still semantic-"
+            "definition evidence only, not theorem proof."
+        ),
+        "proof_evidence_status": (
+            ADAPTER_OBJECT_SEMANTIC_DEFINITION_PROOF_EVIDENCE_STATUS
+        ),
+    }
+
+
+def _merge_candidate_definition_request(
+    payload: dict[str, Any],
+    candidate_request: Any,
+) -> None:
+    if not isinstance(candidate_request, Mapping):
+        return
+    current_raw = payload.get("candidate_definition_request", {})
+    if not isinstance(current_raw, Mapping) or not current_raw:
+        payload["candidate_definition_request"] = dict(candidate_request)
+        return
+    current = dict(current_raw)
+    for field in (
+        "target_theorem_name",
+        "target_lean_declaration",
+        "placeholder_symbol",
+        "semantic_goal",
+        "local_lean_gate",
+        "proof_evidence_status",
+    ):
+        if not current.get(field) and candidate_request.get(field):
+            current[field] = candidate_request[field]
+    for field in (
+        "target_ids",
+        "required_anchor_names",
+        "available_anchor_names",
+        "missing_required_anchor_names",
+        "required_binders",
+        "exact_source_theorem_binders",
+        "required_adapter_object_names",
+        "available_adapter_object_names",
+        "missing_required_adapter_object_names",
+        "source_to_bridge_adapter_instantiation_group_ids",
+        "required_bridge_premise_names_for_shared_instantiation",
+        "premise_semantic_dependency_requirements",
+        "forbidden_shortcuts",
+    ):
+        current_values = list(current.get(field, []) or [])
+        seen = {
+            json.dumps(value, sort_keys=True, default=str)
+            for value in current_values
+        }
+        for value in candidate_request.get(field, []) or []:
+            key = json.dumps(value, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            current_values.append(value)
+            seen.add(key)
+        if current_values:
+            current[field] = current_values
+    if not current.get("source_to_bridge_adapter_instantiation_group_id"):
+        group_id = str(
+            candidate_request.get("source_to_bridge_adapter_instantiation_group_id", "")
+            or ""
+        )
+        if group_id:
+            current["source_to_bridge_adapter_instantiation_group_id"] = group_id
+    if not isinstance(current.get("expected_outputs", {}), Mapping):
+        current["expected_outputs"] = dict(
+            candidate_request.get("expected_outputs", {}) or {}
+        )
+    payload["candidate_definition_request"] = current
 
 
 def _premise_derivation_candidate_request_rows(
