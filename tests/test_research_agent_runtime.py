@@ -1736,6 +1736,160 @@ def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
     assert adapter_rows[0]["source_theorem_kernel_verified"] is False
 
 
+def test_runtime_learning_memory_loader_pins_direct_verified_premise_derivation(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    verified_adapter = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "adapter_kernel_verified": True,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+            "source_theorem_proof_body_adapter_check:verified"
+        ],
+    }
+    exact_semantic_review_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": placeholder,
+            "definition_only_candidate_artifact_path": f"runs/{placeholder}.lean",
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_"
+                "SOURCE_THEOREM_PROOF"
+            ),
+        }
+        for placeholder in ["good_rank_event", "coverage_event", "covered"]
+    ]
+    direct_verified_premise = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "premise_name": "hGoodRankImpliesCovered",
+        "premise_derivation_kernel_verified": True,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:fresh"
+        ],
+        "runtime_queue_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+        ),
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+        ),
+        "source_theorem_kernel_verified": False,
+    }
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                verified_adapter,
+                *exact_semantic_review_rows,
+                direct_verified_premise,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    assert any(
+        row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+        and row.get("adapter_kernel_verified") is True
+        for row in memory["rows"]
+    )
+    premise_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("learning_task") == "source_to_bridge_premise_derivation_feedback"
+    ]
+    assert len(premise_rows) == 1
+    assert premise_rows[0]["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:fresh"
+    ]
+    assert premise_rows[0]["source_theorem_kernel_verified"] is False
+    assert premise_rows[0]["proof_evidence_status"] == (
+        "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+    )
+
+
+def test_runtime_learning_memory_loader_pins_nested_direct_verified_premise_derivation(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    exact_semantic_review_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": placeholder,
+            "definition_only_candidate_artifact_path": f"runs/{placeholder}.lean",
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_"
+                "SOURCE_THEOREM_PROOF"
+            ),
+        }
+        for placeholder in ["good_rank_event", "coverage_event", "covered"]
+    ]
+    nested_direct_verified_premise = {
+        "schema_version": 1,
+        "input_summary": {
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "premise_name": "hGoodRankImpliesCovered",
+            "premise_derivation_kernel_verified": True,
+            "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                "source_to_bridge_premise_derivation_check:nested"
+            ],
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+            ),
+        },
+        "source_theorem_kernel_verified": False,
+    }
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                *exact_semantic_review_rows,
+                nested_direct_verified_premise,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+    memory_text = json.dumps(memory, sort_keys=True)
+
+    assert "source_to_bridge_premise_derivation_check:nested" in memory_text
+    assert memory_text.count(
+        "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+    ) == 1
+
+
 def test_runtime_learning_memory_loader_pins_typechecked_semantic_definition_candidate(
     tmp_path: Path,
 ) -> None:
@@ -21077,6 +21231,9 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     assert work_orders == []
     assert len(promotion_work_orders) == 1
     assert promotion_work_orders[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
+    assert promotion_work_orders[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert promotion_work_orders[0]["proof_evidence_status"] == (
         "WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
@@ -21088,6 +21245,55 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     ]
     assert "formal_gap:source_theorem_exact_semantics_or_promotion" in agenda_ids
     assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
+
+
+def test_source_theorem_promotion_target_ids_stay_per_target_in_multi_goal_summary() -> None:
+    proposal = {
+        "packet_id": "formalizer_proposal:multi_goal_source_promotion",
+        "formal_targets": [
+            {
+                "id": "target:coverage_lower",
+                "lean_statement_sketch": "theorem coverage_lower : True := by\n  trivial",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "coverage_lower",
+                    "source_theorem_goal_id": "coverage_lower_goal",
+                },
+            },
+            {
+                "id": "target:coverage_upper",
+                "lean_statement_sketch": "theorem coverage_upper : True := by\n  trivial",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "coverage_upper",
+                    "source_theorem_goal_id": "coverage_upper_goal",
+                },
+            },
+        ],
+    }
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_semantics_or_theorem_promotion"
+        ),
+        "source_theorem_semantic_primitive_support_already_kernel_verified": True,
+        "remaining_theorem_goal_ids": [
+            "coverage_lower_goal",
+            "coverage_upper_goal",
+        ],
+    }
+
+    work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=[
+            {"id": "coverage_lower_goal"},
+            {"id": "coverage_upper_goal"},
+        ],
+    )
+
+    by_name = {row["target_theorem_name"]: row for row in work_orders}
+    assert by_name["coverage_lower"]["target_ids"] == ["coverage_lower_goal"]
+    assert by_name["coverage_upper"]["target_ids"] == ["coverage_upper_goal"]
 
 
 def test_source_promotion_waits_for_all_placeholder_semantic_support(
@@ -30676,6 +30882,7 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
     assert len(work_orders) == 1
     work_order = work_orders[0]
     assert work_order["source_to_bridge_premise_derivation_work_items"] == []
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert work_order["source_theorem_proof_body_adapter_unproven_bridge_premise_names"] == []
     assert work_order["source_to_bridge_premise_derivation_all_required_verified"] is True
     assert work_order["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
@@ -30854,6 +31061,7 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     work_order = work_orders[0]
     assert work_order["proof_mode"] == "source_theorem_proof_body_adapter_required"
     assert work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert work_order["source_runtime_learning_task"] == (
         "source_to_bridge_premise_derivation_feedback"
     )

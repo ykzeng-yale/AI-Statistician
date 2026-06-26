@@ -836,7 +836,9 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
-    learning_task = str(row.get("learning_task", "") or "")
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
     proof_evidence_status = str(
         row.get("proof_evidence_status", "")
         or input_summary.get("proof_evidence_status", "")
@@ -851,6 +853,42 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         row.get("environment_repair_status", "")
         or input_summary.get("environment_repair_status", "")
         or ""
+    )
+    direct_source_to_bridge_premise_target_ids = _runtime_learning_memory_string_values(
+        row,
+        "target_ids",
+        "target_theorem_goal_ids",
+    )
+    direct_source_to_bridge_premise_names = _runtime_learning_memory_string_values(
+        row,
+        "source_to_bridge_premise_names",
+        "premise_names",
+        "source_to_bridge_premise_name",
+        "premise_name",
+    )
+    direct_verified_source_to_bridge_premise = bool(
+        learning_task == "source_to_bridge_premise_derivation_feedback"
+        and direct_source_to_bridge_premise_target_ids
+        and direct_source_to_bridge_premise_names
+        and (
+            bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+            or bool(row.get("premise_derivation_kernel_verified", False))
+            or bool(
+                input_summary.get(
+                    "source_to_bridge_premise_derivation_kernel_verified",
+                    False,
+                )
+            )
+            or bool(input_summary.get("premise_derivation_kernel_verified", False))
+            or bool(
+                _runtime_learning_memory_string_values(
+                    row,
+                    "kernel_verified_source_to_bridge_premise_derivation_ids",
+                )
+            )
+            or proof_evidence_status
+            == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+        )
     )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
         bool(row.get("adapter_kernel_verified", False))
@@ -874,6 +912,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if direct_verified_source_to_bridge_premise:
+        return 98
     if environment_repair_status:
         return 96
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
@@ -920,7 +960,9 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
-    learning_task = str(row.get("learning_task", "") or "")
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
     target = str(
         row.get("target_theorem_name", "")
         or input_summary.get("target_theorem_name", "")
@@ -1112,13 +1154,19 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if not isinstance(input_summary, Mapping):
         input_summary = {}
     trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
-    proof_evidence_status = str(row.get("proof_evidence_status", "") or "")
+    proof_evidence_status = str(
+        row.get("proof_evidence_status", "")
+        or input_summary.get("proof_evidence_status", "")
+        or ""
+    )
     runtime_queue_status = str(
         row.get("runtime_queue_status", "")
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
-    learning_task = str(row.get("learning_task", "") or "")
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
     if (
         learning_task == "source_theorem_proof_body_adapter_feedback"
         and _runtime_learning_memory_pin_priority(row) >= 100
@@ -1791,6 +1839,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
     compact: dict[str, object] = {}
     scalar_keys = (
         "trigger",
+        "learning_task",
         "owner_subsystem",
         "agenda_id",
         "work_order_id",
@@ -1833,6 +1882,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "local_definition_lean_checked",
         "local_definition_lean_compiled",
         "semantic_definition_typecheck_evidence_status",
+        "proof_evidence_status",
         "proof_body_attempted",
         "proof_body_attempt_source",
         "proof_body_attempt_count",

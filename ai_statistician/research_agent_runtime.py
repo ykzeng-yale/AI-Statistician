@@ -19360,6 +19360,69 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         or input_summary.get("environment_repair_status", "")
         or ""
     )
+    direct_source_to_bridge_premise_target_ids = _sorted_str_tuple(
+        row.get(
+            "target_ids",
+            input_summary.get(
+                "target_ids",
+                row.get(
+                    "target_theorem_goal_ids",
+                    input_summary.get("target_theorem_goal_ids", []),
+                ),
+            ),
+        )
+    )
+    direct_source_to_bridge_premise_names = _sorted_str_tuple(
+        row.get(
+            "source_to_bridge_premise_names",
+            input_summary.get(
+                "source_to_bridge_premise_names",
+                row.get(
+                    "premise_names",
+                    input_summary.get(
+                        "premise_names",
+                        row.get(
+                            "source_to_bridge_premise_name",
+                            input_summary.get(
+                                "source_to_bridge_premise_name",
+                                row.get(
+                                    "premise_name",
+                                    input_summary.get("premise_name", ""),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+    )
+    direct_verified_source_to_bridge_premise = bool(
+        learning_task == "source_to_bridge_premise_derivation_feedback"
+        and direct_source_to_bridge_premise_target_ids
+        and direct_source_to_bridge_premise_names
+        and (
+            bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+            or bool(row.get("premise_derivation_kernel_verified", False))
+            or bool(
+                input_summary.get(
+                    "source_to_bridge_premise_derivation_kernel_verified",
+                    False,
+                )
+            )
+            or bool(input_summary.get("premise_derivation_kernel_verified", False))
+            or _sorted_str_tuple(
+                row.get(
+                    "kernel_verified_source_to_bridge_premise_derivation_ids",
+                    input_summary.get(
+                        "kernel_verified_source_to_bridge_premise_derivation_ids",
+                        [],
+                    ),
+                )
+            )
+            or proof_evidence_status
+            == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+        )
+    )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
         bool(row.get("adapter_kernel_verified", False))
         or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
@@ -19385,6 +19448,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if direct_verified_source_to_bridge_premise:
+        return 98
     if environment_repair_status:
         return 96
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
@@ -32398,6 +32463,34 @@ def _formalizer_source_theorem_promotion_work_orders(
             source_target_provenance.get("semantic_alignment_constraints", [])
             or []
         )
+        target_theorem_name = str(
+            source_target_provenance.get("target_lean_declaration", "")
+            or target_lean_declaration
+            or source_formal_target_id
+        ).strip()
+        source_target_ids = list(
+            dict.fromkeys(
+                [
+                    str(value).strip()
+                    for value in _str_tuple(
+                        source_target_provenance.get(
+                            "source_theorem_goal_id",
+                            "",
+                        )
+                    )
+                    if str(value).strip()
+                ]
+            )
+        )
+        if not source_target_ids:
+            if len(target_goal_ids) == 1:
+                source_target_ids = [target_goal_ids[0]]
+            elif source_formal_target_id in target_goal_ids:
+                source_target_ids = [source_formal_target_id]
+            elif target_theorem_name in target_goal_ids:
+                source_target_ids = [target_theorem_name]
+        if not source_target_ids and target_theorem_name:
+            source_target_ids = [target_theorem_name]
         work_orders.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -32416,11 +32509,8 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "question_title": proposal_question_title,
                 "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "")),
                 "source_formal_target_id": source_formal_target_id,
-                "target_theorem_name": str(
-                    source_target_provenance.get("target_lean_declaration", "")
-                    or target_lean_declaration
-                    or source_formal_target_id
-                ),
+                "target_theorem_name": target_theorem_name,
+                "target_ids": source_target_ids,
                 "target_theorem_goal_ids": target_goal_ids,
                 "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
                 "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
