@@ -6395,6 +6395,114 @@ def test_runtime_learning_memory_loader_pins_candidate_materialization_blocker(
     assert summary["source_theorem_candidate_materialization_required"] is True
 
 
+def test_runtime_learning_memory_loader_pins_verified_premise_adapter_context(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows: list[dict[str, object]] = [
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_lean_declaration": "split_conformal_coverage",
+            "adapter_kernel_verified": False,
+            "adapter_candidate_requires_unproven_bridge_premises": True,
+            "unproven_bridge_premise_names": ["hGoodCovered"],
+            "failure_classification": "source_to_bridge_adapter_goal_shape_mismatch",
+            "proof_evidence_status": (
+                "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_lean_declaration": "split_conformal_coverage",
+            "premise_name": "hGoodCovered",
+            "premise_derivation_kernel_verified": True,
+            "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                "source_to_bridge_premise_derivation_check:hGoodCovered"
+            ],
+            "premise_candidate_artifact_path": str(
+                tmp_path / "hGoodCovered_source_to_bridge.lean"
+            ),
+            "premise_candidate_declaration_name": (
+                "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+            ),
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+            ),
+        },
+    ]
+    rows.extend(
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "source_theorem_exact_semantic_definition_work_order",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": f"late_placeholder_{index}",
+            "target_behavior": f"late exact semantic definition row {index}",
+        }
+        for index in range(20)
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=6)
+
+    assert memory["counts"]["rows_seen"] == 22
+    assert memory["counts"]["rows_loaded"] == 6
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert any(
+        row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+        and row.get("adapter_candidate_requires_unproven_bridge_premises") is True
+        for row in memory["rows"]
+    )
+    verified_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("learning_task") == "source_to_bridge_premise_derivation_feedback"
+    ]
+    assert verified_rows
+    assert verified_rows[0]["premise_derivation_kernel_verified"] is True
+    assert verified_rows[0][
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_proof_body_adapter_feedback_available"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary[
+        "source_theorem_proof_body_adapter_unproven_bridge_premise_names"
+    ] == ["hGoodCovered"]
+    assert summary["source_to_bridge_premise_derivation_required"] is False
+    assert summary["source_to_bridge_premise_derivation_pending_premise_names"] == []
+    assert summary["source_to_bridge_premise_derivation_verified_premise_names"] == [
+        "hGoodCovered"
+    ]
+    assert summary["source_to_bridge_premise_derivation_all_required_verified"] is True
+    assert summary["source_to_bridge_adapter_retry_unblocked_by_verified_premises"] is True
+    assert summary["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered"
+    ]
+
+
 def test_runtime_learning_memory_merge_remains_bounded_with_pinned_blocker() -> None:
     materialization_row = {
         "schema_version": 1,
@@ -24777,6 +24885,67 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     assert "previous source-to-bridge adapter" in next_prompt
 
 
+def test_source_theorem_proof_body_adapter_bridge_avoids_mathlib_for_core_prop_skeleton(
+    tmp_path: Path,
+) -> None:
+    queue_path = tmp_path / "adapter_queue.jsonl"
+    premise_artifact = tmp_path / "hGoodCovered.lean"
+    premise_artifact.write_text(
+        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
+        "(good covered : Prop) (h : good -> covered) (hg : good) : covered := by\n"
+        "  exact h hg\n",
+        encoding="utf-8",
+    )
+    work_order = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremPromotionWorkOrder",
+        "work_order_id": "source_theorem_promotion_work_order:adapter-core-prop",
+        "runtime_queue_status": "PENDING_SOURCE_THEOREM_PROOF_BODY_ADAPTER",
+        "question_id": "conformal_prediction_coverage",
+        "question_title": "Split conformal prediction interval coverage",
+        "source_formalizer_packet_id": "formalizer:test",
+        "source_formal_target_id": "target:split_conformal_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+        "source_theorem_target_known": True,
+        "source_theorem_target_provenance": {
+            "source_theorem_target_known": True,
+            "target_lean_declaration": "split_conformal_coverage",
+            "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+        },
+        "lean_statement_sketch": "theorem split_conformal_coverage : True := by\n  trivial",
+        "proof_mode": "source_theorem_proof_body_adapter_required",
+        "source_to_bridge_premise_derivation_all_required_verified": True,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "verified_source_to_bridge_premise_derivation_artifact_paths": [
+            str(premise_artifact)
+        ],
+        "verified_source_to_bridge_premise_derivation_declarations": [
+            "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+        ],
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    queue_path.write_text(json.dumps(work_order) + "\n", encoding="utf-8")
+
+    manifest = runtime_module.run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue_path,
+        local_lean=False,
+    )
+
+    row = manifest["rows"][0]
+    candidate_source = Path(row["adapter_candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert row["adapter_generation_mode"] == "proofengineer_generated_adapter_skeleton"
+    assert row["adapter_candidate_evidence_eligible"] is False
+    assert "import Mathlib" not in candidate_source
+    assert "namespace AIStatisticianSourceTheoremProofBodyAdapter" in candidate_source
+    assert "verified source-to-bridge premise derivation id" in candidate_source
+
+
 def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -27046,6 +27215,141 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
         "derive these bridge premise names" in required_input
         for required_input in work_order["required_inputs"]
     )
+
+
+def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    premise_artifact = tmp_path / "hGoodCovered_derivation.lean"
+    learning_rows = [
+        {
+            "kernel_verified_proof_obligation_ids": verified_ids,
+            "recommended_proof_obligation_ids": verified_ids,
+            "kernel_verified_theorem_reduction_closure_target_ids": [
+                theorem_goals[0].id
+            ],
+            "kernel_verified_theorem_reduction_closure_declarations": [
+                "splitConformalFiniteSampleCoverage_reductionClosure"
+            ],
+            "verified_theorem_reduction_closure_artifact_paths": [
+                str(tmp_path / "split_conformal_reduction_closure.lean")
+            ],
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "generated_next_action_routing",
+            "input_summary": {
+                "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+                "runtime_queue_status": (
+                    "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+                ),
+                "target_theorem_name": "split_conformal_coverage",
+                "premise_name": "hGoodCovered",
+                "premise_derivation_kernel_verified": True,
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:hGoodCovered"
+                ],
+                "source_to_bridge_premise_candidate_artifact_path": str(
+                    premise_artifact
+                ),
+                "source_to_bridge_premise_candidate_declaration_name": (
+                    "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+                ),
+            },
+            "target_behavior": (
+                "rerun the source-to-bridge adapter bridge with the verified premise"
+            ),
+            "proof_evidence_status": "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE",
+        },
+    ]
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": learning_rows,
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_to_bridge_premise_derivation_required"] is False
+    assert summary["source_to_bridge_premise_derivation_pending_premise_names"] == []
+    assert summary["source_to_bridge_premise_derivation_verified_premise_names"] == [
+        "hGoodCovered"
+    ]
+    assert summary["source_to_bridge_premise_derivation_all_required_verified"] is True
+    assert summary["source_to_bridge_adapter_retry_unblocked_by_verified_premises"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_proof_body_adapter_required"
+    )
+
+    proposal_id = "formalizer_proposal:source_theorem_retry"
+    result = {
+        "blackboard": {
+            "artifacts": {
+                proposal_id: {
+                    "packet_id": proposal_id,
+                    "question": {"id": question.id, "title": question.title},
+                    "formal_targets": [
+                        {
+                            "id": "target:split_conformal_coverage",
+                            "lean_statement_sketch": (
+                                "theorem split_conformal_coverage : True := by"
+                            ),
+                            "source_theorem_target_provenance": {
+                                "source_theorem_target_known": True,
+                                "target_lean_declaration": "split_conformal_coverage",
+                                "source_theorem_goal_id": theorem_goals[0].id,
+                            },
+                        }
+                    ],
+                },
+                "formalization_manifest:test": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization_manifest:test",
+                    "question": {"id": question.id, "title": question.title},
+                    "llm_formalizer_proof_engineer_proposal_id": proposal_id,
+                    "deterministic_theorem_goals": [
+                        {
+                            "id": row.id,
+                            "title": row.title,
+                            "proof_obligations": list(row.proof_obligations),
+                        }
+                        for row in theorem_goals
+                    ],
+                    "registered_proof_bank_obligation_catalog": catalog,
+                },
+            }
+        }
+    }
+
+    work_orders = _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
+        [result],
+        learning_rows,
+        source_runtime_learning_task="source_to_bridge_premise_derivation_feedback",
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["proof_mode"] == "source_theorem_proof_body_adapter_required"
+    assert work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert work_order["source_runtime_learning_task"] == (
+        "source_to_bridge_premise_derivation_feedback"
+    )
+    assert work_order["source_to_bridge_premise_derivation_work_items"] == []
+    assert work_order["source_to_bridge_premise_derivation_all_required_verified"] is True
+    assert work_order["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered"
+    ]
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_runtime_runs_formalizer_premise_derivation_candidate_bridge(

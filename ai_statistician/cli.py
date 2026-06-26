@@ -808,6 +808,36 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
+    trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+    proof_evidence_status = str(row.get("proof_evidence_status", "") or "")
+    if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
+        row.get("premise_derivation_kernel_verified", False)
+    ) or bool(
+        input_summary.get("source_to_bridge_premise_derivation_kernel_verified", False)
+    ) or bool(input_summary.get("premise_derivation_kernel_verified", False)):
+        return True
+    if (
+        trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+        or proof_evidence_status
+        == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+    ):
+        return True
+    if (
+        str(row.get("learning_task", "") or "")
+        == "source_theorem_proof_body_adapter_feedback"
+        and (
+            bool(row.get("adapter_candidate_requires_unproven_bridge_premises", False))
+            or bool(
+                input_summary.get(
+                    "adapter_candidate_requires_unproven_bridge_premises",
+                    False,
+                )
+            )
+            or bool(row.get("unproven_bridge_premise_names", []) or [])
+            or bool(input_summary.get("unproven_bridge_premise_names", []) or [])
+        )
+    ):
+        return True
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -967,8 +997,16 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "proof_body_attempted",
         "proof_body_attempt_count",
         "proof_body_attempt_success",
+        "adapter_candidate_requires_unproven_bridge_premises",
         "premise_name",
+        "source_to_bridge_premise_name",
         "premise_target_type",
+        "premise_derivation_kernel_verified",
+        "source_to_bridge_premise_derivation_kernel_verified",
+        "premise_candidate_artifact_path",
+        "premise_candidate_declaration_name",
+        "source_to_bridge_premise_candidate_artifact_path",
+        "source_to_bridge_premise_candidate_declaration_name",
         "candidate_contract",
         "premise_derivation_gap_kind",
         "recommended_next_action",
@@ -1027,6 +1065,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "metric_gate_errors",
         "safety_errors",
         "premise_names",
+        "unproven_bridge_premise_names",
         "source_to_bridge_premise_names",
         "premise_semantic_anchor_binder_names",
         "premise_semantic_anchor_binders",
@@ -1042,6 +1081,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "missing_required_metadata_fields",
         "required_candidate_fields",
         "candidate_materialization_statuses",
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -1094,10 +1134,21 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
             "candidate_materialization_required",
             "candidate_materialization_contract",
+            "adapter_candidate_requires_unproven_bridge_premises",
+            "premise_derivation_kernel_verified",
+            "source_to_bridge_premise_derivation_kernel_verified",
+            "premise_candidate_artifact_path",
+            "premise_candidate_declaration_name",
+            "source_to_bridge_premise_candidate_artifact_path",
+            "source_to_bridge_premise_candidate_declaration_name",
         ):
             if key not in compact and input_summary.get(key) not in (None, "", [], {}):
                 compact[key] = input_summary[key]
-        for key in ("candidate_materialization_statuses",):
+        for key in (
+            "candidate_materialization_statuses",
+            "kernel_verified_source_to_bridge_premise_derivation_ids",
+            "unproven_bridge_premise_names",
+        ):
             value = input_summary.get(key)
             if (
                 key not in compact
@@ -1204,6 +1255,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "proof_body_attempt_source",
         "proof_body_attempt_count",
         "proof_body_attempt_success",
+        "adapter_candidate_requires_unproven_bridge_premises",
         "proof_body_gate_status",
         "proof_body_goal_reached",
         "simulation_passed",
@@ -1244,7 +1296,14 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "synthesized_candidate_artifact_path",
         "definition_only_candidate_artifact_path",
         "premise_name",
+        "source_to_bridge_premise_name",
         "premise_target_type",
+        "premise_derivation_kernel_verified",
+        "source_to_bridge_premise_derivation_kernel_verified",
+        "premise_candidate_artifact_path",
+        "premise_candidate_declaration_name",
+        "source_to_bridge_premise_candidate_artifact_path",
+        "source_to_bridge_premise_candidate_declaration_name",
         "candidate_contract",
         "premise_derivation_gap_kind",
         "recommended_next_action",
@@ -1305,6 +1364,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "executed_tools",
         "tool_call_trace",
         "premise_names",
+        "unproven_bridge_premise_names",
         "source_to_bridge_premise_names",
         "premise_semantic_anchor_binder_names",
         "premise_semantic_anchor_binders",
@@ -1319,6 +1379,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "missing_required_metadata_fields",
         "required_candidate_fields",
         "candidate_materialization_statuses",
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
     )
     mapping_keys = (
         "formalization_counts",

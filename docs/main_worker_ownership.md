@@ -583,6 +583,24 @@ task is `formalize-critic-repair:conformal_prediction_coverage:f828c460`, and
 the next step is to consume the verified premise in the adapter/exact proof path
 without claiming full source theorem proof.
 
+The verified-premise adapter retry patch then closed a bounded-memory handoff
+gap. Runtime learning compaction now pins kernel-verified source-to-bridge
+premise derivations and adapter blockers, and the proof-bank summary treats a
+verified premise row as enough adapter retry context even if the older adapter
+feedback row has fallen out of the compacted window. A live resume at
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_retry_after_memory_patch_probe/research_agent_runtime_manifest.json`
+loaded 30 memory rows, retained the verified `hGoodRankImpliesCovered` premise,
+queued one source-theorem proof-body adapter work order for
+`split_conformal_finite_sample_coverage`, and ran the adapter bridge. The bridge
+replay at
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_retry_after_memory_patch_bridge_replay/source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json`
+also removed the bad root `import Mathlib` fallback from core `Prop` adapter
+skeletons. The adapter still does not kernel-verify; it is a generated
+non-evidence skeleton with unsolved goals. The next worker should generate a
+real adapter proof candidate that consumes the verified premise and then rerun
+the exact proof-body path, while keeping exact semantic-definition gaps as
+formal blockers rather than proof evidence.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

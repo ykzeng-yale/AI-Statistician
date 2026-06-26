@@ -269,14 +269,28 @@ def _adapter_check_row(
         or target
     ).strip()
     safe_target = _safe_identifier(target_declaration or target or f"adapter_{rank}")
-    adapter_declaration = f"{safe_target}_source_to_bridge_adapter"
+    provided_sketch = str(row.get("lean_statement_sketch", "") or "").strip()
+    adapter_declaration = (
+        _provided_adapter_declaration(provided_sketch)
+        or f"{safe_target}_source_to_bridge_adapter"
+    )
     adapter_hash = stable_hash([work_order_id, target, target_declaration, rank])[:16]
     adapter_path = candidate_dir / f"{adapter_declaration}_{adapter_hash}.lean"
-    provided_sketch = str(row.get("lean_statement_sketch", "") or "").strip()
     if provided_sketch:
-        source = _normalize_adapter_source(provided_sketch)
-        source = _inline_verified_adapter_dependency_context(source, row=row)
-        generation_mode = "formalizer_provided_adapter_candidate"
+        provided_source = _normalize_adapter_source(provided_sketch)
+        provided_source = _inline_verified_adapter_dependency_context(
+            provided_source,
+            row=row,
+        )
+        if re.search(rf"\btheorem\s+{re.escape(adapter_declaration)}\b", provided_source):
+            source = provided_source
+            generation_mode = "formalizer_provided_adapter_candidate"
+        else:
+            source = _generated_adapter_skeleton(
+                adapter_declaration=adapter_declaration,
+                row=row,
+            )
+            generation_mode = "proofengineer_generated_adapter_skeleton"
     else:
         source = _generated_adapter_skeleton(
             adapter_declaration=adapter_declaration,
@@ -296,7 +310,7 @@ def _adapter_check_row(
     )
     requires_unproven_bridge_premises = bool(unproven_bridge_premise_names)
     evidence_eligible = bool(
-        provided_sketch
+        generation_mode == "formalizer_provided_adapter_candidate"
         and not vacuous
         and not forbidden_tokens
         and not requires_unproven_bridge_premises
@@ -583,7 +597,6 @@ def _generated_adapter_skeleton(
         if line
     )
     return (
-        "import Mathlib\n\n"
         "namespace AIStatisticianSourceTheoremProofBodyAdapter\n\n"
         "/-\n"
         "This is a generated adapter obligation skeleton, not proof evidence.\n"
@@ -739,8 +752,18 @@ def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...
 
 def _normalize_adapter_source(source: str) -> str:
     if "import " not in source:
-        return "import Mathlib\n\n" + source.rstrip() + "\n"
+        return source.rstrip() + "\n"
     return source.rstrip() + "\n"
+
+
+def _provided_adapter_declaration(source: str) -> str:
+    match = re.search(r"\btheorem\s+([A-Za-z_][A-Za-z0-9_'.]*)\b", source or "")
+    if not match:
+        return ""
+    declaration = match.group(1)
+    if "adapter" not in declaration.lower():
+        return ""
+    return _safe_identifier(declaration)
 
 
 def _inline_verified_adapter_dependency_context(
@@ -787,8 +810,13 @@ def _merge_lean_sources(sources: list[str]) -> str:
         body = "\n".join(body_lines).strip()
         if body:
             bodies.append(body)
-    import_block = "\n".join(imports) or "import Mathlib"
-    return import_block + "\n\n" + "\n\n".join(bodies).rstrip() + "\n"
+    import_block = "\n".join(imports)
+    body_block = "\n\n".join(bodies).rstrip()
+    if import_block and body_block:
+        return import_block + "\n\n" + body_block + "\n"
+    if import_block:
+        return import_block + "\n"
+    return body_block + "\n"
 
 
 def _sanitize_comment_text(value: str) -> str:

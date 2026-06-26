@@ -21953,7 +21953,14 @@ def _runtime_verified_source_to_bridge_premise_names(
         for row in rows
         if isinstance(row, Mapping)
         and _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
-        for value in _runtime_source_to_bridge_premise_names(row)
+        for value in (
+            _runtime_source_to_bridge_premise_names(row)
+            or (
+                _runtime_source_to_bridge_premise_names(row.get("input_summary", {}))
+                if isinstance(row.get("input_summary", {}), Mapping)
+                else ()
+            )
+        )
     }
 
 
@@ -22411,6 +22418,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "SourceToBridgeGroupedPremiseDerivationCandidateRequest"
             or str(row.get("learning_task", "") or "")
             == "source_to_bridge_premise_semantic_repair_feedback"
+            or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
             or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
             or (
                 is_source_theorem_truth_table_feedback
@@ -23493,16 +23501,19 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             "source_to_bridge_premise_names",
             "premise_names",
         )
+        if not source_to_bridge_premise_names and isinstance(input_summary, Mapping):
+            source_to_bridge_premise_names = _runtime_row_string_values(
+                input_summary,
+                "source_to_bridge_premise_name",
+                "premise_name",
+                "source_to_bridge_premise_names",
+                "premise_names",
+            )
         if not source_to_bridge_premise_name and source_to_bridge_premise_names:
             source_to_bridge_premise_name = source_to_bridge_premise_names[0]
-        premise_derivation_kernel_verified = bool(
-            row.get("premise_derivation_kernel_verified", False)
+        premise_derivation_kernel_verified = (
+            _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
         )
-        if isinstance(input_summary, Mapping):
-            premise_derivation_kernel_verified = bool(
-                premise_derivation_kernel_verified
-                or input_summary.get("premise_derivation_kernel_verified", False)
-            )
         premise_candidate_artifact_path = str(
             row.get("premise_candidate_artifact_path", "") or ""
         ).strip()
@@ -24145,6 +24156,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         "kernel_verified_source_to_bridge_premise_derivation_ids",
                         "source_to_bridge_premise_derivation_check_id",
                         "premise_derivation_check_id",
+                    )
+                    or (
+                        _runtime_row_string_values(
+                            input_summary,
+                            "kernel_verified_source_to_bridge_premise_derivation_ids",
+                            "source_to_bridge_premise_derivation_check_id",
+                            "premise_derivation_check_id",
+                        )
+                        if isinstance(input_summary, Mapping)
+                        else ()
                     )
                 ),
                 "source_to_bridge_premise_candidate_artifact_path": (
@@ -25286,6 +25307,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         if str(row.get("trigger", "") or "")
         in {
             "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
             "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         }
     )
@@ -25341,6 +25363,13 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     verified_source_to_bridge_premise_name_set = set(
         verified_source_to_bridge_premise_names
+    )
+    verified_source_to_bridge_premise_targets = tuple(
+        dict.fromkeys(
+            str(row.get("target_theorem_name", "") or "").strip()
+            for row in verified_source_to_bridge_premise_derivation_rows
+            if str(row.get("target_theorem_name", "") or "").strip()
+        )
     )
 
     def metadata_request_premise_names(row: Mapping[str, Any]) -> tuple[str, ...]:
@@ -25601,8 +25630,66 @@ def _formalizer_proof_bank_runtime_memory_summary(
         exact_source_proof_body_adapter_rows
     )
     source_to_bridge_adapter_retry_unblocked_by_verified_premises = bool(
-        exact_source_proof_body_adapter_required
+        (
+            exact_source_proof_body_adapter_required
+            or verified_source_to_bridge_premise_derivation_rows
+        )
         and source_to_bridge_premise_derivation_all_required_verified
+    )
+    source_to_bridge_verified_premise_adapter_retry_diagnostics = (
+        tuple(
+            {
+                "target_theorem_name": target_name,
+                "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+                "failure_classification": (
+                    "source_to_bridge_premise_derivations_kernel_verified"
+                ),
+                "runtime_queue_status": (
+                    "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+                ),
+                "candidate_artifact_path": "",
+                "proof_body_gate_status": "",
+                "proof_body_goal_reached": False,
+                "proof_body_goal_excerpt": [],
+                "proof_body_attempt_summaries": [],
+                "exact_goal_shape_obligation_ids": [],
+                "exact_goal_shape_obligations": [],
+                "semantic_alignment_constraints": [],
+                "proof_body_adapter_required_reasons": [
+                    "kernel-verified source-to-bridge premise derivations are now available for the adapter retry",
+                    "rerun the source-to-bridge adapter and exact source theorem proof body without treating premise rows as full source theorem proof",
+                ],
+                "adapter_kernel_verified": False,
+                "adapter_candidate_requires_unproven_bridge_premises": False,
+                "unproven_bridge_premise_names": [],
+                "adapter_candidate_artifact_path": "",
+                "adapter_declaration_name": "",
+                "kernel_verified_theorem_reduction_closure_declarations": list(
+                    theorem_closure_memory["declarations"]
+                )[:5],
+                "verified_theorem_reduction_closure_artifact_paths": list(
+                    theorem_closure_memory["artifact_paths"]
+                )[:5],
+                "kernel_verified_theorem_reduction_closure_target_ids": list(
+                    theorem_closure_memory["target_ids"]
+                )[:5],
+                "recommended_repair_tasks": [
+                    "consume the kernel-verified premise derivation as adapter context",
+                    "rerun the source-to-bridge adapter bridge, then rerun the exact source theorem proof body through local Lean/AXLE",
+                ],
+                "diagnostics": [
+                    "source_to_bridge_premise_derivation_all_required_verified=true",
+                    "kernel_verified_source_to_bridge_premise_derivation_ids="
+                    + ", ".join(verified_source_to_bridge_premise_derivation_ids),
+                ],
+            }
+            for target_name in verified_source_to_bridge_premise_targets[:3]
+        )
+        if (
+            source_to_bridge_adapter_retry_unblocked_by_verified_premises
+            and not exact_source_proof_body_adapter_rows
+        )
+        else ()
     )
     exact_source_proof_body_repair_required = bool(
         exact_source_proof_body_direct_repair_rows
@@ -25862,6 +25949,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "source_theorem_proof_body_adapter_required": (
             exact_source_proof_body_adapter_required
+            or source_to_bridge_adapter_retry_unblocked_by_verified_premises
         ),
         "source_theorem_proof_body_adapter_feedback_available": bool(
             exact_source_proof_body_adapter_feedback_rows
@@ -25884,9 +25972,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "source_theorem_proof_body_adapter_target_names": list(
             dict.fromkeys(
-                str(row.get("target_theorem_name", "") or "").strip()
-                for row in exact_source_proof_body_adapter_rows
-                if str(row.get("target_theorem_name", "") or "").strip()
+                [
+                    *(
+                        str(row.get("target_theorem_name", "") or "").strip()
+                        for row in exact_source_proof_body_adapter_rows
+                        if str(row.get("target_theorem_name", "") or "").strip()
+                    ),
+                    *verified_source_to_bridge_premise_targets,
+                ]
             )
         ),
         "source_theorem_proof_body_adapter_unproven_bridge_premises_required": bool(
@@ -26559,86 +26652,93 @@ def _formalizer_proof_bank_runtime_memory_summary(
             for row in complete_source_to_bridge_metadata_authoring_request_rows[:4]
         ],
         "source_theorem_proof_body_adapter_diagnostics": [
-            {
-                "target_theorem_name": str(
-                    row.get("target_theorem_name", "") or ""
-                ),
-                "trigger": str(row.get("trigger", "") or ""),
-                "failure_classification": str(
-                    row.get("failure_classification", "") or ""
-                ),
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "") or ""
-                ),
-                "candidate_artifact_path": str(
-                    row.get("candidate_artifact_path", "") or ""
-                ),
-                "proof_body_gate_status": str(
-                    row.get("proof_body_gate_status", "") or ""
-                ),
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "") or ""
-                ),
-                "proof_body_goal_reached": bool(
-                    row.get("proof_body_goal_reached", False)
-                ),
-                "proof_body_goal_excerpt": list(
-                    row.get("proof_body_goal_excerpt", []) or []
-                )[:8],
-                "proof_body_attempt_summaries": list(
-                    row.get("proof_body_attempt_summaries", []) or []
-                )[:5],
-                "exact_goal_shape_obligation_ids": list(
-                    row.get("exact_goal_shape_obligation_ids", []) or []
-                )[:8],
-                "exact_goal_shape_obligations": list(
-                    row.get("exact_goal_shape_obligations", []) or []
-                )[:8],
-                "semantic_alignment_constraints": list(
-                    row.get("semantic_alignment_constraints", []) or []
-                )[:5],
-                "proof_body_adapter_required_reasons": list(
-                    row.get("proof_body_adapter_required_reasons", []) or []
-                )[:5],
-                "adapter_kernel_verified": bool(
-                    row.get("adapter_kernel_verified", False)
-                ),
-                "adapter_candidate_requires_unproven_bridge_premises": bool(
-                    row.get(
-                        "adapter_candidate_requires_unproven_bridge_premises",
-                        False,
-                    )
-                ),
-                "unproven_bridge_premise_names": list(
-                    row.get("unproven_bridge_premise_names", []) or []
-                )[:8],
-                "adapter_candidate_artifact_path": str(
-                    row.get("adapter_candidate_artifact_path", "") or ""
-                ),
-                "adapter_declaration_name": str(
-                    row.get("adapter_declaration_name", "") or ""
-                ),
-                "kernel_verified_theorem_reduction_closure_declarations": list(
-                    row.get(
-                        "kernel_verified_theorem_reduction_closure_declarations",
-                        [],
-                    )
-                    or []
-                )[:5],
-                "verified_theorem_reduction_closure_artifact_paths": list(
-                    row.get("verified_theorem_reduction_closure_artifact_paths", [])
-                    or []
-                )[:5],
-                "kernel_verified_theorem_reduction_closure_target_ids": list(
-                    row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
-                    or []
-                )[:5],
-                "recommended_repair_tasks": list(
-                    row.get("recommended_repair_tasks", []) or []
-                )[:5],
-                "diagnostics": list(row.get("diagnostics", []) or [])[:5],
-            }
-            for row in exact_source_proof_body_adapter_rows[:3]
+            *[
+                {
+                    "target_theorem_name": str(
+                        row.get("target_theorem_name", "") or ""
+                    ),
+                    "trigger": str(row.get("trigger", "") or ""),
+                    "failure_classification": str(
+                        row.get("failure_classification", "") or ""
+                    ),
+                    "runtime_queue_status": str(
+                        row.get("runtime_queue_status", "") or ""
+                    ),
+                    "candidate_artifact_path": str(
+                        row.get("candidate_artifact_path", "") or ""
+                    ),
+                    "proof_body_gate_status": str(
+                        row.get("proof_body_gate_status", "") or ""
+                    ),
+                    "runtime_queue_status": str(
+                        row.get("runtime_queue_status", "") or ""
+                    ),
+                    "proof_body_goal_reached": bool(
+                        row.get("proof_body_goal_reached", False)
+                    ),
+                    "proof_body_goal_excerpt": list(
+                        row.get("proof_body_goal_excerpt", []) or []
+                    )[:8],
+                    "proof_body_attempt_summaries": list(
+                        row.get("proof_body_attempt_summaries", []) or []
+                    )[:5],
+                    "exact_goal_shape_obligation_ids": list(
+                        row.get("exact_goal_shape_obligation_ids", []) or []
+                    )[:8],
+                    "exact_goal_shape_obligations": list(
+                        row.get("exact_goal_shape_obligations", []) or []
+                    )[:8],
+                    "semantic_alignment_constraints": list(
+                        row.get("semantic_alignment_constraints", []) or []
+                    )[:5],
+                    "proof_body_adapter_required_reasons": list(
+                        row.get("proof_body_adapter_required_reasons", []) or []
+                    )[:5],
+                    "adapter_kernel_verified": bool(
+                        row.get("adapter_kernel_verified", False)
+                    ),
+                    "adapter_candidate_requires_unproven_bridge_premises": bool(
+                        row.get(
+                            "adapter_candidate_requires_unproven_bridge_premises",
+                            False,
+                        )
+                    ),
+                    "unproven_bridge_premise_names": list(
+                        row.get("unproven_bridge_premise_names", []) or []
+                    )[:8],
+                    "adapter_candidate_artifact_path": str(
+                        row.get("adapter_candidate_artifact_path", "") or ""
+                    ),
+                    "adapter_declaration_name": str(
+                        row.get("adapter_declaration_name", "") or ""
+                    ),
+                    "kernel_verified_theorem_reduction_closure_declarations": list(
+                        row.get(
+                            "kernel_verified_theorem_reduction_closure_declarations",
+                            [],
+                        )
+                        or []
+                    )[:5],
+                    "verified_theorem_reduction_closure_artifact_paths": list(
+                        row.get(
+                            "verified_theorem_reduction_closure_artifact_paths", []
+                        )
+                        or []
+                    )[:5],
+                    "kernel_verified_theorem_reduction_closure_target_ids": list(
+                        row.get(
+                            "kernel_verified_theorem_reduction_closure_target_ids", []
+                        )
+                        or []
+                    )[:5],
+                    "recommended_repair_tasks": list(
+                        row.get("recommended_repair_tasks", []) or []
+                    )[:5],
+                    "diagnostics": list(row.get("diagnostics", []) or [])[:5],
+                }
+                for row in exact_source_proof_body_adapter_rows[:3]
+            ],
+            *source_to_bridge_verified_premise_adapter_retry_diagnostics,
         ],
         "source_theorem_exact_proof_body_repair_target_names": list(
             dict.fromkeys(
@@ -29213,10 +29313,30 @@ def _formalizer_source_theorem_promotion_work_orders(
             }
             for goal_id in target_goal_ids
         ]
-    if proof_body_repair_mode and proof_body_repair_diagnostics:
+    source_targets_have_adapter_candidate = any(
+        re.search(
+            r"\btheorem\s+[A-Za-z_][A-Za-z0-9_'.]*adapter[A-Za-z0-9_'.]*\b",
+            str(target.get("lean_statement_sketch", "") or ""),
+            flags=re.IGNORECASE,
+        )
+        for target in source_targets
+        if isinstance(target, Mapping)
+    )
+    active_proof_body_target_diagnostics = (
+        proof_body_adapter_diagnostics
+        if proof_body_adapter_mode
+        else proof_body_repair_diagnostics
+    )
+    if (
+        (
+            proof_body_repair_mode
+            or (proof_body_adapter_mode and not source_targets_have_adapter_candidate)
+        )
+        and active_proof_body_target_diagnostics
+    ):
         diagnostic_targets: list[dict[str, Any]] = []
         seen_diagnostic_targets: set[str] = set()
-        for diagnostic in proof_body_repair_diagnostics[:8]:
+        for diagnostic in active_proof_body_target_diagnostics[:8]:
             target_name = str(
                 diagnostic.get("target_theorem_name", "") or ""
             ).strip()
@@ -29227,7 +29347,10 @@ def _formalizer_source_theorem_promotion_work_orders(
                 {
                     "id": f"target:{target_name}",
                     "informal_source": (
-                        "Exact source theorem proof-body retry reconstructed "
+                        "Source-to-bridge adapter retry reconstructed from "
+                        "kernel-verified premise-derivation diagnostics."
+                        if proof_body_adapter_mode
+                        else "Exact source theorem proof-body retry reconstructed "
                         "from ProofEngineer execution diagnostics."
                     ),
                     "lean_statement_sketch": (
