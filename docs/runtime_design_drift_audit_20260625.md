@@ -54,9 +54,9 @@ The following patterns should be treated as architecture debt:
 - `formalizer_llm.py` contains many conformal/source-to-bridge/Mathlib-import
   special cases. Some protect proof boundaries, but many are local responses to
   one live failure trajectory.
-- Algorithm and simulation prompts contain coverage-specific repair advice such
-  as widening finite intervals. That can pass a gate without showing general
-  statistical coding ability or utility tradeoff reasoning.
+- Algorithm and simulation prompts previously contained coverage-specific
+  repair advice such as widening finite intervals. That can pass a gate without
+  showing general statistical coding ability or utility tradeoff reasoning.
 - The system has many RAG and prover adapter artifacts, but too many remain
   audit-side outputs instead of live observations consumed by ProofEngineer in
   the same AgentRuntime loop.
@@ -118,6 +118,16 @@ typed orchestration artifact, not as proof evidence and not as another proof
 heuristic. Its next design improvement should be extraction from
 `research_agent_runtime.py` into a reusable proof-route artifact module or
 ProofEngineer adapter contract.
+
+The generated-code metric repair prompt debt is now partially paid down in
+`ai_statistician/generated_metric_repair_policy.py`. AlgorithmEngineer,
+SimulationEngineer, and their component repair evals share one domain-neutral
+metric-repair contract: repair the estimator/DGP/uncertainty/metric
+calculation, keep probability metrics valid when requested, preserve utility
+diagnostics such as width, bias, RMSE, efficiency, or failure rate, and reject
+vacuous all-covering fixes. Future task-family packs may specify coverage
+targets, but they should not teach the core coding-agent prompt a
+benchmark-specific widening shortcut.
 
 ## Follow-Up Evidence
 

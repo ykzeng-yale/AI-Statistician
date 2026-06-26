@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
+from .generated_metric_repair_policy import (
+    generated_coverage_metric_component_feedback,
+)
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
@@ -489,14 +492,14 @@ def _prior_metric_gate_feedback(
         "generated_simulation_prototypes": list(
             manifest.get("generated_simulation_sandbox_prototypes", []) or []
         ),
-        "required_repair": (
-            "Repair the generated simulation sandbox. The previous draft executed "
-            f"but reported zero coverage; return empirical_coverage >= {target_coverage}. "
-            "For this component probe, use a conservative finite-width coverage "
-            "interval if needed rather than a narrow under-covering toy simulator. "
-            "If a pilot interval under-covers, widen the half-width by a finite "
-            "multiplier and recompute coverage before returning target_coverage, "
-            "mean_width, sandbox_failed=False."
+        "required_repair": generated_coverage_metric_component_feedback(
+            artifact_label="generated simulation sandbox",
+            target_coverage=target_coverage,
+            return_fields=(
+                "target_coverage",
+                "mean_width",
+                "sandbox_failed=False",
+            ),
         ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_simulation_code": True

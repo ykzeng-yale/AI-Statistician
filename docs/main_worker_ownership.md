@@ -97,10 +97,11 @@ machine-specific LeanPractice paths. Future workers should be able to run the
 strict live preset from this repo without manually passing `--lean-project`.
 
 Third concrete change in this lane: AlgorithmEngineer and SimulationEngineer
-metric-gate repair prompts now explicitly steer live coding-agent repair toward
-conservative finite-width coverage intervals and half-width widening/recompute
-when a pilot interval under-covers. This keeps the repair gate honest while
-making the intended repair behavior legible to the LLM.
+metric-gate repair prompts share a generated metric-repair policy. They still
+require valid probability/coverage metrics when the task asks for them, but they
+now reject vacuous all-covering repairs and require utility diagnostics such as
+width, bias, RMSE, efficiency, or failure rate instead of encoding a
+coverage-specific widening shortcut in each prompt.
 
 Fourth concrete change in this lane: AlgorithmEngineer and SimulationEngineer
 generated-code contracts now distinguish the literal packet entrypoint

@@ -7,6 +7,9 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from .generated_metric_repair_policy import (
+    generated_coverage_metric_component_feedback,
+)
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
@@ -503,14 +506,15 @@ def _prior_metric_gate_feedback(
         "n_generated_code_executed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "prototypes": list(manifest.get("prototypes", []) or []),
-        "required_repair": (
-            "Repair the generated Python sandbox. The previous draft executed "
-            f"but reported zero coverage; return empirical_coverage >= {target_coverage}. "
-            "For this component probe, use a conservative finite-width coverage "
-            "interval if needed rather than a narrow under-covering toy predictor. "
-            "If a pilot interval under-covers, widen the half-width by a finite "
-            "multiplier and recompute coverage before returning target_coverage, "
-            "mean_width, sandbox_failed=False, and registered_template_hint=none."
+        "required_repair": generated_coverage_metric_component_feedback(
+            artifact_label="generated Python sandbox",
+            target_coverage=target_coverage,
+            return_fields=(
+                "target_coverage",
+                "mean_width",
+                "sandbox_failed=False",
+                "registered_template_hint=none",
+            ),
         ),
         "boundary": (
             "Injected feedback is a component eval signal. Passing the repair "

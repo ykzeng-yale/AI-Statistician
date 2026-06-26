@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .generated_metric_repair_policy import generated_metric_gate_repair_instruction
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -203,16 +204,9 @@ def build_simulation_engineer_prompt(
         else ""
     )
     metric_gate_instruction = (
-        "Runtime metric-gate repair is active: the previous generated simulation "
-        "draft executed locally but returned statistically invalid metrics. Repair "
-        "the DGP, coverage computation, or returned metric names so coverage metrics "
-        "are nondegenerate, inside [0,1], and satisfy target_coverage when present. "
-        "Do not only rename metrics or hide the coverage field. For coverage repair, "
-        "prefer a conservative finite-width interval over a narrow under-covering "
-        "interval; larger mean_width is acceptable for this coding-agent repair gate "
-        "when it is finite and the returned coverage clears target_coverage. If a "
-        "pilot interval under-covers, widen the half-width by a finite multiplier "
-        "and recompute coverage before returning metrics. "
+        generated_metric_gate_repair_instruction(
+            artifact_label="generated simulation draft"
+        )
         if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
         else ""
     )
