@@ -1289,6 +1289,63 @@ def test_runtime_learning_memory_loader_pins_typechecked_semantic_definition_can
     )
 
 
+def test_runtime_learning_memory_loader_pins_untyped_exact_semantic_repair_route(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    exact_repair_route = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "generated_next_action_routing",
+        "proof_evidence_status": "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE",
+        "target_behavior": (
+            "consume the generated ProofEngineer/Lean repair work order before "
+            "retrying the exact source theorem proof body"
+        ),
+        "input_summary": {
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "runtime_queue_status": "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+            ),
+            "local_definition_lean_compiled": False,
+            "definition_only_candidate_artifact_path": "runs/good_rank_event.lean",
+            "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+        },
+    }
+    filler_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "latest_filler",
+            "target_behavior": f"latest filler row {index}",
+        }
+        for index in range(8)
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in [exact_repair_route, *filler_rows])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    rows = memory["rows"]
+    exact_rows = [
+        row
+        for row in rows
+        if (row.get("input_summary") or {}).get("placeholder_symbol")
+        == "good_rank_event"
+    ]
+    assert len(exact_rows) == 1
+    assert exact_rows[0]["proof_evidence_status"] == (
+        "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    assert exact_rows[0]["input_summary"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+    )
+
+
 def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -> None:
     pending_task = {
         "task_id": "critic:conformal_prediction_coverage:next",
@@ -1356,6 +1413,95 @@ def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -
         for row in memory["rows"]
     )
     assert "orchestration memory only" in memory["handoff_boundary"]
+
+
+def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_repairs() -> None:
+    pending_task = {
+        "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": "Repair exact semantic definitions.",
+        "inputs": {"architect_context": {"runtime_learning_memory": {"rows": []}}},
+    }
+    duplicate_verified_adapter_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "adapter_kernel_verified": True,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+            ),
+            "adapter_candidate_artifact_path": "runs/adapter.lean",
+            "adapter_declaration_name": (
+                "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+            ),
+            "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                "source_theorem_proof_body_adapter_check:verified"
+            ],
+            "diagnostic_note": f"duplicate adapter row {index}",
+        }
+        for index in range(12)
+    ]
+    exact_semantic_repairs = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_exact_semantic_definition_work_order",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "definition_only_candidate_artifact_path": "runs/good_rank_event.lean",
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+            ),
+            "local_definition_lean_compiled": False,
+            "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            "source_theorem_kernel_verified": False,
+            "semantic_definition_kernel_verified": False,
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "generated_next_action_routing",
+            "proof_evidence_status": (
+                "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+            ),
+            "input_summary": {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+                "local_definition_lean_compiled": False,
+                "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+            },
+        },
+    ]
+    same_run_memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [*duplicate_verified_adapter_rows, *exact_semantic_repairs],
+        max_rows=4,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        same_run_memory,
+    )
+
+    rows = enriched["inputs"]["architect_context"]["runtime_learning_memory"]["rows"]
+    adapter_rows = [
+        row
+        for row in rows
+        if row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+    ]
+    assert len(adapter_rows) == 1
+    placeholders = {
+        row.get("placeholder_symbol")
+        or (row.get("input_summary") or {}).get("placeholder_symbol")
+        for row in rows
+    }
+    assert {"good_rank_event", "C_n"}.issubset(placeholders)
+    for row in rows:
+        if row.get("placeholder_symbol") in {"good_rank_event", "C_n"}:
+            assert row.get("source_theorem_kernel_verified") is False
 
 
 def test_pending_next_task_handoff_pins_typechecked_semantic_definition_candidate() -> None:

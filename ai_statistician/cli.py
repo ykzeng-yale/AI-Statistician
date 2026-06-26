@@ -791,11 +791,21 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
         pinned_rows = [row for _priority, _row_index, row in prioritized_pins]
         latest_rows = all_rows[-row_limit:]
         seen: set[str] = set()
+        seen_pin_keys: set[str] = set()
         for row in [*pinned_rows, *latest_rows]:
+            pin_key = (
+                _runtime_learning_memory_pin_key(row)
+                if _runtime_learning_memory_should_pin_row(row)
+                else ""
+            )
+            if pin_key and pin_key in seen_pin_keys:
+                continue
             fingerprint = json.dumps(row, sort_keys=True, ensure_ascii=False)
             if fingerprint in seen:
                 continue
             seen.add(fingerprint)
+            if pin_key:
+                seen_pin_keys.add(pin_key)
             rows.append(row)
             if len(rows) >= row_limit:
                 break
@@ -882,9 +892,14 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         or proof_evidence_status
         == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
     ):
-        return 90
+        return 94
     if learning_task == "source_theorem_proof_body_adapter_feedback":
-        return 80
+        return 93
+    exact_semantic_definition_repair_priority = (
+        _runtime_learning_memory_exact_semantic_definition_repair_priority(row)
+    )
+    if exact_semantic_definition_repair_priority:
+        return exact_semantic_definition_repair_priority
     if learning_task == "source_theorem_exact_semantic_definition_work_order":
         return 70
     if bool(row.get("candidate_materialization_required", False)) or bool(
@@ -940,6 +955,8 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + placeholder
             + ":"
             + (artifact_path or semantic_status)
+            + ":"
+            + _runtime_learning_memory_exact_semantic_definition_repair_pin_stage(row)
         )
     if (
         learning_task == "source_theorem_exact_semantic_definition_work_order"
@@ -1019,6 +1036,15 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         return "source_theorem_proof_body_adapter_feedback:" + target + ":" + ",".join(
             premise_names
         )
+    if _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(row):
+        return (
+            "exact_semantic_definition_repair:"
+            + target
+            + ":"
+            + placeholder
+            + ":"
+            + _runtime_learning_memory_exact_semantic_definition_repair_pin_stage(row)
+        )
     if learning_task == "source_theorem_proof_body_adapter_feedback":
         adapter_candidate_imports = _runtime_learning_memory_string_values(
             row,
@@ -1094,6 +1120,8 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
         row
     ):
+        return True
+    if _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(row):
         return True
     if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
         row.get("premise_derivation_kernel_verified", False)
@@ -1180,6 +1208,151 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         if probe_failure in materialization_failures:
             return True
     return False
+
+
+def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    placeholder = str(
+        row.get("placeholder_symbol", "")
+        or input_summary.get("placeholder_symbol", "")
+        or ""
+    ).strip()
+    if not placeholder:
+        return False
+    learning_task = str(row.get("learning_task", "") or "")
+    proof_evidence_status = str(
+        row.get("proof_evidence_status", "")
+        or input_summary.get("proof_evidence_status", "")
+        or ""
+    )
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+    if learning_task.startswith("source_theorem_exact_semantic_definition_"):
+        return True
+    if runtime_queue_status in {
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_LOCAL_LEAN_CHECK",
+        "PENDING_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION",
+    }:
+        return True
+    if trigger in {
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_SOURCE_LOOKUP",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZED",
+        "EXACT_SEMANTIC_DEFINITION_LEAN_IMPORT_ENVIRONMENT_REPAIR",
+        "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
+        "SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER",
+    }:
+        return True
+    if proof_evidence_status in {
+        "WORK_ORDER_NOT_PROOF_EVIDENCE",
+        "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        "DEFINITION_CLOSURE_WORK_ORDER_NOT_PROOF_EVIDENCE",
+        "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE",
+        "EXACT_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE_NOT_PROOF_EVIDENCE",
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF",
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE",
+        "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_TASK_NOT_PROOF_EVIDENCE",
+        "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE",
+        "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE",
+    } and (
+        "semantic_definition" in learning_task
+        or "semantic_definition" in trigger.lower()
+        or runtime_queue_status.startswith("PENDING_")
+    ):
+        return True
+    return False
+
+
+def _runtime_learning_memory_exact_semantic_definition_repair_priority(
+    row: Mapping[str, object],
+) -> int:
+    if not _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(row):
+        return 0
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    learning_task = str(row.get("learning_task", "") or "")
+    proof_evidence_status = str(
+        row.get("proof_evidence_status", "")
+        or input_summary.get("proof_evidence_status", "")
+        or ""
+    )
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    semantic_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "")
+        or input_summary.get("semantic_definition_typecheck_evidence_status", "")
+        or ""
+    ).strip()
+    artifact_path = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or row.get("candidate_artifact_path", "")
+        or input_summary.get("definition_only_candidate_artifact_path", "")
+        or input_summary.get("candidate_artifact_path", "")
+        or ""
+    ).strip()
+    if (
+        artifact_path
+        or semantic_status
+        or runtime_queue_status
+        in {
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+            "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+            "PENDING_EXACT_SEMANTIC_DEFINITION_LOCAL_LEAN_CHECK",
+        }
+        or (
+            learning_task
+            in {
+                "source_theorem_exact_semantic_definition_work_order",
+                "source_theorem_exact_semantic_definition_source_lookup",
+                "source_theorem_exact_semantic_definition_closure_work_order",
+                "source_theorem_exact_semantic_definition_closure_review_packet",
+                "source_theorem_exact_semantic_definition_proofengineer_bridge",
+            }
+            and proof_evidence_status != (
+                "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
+            )
+        )
+    ):
+        return 92
+    if "lean_environment" in learning_task or runtime_queue_status == "LAKEFILE_MISSING":
+        return 89
+    return 88
+
+
+def _runtime_learning_memory_exact_semantic_definition_repair_pin_stage(
+    row: Mapping[str, object],
+) -> str:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    return (
+        str(input_summary.get("trigger", "") or row.get("trigger", "") or "").strip()
+        or str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or ""
+        ).strip()
+        or str(row.get("proof_evidence_status", "") or "").strip()
+        or str(row.get("learning_task", "") or "").strip()
+        or "unspecified"
+    )
 
 
 def _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(

@@ -611,3 +611,24 @@ routes `good_rank_event` to `author_reviewed_definition_from_contract`, `C_n`
 to import/declaration review, and only `coverage_event`/`covered` to candidate
 review. Source theorem and semantic-definition kernel flags remain false, and
 the exact proof-body gate remains `SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`.
+
+The subsequent Critic continuation from
+`critic:conformal_prediction_coverage:cc7271e4` preserved that proof boundary
+and handed back a Formalizer repair task, but exposed a memory-retention drift
+in the central AgentRuntime handoff. The pending task still carried
+`source_theorem_exact_semantic_definition_repair_required=true`, yet the
+bounded 30-row `runtime_learning_memory` was dominated by duplicate adapter and
+premise support rows. Direct, still-untyped repair routes for
+`good_rank_event` and `C_n` could be crowded out or represented only through
+broad adapter context, even though `SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`
+made those exact semantic definitions the current proof blocker. The runtime
+and CLI memory selectors now pin exact semantic-definition repair routes by
+placeholder even when they are not typechecked candidates, and the same-run
+pending-task writer dedupes pinned rows by semantic key before merging latest
+rows. A patched live replay in
+`runs/main_worker_exact_semantic_definition_cc7271_critic_memory_pin_fix_live`
+hands off `formalize-critic-repair:conformal_prediction_coverage:554b672a`
+with direct memory rows for `good_rank_event`, `C_n`, `coverage_event`, and
+`covered`. This is still orchestration memory only: the source theorem and
+semantic-definition kernel flags remain false, and the proof-body gate remains
+`SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`.
