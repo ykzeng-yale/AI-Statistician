@@ -659,6 +659,22 @@ real semantic blocker: the source-to-bridge candidate must reference
 `hQuantileThreshold` and `hGoodRank` non-vacuously, or emit no executable
 candidate and report that exact semantic-anchor gap.
 
+The follow-up cleanup converts that remaining packet-validation loop into a
+typed non-proof blocker instead of another ad hoc theorem patch. Formalizer
+normalization now drops source-to-bridge candidates whose Lean source omits
+required semantic anchors outside comments, records
+`source_to_bridge_semantic_anchor_blocker`, and removes executable next-actions
+for the dropped candidate. The live resume at
+`runs/main_worker_live_runtime_resume_semantic_anchor_blocker_normalized_probe/research_agent_runtime_manifest.json`
+preserved one kernel-verified `hGoodRankImpliesCovered` premise derivation and
+three adapter-object semantic-definition work orders, dropped one invalid
+candidate missing `hQuantileThreshold`, `hGoodRank`, and `hExch`, and moved the
+pending task to ProofEngineer Lean precheck repair
+`formalize-lean-repair:conformal_prediction_coverage:a5b6f426`. This is the
+right design boundary: Claude can propose Lean, R/Python, and proof plans, but
+unanchored bridge derivations become explicit semantic/prover work, not
+runtime-approved proof evidence.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

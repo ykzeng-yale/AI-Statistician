@@ -1002,6 +1002,14 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
     )
     if not candidate_targets and not source_to_bridge_candidate_targets:
         if (
+            pending_source_to_bridge_premise_names
+            and _packet_has_source_to_bridge_semantic_anchor_blocker(
+                packet,
+                pending_source_to_bridge_premise_names,
+            )
+        ):
+            return []
+        if (
             _feedback_has_source_theorem_target_drift(environment_feedback)
             and _has_explicit_source_theorem_formal_gap_target(formal_targets)
             and not pending_source_to_bridge_premise_names
@@ -1062,6 +1070,10 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             name
             for name in pending_source_to_bridge_premise_names
             if name not in candidate_premise_names
+            and not _packet_has_source_to_bridge_semantic_anchor_blocker(
+                packet,
+                [name],
+            )
         ]
         if missing_premise_names:
             errors.append(
@@ -1227,6 +1239,7 @@ def _normalize_formalizer_packet(
         body,
         proof_bank_runtime_memory_summary or {},
     )
+    _drop_semantically_unanchored_source_to_bridge_candidates(body)
     _drop_phantom_source_to_bridge_next_actions(body)
     _ensure_diagnostic_helper_bridge_or_blocker_packet(
         body,
@@ -1512,6 +1525,183 @@ def _normalize_source_theorem_target_shape_drift(
         }
     )
     packet["critic_findings"] = findings
+
+
+def _drop_semantically_unanchored_source_to_bridge_candidates(
+    packet: dict[str, Any],
+) -> None:
+    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
+    if not isinstance(candidates, list) or not candidates:
+        return
+
+    kept: list[Any] = []
+    dropped: list[dict[str, Any]] = []
+    for index, candidate in enumerate(candidates, start=1):
+        if not isinstance(candidate, Mapping):
+            kept.append(candidate)
+            continue
+        candidate_source = str(
+            candidate.get("premise_derivation_candidate_lean_source", "")
+            or candidate.get("lean_statement_sketch", "")
+            or candidate.get("candidate_lean_source", "")
+            or ""
+        )
+        missing_anchor_names = _source_to_bridge_candidate_missing_anchor_references(
+            candidate,
+            candidate_source,
+        )
+        if not missing_anchor_names:
+            kept.append(candidate)
+            continue
+        premise_names = _source_to_bridge_candidate_premise_names(candidate)
+        dropped.append(
+            {
+                "index": index,
+                "premise_name": str(candidate.get("premise_name", "") or ""),
+                "premise_names": premise_names,
+                "missing_required_semantic_anchor_reference_names": list(
+                    missing_anchor_names
+                ),
+                "lean_source_fingerprint": stable_hash(candidate_source)[:20],
+                "proof_evidence_status": (
+                    "SEMANTICALLY_UNANCHORED_SOURCE_TO_BRIDGE_CANDIDATE_DROPPED_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+
+    if not dropped:
+        return
+
+    packet["source_to_bridge_premise_derivation_candidates"] = kept
+    existing = packet.get(
+        "dropped_semantic_anchor_source_to_bridge_candidates",
+        [],
+    )
+    if not isinstance(existing, list):
+        existing = []
+    packet["dropped_semantic_anchor_source_to_bridge_candidates"] = [
+        *existing,
+        *dropped,
+    ]
+
+    blocked_premise_names = list(
+        dict.fromkeys(
+            name
+            for row in dropped
+            for name in (
+                row.get("premise_names", [])
+                if isinstance(row.get("premise_names", []), list)
+                else []
+            )
+            if str(name).strip()
+        )
+    )
+    missing_anchor_names = list(
+        dict.fromkeys(
+            str(name).strip()
+            for row in dropped
+            for name in row.get(
+                "missing_required_semantic_anchor_reference_names",
+                [],
+            )
+            if str(name).strip()
+        )
+    )
+    gap_rows = packet.get("gap_taxonomy", [])
+    if not isinstance(gap_rows, list):
+        gap_rows = []
+    gap_rows.append(
+        {
+            "gap": (
+                "Dropped executable source-to-bridge premise candidate(s) "
+                "because their Lean source did not reference every required "
+                "semantic anchor outside comments. Emit no executable candidate "
+                "until the anchors can be used non-vacuously."
+            ),
+            "kind": "source_to_bridge_semantic_anchor_blocker",
+            "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer",
+            "premise_names": blocked_premise_names,
+            "missing_required_semantic_anchor_reference_names": missing_anchor_names,
+            "proof_evidence_status": (
+                "SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_BLOCKER_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["gap_taxonomy"] = gap_rows
+
+    actions = packet.get("next_actions", [])
+    if not isinstance(actions, list):
+        actions = []
+    action_text = " ".join(
+        " ".join(
+            str(action.get(key, "") or "")
+            for key in ("owner_agent", "action", "acceptance_gate")
+        ).lower()
+        for action in actions
+        if isinstance(action, Mapping)
+    )
+    if "semantic anchor" not in action_text:
+        actions.append(
+            {
+                "owner_agent": "TheoryDeveloper/Formalizer/ProofEngineer",
+                "action": (
+                    "Repair the source-to-bridge premise derivation by using "
+                    "the required semantic anchors non-vacuously, or keep the "
+                    "premise as a semantic-anchor blocker without executable "
+                    "Lean."
+                ),
+                "acceptance_gate": (
+                    "a later source-to-bridge candidate references every required "
+                    "semantic anchor outside comments and passes local Lean/AXLE"
+                ),
+            }
+        )
+    packet["next_actions"] = actions
+
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Dropped source-to-bridge premise candidates that omitted "
+                "required semantic-anchor references, converting them to "
+                "non-executable semantic blockers instead of proof work."
+            ),
+            "proof_evidence_status": (
+                "SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_BLOCKER_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    packet["critic_findings"] = findings
+
+
+def _packet_has_source_to_bridge_semantic_anchor_blocker(
+    packet: Mapping[str, Any],
+    premise_names: Sequence[str] = (),
+) -> bool:
+    wanted = {str(name).strip() for name in premise_names if str(name).strip()}
+    blocker_premises: set[str] = set()
+    for row in packet.get("dropped_semantic_anchor_source_to_bridge_candidates", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        for name in _source_to_bridge_candidate_premise_names(row):
+            blocker_premises.add(name)
+        if str(row.get("premise_name", "") or "").strip():
+            blocker_premises.add(str(row.get("premise_name", "") or "").strip())
+    for row in packet.get("gap_taxonomy", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("kind", "") or "") != "source_to_bridge_semantic_anchor_blocker":
+            continue
+        for name in _source_to_bridge_candidate_premise_names(row):
+            blocker_premises.add(name)
+        if str(row.get("premise_name", "") or "").strip():
+            blocker_premises.add(str(row.get("premise_name", "") or "").strip())
+    if not wanted:
+        return bool(blocker_premises)
+    return bool(blocker_premises) and wanted.issubset(blocker_premises)
 
 
 def _lean_source_is_descriptive_placeholder(source: str) -> bool:

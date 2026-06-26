@@ -22537,6 +22537,154 @@ def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper() -> N
     )
 
 
+def test_formalizer_normalizer_drops_semantically_unanchored_source_to_bridge_candidate() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "informal_source": "source theorem remains blocked",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "exact source anchors",
+                "to": "hGoodRankImpliesCovered",
+                "role": "source-to-bridge premise derivation",
+                "risk": "semantic anchors must be used non-vacuously",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal hGoodRank hQuantileThreshold source bridge",
+                "target_library": "local",
+                "purpose": "semantic-anchor repair",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["do not check semantically unanchored candidates"],
+            "known_blockers": ["semantic anchors not yet used in proof body"],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodRankImpliesCovered",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": (
+                    "split_conformal_finite_sample_coverage"
+                ),
+                "required_semantic_anchor_reference_names": [
+                    "hQuantileThreshold",
+                    "hGoodRank",
+                ],
+                "premise_derivation_candidate_lean_source": (
+                    "theorem split_conformal_hGoodRankImpliesCovered_source_to_bridge "
+                    "(coverage_event : Prop) (hC : coverage_event) : "
+                    "coverage_event := by\n"
+                    "  exact hC\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+        "gap_taxonomy": [
+            {
+                "gap": "source-to-bridge premise still lacks semantic-anchor proof",
+                "kind": "semantic_alignment",
+                "next_owner": "Formalizer/ProofEngineer",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "test",
+                "finding": "candidate missing anchors should become blocker",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/local_lean_or_axle",
+                "action": (
+                    "Run local Lean on source_to_bridge_premise_derivation_candidates "
+                    "entry hGoodRankImpliesCovered"
+                ),
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    feedback = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True
+        },
+        "recommended_formalizer_target_mode": (
+            "source_to_bridge_premise_derivation_required"
+        ),
+        "source_to_bridge_premise_derivation_required": True,
+        "source_to_bridge_premise_derivation_pending_premise_names": [
+            "hGoodRankImpliesCovered"
+        ],
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:semantic-anchor-blocker"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    assert packet["source_to_bridge_premise_derivation_candidates"] == []
+    dropped = packet["dropped_semantic_anchor_source_to_bridge_candidates"][0]
+    assert dropped["premise_name"] == "hGoodRankImpliesCovered"
+    assert dropped["missing_required_semantic_anchor_reference_names"] == [
+        "hQuantileThreshold",
+        "hGoodRank",
+    ]
+    assert any(
+        row.get("kind") == "source_to_bridge_semantic_anchor_blocker"
+        and row.get("premise_names") == ["hGoodRankImpliesCovered"]
+        for row in packet["gap_taxonomy"]
+    )
+    assert not any(
+        "source_to_bridge_premise_derivation_candidates"
+        in " ".join(
+            str(action.get(key, "") or "")
+            for key in ("owner_agent", "action", "acceptance_gate")
+        )
+        for action in packet["next_actions"]
+        if isinstance(action, dict)
+    )
+    assert validate_formalizer_packet(packet) == []
+    assert (
+        _validate_capability_eval_formalizer_lean_candidate_packet(
+            packet,
+            environment_feedback=feedback,
+            proof_bank_runtime_memory_summary={},
+        )
+        == []
+    )
+
+
 def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
