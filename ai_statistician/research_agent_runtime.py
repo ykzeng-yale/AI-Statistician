@@ -6204,6 +6204,11 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
     """Attach bounded formal-source grounding to carried repair feedback."""
 
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    payload = (
+        _formalizer_environment_feedback_with_refreshed_validation_repair_directives(
+            payload
+        )
+    )
     payload = _formalizer_environment_feedback_with_refreshed_repair_contract(
         payload
     )
@@ -6230,6 +6235,38 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
         )
     )
     return payload
+
+
+def _formalizer_environment_feedback_with_refreshed_validation_repair_directives(
+    feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Regenerate concrete validator directives for carried pending tasks."""
+
+    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    validation_errors = _feedback_text_values(payload.get("validation_errors", []))
+    if not validation_errors:
+        return payload
+    existing = _feedback_text_values(payload.get("validation_repair_directives", []))
+    derived = _formalizer_packet_validation_repair_directives(validation_errors)
+    if not derived:
+        return payload
+    payload["validation_repair_directives"] = list(
+        dict.fromkeys([*existing, *derived])
+    )
+    return payload
+
+
+def _feedback_text_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, Mapping):
+        return [json.dumps(value, sort_keys=True, default=str)]
+    if isinstance(value, Iterable):
+        return [str(item) for item in value if str(item).strip()]
+    text = str(value)
+    return [text] if text.strip() else []
 
 
 def _formalizer_environment_feedback_with_refreshed_repair_contract(

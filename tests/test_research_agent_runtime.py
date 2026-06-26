@@ -3156,6 +3156,33 @@ def test_formalizer_capability_eval_validator_rejects_helper_only_pending_premis
     )
 
 
+def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -> None:
+    existing_directive = "Preserve existing validator guidance."
+    feedback = {
+        "feedback_type": "formalizer_packet_validation_feedback",
+        "failure_classification": "formalizer_packet_validation_failed",
+        "validation_errors": (
+            "capability_eval formal target "
+            "split_conformal_finite_sample_coverage_source_theorem "
+            "must contain a Lean theorem or lemma declaration"
+        ),
+        "validation_repair_directives": existing_directive,
+    }
+
+    refreshed = (
+        runtime_module._formalizer_environment_feedback_with_formal_source_grounding(
+            feedback
+        )
+    )
+
+    assert any(
+        "Do not put prose" in directive
+        and "empty lean_statement_sketch" in directive
+        for directive in refreshed["validation_repair_directives"]
+    )
+    assert refreshed["validation_repair_directives"][0] == existing_directive
+
+
 def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {

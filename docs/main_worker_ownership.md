@@ -714,6 +714,23 @@ typed blockers. The source theorem is still unproved; exact proof-body execution
 remains gated by semantic review/import repair and local Lean/AXLE verification
 of the intended declaration.
 
+The next resume fixed the stale-carried-feedback shape rather than adding a
+new conformal special case. Pending Formalizer repair tasks now refresh
+`validation_repair_directives` from their stored `validation_errors` at
+resume-time, so older manifests inherit the current validator contract before
+Claude is prompted again. The live continuation at
+`runs/main_worker_formalizer_after_validation_directive_refresh_live` cleared
+the non-theorem Lean-sketch loop and handed off to
+`critic:conformal_prediction_coverage:de008099`, with
+`kernel_verified_subclaims=74`, `formal_gaps=55`, and scorecard 44/49 not ready.
+The source theorem row is an empty `FORMAL_GAP`, while the executable bridge
+helper is explicitly marked `source_theorem_target_known=false`. One
+`hGoodRankImpliesCovered` source-to-bridge premise derivation compiled locally
+as premise-derivation evidence only; the source theorem and semantic
+definitions remain unproved. The exact semantic-definition Lean repair frontier
+is still three typechecked definition candidates requiring review plus the
+`C_n` Lake/import-environment repair blocker.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

@@ -757,3 +757,18 @@ declarations in executable Lean sketches, or to use an empty source-theorem
 `FORMAL_GAP` plus typed blockers. This remains a design/contract repair only:
 review packets, blocker requests, and validation feedback are not proof of
 `split_conformal_finite_sample_coverage`.
+
+The next live resume validated the intended contract shape. Runtime feedback
+normalization now refreshes validator repair directives from carried
+`validation_errors`, including older pending tasks created before the current
+directive logic existed. The continuation
+`runs/main_worker_formalizer_after_validation_directive_refresh_live` moved out
+of the Formalizer packet-validation loop and handed off to
+`critic:conformal_prediction_coverage:de008099`, with 74 kernel-verified
+support subclaims, 55 formal gaps, and scorecard 44/49 not ready. The source
+theorem remained an empty `FORMAL_GAP`; the executable helper was marked
+`source_theorem_target_known=false`; and the single locally compiled
+`hGoodRankImpliesCovered` source-to-bridge derivation was recorded only as
+premise-derivation evidence. The remaining frontier is semantic review and
+Lean environment repair for exact definitions, not another opportunity to
+promote helper Lean or retrieval hits as source-theorem proof.
