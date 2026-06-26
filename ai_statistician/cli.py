@@ -869,6 +869,32 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         return "source_theorem_proof_body_adapter_feedback:" + target + ":" + ",".join(
             premise_names
         )
+    if learning_task == "source_theorem_proof_body_adapter_feedback":
+        adapter_candidate_imports = _runtime_learning_memory_string_values(
+            row,
+            "adapter_candidate_imports",
+        )
+        unavailable_import = str(
+            row.get("unavailable_import", "")
+            or input_summary.get("unavailable_import", "")
+            or ""
+        ).strip()
+        adapter_artifact = str(
+            row.get("adapter_candidate_artifact_path", "")
+            or input_summary.get("adapter_candidate_artifact_path", "")
+            or ""
+        ).strip()
+        if unavailable_import or adapter_candidate_imports:
+            return (
+                "source_theorem_proof_body_adapter_import:"
+                + target
+                + ":"
+                + unavailable_import
+                + ":"
+                + ",".join(adapter_candidate_imports)
+                + ":"
+                + adapter_artifact
+            )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -941,6 +967,15 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
             )
             or bool(row.get("unproven_bridge_premise_names", []) or [])
             or bool(input_summary.get("unproven_bridge_premise_names", []) or [])
+            or str(
+                row.get("unavailable_import", "")
+                or input_summary.get("unavailable_import", "")
+                or ""
+            ).strip()
+            or _runtime_learning_memory_string_values(
+                row,
+                "adapter_candidate_imports",
+            )
         )
     ):
         return True
@@ -1125,6 +1160,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "proof_body_attempt_count",
         "proof_body_attempt_success",
         "adapter_candidate_requires_unproven_bridge_premises",
+        "unavailable_import",
         "premise_name",
         "source_to_bridge_premise_name",
         "premise_target_type",
@@ -1186,6 +1222,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "exact_goal_shape_obligation_ids",
         "exact_goal_shape_obligations",
         "diagnostics",
+        "adapter_candidate_imports",
         "precheck_errors",
         "prototypes",
         "generated_simulation_prototypes",
@@ -1265,6 +1302,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "candidate_materialization_required",
             "candidate_materialization_contract",
             "adapter_candidate_requires_unproven_bridge_premises",
+            "unavailable_import",
             "premise_derivation_kernel_verified",
             "source_to_bridge_premise_derivation_kernel_verified",
             "premise_candidate_artifact_path",
@@ -1276,6 +1314,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
                 compact[key] = input_summary[key]
         for key in (
             "candidate_materialization_statuses",
+            "adapter_candidate_imports",
             "kernel_verified_source_to_bridge_premise_derivation_ids",
             "unproven_bridge_premise_names",
             "verified_source_to_bridge_premise_derivation_signature_excerpts",

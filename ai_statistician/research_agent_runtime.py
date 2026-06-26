@@ -23887,11 +23887,42 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 row,
                 "kernel_verified_source_theorem_proof_body_adapter_ids",
             )
+            adapter_candidate_imports_for_key = _runtime_row_string_values(
+                row,
+                "adapter_candidate_imports",
+            )
+            if (
+                not adapter_candidate_imports_for_key
+                and isinstance(input_summary, Mapping)
+            ):
+                adapter_candidate_imports_for_key = tuple(
+                    str(value).strip()
+                    for value in input_summary.get("adapter_candidate_imports", [])
+                    or []
+                    if str(value).strip()
+                )
+            unavailable_import_for_key = str(
+                row.get("unavailable_import", "") or ""
+            ).strip()
+            if not unavailable_import_for_key and isinstance(input_summary, Mapping):
+                unavailable_import_for_key = str(
+                    input_summary.get("unavailable_import", "") or ""
+                ).strip()
+            adapter_artifact_for_key = str(
+                row.get("adapter_candidate_artifact_path", "") or ""
+            ).strip()
+            if not adapter_artifact_for_key and isinstance(input_summary, Mapping):
+                adapter_artifact_for_key = str(
+                    input_summary.get("adapter_candidate_artifact_path", "") or ""
+                ).strip()
             adapter_feedback_dedupe_key = stable_hash(
                 [
                     adapter_verified_for_key,
                     adapter_unproven_premises_for_key,
                     adapter_ids_for_key,
+                    adapter_candidate_imports_for_key,
+                    unavailable_import_for_key,
+                    adapter_artifact_for_key,
                 ]
             )[:16]
         key = (
@@ -25949,6 +25980,23 @@ def _formalizer_proof_bank_runtime_memory_summary(
             not in adapter_verified_targets
         ]
     )
+
+    def adapter_feedback_priority(row: Mapping[str, Any]) -> tuple[int, int, str, str]:
+        unavailable_import = str(row.get("unavailable_import", "") or "").strip()
+        candidate_imports = _runtime_row_string_values(row, "adapter_candidate_imports")
+        failure = str(row.get("failure_classification", "") or "").strip()
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        artifact = str(row.get("adapter_candidate_artifact_path", "") or "").strip()
+        evidence_rank = 0 if unavailable_import else 1 if candidate_imports else 2
+        failure_rank = 0 if failure == "adapter_lean_import_environment_missing" else 1
+        return (evidence_rank, failure_rank, target, artifact)
+
+    ranked_exact_source_proof_body_adapter_rows = tuple(
+        sorted(
+            exact_source_proof_body_adapter_rows,
+            key=adapter_feedback_priority,
+        )
+    )
     exact_source_proof_body_direct_repair_rows = tuple(
         [
             row
@@ -27476,7 +27524,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     )[:5],
                     "diagnostics": list(row.get("diagnostics", []) or [])[:5],
                 }
-                for row in exact_source_proof_body_adapter_rows[:3]
+                for row in ranked_exact_source_proof_body_adapter_rows[:3]
             ],
             *source_to_bridge_verified_premise_adapter_retry_diagnostics,
         ],

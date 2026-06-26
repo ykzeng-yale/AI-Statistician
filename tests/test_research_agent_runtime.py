@@ -785,6 +785,179 @@ def test_runtime_learning_memory_pins_proof_body_adapter_feedback() -> None:
     assert merged["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
+def test_runtime_learning_memory_loader_pins_adapter_import_feedback(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "filler",
+            "target_behavior": f"old row {index}",
+        }
+        for index in range(8)
+    ]
+    rows.insert(
+        1,
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "failure_classification": "adapter_lean_import_environment_missing",
+            "adapter_candidate_artifact_path": "adapter_with_floor.lean",
+            "adapter_candidate_imports": [
+                "Mathlib.Data.Finset.Sort",
+                "Mathlib.Data.Real.Basic",
+                "Mathlib.Algebra.Order.Floor",
+            ],
+            "unavailable_import": "Mathlib.Algebra.Order.Floor",
+            "diagnostics": ["exact unavailable import diagnostic"],
+        },
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    adapter_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+    ]
+    assert len(adapter_rows) == 1
+    assert adapter_rows[0]["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert adapter_rows[0]["adapter_candidate_imports"] == [
+        "Mathlib.Data.Finset.Sort",
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Algebra.Order.Floor",
+    ]
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+
+
+def test_critic_handoff_prioritizes_exact_adapter_import_from_runtime_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    stale_rows = [
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "failure_classification": "adapter_lean_import_environment_missing",
+            "adapter_kernel_verified": False,
+            "adapter_candidate_artifact_path": f"old_adapter_{index}.lean",
+            "adapter_declaration_name": (
+                "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+            ),
+            "diagnostics": ["truncated import diagnostic"],
+        }
+        for index in range(3)
+    ]
+    exact_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "failure_classification": "adapter_lean_import_environment_missing",
+        "adapter_kernel_verified": False,
+        "adapter_candidate_artifact_path": "exact_adapter.lean",
+        "adapter_declaration_name": (
+            "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+        ),
+        "adapter_candidate_imports": [
+            "Mathlib.Data.Finset.Sort",
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Algebra.Order.Floor",
+        ],
+        "unavailable_import": "Mathlib.Algebra.Order.Floor",
+        "diagnostics": [
+            "error: object file 'Mathlib/Algebra/Order/Floor.olean' "
+            "of module Mathlib.Algebra.Order.Floor does not exist"
+        ],
+    }
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [*stale_rows, exact_row]
+    )
+    blackboard = BlackboardState(project_id="critic-adapter-import-memory-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+            },
+            "theory_derivation:test": {
+                "artifact_kind": "RuntimeTheoryDerivationPacket",
+                "packet_id": "theory_derivation:test",
+            },
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+                "deterministic_theorem_goals": [
+                    {
+                        "id": "split_conformal_finite_sample_coverage",
+                        "status": "FORMAL_GAP",
+                    }
+                ],
+                "proof_bank_runtime_memory_summary": {
+                    "source_theorem_proof_body_adapter_required": True,
+                    "source_theorem_proof_body_adapter_feedback_available": True,
+                    "source_theorem_proof_body_adapter_target_names": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
+                    "source_theorem_proof_body_adapter_diagnostics": stale_rows,
+                },
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:adapter-import",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate runtime artifacts.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_learning_memory": memory,
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                },
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    diagnostics = feedback["source_theorem_proof_body_adapter_feedback"][
+        "diagnostics"
+    ]
+    assert diagnostics[0]["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    requests = feedback["formal_blocker_resource_requests"]
+    assert any(
+        row["blocker_kind"]
+        == "source_theorem_proof_body_adapter_unavailable_import"
+        and row["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+        and row["unavailable_import_exact"] is True
+        for row in requests
+    )
+
+
 def test_critic_handoff_recomputes_materialization_request_from_runtime_memory(
     tmp_path: Path,
 ) -> None:

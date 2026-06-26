@@ -377,3 +377,25 @@ left empty, `unavailable_import_exact=false`, and artifact provenance recorded
 separately from structured bridge candidate imports. Exact unavailable-import
 rows remain available only when structured bridge/diagnostic metadata supplies
 the missing module.
+
+The next live consumption/replay confirmed why that distinction must survive
+bounded memory. Formalizer/ProofEngineer consumed the candidate-import handoff
+and the adapter bridge produced a structured exact
+`unavailable_import=Mathlib.Algebra.Order.Floor` diagnostic. The immediate
+Critic replay initially lost that fact because resume memory compaction and
+proof-bank dedupe treated old truncated adapter rows as equivalent to the new
+exact bridge row. That is a design-level bug: when exact tool diagnostics are
+evicted or deduped behind stale prompt summaries, the runtime is pressured to
+add another local rescue rule. Runtime memory now pins adapter import feedback,
+preserves `unavailable_import` and `adapter_candidate_imports` through CLI
+compaction, distinguishes adapter import rows in the proof-bank dedupe key, and
+prioritizes exact unavailable-import diagnostics over artifact-only candidates
+when building Critic handoffs. The patched live replay
+`runs/main_worker_live_runtime_resume_critic_after_candidate_import_consumption_exact_import_probe/research_agent_runtime_manifest.json`
+routes an exact
+`source_theorem_proof_body_adapter_unavailable_import` request for
+`Mathlib.Algebra.Order.Floor`, followed by lower-confidence candidate-import
+resolution rows. This is still non-proof prover/RAG routing context; it simply
+keeps the mature Lean tool observation intact so Claude/ProofEngineer can use
+retrieval, LSP/MCP, and local Lean instead of AgentRuntime inventing a theorem
+patch.
