@@ -596,6 +596,120 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
     assert "Adapter rows are not full source-theorem proof evidence" in prompt
 
 
+def test_critic_formalizer_handoff_refreshes_nested_adapter_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    blackboard = BlackboardState(project_id="critic-formalizer-context-refresh-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+                "counts": {"formal_source_hits": 1},
+                "boundary": "retrieval is not proof evidence",
+            },
+            "theory_derivation:test": {
+                "artifact_kind": "RuntimeTheoryDerivationPacket",
+                "packet_id": "theory_derivation:test",
+            },
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+                "prototypes": [{"estimator_id": "split_conformal_interval"}],
+                "boundary": "algorithm sandbox is not proof evidence",
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"proved": 2, "kernel_verified": 2, "formal_gap": 1},
+                "formal_subclaims": [],
+                "deterministic_theorem_goals": [
+                    {"id": "frontier_source_theorem"}
+                ],
+                "proof_bank_runtime_memory_summary": {
+                    "recommended_formalizer_target_mode": (
+                        "source_theorem_exact_proof_body_repair"
+                    ),
+                    "source_theorem_exact_proof_body_repair_required": True,
+                    "source_theorem_proof_body_adapter_required": False,
+                    "source_theorem_proof_body_adapter_feedback_available": True,
+                    "source_theorem_proof_body_adapter_kernel_verified": True,
+                    "source_theorem_proof_body_adapter_target_names": [
+                        "frontier_source_theorem"
+                    ],
+                    "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                        "source_theorem_proof_body_adapter_check:new_a",
+                        "source_theorem_proof_body_adapter_check:new_b",
+                    ],
+                    "verified_source_theorem_proof_body_adapter_artifact_paths": [
+                        "runs/adapters/frontier_source_theorem_adapter_a.lean",
+                        "runs/adapters/frontier_source_theorem_adapter_b.lean",
+                    ],
+                    "verified_source_theorem_proof_body_adapter_declarations": [
+                        "frontier_source_theorem_adapter_a",
+                        "frontier_source_theorem_adapter_b",
+                    ],
+                },
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:stale_nested_feedback",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate runtime artifacts.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                },
+                "environment_feedback": {
+                    "feedback_source": "CriticEvaluator",
+                    "formalization_manifest_id": "formalization_manifest:stale",
+                    "source_theorem_proof_body_adapter_feedback": {
+                        "source_theorem_proof_body_adapter_required": True,
+                        "adapter_kernel_verified": True,
+                        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                            "source_theorem_proof_body_adapter_check:stale"
+                        ],
+                    },
+                },
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "critic_requested_formalizer_proofengineer_repair"
+    )
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    nested_feedback = result.next_task.inputs["architect_context"][
+        "environment_feedback"
+    ]
+    assert nested_feedback == feedback
+    assert feedback["formalization_manifest_id"] == "formalization_manifest:test"
+    adapter_feedback = feedback["source_theorem_proof_body_adapter_feedback"]
+    assert adapter_feedback["source_theorem_proof_body_adapter_required"] is False
+    assert adapter_feedback["adapter_kernel_verified"] is True
+    assert adapter_feedback[
+        "kernel_verified_source_theorem_proof_body_adapter_ids"
+    ] == [
+        "source_theorem_proof_body_adapter_check:new_a",
+        "source_theorem_proof_body_adapter_check:new_b",
+    ]
+
+
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(
     tmp_path: Path,
 ) -> None:
@@ -31369,6 +31483,120 @@ def test_verified_adapter_suppresses_stale_premise_unblocked_adapter_retry() -> 
     assert summary["recommended_formalizer_target_mode"] == (
         "source_theorem_exact_proof_body_repair"
     )
+
+
+def test_source_theorem_promotion_dedupe_refreshes_exact_proof_body_mode() -> None:
+    proposal = {
+        "packet_id": "formalizer_proposal:same_target",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "formal_targets": [
+            {
+                "id": "target:split_conformal_finite_sample_coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage : True := by\n"
+                    "  trivial"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+    }
+    theorem_goals = [{"id": "split_conformal_finite_sample_coverage"}]
+    adapter_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_proof_body_adapter_required"
+        ),
+        "source_theorem_proof_body_adapter_required": True,
+        "remaining_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+        "source_theorem_proof_body_adapter_diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "proof_body_goal_reached": True,
+                "proof_body_goal_excerpt": ["⊢ bridge_premises"],
+                "failure_classification": "proof_body_needs_adapter",
+            }
+        ],
+    }
+    exact_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_proof_body_repair"
+        ),
+        "recommended_source_theorem_integration_action": (
+            "repair_exact_source_theorem_candidate_proof_body"
+        ),
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_proof_body_adapter_required": False,
+        "source_theorem_proof_body_adapter_feedback_available": True,
+        "source_theorem_proof_body_adapter_kernel_verified": True,
+        "remaining_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+            "source_theorem_proof_body_adapter_check:verified"
+        ],
+        "verified_source_theorem_proof_body_adapter_artifact_paths": [
+            "runs/adapters/split_conformal_adapter.lean"
+        ],
+        "verified_source_theorem_proof_body_adapter_declarations": [
+            "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+        ],
+        "source_theorem_exact_proof_body_repair_diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "proof_body_goal_reached": True,
+                "proof_body_goal_excerpt": ["⊢ exact source theorem"],
+                "failure_classification": "proof_body_incomplete",
+            }
+        ],
+    }
+    artifacts = {
+        proposal["packet_id"]: proposal,
+        "formalization_manifest:adapter": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:adapter",
+            "question": proposal["question"],
+            "llm_formalizer_proof_engineer_proposal_id": proposal["packet_id"],
+            "deterministic_theorem_goals": theorem_goals,
+            "proof_bank_runtime_memory_summary": adapter_summary,
+        },
+        "formalization_manifest:exact": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:exact",
+            "question": proposal["question"],
+            "llm_formalizer_proof_engineer_proposal_id": proposal["packet_id"],
+            "deterministic_theorem_goals": theorem_goals,
+            "proof_bank_runtime_memory_summary": exact_summary,
+        },
+    }
+
+    rows = _runtime_source_theorem_promotion_work_order_rows(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["source_formalization_manifest_ids"] == [
+        "formalization_manifest:adapter",
+        "formalization_manifest:exact",
+    ]
+    assert row["source_formalization_manifest_id"] == "formalization_manifest:exact"
+    assert row["proof_mode"] == "source_theorem_exact_proof_body_repair"
+    assert row["action_type"] == "repair_exact_source_theorem_candidate_proof_body"
+    assert row["runtime_queue_status"] == (
+        "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR"
+    )
+    assert row["kernel_verified_source_theorem_proof_body_adapter_ids"] == [
+        "source_theorem_proof_body_adapter_check:verified"
+    ]
+    assert row["proof_body_adapter_required"] is False
 
 
 def test_verified_adapter_context_inside_exact_proof_body_feedback_routes_repair(

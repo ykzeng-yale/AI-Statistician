@@ -8091,6 +8091,7 @@ class CriticEvaluatorRuntimeSubsystem:
         )
         if should_repair:
             revision_context = dict(context)
+            revision_context["environment_feedback"] = repair_feedback
             revision_context["previous_theory_packet_id"] = str(theory_packet.get("packet_id", ""))
             revision_context["runtime_feedback_loop"] = {
                 "source_subsystem": "CriticEvaluator",
@@ -8131,6 +8132,7 @@ class CriticEvaluatorRuntimeSubsystem:
             )
         if should_route_to_formalizer:
             formalizer_context = dict(context)
+            formalizer_context["environment_feedback"] = repair_feedback
             formalizer_context["previous_theory_packet_id"] = str(
                 theory_packet.get("packet_id", "")
             )
@@ -31842,7 +31844,7 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                         "premise_semantic_dependency_requirements",
                     ):
                         value = row.get(key)
-                        if value:
+                        if isinstance(value, bool) or value not in (None, "", [], {}):
                             existing[key] = value
                     continue
                 row["source_formalization_manifest_ids"] = (
@@ -32887,6 +32889,14 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_formalization_manifest_id",
                         "source_formalizer_packet_id",
                         "source_formal_target_id",
+                        "proof_mode",
+                        "action_type",
+                        "runtime_queue_status",
+                        "runtime_queue_boundary",
+                        "acceptance_gate",
+                        "required_inputs",
+                        "proof_evidence_status",
+                        "proof_evidence_boundary",
                         "lean_statement_sketch",
                         "lean_imports",
                         "informal_source",
@@ -32895,6 +32905,8 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "semantic_alignment_constraints",
                         "kernel_verified_theorem_reduction_closure_declarations",
                         "verified_theorem_reduction_closure_artifact_paths",
+                        "source_theorem_exact_proof_body_repair_diagnostics",
+                        "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
                         "proof_body_candidate_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
@@ -32916,7 +32928,7 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_theorem_proof_body_adapter_context_boundary",
                     ):
                         value = row.get(key)
-                        if value:
+                        if isinstance(value, bool) or value not in (None, "", [], {}):
                             existing[key] = value
                     continue
                 row["source_formalization_manifest_ids"] = (
@@ -33231,6 +33243,14 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_formalization_manifest_id",
                         "source_formalizer_packet_id",
                         "source_formal_target_id",
+                        "proof_mode",
+                        "action_type",
+                        "runtime_queue_status",
+                        "runtime_queue_boundary",
+                        "acceptance_gate",
+                        "required_inputs",
+                        "proof_evidence_status",
+                        "proof_evidence_boundary",
                         "lean_statement_sketch",
                         "lean_imports",
                         "informal_source",
@@ -33239,6 +33259,8 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "semantic_alignment_constraints",
                         "kernel_verified_theorem_reduction_closure_declarations",
                         "verified_theorem_reduction_closure_artifact_paths",
+                        "source_theorem_exact_proof_body_repair_diagnostics",
+                        "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
                         "proof_body_candidate_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
@@ -33260,7 +33282,7 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_theorem_proof_body_adapter_context_boundary",
                     ):
                         value = row.get(key)
-                        if value:
+                        if isinstance(value, bool) or value not in (None, "", [], {}):
                             existing[key] = value
                     continue
                 row["source_formalization_manifest_ids"] = (

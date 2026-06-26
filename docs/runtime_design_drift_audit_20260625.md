@@ -473,3 +473,29 @@ with the verified adapter ids preserved and
 `source_to_bridge_adapter_retry_unblocked_by_verified_premises=false`. This is
 still orchestration, not proof: the next required artifact is an exact source
 theorem proof-body candidate checked by local Lean/AXLE.
+
+The next Critic and Formalizer continuations exposed two serialization bugs in
+that exact-proof-body handoff. First, Critic produced correct top-level
+`environment_feedback` with `source_theorem_proof_body_adapter_required=false`
+and the verified adapter ids, while the nested
+`architect_context.environment_feedback` still carried an older
+adapter-required view. FormalizationEvaluator overwrote the nested value at run
+time, but the serialized pending task was internally inconsistent for other
+agents and humans. Critic repair-task construction now refreshes the nested
+architect feedback to the same current repair feedback used at top level.
+
+Second, the live Formalizer continuation still exported the newest source
+theorem work order as `source_theorem_proof_body_adapter_required` even though
+the latest proof-bank summary requested
+`source_theorem_exact_proof_body_repair`. The root cause was work-order dedupe:
+the exact repair row had the same target-derived work-order id as an older
+adapter row, and the merge updated provenance but not `proof_mode`,
+`action_type`, queue status, acceptance gate, or explicit `false` booleans such
+as `proof_body_adapter_required=false`. Dedupe now allows newer control-plane
+mode fields and explicit booleans to replace stale state. The patched live run
+`runs/main_worker_exact_proof_body_formalizer_dedupe_fixed_live/research_agent_runtime_manifest.json`
+exports one exact source-theorem proof-body repair work order and runs the
+exact proof-body executor. The executor correctly fails closed with
+`source_theorem_semantic_alignment_unreviewed` and
+`source_theorem_kernel_verified=false`: verified adapter ids remain routing
+context only, not theorem proof.
