@@ -73,6 +73,12 @@ def run_source_theorem_exact_semantic_definition_lean_environment_repair_executo
         "n_missing_lake_project": sum(
             1 for row in rows if row.get("environment_repair_status") == "LAKE_PROJECT_MISSING"
         ),
+        "n_import_prefix_unavailable": sum(
+            1
+            for row in rows
+            if row.get("environment_repair_status")
+            == "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+        ),
         "status_counts": dict(sorted(status_counts.items())),
         "source_theorem_kernel_verified": False,
         "semantic_definition_kernel_verified": False,
@@ -149,8 +155,10 @@ def resolve_source_theorem_exact_semantic_definition_environment_tasks_path(
 
 
 def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
-    project = Path(str(row.get("candidate_lean_project_hint", "") or ""))
-    candidate_file = Path(str(row.get("candidate_source_file", "") or ""))
+    project_raw = str(row.get("candidate_lean_project_hint", "") or "").strip()
+    candidate_file_raw = str(row.get("candidate_source_file", "") or "").strip()
+    project = Path(project_raw) if project_raw else Path()
+    candidate_file = Path(candidate_file_raw) if candidate_file_raw else Path()
     target_theorem_name = str(row.get("target_theorem_name", "") or "")
     target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
     candidate_definition_request = _candidate_definition_request_from_row(
@@ -164,14 +172,20 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
     lake_manifest = project / "lake-manifest.json"
     lake_packages = project / ".lake" / "packages"
     mathlib_package = lake_packages / "mathlib"
-    project_exists = bool(str(project)) and project.exists()
-    candidate_exists = bool(str(candidate_file)) and candidate_file.exists()
+    project_exists = bool(project_raw) and project.exists()
+    candidate_exists = bool(candidate_file_raw) and candidate_file.exists()
     lakefile_exists = project_exists and (lakefile_lean.exists() or lakefile_toml.exists())
     toolchain_exists = project_exists and lean_toolchain.exists()
     manifest_exists = project_exists and lake_manifest.exists()
     packages_dir_exists = project_exists and lake_packages.exists()
     mathlib_package_exists = project_exists and mathlib_package.exists()
     failure_classification = str(row.get("failure_classification", "") or "")
+    local_lean_diagnostics = [
+        str(value)
+        for value in row.get("local_lean_diagnostics", []) or []
+        if str(value).strip()
+    ][:12]
+    unavailable_module_prefix = _unavailable_module_prefix(local_lean_diagnostics)
     if not project_exists:
         status = "LAKE_PROJECT_MISSING"
     elif not lakefile_exists:
@@ -184,6 +198,13 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         status = "LAKE_PACKAGE_CACHE_MISSING"
     elif not candidate_exists:
         status = "CANDIDATE_SOURCE_FILE_MISSING"
+    elif (
+        failure_classification == "lean_import_environment_missing"
+        and unavailable_module_prefix
+    ):
+        status = "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    elif failure_classification == "lean_import_environment_missing":
+        status = "LEAN_IMPORT_ENVIRONMENT_UNRESOLVED"
     elif failure_classification == "lean_local_library_build_unresolved":
         status = "LOCAL_LIBRARY_BUILD_OR_IMPORT_UNRESOLVED"
     else:
@@ -217,12 +238,14 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_name": target_theorem_name,
         "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
-        "candidate_source_file": str(candidate_file) if str(candidate_file) else "",
+        "candidate_source_file": candidate_file_raw,
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
         "candidate_source_file_exists": candidate_exists,
-        "candidate_lean_project_hint": str(project) if str(project) else "",
+        "candidate_lean_project_hint": project_raw,
+        "local_lean_diagnostics": local_lean_diagnostics,
+        "unavailable_module_prefix": unavailable_module_prefix,
         "source_execution_status": str(row.get("source_execution_status", "") or ""),
         "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
         "authoring_mode": str(row.get("authoring_mode", "") or ""),
@@ -279,6 +302,17 @@ def _recommended_next_action(status: str) -> str:
             "rerunning exact semantic-definition Lean repair; dependency fetch is "
             "not the current blocker"
         )
+    if status == "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT":
+        return (
+            "rerun the Lean repair executor with a Lake project/source root that "
+            "exposes the candidate module prefix, or port the reviewed declaration "
+            "into the exact source-theorem project before proof-body search"
+        )
+    if status == "LEAN_IMPORT_ENVIRONMENT_UNRESOLVED":
+        return (
+            "repair the selected Lean project's import path for the candidate source "
+            "file before rerunning exact semantic-definition Lean repair"
+        )
     if status in {
         "LAKE_MANIFEST_MISSING_DEPENDENCY_UPDATE_REQUIRED",
         "LAKE_PACKAGE_CACHE_MISSING",
@@ -290,6 +324,16 @@ def _recommended_next_action(status: str) -> str:
     if status == "CANDIDATE_SOURCE_FILE_MISSING":
         return "repair candidate source path or source-root mapping before local Lean"
     return "repair the inferred Lake project path before rerunning local Lean"
+
+
+def _unavailable_module_prefix(diagnostics: Sequence[str]) -> str:
+    for diagnostic in diagnostics:
+        marker = "unknown module prefix '"
+        if marker in diagnostic:
+            return diagnostic.split(marker, 1)[1].split("'", 1)[0].strip()
+        if diagnostic.startswith("No directory '"):
+            return diagnostic.split("No directory '", 1)[1].split("'", 1)[0].strip()
+    return ""
 
 
 def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -338,6 +382,14 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_lean_project_hint": str(
             row.get("candidate_lean_project_hint", "") or ""
         ),
+        "local_lean_diagnostics": [
+            str(value)
+            for value in row.get("local_lean_diagnostics", []) or []
+            if str(value).strip()
+        ][:12],
+        "unavailable_module_prefix": str(
+            row.get("unavailable_module_prefix", "") or ""
+        ),
         "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
@@ -362,6 +414,14 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "candidate_lean_project_hint": str(
                 row.get("candidate_lean_project_hint", "") or ""
             ),
+            "unavailable_module_prefix": str(
+                row.get("unavailable_module_prefix", "") or ""
+            ),
+            "local_lean_diagnostics": [
+                str(value)
+                for value in row.get("local_lean_diagnostics", []) or []
+                if str(value).strip()
+            ][:12],
             "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
             "definition_only_candidate_artifact_path": str(
                 row.get("definition_only_candidate_artifact_path", "") or ""

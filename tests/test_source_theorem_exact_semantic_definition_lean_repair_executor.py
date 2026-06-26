@@ -1260,6 +1260,48 @@ def test_exact_semantic_definition_lean_repair_executor_classifies_import_enviro
     ] == ["split_conformal_coverage"]
 
 
+def test_exact_semantic_definition_environment_task_uses_explicit_lean_project(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    source_root = tmp_path / "external_src"
+    source_file = source_root / "StatInference" / "Conformal" / "Quantile.lean"
+    lean_project = tmp_path / "exact_project"
+    source_file.parent.mkdir(parents=True)
+    lean_project.mkdir()
+    (lean_project / "lakefile.lean").write_text("import Lake\n", encoding="utf-8")
+    source_file.write_text("import StatInference.Missing\n", encoding="utf-8")
+    _write_lean_repair_tasks(tasks_path)
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        source_roots=(source_root,),
+        local_lean=True,
+        lean_project=lean_project,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print(\"error: unknown module prefix 'StatInference'\", "
+            "file=sys.stderr); sys.exit(1)",
+        ),
+    )
+
+    repair_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["lean_environment_repair_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+
+    assert repair_tasks[0]["candidate_source_file"] == str(source_file)
+    assert repair_tasks[0]["candidate_lean_project_hint"] == str(lean_project)
+    assert repair_tasks[0]["recommended_command"] == f"lake env lean {source_file}"
+    assert repair_tasks[0]["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
+
+
 def test_exact_semantic_definition_lean_repair_executor_classifies_local_library_build(
     tmp_path: Path,
 ) -> None:

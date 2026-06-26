@@ -976,7 +976,11 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
             ]
         )[:20]
     )
-    project_hint = str(row.get("candidate_lean_project_hint", "") or "")
+    project_hint = str(
+        row.get("candidate_lean_project_hint", "")
+        or row.get("lean_project", "")
+        or ""
+    )
     command_hint = (
         f"lake env lean {candidate_file}" if project_hint and candidate_file else ""
     )

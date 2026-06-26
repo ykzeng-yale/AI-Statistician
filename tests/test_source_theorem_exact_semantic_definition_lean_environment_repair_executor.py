@@ -210,6 +210,56 @@ def test_lean_environment_repair_executor_keeps_local_library_build_unresolved(
     ]
 
 
+def test_lean_environment_repair_executor_detects_unavailable_import_prefix(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "LeanProject"
+    candidate = project / "StatInference" / "Bootstrap.lean"
+    mathlib = project / ".lake" / "packages" / "mathlib"
+    candidate.parent.mkdir(parents=True)
+    mathlib.mkdir(parents=True)
+    candidate.write_text("import StatInference.Missing\n", encoding="utf-8")
+    (project / "lakefile.lean").write_text("import Lake\n", encoding="utf-8")
+    (project / "lean-toolchain").write_text("leanprover/lean4:v4.31.0\n", encoding="utf-8")
+    (project / "lake-manifest.json").write_text("{}", encoding="utf-8")
+    tasks = tmp_path / "environment_tasks.jsonl"
+    _write_environment_task(tasks, project=project, candidate=candidate)
+    row = json.loads(tasks.read_text(encoding="utf-8"))
+    row["failure_classification"] = "lean_import_environment_missing"
+    row["local_lean_diagnostics"] = [
+        f"{candidate}:1:0: error: unknown module prefix 'StatInference'",
+        "No directory 'StatInference' or file 'StatInference.olean' in the search path entries:",
+    ]
+    tasks.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_environment_repair_executor(
+        out_dir=tmp_path / "out",
+        environment_tasks_jsonl=tasks,
+    )
+
+    assert manifest["n_dependency_fetch_required"] == 0
+    assert manifest["n_import_prefix_unavailable"] == 1
+    results = [
+        json.loads(line)
+        for line in Path(manifest["environment_repair_results_jsonl"]).read_text().splitlines()
+    ]
+    assert results[0]["environment_repair_status"] == (
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    )
+    assert results[0]["unavailable_module_prefix"] == "StatInference"
+    assert results[0]["ready_to_rerun_lean_repair"] is False
+    assert results[0]["recommended_commands"] == [f"lake env lean {candidate}"]
+    assert "Lake project/source root" in results[0]["recommended_next_action"]
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert learning_rows[0]["unavailable_module_prefix"] == "StatInference"
+    assert learning_rows[0]["input_summary"]["unavailable_module_prefix"] == (
+        "StatInference"
+    )
+
+
 def test_lean_environment_repair_executor_resolves_repair_manifest(
     tmp_path: Path,
 ) -> None:
