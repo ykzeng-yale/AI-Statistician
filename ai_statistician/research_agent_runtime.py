@@ -496,6 +496,53 @@ def _runtime_evidence_truth_table_from_manifest(
     }
 
 
+def _runtime_source_theorem_target_names_from_manifest(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    """Recover intended source-theorem target names from scalar or queue fields."""
+
+    names: list[str] = []
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if text:
+            names.append(text)
+
+    for key in (
+        "target_theorem_name",
+        "source_theorem_target_name",
+        "source_theorem_name",
+        "target_lean_declaration",
+    ):
+        add(manifest.get(key, ""))
+    for key in (
+        "source_theorem_exact_proof_body_repair_target_names",
+        "source_theorem_proof_body_adapter_target_names",
+        "source_theorem_exact_candidate_repair_target_names",
+        "source_theorem_exact_semantic_definition_repair_target_names",
+        "memory_source_theorem_exact_candidate_repair_target_names",
+    ):
+        for value in manifest.get(key, []) or []:
+            add(value)
+    for row in manifest.get("deterministic_theorem_goals", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        add(
+            row.get("id", "")
+            or row.get("target_theorem_name", "")
+            or row.get("target_lean_declaration", "")
+        )
+    for row in manifest.get("formal_targets", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        add(
+            row.get("id", "")
+            or row.get("target_theorem_name", "")
+            or row.get("target_lean_declaration", "")
+        )
+    return list(dict.fromkeys(names))
+
+
 def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Expose generated-code capability gates directly in runtime manifests."""
 
@@ -1160,12 +1207,10 @@ def _runtime_evidence_truth_learning_rows(
         if str(value).strip()
     ][:4]
     blocker = str(truth_table.get("current_exact_proof_body_blocker", "") or "")
-    target_theorem_name = str(
-        manifest.get("target_theorem_name", "")
-        or manifest.get("source_theorem_target_name", "")
-        or manifest.get("source_theorem_name", "")
-        or ""
+    target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
+        manifest
     )
+    target_theorem_name = target_theorem_names[0] if target_theorem_names else ""
     premise_gap_kind = (
         blocker
         if (
@@ -1211,12 +1256,13 @@ def _runtime_evidence_truth_learning_rows(
                 {
                     "learning_task": "source_theorem_truth_table_feedback",
                     "question_id": question_id,
-                    "target_theorem_name": target_theorem_name,
+                    "target_theorem_names": target_theorem_names,
                     "proof_body_status": proof_body_status,
                     "blocker": blocker,
                 }
             )[:16],
             "target_theorem_name": target_theorem_name,
+            "target_theorem_goal_ids": target_theorem_names,
             "premise_name": premise_name,
             "premise_derivation_gap_kind": premise_gap_kind,
             "premise_target_type": premise_target_type,
@@ -1224,6 +1270,7 @@ def _runtime_evidence_truth_learning_rows(
             "input_summary": {
                 "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
                 "target_theorem_name": target_theorem_name,
+                "target_theorem_goal_ids": target_theorem_names,
                 "source_theorem_kernel_verified": source_verified,
                 "source_theorem_ready_for_exact_proof_body": proof_body_status
                 in {"PROOF_BODY_REACHED_OPEN", "SOURCE_KERNEL_VERIFIED"},
@@ -32930,6 +32977,7 @@ def _append_runtime_generated_next_action_rows(
                 "target_ids": list(
                     _str_tuple(
                         row.get("target_theorem_goal_ids", [])
+                        or row.get("target_theorem_name", "")
                         or row.get("semantic_primitive_id", "")
                     )
                 ),

@@ -36211,6 +36211,58 @@ def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
     assert semantic_work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> None:
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["conformal_prediction_coverage"],
+        "source_theorem_exact_proof_body_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "n_formal_gaps": 58,
+    }
+    truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
+
+    rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["learning_task"] == "source_theorem_truth_table_feedback"
+    assert row["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert row["input_summary"]["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+    generated_agenda = _append_runtime_generated_next_action_rows(
+        [],
+        rows,
+        queue_name="runtime_evidence_truth_table",
+    )
+
+    assert len(generated_agenda) == 1
+    assert generated_agenda[0]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert generated_agenda[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert generated_agenda[0]["proof_boundary"] == (
+        runtime_module.KERNEL_PROOF_BOUNDARY
+    )
+
+
 def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_handoffs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

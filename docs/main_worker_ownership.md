@@ -780,6 +780,23 @@ exact-semantic placeholders still present. The scorecard remains 44/49, support
 subclaims remain 78, formal gaps remain 57, and the source theorem is still not
 kernel verified.
 
+The next Formalizer/ProofEngineer continuation
+`runs/main_worker_formalizer_after_critic_validation_failclosed_live` consumed
+that handoff, advanced support subclaims to 80 and formal gaps to 58, and
+rerouted to `critic:conformal_prediction_coverage:a4147833`. It also exposed a
+generic routing metadata bug: runtime truth-table feedback could route exact
+source proof-body repair with an empty target when the manifest stored the
+target only in list-valued proof-body repair fields. Runtime truth-table
+learning rows now recover source-theorem target names from scalar target fields,
+proof-body repair target-name lists, adapter target-name lists, exact repair
+target-name lists, and deterministic theorem goals; generated agenda rows use
+that target as `target_ids`. The patched Critic replay
+`runs/main_worker_critic_after_truth_target_repair_live` now exports the
+truth-table agenda for `split_conformal_finite_sample_coverage` and hands off
+`formalize-critic-repair:conformal_prediction_coverage:380685c5`. The source
+theorem remains unproved, with exact semantic review/import repair still the
+active frontier.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

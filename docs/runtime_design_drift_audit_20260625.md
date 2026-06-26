@@ -813,3 +813,17 @@ semantic-definition agenda onward. The live replay
 `runs/main_worker_critic_validation_failclosed_live` reached the same open-proof
 frontier as a pending Formalizer task instead of `FAILED`; the source theorem
 and exact semantic definitions remain unproved.
+
+The follow-up Formalizer and Critic replay exposed another target-preservation
+issue rather than a proof issue. The Formalizer continuation
+`runs/main_worker_formalizer_after_critic_validation_failclosed_live` advanced
+support subclaims to 80 and formal gaps to 58, but the generated
+`runtime_evidence_truth_table` agenda row had an empty target because the
+manifest carried `source_theorem_exact_proof_body_repair_target_names` as a
+list instead of a scalar `target_theorem_name`. Runtime truth-table feedback now
+recovers source-theorem targets from scalar fields, proof-body/adapter/exact
+repair target-name lists, and deterministic theorem goals, then propagates them
+into generated agenda `target_ids`. The patched replay
+`runs/main_worker_critic_after_truth_target_repair_live` exports the truth-table
+proof-repair row for `split_conformal_finite_sample_coverage`; source theorem
+kernel evidence is still absent.
