@@ -48,6 +48,7 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     question_id: str
     question_title: str
     target_theorem_name: str
+    target_ids: tuple[str, ...]
     target_lean_declaration: str
     expected_target_lean_declaration: str
     source_theorem_target_known: bool
@@ -327,6 +328,10 @@ def _execution_result_row(
     execution_queue_id = str(row.get("execution_queue_id", "") or "")
     source_work_order_id = str(row.get("source_work_order_id", "") or "")
     target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _proof_body_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     target_lean_declaration = str(row.get("target_lean_declaration", "") or "")
     expected_target_lean_declaration = str(
         row.get("expected_target_lean_declaration", "") or target_lean_declaration
@@ -675,6 +680,7 @@ def _execution_result_row(
         execution_result_id=result_id,
         execution_queue_id=execution_queue_id,
         target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
         target_lean_declaration=target_lean_declaration,
         expected_target_lean_declaration=expected_target_lean_declaration,
         source_theorem_target_known=source_theorem_target_known,
@@ -760,6 +766,7 @@ def _execution_result_row(
         question_id=question_id,
         question_title=question_title,
         target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
         target_lean_declaration=target_lean_declaration,
         expected_target_lean_declaration=expected_target_lean_declaration,
         source_theorem_target_known=source_theorem_target_known,
@@ -1512,6 +1519,7 @@ def _append_transcript_event(
     execution_result_id: str,
     execution_queue_id: str,
     target_theorem_name: str,
+    target_ids: tuple[str, ...],
     target_lean_declaration: str,
     expected_target_lean_declaration: str,
     source_theorem_target_known: bool,
@@ -1575,6 +1583,7 @@ def _append_transcript_event(
             "execution_result_id": execution_result_id,
             "execution_queue_id": execution_queue_id,
             "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "target_lean_declaration": target_lean_declaration,
             "expected_target_lean_declaration": expected_target_lean_declaration,
             "source_theorem_target_known": source_theorem_target_known,
@@ -1674,6 +1683,7 @@ def _export_runtime_learning_rows(
                 "question_title": row.question_title,
                 "learning_task": "exact_source_theorem_proof_body_execution_feedback",
                 "target_theorem_name": row.target_theorem_name,
+                "target_ids": list(row.target_ids),
                 "target_lean_declaration": row.target_lean_declaration,
                 "expected_target_lean_declaration": row.expected_target_lean_declaration,
                 "source_theorem_target_known": row.source_theorem_target_known,
@@ -2328,6 +2338,42 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple)):
         return ()
     return tuple(str(value) for value in values if str(value))
+
+
+def _proof_body_target_ids(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> tuple[str, ...]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or row.get("source_theorem_exact_proof_body_repair_target_names", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or input_summary.get("source_theorem_exact_proof_body_repair_target_names", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, (list, tuple, set)):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return tuple(dict.fromkeys(target_ids))
 
 
 def _dominant_failure_classification(

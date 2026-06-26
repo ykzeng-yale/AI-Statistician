@@ -1171,6 +1171,7 @@ def _proof_body_recheck_queue_row(
     out_dir: Path,
 ) -> dict[str, Any]:
     target = str(row.get("target_theorem_name", "") or "")
+    target_ids = _target_ids_from_row(row, fallback_target=target)
     expected_target = str(
         row.get("expected_target_lean_declaration", "")
         or row.get("target_lean_declaration", "")
@@ -1251,6 +1252,7 @@ def _proof_body_recheck_queue_row(
         **dict(row),
         "execution_queue_id": recheck_id,
         "source_execution_queue_id": str(row.get("execution_queue_id", "") or ""),
+        "target_ids": target_ids,
         "source_candidate_artifact_path": str(synthesized_artifact_path),
         "signature_probe_artifact_path": str(synthesized_artifact_path),
         "candidate_artifact_path": str(synthesized_artifact_path),

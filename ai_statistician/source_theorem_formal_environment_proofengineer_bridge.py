@@ -1806,6 +1806,7 @@ def _proof_body_execution_queue_row(
         work_order.get("kernel_verified_theorem_reduction_closure_target_ids", [])
         or []
     )
+    target_ids = _target_ids_from_work_order(work_order, fallback_target=target)
     source_theorem_target_known = bool(
         work_order.get("source_theorem_target_known", False)
         or source_target_provenance.get("source_theorem_target_known", False)
@@ -1860,6 +1861,7 @@ def _proof_body_execution_queue_row(
         "question_id": question_id,
         "question_title": question_title,
         "target_theorem_name": target,
+        "target_ids": target_ids,
         "expected_target_lean_declaration": expected_target_declaration,
         "source_theorem_target_known": source_theorem_target_known,
         "source_theorem_target_identity_status": source_theorem_target_identity_status,
@@ -2056,6 +2058,14 @@ def _proof_body_live_proof_state_request(
         or ""
     )
     question_title = str(work_order.get("question_title", "") or "")
+    target_ids = _target_ids_from_work_order(
+        work_order,
+        fallback_target=str(
+            work_order.get("target_theorem_name", "")
+            or work_order.get("target_lean_declaration", "")
+            or ""
+        ),
+    )
     semantic_alignment_constraints = _str_list(
         work_order.get("semantic_alignment_constraints", [])
         or source_target_provenance.get("semantic_alignment_constraints", [])
@@ -2113,6 +2123,7 @@ def _proof_body_live_proof_state_request(
         "target_lean_line": int(location.get("target_lean_line", 0) or 0),
         "target_lean_column": int(location.get("target_lean_column", 0) or 0),
         "target_lean_declaration": str(location.get("target_lean_declaration", "")),
+        "target_ids": target_ids,
         "expected_target_lean_declaration": str(
             work_order.get("target_lean_declaration", "")
             or work_order.get("target_theorem_name", "")
@@ -2519,6 +2530,40 @@ def _str_list(values: object) -> list[str]:
     if not isinstance(values, (list, tuple)):
         return []
     return [str(value) for value in values if str(value).strip()]
+
+
+def _target_ids_from_work_order(
+    work_order: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> list[str]:
+    input_summary = (
+        work_order.get("input_summary", {})
+        if isinstance(work_order.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        work_order.get("target_ids", [])
+        or work_order.get("target_id", "")
+        or work_order.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, (list, tuple, set)):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:

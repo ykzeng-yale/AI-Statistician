@@ -642,6 +642,7 @@ def test_exact_source_executor_skips_proof_attempts_for_semantic_alignment_block
     assert row["proof_body_attempt_source"] == (
         "semantic_alignment_open_skip_tactic_attempts"
     )
+    assert row["target_ids"] == ("split_conformal_coverage",)
     assert row["source_theorem_kernel_evidence_eligible"] is False
     assert row["failure_classification"] == (
         "proof_body_reached_semantic_alignment_unreviewed"
@@ -679,6 +680,10 @@ def test_exact_source_executor_skips_proof_attempts_for_semantic_alignment_block
     assert learning_row["failure_classification"] == (
         "proof_body_reached_semantic_alignment_unreviewed"
     )
+    assert learning_row["target_ids"] == ["split_conformal_coverage"]
+    assert learning_row["input_summary"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert learning_row["execution_status"] == "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
     assert learning_row["trigger"] == (
         "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
@@ -686,6 +691,11 @@ def test_exact_source_executor_skips_proof_attempts_for_semantic_alignment_block
     assert learning_row["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
     )
+    transcript_events = [
+        json.loads(line)
+        for line in transcript.read_text(encoding="utf-8").splitlines()
+    ]
+    assert transcript_events[-1]["target_ids"] == ["split_conformal_coverage"]
 
 
 def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(

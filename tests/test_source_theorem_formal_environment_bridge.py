@@ -547,6 +547,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
     assert execution_row["owner_agent"] == "FormalizerProofEngineer"
     assert execution_row["target_theorem_name"] == "split_conformal_coverage"
+    assert execution_row["target_ids"] == ["split_conformal_coverage"]
     assert execution_row["expected_target_lean_declaration"] == (
         "split_conformal_coverage"
     )
@@ -580,6 +581,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["live_proof_state_request"][
         "expected_target_lean_declaration"
     ] == "split_conformal_coverage"
+    assert execution_row["live_proof_state_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert execution_row["live_proof_state_request"]["question_id"] == (
         "split_conformal"
     )

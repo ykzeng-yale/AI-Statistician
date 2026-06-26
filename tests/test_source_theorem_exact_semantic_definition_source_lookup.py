@@ -2258,6 +2258,7 @@ def test_typechecked_review_recheck_queue_exports_approved_candidate(
         if line.strip()
     ]
     assert rows[0]["source_execution_queue_id"] == "exact_source_queue:split"
+    assert rows[0]["target_ids"] == ["split_conformal_coverage"]
     assert rows[0]["candidate_artifact_path"] == str(reviewed_candidate)
     assert rows[0]["source_candidate_artifact_path"] == str(reviewed_candidate)
     assert rows[0]["proof_body_attempt_source"] == (
