@@ -418,3 +418,19 @@ precheck branch, but its bounded Critic memory still retained the exact Floor
 adapter rows. This keeps the architecture honest: typed prover/RAG obligations
 travel with the ProofEngineer loop, but they remain non-proof context until a
 later local Lean/AXLE run verifies the exact repaired artifact.
+
+The follow-up Critic handoff showed a final control-plane cleanup for this
+same blocker. Once exact adapter-import diagnostics survive several resume
+cycles, Critic can see multiple rows for the same missing Lean module from
+different run directories. The old request fingerprint included the adapter
+artifact path, so Formalizer received repeated exact
+`Mathlib.Algebra.Order.Floor` resource requests. The request is now canonical
+for exact unavailable imports by target theorem plus module; artifact paths are
+kept as provenance instead of dedupe identity. The patched live Critic replay
+`runs/main_worker_live_runtime_resume_critic_after_floor_context_mirror_deduped_probe/research_agent_runtime_manifest.json`
+emits exactly one
+`source_theorem_proof_body_adapter_unavailable_import` request for
+`Mathlib.Algebra.Order.Floor`, while preserving the repeated adapter
+diagnostics as non-proof feedback. This keeps the ProofEngineer/RAG loop focused
+on one resource-resolution obligation rather than replaying the same missing
+import under multiple artifact paths.

@@ -711,7 +711,7 @@ def test_critic_adapter_feedback_prefers_structured_unavailable_import() -> None
                             "adapter_lean_import_environment_missing"
                         ),
                         "adapter_kernel_verified": False,
-                        "adapter_candidate_artifact_path": "",
+                        "adapter_candidate_artifact_path": "runs/adapter_one.lean",
                         "adapter_declaration_name": (
                             "frontier_source_theorem_adapter"
                         ),
@@ -721,6 +721,23 @@ def test_critic_adapter_feedback_prefers_structured_unavailable_import() -> None
                         ],
                         "unavailable_import": "Mathlib.Algebra.Order.Floor",
                         "diagnostics": ["diagnostic text was truncated"],
+                    },
+                    {
+                        "target_theorem_name": "frontier_source_theorem",
+                        "failure_classification": (
+                            "adapter_lean_import_environment_missing"
+                        ),
+                        "adapter_kernel_verified": False,
+                        "adapter_candidate_artifact_path": "runs/adapter_two.lean",
+                        "adapter_declaration_name": (
+                            "frontier_source_theorem_adapter"
+                        ),
+                        "adapter_candidate_imports": [
+                            "Mathlib.Data.Finset.Sort",
+                            "Mathlib.Algebra.Order.Floor",
+                        ],
+                        "unavailable_import": "Mathlib.Algebra.Order.Floor",
+                        "diagnostics": ["same exact unavailable import later"],
                     }
                 ],
             },
@@ -736,6 +753,9 @@ def test_critic_adapter_feedback_prefers_structured_unavailable_import() -> None
     ]
     assert [row["unavailable_import"] for row in import_requests] == [
         "Mathlib.Algebra.Order.Floor"
+    ]
+    assert import_requests[0]["adapter_candidate_artifact_paths"] == [
+        "runs/adapter_one.lean"
     ]
     assert import_requests[0]["candidate_import"] == ""
     assert import_requests[0]["unavailable_import_exact"] is True

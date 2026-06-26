@@ -20240,7 +20240,7 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                 )
                 if declaration:
                     blocker += f" `{declaration}`"
-                if artifact_path:
+                if artifact_path and not exact_unavailable:
                     blocker += f" at {artifact_path}"
                 if exact_unavailable:
                     blocker += (
@@ -20262,7 +20262,7 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                         module,
                         exact_unavailable,
                         target_ids,
-                        artifact_path,
+                        "" if exact_unavailable else artifact_path,
                     ]
                 )[:20]
                 formal_source_queries = [
@@ -20293,6 +20293,10 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                             if exact_unavailable
                             else candidate_import_source
                         ),
+                        "adapter_candidate_artifact_paths": (
+                            [artifact_path] if artifact_path else []
+                        ),
+                        "adapter_declaration_name": declaration,
                         "formal_source_queries": list(
                             dict.fromkeys(formal_source_queries)
                         )[:5],
