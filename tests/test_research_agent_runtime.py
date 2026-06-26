@@ -3984,6 +3984,59 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert "local Lean/AXLE kernel verification" in learning_rows[0]["acceptance_gate"]
 
 
+def test_runtime_learning_rows_surface_nested_target_metadata(tmp_path: Path) -> None:
+    learning_rows = _runtime_learning_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "critic_manifest:test": {
+                            "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                            "learning_rows": [
+                                {
+                                    "schema_version": 1,
+                                    "learning_task": "generated_next_action_routing",
+                                    "input_summary": {
+                                        "target_theorem_name": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "target_ids": [
+                                            "split_conformal_finite_sample_coverage"
+                                        ],
+                                    },
+                                    "proof_evidence_status": (
+                                        "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+                                    ),
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        ]
+    )
+
+    assert learning_rows[0]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert learning_rows[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in learning_rows) + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+
+    assert memory["rows"][0]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert memory["rows"][0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+
 def test_formalization_validator_failure_infers_coverage_shape_contract_from_sorry_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {
@@ -22446,6 +22499,8 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     generated_learning_row = generated_learning_rows[0]
     assert generated_learning_row["learning_task"] == "generated_next_action_routing"
     assert generated_learning_row["question_id"] == "conformal_prediction_coverage"
+    assert generated_learning_row["target_theorem_name"] == "split_conformal_coverage"
+    assert generated_learning_row["target_ids"] == ["split_conformal_coverage"]
     assert generated_learning_row["input_summary"]["work_order_id"] == (
         post_executor_by_symbol["Exchangeable"]["work_order_id"]
     )
@@ -22471,6 +22526,8 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     compact_memory = _load_runtime_learning_memory([learning_path])
     compact_row = compact_memory["rows"][0]
     assert compact_row["learning_task"] == "generated_next_action_routing"
+    assert compact_row["target_theorem_name"] == "split_conformal_coverage"
+    assert compact_row["target_ids"] == ["split_conformal_coverage"]
     assert compact_row["input_summary"]["work_order_id"] == (
         post_executor_by_symbol["Exchangeable"]["work_order_id"]
     )
@@ -33634,6 +33691,18 @@ def test_critic_routes_diagnostic_helper_metadata_blocker_before_proof_bank_expa
     assert routing_row["input_summary"]["trigger"] == (
         "SOURCE_TO_BRIDGE_METADATA_BLOCKER"
     )
+    assert routing_row["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert routing_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert routing_row["input_summary"]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert routing_row["input_summary"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert routing_row["input_summary"]["runtime_queue_status"] == (
         "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
     )
@@ -34870,6 +34939,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         if key.startswith("runtime_formalization_gap_planner_bridge:")
     )
     assert gap_planner_bridge["artifact_kind"] == "RuntimeFormalizationGapPlannerBridge"
+    assert gap_planner_bridge["target_ids"]
+    assert gap_planner_bridge["target_ids"] == [
+        route["theorem_goal_id"]
+        for route in gap_planner_bridge["standalone_seed"]["routes"]
+    ]
     assert gap_planner_bridge["target_prover_family"] == "lean4"
     assert gap_planner_bridge["standalone_seed"]["target_prover_family"] == "lean4"
     assert all(
@@ -34935,6 +35009,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert len(persisted_bridge_rows) == 2
     assert persisted_bridge_rows[0]["standalone_seed_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_intake_path"].endswith(".json")
+    assert persisted_bridge_rows[0]["target_ids"] == [
+        route["theorem_goal_id"]
+        for route in persisted_bridge_rows[0]["standalone_seed"]["routes"]
+    ]
     assert persisted_bridge_rows[0]["target_intake_dir"].endswith("target_intake")
     assert (
         "formalization-gap-planner-target-intake"
@@ -34968,6 +35046,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert len(handoff_rows) == 2
     handoff = handoff_rows[0]
     assert handoff["artifact_kind"] == "RuntimeFormalizationGapPlannerHandoff"
+    assert handoff["target_ids"] == persisted_bridge_rows[0]["target_ids"]
+    assert handoff["target_theorem_name"] == persisted_bridge_rows[0].get(
+        "target_theorem_name",
+        "",
+    )
     assert handoff["target_prover_family"] == "lean4"
     assert handoff["target_intake_path"].endswith(".json")
     assert handoff["target_intake_dir"].endswith("target_intake")
@@ -36806,6 +36889,8 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     )
 
     assert bridge["target_prover_family"] == "rocq"
+    assert bridge["target_ids"] == ["rank_uniformity"]
+    assert bridge["target_theorem_name"] == "rank_uniformity"
     seed = bridge["standalone_seed"]
     assert seed["target_prover_family"] == "rocq"
     assert validate_standalone_input_payload(seed) == []

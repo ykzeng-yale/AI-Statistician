@@ -32793,13 +32793,22 @@ def _critic_learning_rows(
         }
     )
     for item in agenda:
+        target_theorem_name = str(item.get("target_theorem_name", "") or "")
+        target_ids = list(_runtime_row_string_values(item, "target_ids", "target_id"))
+        if not target_ids and target_theorem_name:
+            target_ids = [target_theorem_name]
+        if not target_theorem_name and len(target_ids) == 1:
+            target_theorem_name = target_ids[0]
         input_summary = {
             "trigger": item.get("trigger", ""),
             "owner_subsystem": item.get("owner_subsystem", ""),
             "agenda_id": item.get("id", ""),
         }
+        if target_theorem_name:
+            input_summary["target_theorem_name"] = target_theorem_name
+        if target_ids:
+            input_summary["target_ids"] = target_ids
         for key in (
-            "target_ids",
             "runtime_queue_status",
             "source_to_bridge_metadata_blocker_status",
             "source_to_bridge_metadata_blocker_kind",
@@ -32813,6 +32822,12 @@ def _critic_learning_rows(
             {
                 **base,
                 "learning_task": "next_action_routing",
+                **(
+                    {"target_theorem_name": target_theorem_name}
+                    if target_theorem_name
+                    else {}
+                ),
+                **({"target_ids": target_ids} if target_ids else {}),
                 "input_summary": input_summary,
                 "target_behavior": item.get("action", ""),
                 "acceptance_gate": item.get("acceptance_gate", ""),
@@ -33062,11 +33077,19 @@ def _runtime_generated_next_action_learning_rows(
             row.get("recommended_next_action", "") or ""
         )
         recommended_commands = _runtime_recommended_commands(row)
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_ids = list(_runtime_row_string_values(row, "target_ids", "target_id"))
+        if not target_ids and target_theorem_name:
+            target_ids = [target_theorem_name]
+        if not target_theorem_name and len(target_ids) == 1:
+            target_theorem_name = target_ids[0]
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "question_id": str(row.get("question_id", "") or ""),
                 "question_title": "",
+                "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "learning_task": "generated_next_action_routing",
                 "input_summary": {
                     "trigger": str(row.get("trigger", "") or ""),
@@ -33076,9 +33099,7 @@ def _runtime_generated_next_action_learning_rows(
                     "semantic_primitive_id": str(
                         row.get("semantic_primitive_id", "") or ""
                     ),
-                    "target_theorem_name": str(
-                        row.get("target_theorem_name", "") or ""
-                    ),
+                    "target_theorem_name": target_theorem_name,
                     "premise_name": str(row.get("premise_name", "") or ""),
                     "premise_target_status": str(
                         row.get("premise_target_status", "") or ""
@@ -33137,7 +33158,7 @@ def _runtime_generated_next_action_learning_rows(
                         ]
                         if str(value).strip()
                     ],
-                    "target_ids": list(_str_tuple(row.get("target_ids", []))),
+                    "target_ids": target_ids,
                 },
                 "target_behavior": str(row.get("action", "") or ""),
                 "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
@@ -33146,6 +33167,28 @@ def _runtime_generated_next_action_learning_rows(
             }
         )
     return rows
+
+
+def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(row)
+    target_theorem_name = str(normalized.get("target_theorem_name", "") or "")
+    input_summary = normalized.get("input_summary", {})
+    if not target_theorem_name and isinstance(input_summary, Mapping):
+        target_theorem_name = str(input_summary.get("target_theorem_name", "") or "")
+    target_ids = list(
+        _runtime_row_string_values(normalized, "target_ids", "target_id")
+    )
+    if not target_ids and target_theorem_name:
+        target_ids = [target_theorem_name]
+    if not target_theorem_name and len(target_ids) == 1:
+        target_theorem_name = target_ids[0]
+    if target_theorem_name and not str(
+        normalized.get("target_theorem_name", "") or ""
+    ).strip():
+        normalized["target_theorem_name"] = target_theorem_name
+    if target_ids and not normalized.get("target_ids"):
+        normalized["target_ids"] = target_ids
+    return normalized
 
 
 def _runtime_recommended_commands(row: Mapping[str, Any]) -> list[str]:
@@ -33187,7 +33230,7 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 continue
             for item in artifact.get("learning_rows", []) or []:
                 if isinstance(item, Mapping):
-                    rows.append(dict(item))
+                    rows.append(_runtime_learning_row_with_surface_targets(item))
     return rows
 
 
@@ -38942,8 +38985,54 @@ def _runtime_formalization_gap_planner_bridge_rows(
                 and artifact.get("artifact_kind")
                 == "RuntimeFormalizationGapPlannerBridge"
             ):
-                rows.append(dict(artifact))
+                rows.append(
+                    _runtime_formalization_gap_planner_bridge_with_targets(artifact)
+                )
     return rows
+
+
+def _runtime_formalization_gap_planner_bridge_target_ids(
+    bridge: Mapping[str, Any],
+) -> tuple[str, ...]:
+    existing = _str_tuple(bridge.get("target_ids", []))
+    if existing:
+        return existing
+    seed = bridge.get("standalone_seed", {})
+    if not isinstance(seed, Mapping):
+        return ()
+    target_ids: list[str] = []
+    for route in seed.get("routes", []) or []:
+        if not isinstance(route, Mapping):
+            continue
+        metadata = route.get("replan_metadata", {})
+        if not isinstance(metadata, Mapping):
+            metadata = {}
+        target_id = str(
+            route.get("theorem_goal_id", "")
+            or metadata.get("runtime_theorem_goal_id", "")
+            or route.get("target_id", "")
+            or route.get("route_id", "")
+            or route.get("question_id", "")
+            or ""
+        ).strip()
+        if target_id:
+            target_ids.append(target_id)
+    return tuple(dict.fromkeys(target_ids))
+
+
+def _runtime_formalization_gap_planner_bridge_with_targets(
+    bridge: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(bridge)
+    target_ids = list(_runtime_formalization_gap_planner_bridge_target_ids(bridge))
+    if target_ids and not normalized.get("target_ids"):
+        normalized["target_ids"] = target_ids
+    target_theorem_name = str(normalized.get("target_theorem_name", "") or "")
+    if not target_theorem_name and len(target_ids) == 1:
+        target_theorem_name = target_ids[0]
+    if target_theorem_name:
+        normalized["target_theorem_name"] = target_theorem_name
+    return normalized
 
 
 def _write_runtime_formalization_gap_planner_seed_files(
@@ -39164,6 +39253,14 @@ def _runtime_formalization_gap_planner_handoff_rows(
     rows: list[dict[str, Any]] = []
     handoff_root = runtime_out_dir / "runtime_formalization_gap_planner_handoffs"
     for bridge in bridge_rows:
+        bridge_target_ids = list(
+            _runtime_formalization_gap_planner_bridge_target_ids(bridge)
+        )
+        bridge_target_theorem_name = str(
+            bridge.get("target_theorem_name", "") or ""
+        ).strip()
+        if not bridge_target_theorem_name and len(bridge_target_ids) == 1:
+            bridge_target_theorem_name = bridge_target_ids[0]
         seed_path_text = str(bridge.get("standalone_seed_path", "")).strip()
         target_intake_path_text = str(bridge.get("target_intake_path", "")).strip()
         if not seed_path_text or not target_intake_path_text:
@@ -39251,6 +39348,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             + stable_hash([bridge_id, seed_path_text, standalone_plan_cli])[:20],
             "bridge_id": bridge_id,
             "question_id": question_id,
+            "target_theorem_name": bridge_target_theorem_name,
+            "target_ids": bridge_target_ids,
             "standalone_seed_artifact_id": str(
                 bridge.get("standalone_seed_artifact_id", "")
             ),
@@ -39286,6 +39385,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
         }
         bridge["handoff_id"] = row["handoff_id"]
+        bridge["target_theorem_name"] = bridge_target_theorem_name
+        bridge["target_ids"] = bridge_target_ids
         bridge["standalone_plan_cli"] = standalone_plan_cli
         bridge["target_intake_dir"] = str(target_intake_out)
         bridge["target_intake_cli"] = target_intake_cli
@@ -39317,6 +39418,10 @@ def _runtime_formalization_gap_planner_bridge(
     source_refs = _runtime_gap_planner_source_refs(retrieval_context)
     source_ref_rows = _runtime_gap_planner_source_ref_rows(retrieval_context)
     proof_state_by_subclaim = _runtime_proof_state_by_subclaim(proof_state_rows)
+    target_ids = list(
+        dict.fromkeys(str(goal.id) for goal in theorem_goals if str(goal.id).strip())
+    )
+    target_theorem_name = target_ids[0] if len(target_ids) == 1 else ""
     target_prover_family = _runtime_gap_planner_target_prover_family(
         retrieval_context=retrieval_context,
         theorem_goals=theorem_goals,
@@ -39414,6 +39519,8 @@ def _runtime_formalization_gap_planner_bridge(
         "problem": _problem_to_json(problem),
         "formalization_manifest_id": formalization_manifest_id,
         "proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "target_prover_family": target_prover_family,
         "standalone_seed_artifact_id": standalone_seed_artifact_id,
         "standalone_seed": seed,

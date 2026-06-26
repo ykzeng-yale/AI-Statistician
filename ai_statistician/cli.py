@@ -1565,6 +1565,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
     for key in (
         "recommended_proof_obligation_ids",
         "selected_proof_obligation_ids",
+        "target_ids",
         "kernel_verified_proof_obligation_ids",
         "proved_non_kernel_proof_obligation_ids",
         "failed_proof_obligation_ids",
@@ -1659,6 +1660,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         for key in (
             "adapter_candidate_artifact_path",
             "adapter_declaration_name",
+            "target_theorem_name",
             "adapter_kernel_verified",
             "source_theorem_proof_body_adapter_kernel_verified",
             "verified_source_theorem_proof_body_adapter_artifact_paths",
@@ -1689,6 +1691,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             if key not in compact and input_summary.get(key) not in (None, "", [], {}):
                 compact[key] = input_summary[key]
         for key in (
+            "target_ids",
+            "target_theorem_goal_ids",
             "candidate_materialization_statuses",
             "adapter_candidate_imports",
             "kernel_verified_source_to_bridge_premise_derivation_ids",
