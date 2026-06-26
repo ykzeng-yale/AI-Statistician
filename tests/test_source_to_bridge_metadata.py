@@ -10,6 +10,9 @@ def test_metadata_request_row_normalizes_scalar_list_fields() -> None:
             "premise_name": "hGoodCovered",
             "target_theorem_name": "split_conformal_finite_sample_coverage",
             "target_lean_declaration": "split_conformal_finite_sample_coverage",
+            "premise_semantic_dependency_requirements": (
+                "use retrieved coverage-event definition"
+            ),
             "exact_source_theorem_binders": {"name": "hexch", "type": "Exchangeable"},
             "premise_semantic_anchor_binder_names": "hC",
             "required_semantic_anchor_reference_names": "hC",
@@ -25,6 +28,9 @@ def test_metadata_request_row_normalizes_scalar_list_fields() -> None:
     )
 
     assert row["request_complete"] is True
+    assert row["premise_semantic_dependency_requirements"] == [
+        "use retrieved coverage-event definition"
+    ]
     assert row["exact_source_theorem_binders"] == [
         {"name": "hexch", "type": "Exchangeable"}
     ]
@@ -43,6 +49,9 @@ def test_memory_rows_normalize_compacted_scalar_request_fields() -> None:
                 "premise_name": "hGoodCovered",
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "premise_semantic_dependency_requirements": (
+                    "use retrieved coverage-event definition"
+                ),
                 "exact_source_theorem_binders": [
                     {"name": "hexch", "type": "Exchangeable"}
                 ],
@@ -56,6 +65,12 @@ def test_memory_rows_normalize_compacted_scalar_request_fields() -> None:
 
     assert len(rows) == 1
     assert rows[0]["request_complete"] is True
+    assert rows[0]["premise_semantic_dependency_requirements"] == [
+        "use retrieved coverage-event definition"
+    ]
+    assert rows[0]["source_to_bridge_premise_derivation_candidate_request"][
+        "premise_semantic_dependency_requirements"
+    ] == ["use retrieved coverage-event definition"]
     assert rows[0]["premise_semantic_anchor_binder_names"] == ["hC"]
     assert rows[0]["required_semantic_anchor_reference_names"] == ["hC"]
     assert rows[0]["adapter_object_names_requiring_source_instantiation"] == [

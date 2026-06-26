@@ -630,6 +630,21 @@ adapter-instantiation group ids plus required bridge premises
 repair context only. The reviewed exact semantic definitions, real adapter
 proof candidate, and full source theorem proof remain open.
 
+The next patch makes the metadata path artifact-first instead of heuristic-first.
+Source-to-bridge candidate-request rows now preserve
+`premise_semantic_dependency_requirements` through metadata authoring memory,
+the Formalizer prompt asks for requirements grounded in retrieved formal-source
+declarations, prover diagnostics, or exact theorem binders, and the premise
+bridge consumes explicit work-order/request/grouped-request requirements before
+falling back to local inference. A regression verifies that an explicit
+retrieved requirement overrides the older conformal coverage hint in both the
+check row and generated skeleton. Replaying the latest live queue at
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_signature_context_artifact_semantic_requirements_replay/source_to_bridge_premise_derivation_bridge/source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json`
+preserved the current frontier: four input premise work orders, three merged
+semantic-definition work orders, and one kernel-verified premise derivation.
+This is still non-proof routing context until local Lean/AXLE verifies the
+exact semantic definitions, adapter proof, and full source theorem.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

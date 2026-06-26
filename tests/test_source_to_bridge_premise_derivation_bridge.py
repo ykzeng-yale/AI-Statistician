@@ -401,6 +401,109 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     ] == request["candidate_request_id"]
 
 
+def test_premise_bridge_prefers_artifact_semantic_requirements(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage",
+                "    (hexch hq hC : Prop) :",
+                "    True := by",
+                "  trivial",
+                "theorem split_conformal_coverage_source_to_bridge_adapter",
+                "    (covered : Set Nat)",
+                "    (hGoodCovered : covered ⊆ covered) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    retrieved_requirement = (
+        "use retrieved formal source declaration "
+        "LocalCoverage.coverage_event_definition as the semantic definition"
+    )
+    retrieved_binder = {
+        "name": "hRetrievedCoverage",
+        "type": "Prop",
+        "role": "retrieved_formal_source_anchor",
+    }
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                source_candidate_artifact_path=str(source_attempt),
+                source_to_bridge_premise_derivation_candidate_request={
+                    "candidate_request_id": (
+                        "source_to_bridge_premise_derivation_candidate_request:"
+                        "retrieved"
+                    ),
+                    "premise_name": "hGoodCovered",
+                    "premise_semantic_dependency_requirements": [
+                        retrieved_requirement
+                    ],
+                    "exact_source_theorem_binders": [retrieved_binder],
+                    "premise_semantic_anchor_binders": [retrieved_binder],
+                    "premise_semantic_anchor_binder_names": [
+                        "hRetrievedCoverage"
+                    ],
+                    "required_semantic_anchor_reference_names": [
+                        "hRetrievedCoverage"
+                    ],
+                    "adapter_object_names_requiring_source_instantiation": [
+                        "covered"
+                    ],
+                    "proof_evidence_status": (
+                        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_REQUEST_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            )
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    row = manifest["rows"][0]
+    assert list(row["premise_semantic_dependency_requirements"]) == [
+        retrieved_requirement
+    ]
+    assert list(row["exact_source_theorem_binders"]) == [retrieved_binder]
+    assert list(row["premise_semantic_anchor_binders"]) == [retrieved_binder]
+    assert list(row["premise_semantic_anchor_binder_names"]) == [
+        "hRetrievedCoverage"
+    ]
+    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert retrieved_requirement in candidate_source
+    assert (
+        "-- exact source binder: hRetrievedCoverage : Prop "
+        "[retrieved_formal_source_anchor]"
+    ) in candidate_source
+    assert (
+        "define covered from the exact source coverage event using hC"
+        not in candidate_source
+    )
+
+    request = json.loads(
+        Path(str(manifest["candidate_requests_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert request["premise_semantic_dependency_requirements"] == [
+        retrieved_requirement
+    ]
+    assert request["exact_source_theorem_binders"] == [retrieved_binder]
+
+
 def test_premise_bridge_checks_core_candidate_without_injecting_mathlib(
     tmp_path: Path,
 ) -> None:

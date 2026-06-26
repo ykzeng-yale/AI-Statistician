@@ -498,10 +498,17 @@ def _premise_derivation_check_row(
             row.get("forbidden_as_adapter_assumption", False)
         ),
     )
-    semantic_requirements = _premise_semantic_dependency_requirements(
-        premise_name=premise_name,
-        premise_target_type=premise_target_type,
-        source_signature=source_context["source_theorem_signature"],
+    semantic_requirements = (
+        _explicit_premise_semantic_dependency_requirements(
+            row,
+            candidate_request,
+            grouped_candidate_request,
+        )
+        or _premise_semantic_dependency_requirements(
+            premise_name=premise_name,
+            premise_target_type=premise_target_type,
+            source_signature=source_context["source_theorem_signature"],
+        )
     )
     exact_source_binders = _request_mapping_tuple(
         row.get("exact_source_theorem_binders", [])
@@ -1038,6 +1045,20 @@ def _generated_premise_derivation_skeleton(
     declaration_name: str,
     row: Mapping[str, Any],
 ) -> str:
+    candidate_request_raw = row.get(
+        "source_to_bridge_premise_derivation_candidate_request", {}
+    )
+    candidate_request = (
+        dict(candidate_request_raw) if isinstance(candidate_request_raw, Mapping) else {}
+    )
+    grouped_candidate_request_raw = row.get(
+        "source_to_bridge_grouped_premise_derivation_candidate_request", {}
+    )
+    grouped_candidate_request = (
+        dict(grouped_candidate_request_raw)
+        if isinstance(grouped_candidate_request_raw, Mapping)
+        else {}
+    )
     premise_name = str(row.get("premise_name", "") or "").strip()
     target = str(row.get("target_theorem_name", "") or "").strip()
     required = str(row.get("required_derivation", "") or "").strip()
@@ -1134,19 +1155,38 @@ def _generated_premise_derivation_skeleton(
             + _sanitize_comment_text(str(premise_target["premise_type"])),
         ]
     )
-    semantic_requirements = _premise_semantic_dependency_requirements(
-        premise_name=premise_name,
-        premise_target_type=str(premise_target["premise_type"]),
-        source_signature=source_context["source_theorem_signature"],
+    semantic_requirements = (
+        _explicit_premise_semantic_dependency_requirements(
+            row,
+            candidate_request,
+            grouped_candidate_request,
+        )
+        or _premise_semantic_dependency_requirements(
+            premise_name=premise_name,
+            premise_target_type=str(premise_target["premise_type"]),
+            source_signature=source_context["source_theorem_signature"],
+        )
     )
-    exact_source_binders = _source_theorem_binder_summaries(
-        source_context["source_theorem_signature"]
+    exact_source_binders = _request_mapping_tuple(
+        row.get("exact_source_theorem_binders", [])
+        or candidate_request.get("exact_source_theorem_binders", [])
+        or grouped_candidate_request.get("exact_source_theorem_binders", [])
+        or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
     )
-    semantic_anchor_binders = _premise_semantic_anchor_binder_summaries(
-        premise_name=premise_name,
-        premise_target_type=str(premise_target["premise_type"]),
-        semantic_requirements=semantic_requirements,
-        source_binders=exact_source_binders,
+    semantic_anchor_binders = _request_mapping_tuple(
+        row.get("premise_semantic_anchor_binders", [])
+        or candidate_request.get("premise_semantic_anchor_binders", [])
+        or grouped_candidate_request.get("premise_semantic_anchor_binders", [])
+        or _premise_semantic_anchor_binder_summaries(
+            premise_name=premise_name,
+            premise_target_type=str(premise_target["premise_type"]),
+            semantic_requirements=semantic_requirements,
+            source_binders=tuple(
+                dict(item)
+                for item in exact_source_binders
+                if isinstance(item, Mapping)
+            ),
+        )
     )
     semantic_requirement_comment = "\n".join(
         f"-- required source-to-bridge semantic dependency: {_sanitize_comment_text(value)}"
@@ -1235,6 +1275,19 @@ def _premise_derivation_theorem_statement(
         f"{context} :\n"
         f"    {premise_type} := by\n"
     )
+
+
+def _explicit_premise_semantic_dependency_requirements(
+    *sources: Mapping[str, Any],
+) -> tuple[str, ...]:
+    requirements: list[str] = []
+    for source in sources:
+        for value in _str_tuple(
+            source.get("premise_semantic_dependency_requirements", [])
+        ):
+            if value not in requirements:
+                requirements.append(value)
+    return tuple(requirements)
 
 
 def _premise_semantic_dependency_requirements(

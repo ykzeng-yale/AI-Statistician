@@ -197,6 +197,10 @@ def metadata_authoring_request_row(
         "premise_target_type": str(
             normalized_request.get("premise_target_type", "") or ""
         ),
+        "premise_semantic_dependency_requirements": _request_string_list(
+            normalized_request,
+            "premise_semantic_dependency_requirements",
+        ),
         "exact_source_theorem_binders": _request_sequence(
             normalized_request,
             "exact_source_theorem_binders",
@@ -468,6 +472,7 @@ def memory_metadata_authoring_request_rows(
                 request[key] = value
         for key in (
             "premise_names",
+            "premise_semantic_dependency_requirements",
             "exact_source_theorem_binders",
             "premise_semantic_anchor_binders",
             "premise_semantic_anchor_binder_names",
@@ -521,6 +526,9 @@ def memory_metadata_authoring_request_rows(
                 "premise_target_type": str(
                     request.get("premise_target_type", "") or ""
                 ),
+                "premise_semantic_dependency_requirements": string_values(
+                    request.get("premise_semantic_dependency_requirements", [])
+                )[:12],
                 "exact_source_theorem_binders": sequence(
                     request.get("exact_source_theorem_binders", [])
                 )[:12],
