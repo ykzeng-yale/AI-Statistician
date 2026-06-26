@@ -1195,6 +1195,100 @@ def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
     assert adapter_rows[0]["source_theorem_kernel_verified"] is False
 
 
+def test_runtime_learning_memory_loader_pins_typechecked_semantic_definition_candidate(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    verified_adapter = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "adapter_kernel_verified": True,
+        "source_theorem_kernel_verified": False,
+        "runtime_queue_status": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED",
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+            "source_theorem_proof_body_adapter_check:verified"
+        ],
+    }
+    premise_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "runtime_queue_status": (
+                "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+            ),
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+            ),
+            "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                f"source_to_bridge_premise_derivation_check:{index}"
+            ],
+        }
+        for index in range(8)
+    ]
+    typechecked_candidate = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_lean_repair_execution"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "coverage_event",
+        "definition_only_candidate_artifact_path": "runs/coverage_event.lean",
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+        "source_theorem_kernel_verified": False,
+        "semantic_definition_kernel_verified": False,
+    }
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                verified_adapter,
+                *premise_rows,
+                typechecked_candidate,
+                {"learning_task": "generated_next_action_routing", "index": 99},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    rows = memory["rows"]
+    assert any(
+        row.get("adapter_kernel_verified") is True
+        and row.get("source_theorem_kernel_verified") is False
+        for row in rows
+    )
+    semantic_rows = [
+        row for row in rows if row.get("placeholder_symbol") == "coverage_event"
+    ]
+    assert len(semantic_rows) == 1
+    assert semantic_rows[0]["local_definition_lean_compiled"] is True
+    assert semantic_rows[0]["semantic_definition_kernel_verified"] is False
+    assert semantic_rows[0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert semantic_rows[0]["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+        "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+
+
 def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -> None:
     pending_task = {
         "task_id": "critic:conformal_prediction_coverage:next",

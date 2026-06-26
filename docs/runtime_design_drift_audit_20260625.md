@@ -571,3 +571,23 @@ a deterministic replay over the post-Critic learning rows retains 6
 handoff visibility only: no source theorem or semantic definition is promoted
 to kernel proof without reviewed exact definitions and local Lean/AXLE proof of
 the intended source theorem.
+
+The follow-up resume check found the same drift one layer earlier in the CLI:
+`research-agent-runtime --resume-runtime-manifest` reloads prior
+`runtime_learning_rows.jsonl` into input memory before the runtime pending-task
+writer has a chance to merge same-run rows. The CLI compactor had its own
+adapter/premise-oriented pinning rules, so the old serialized handoff would
+still starve compiled `coverage_event` candidates during actual resume. The
+CLI now pins local-Lean typechecked exact semantic-definition candidates with
+the same priority boundary as the runtime writer and preserves the
+`semantic_definition_kernel_verified=false` field through compaction. A live
+resume from
+`runs/main_worker_exact_semantic_definition_post_authoring_critic_live/research_agent_runtime_manifest.json`
+advanced the Formalizer run to 64 kernel-verified helper/subclaim rows and 50
+formal gaps while carrying 7 exact semantic-definition memory rows into the
+pending Critic task. The subsequent Critic continuation handed back
+`formalize-critic-repair:conformal_prediction_coverage:4b94cd47` with
+`source_theorem_exact_semantic_definition_repair_feedback`,
+`SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`, and compiled `coverage_event`
+review rows still visible. The exact source-theorem proof body remains
+unverified; this was routing repair, not proof promotion.

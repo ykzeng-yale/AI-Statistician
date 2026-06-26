@@ -859,6 +859,10 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+        row
+    ):
+        return 95
     if (
         bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
         or bool(row.get("premise_derivation_kernel_verified", False))
@@ -905,6 +909,38 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         or input_summary.get("placeholder_symbol", "")
         or ""
     )
+    if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+        row
+    ):
+        candidate = row.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+            input_summary.get(
+                "source_theorem_exact_semantic_definition_typechecked_candidate",
+                {},
+            ),
+        )
+        if not isinstance(candidate, Mapping):
+            candidate = {}
+        artifact_path = str(
+            row.get("definition_only_candidate_artifact_path", "")
+            or input_summary.get("definition_only_candidate_artifact_path", "")
+            or candidate.get("definition_only_candidate_artifact_path", "")
+            or ""
+        ).strip()
+        semantic_status = str(
+            row.get("semantic_definition_typecheck_evidence_status", "")
+            or input_summary.get("semantic_definition_typecheck_evidence_status", "")
+            or candidate.get("semantic_definition_typecheck_evidence_status", "")
+            or ""
+        ).strip()
+        return (
+            "typechecked_exact_semantic_definition:"
+            + target
+            + ":"
+            + placeholder
+            + ":"
+            + (artifact_path or semantic_status)
+        )
     if (
         learning_task == "source_theorem_exact_semantic_definition_work_order"
         and placeholder
@@ -1055,6 +1091,10 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         and _runtime_learning_memory_pin_priority(row) >= 100
     ):
         return True
+    if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+        row
+    ):
+        return True
     if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
         row.get("premise_derivation_kernel_verified", False)
     ) or bool(
@@ -1142,6 +1182,48 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     return False
 
 
+def _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        input_summary.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+            {},
+        ),
+    )
+    if not isinstance(candidate, Mapping):
+        candidate = {}
+    semantic_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "")
+        or input_summary.get("semantic_definition_typecheck_evidence_status", "")
+        or candidate.get("semantic_definition_typecheck_evidence_status", "")
+        or ""
+    )
+    local_compiled = bool(
+        row.get("local_definition_lean_compiled", False)
+        or input_summary.get("local_definition_lean_compiled", False)
+        or candidate.get("local_definition_lean_compiled", False)
+    )
+    artifact_path = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or input_summary.get("definition_only_candidate_artifact_path", "")
+        or candidate.get("definition_only_candidate_artifact_path", "")
+        or ""
+    ).strip()
+    if local_compiled and (artifact_path or semantic_status):
+        return True
+    return semantic_status in {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+    }
+
+
 def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str, object]:
     compact = {
         "schema_version": row.get("schema_version", 1),
@@ -1224,6 +1306,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_theorem_kernel_evidence_eligible",
         "source_theorem_kernel_verified",
         "source_theorem_proof_body_adapter_kernel_verified",
+        "semantic_definition_kernel_verified",
         "adapter_kernel_verified",
         "adapter_candidate_evidence_eligible",
         "adapter_candidate_artifact_path",
@@ -1301,6 +1384,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "semantic_anchor_reference_gate",
         "candidate_materialization_required",
         "candidate_materialization_contract",
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
@@ -1535,6 +1619,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "execution_transcript_path",
         "proof_audit_manifest",
         "source_theorem_kernel_verified",
+        "semantic_definition_kernel_verified",
         "artifact_kernel_verified",
         "source_theorem_proof_body_adapter_kernel_verified",
         "local_lean_checked",
@@ -1685,6 +1770,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_grouped_premise_derivation_candidate_request",
         "source_to_bridge_premise_derivation_source_candidate_request",
         "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
     )
     for key in scalar_keys:
         if key in value and value[key] not in (None, "", [], {}):
