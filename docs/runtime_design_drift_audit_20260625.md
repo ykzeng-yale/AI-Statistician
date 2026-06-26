@@ -632,3 +632,24 @@ with direct memory rows for `good_rank_event`, `C_n`, `coverage_event`, and
 `covered`. This is still orchestration memory only: the source theorem and
 semantic-definition kernel flags remain false, and the proof-body gate remains
 `SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`.
+
+The next live Formalizer continuation from
+`formalize-critic-repair:conformal_prediction_coverage:554b672a` showed the
+same design concern in the execution router rather than memory. Once a
+definition-only candidate existed for `good_rank_event`, local Lean reported an
+import/environment failure, but the Lean repair executor treated that as
+environment feedback only. It did not also send the failed definition candidate
+back to the Claude/ProofEngineer authoring loop with diagnostics, so the next
+authoring budget was spent on the already semantic-review-blocked
+`coverage_event` and `covered` rows. The executor now treats failed
+definition-only candidates as typed exact semantic-definition authoring repair
+work items for local Lean failures, missing candidate artifacts, and import or
+dependency environment failures. The authoring task and prompt carry the
+definition-only artifact path, failure classification, local Lean diagnostics,
+and recommended next action; environment repair still remains a separate
+non-proof work item. A deterministic replay over the 554b bridge tasks now
+routes `good_rank_event`, `coverage_event`, and `covered` to authoring repair,
+and routes `good_rank_event` plus `C_n` to Lean environment/import repair. This
+is the intended design split: core runtime enforces evidence boundaries and
+typed routing, while the LLM/prover workers perform the actual Lean repair.
+Source theorem and semantic-definition kernel flags remain false.

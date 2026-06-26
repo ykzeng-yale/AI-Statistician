@@ -94,6 +94,17 @@ def _write_authoring_tasks(path: Path) -> None:
         "authoring_mode": "repair_typechecked_semantic_definition_candidate",
         "lean_repair_action": "synthesize_exact_definition",
         "repair_strategy": "synthesize_reviewed_definition_from_source_references",
+        "definition_only_candidate_artifact_path": "/tmp/candidate_defs_only.lean",
+        "candidate_artifact_path": "/tmp/candidate_full.lean",
+        "candidate_lean_project_hint": "/tmp/lean_project",
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": False,
+        "local_lean_checked": True,
+        "local_lean_compiled": False,
+        "local_lean_returncode": 1,
+        "local_lean_diagnostics": ["application type mismatch"],
+        "failure_classification": "local_lean_failed_unclassified",
+        "recommended_next_action": "repair the definition-only candidate Lean errors",
         "source_definition_closure_work_order_id": (
             "source_theorem_exact_semantic_definition_closure_work_order:covered"
         ),
@@ -239,12 +250,24 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     assert prompt_packets[0]["source_theorem_kernel_verified"] is False
     assert prompt_packets[0]["semantic_definition_kernel_verified"] is False
     assert "lean_definition_candidate" in prompt_packets[0]["response_schema"]["required"]
+    assert prompt_packets[0]["candidate_repair_feedback"][
+        "definition_only_candidate_artifact_path"
+    ] == "/tmp/candidate_defs_only.lean"
+    assert prompt_packets[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "local_lean_failed_unclassified"
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
     assert prompt_payload["semantic_alignment_blockers"] == [
         "previous covered candidate ignored q_hat and hC"
     ]
     assert prompt_payload["authoring_trigger"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    assert prompt_payload["candidate_repair_feedback"]["local_lean_diagnostics"] == [
+        "application type mismatch"
+    ]
+    assert prompt_payload["candidate_repair_feedback"]["recommended_next_action"] == (
+        "repair the definition-only candidate Lean errors"
     )
     environment_contract = prompt_payload["lean_authoring_environment_contract"]
     assert environment_contract["candidate_scope"] == "definition_or_abbrev_only"

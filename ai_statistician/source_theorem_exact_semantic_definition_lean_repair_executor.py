@@ -60,6 +60,18 @@ BOUNDARY = (
     "unless a later verifier manifest checks the repaired candidate declaration "
     "and source theorem under local Lean/AXLE."
 )
+AUTHOR_DEFINITION_REPAIR_STATUSES = {
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_PATH_MISSING",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_FILE_MISSING",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_DEPENDENCY_ENVIRONMENT_MISSING",
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_ENVIRONMENT_TIMEOUT",
+}
+AUTHOR_DEFINITION_MISSING_STATUS = (
+    "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN"
+)
 
 
 def run_source_theorem_exact_semantic_definition_lean_repair_executor(
@@ -903,6 +915,7 @@ def _runtime_queue_status_from_execution(
 
 
 def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
+    candidate_file = _environment_repair_candidate_file(row)
     task_id = (
         "source_theorem_exact_semantic_definition_lean_environment_repair_task:"
         + stable_hash(
@@ -910,13 +923,12 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("execution_result_id", ""),
                 row.get("target_theorem_name", ""),
                 row.get("placeholder_symbol", ""),
-                row.get("candidate_source_file", ""),
+                candidate_file,
                 row.get("candidate_lean_project_hint", ""),
             ]
         )[:20]
     )
     project_hint = str(row.get("candidate_lean_project_hint", "") or "")
-    candidate_file = str(row.get("candidate_source_file", "") or "")
     command_hint = (
         f"lake env lean {candidate_file}" if project_hint and candidate_file else ""
     )
@@ -941,6 +953,9 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "candidate_source_file": candidate_file,
+        "definition_only_candidate_artifact_path": str(
+            row.get("definition_only_candidate_artifact_path", "") or ""
+        ),
         "candidate_lean_project_hint": project_hint,
         "recommended_command": command_hint,
         "failure_classification": failure_classification,
@@ -962,6 +977,13 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
+
+
+def _environment_repair_candidate_file(row: Mapping[str, Any]) -> str:
+    candidate_source_file = str(row.get("candidate_source_file", "") or "")
+    if candidate_source_file:
+        return candidate_source_file
+    return str(row.get("definition_only_candidate_artifact_path", "") or "")
 
 
 def _candidate_definition_request(
@@ -1238,24 +1260,75 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
 
 def _needs_author_definition_task(row: Mapping[str, Any]) -> bool:
     execution_status = str(row.get("execution_status", "") or "")
-    return execution_status in {
-        "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
-    }
+    return (
+        execution_status == AUTHOR_DEFINITION_MISSING_STATUS
+        or execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES
+    )
 
 
 def _author_definition_runtime_queue_status(row: Mapping[str, Any]) -> str:
     execution_status = str(row.get("execution_status", "") or "")
-    if execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED":
+    if execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES:
         return "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     return "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING"
 
 
 def _author_definition_trigger(row: Mapping[str, Any]) -> str:
     execution_status = str(row.get("execution_status", "") or "")
-    if execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED":
+    if execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES:
         return "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
     return "EXACT_SEMANTIC_DEFINITION_AUTHORING_REQUIRED"
+
+
+def _author_definition_mode(execution_status: str) -> str:
+    if (
+        execution_status
+        == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    ):
+        return "repair_typechecked_semantic_definition_candidate"
+    if execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES:
+        return "repair_failed_exact_semantic_definition_candidate"
+    return "author_missing_exact_semantic_definition"
+
+
+def _author_definition_policy(
+    *,
+    execution_status: str,
+    authoring_mode: str,
+    placeholder: str,
+) -> str:
+    if authoring_mode == "repair_typechecked_semantic_definition_candidate":
+        lead = (
+            "Repair the typechecked exact Lean definition against the listed "
+            "semantic alignment blockers and required anchors. The replacement "
+            "must preserve local Lean typecheckability while eliminating the "
+            "semantic blockers. "
+        )
+    elif authoring_mode == "repair_failed_exact_semantic_definition_candidate":
+        lead = (
+            "Repair the existing definition-only exact Lean candidate using the "
+            "local Lean diagnostics, failure classification, source theorem "
+            "binders, source references, and semantic contract. The replacement "
+            "must be designed to compile in the configured Lake project before "
+            "semantic review resumes. "
+        )
+        if "ENVIRONMENT" in execution_status:
+            lead += (
+                "If the blocker is an import or dependency environment issue, "
+                "avoid broad speculative imports and keep any required environment "
+                "work explicit in known_gaps. "
+            )
+    else:
+        lead = (
+            "Synthesize the exact Lean definition from source theorem binders "
+            "and source reference snippets. "
+        )
+    return (
+        lead
+        + "Do not import generic declarations for "
+        f"{placeholder or 'the placeholder'} and do not define the placeholder "
+        "as True, a constant, or an assumption-strengthening shortcut."
+    )
 
 
 def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -1263,9 +1336,7 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
 
     execution_status = str(row.get("execution_status", "") or "")
     authoring_trigger = _author_definition_trigger(row)
-    authoring_repair = (
-        execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
-    )
+    authoring_mode = _author_definition_mode(execution_status)
     task_id = (
         "source_theorem_exact_semantic_definition_authoring_task:"
         + stable_hash(
@@ -1306,17 +1377,19 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "placeholder_symbol": placeholder,
         "authoring_trigger": authoring_trigger,
-        "authoring_mode": (
-            "repair_typechecked_semantic_definition_candidate"
-            if authoring_repair
-            else "author_missing_exact_semantic_definition"
-        ),
+        "authoring_mode": authoring_mode,
+        "lean_repair_action": str(row.get("lean_repair_action", "") or ""),
+        "repair_strategy": str(row.get("repair_strategy", "") or ""),
         "definition_contract": dict(row.get("definition_contract", {}) or {}),
         "source_reference_hints": list(row.get("source_reference_hints", []) or []),
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
         "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+        "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
+        "candidate_lean_project_hint": str(
+            row.get("candidate_lean_project_hint", "") or ""
+        ),
         "local_definition_lean_checked": bool(
             row.get("local_definition_lean_checked", False)
         ),
@@ -1332,6 +1405,13 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "semantic_alignment_blockers": list(
             row.get("semantic_alignment_blockers", []) or []
         ),
+        "local_lean_requested": bool(row.get("local_lean_requested", False)),
+        "local_lean_checked": bool(row.get("local_lean_checked", False)),
+        "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+        "local_lean_returncode": int(row.get("local_lean_returncode", 0) or 0),
+        "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
+        "failure_classification": str(row.get("failure_classification", "") or ""),
+        "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
         **_exact_semantic_definition_context(row),
         "candidate_definition_request": candidate_definition_request,
         "required_output_artifacts": [
@@ -1341,23 +1421,10 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
             "local_definition_lean_compiled",
             "semantic_definition_typecheck_evidence_status",
         ],
-        "authoring_policy": (
-            (
-                "Repair the typechecked exact Lean definition against the listed "
-                "semantic alignment blockers and required anchors. The replacement "
-                "must preserve local Lean typecheckability while eliminating the "
-                "semantic blockers. "
-            )
-            if authoring_repair
-            else (
-                "Synthesize the exact Lean definition from source theorem binders "
-                "and source reference snippets. "
-            )
-        )
-        + (
-            "Do not import generic declarations for "
-            f"{placeholder or 'the placeholder'} and do not define the placeholder "
-            "as True, a constant, or an assumption-strengthening shortcut."
+        "authoring_policy": _author_definition_policy(
+            execution_status=execution_status,
+            authoring_mode=authoring_mode,
+            placeholder=placeholder,
         ),
         "acceptance_gate": (
             "A definition-only candidate must local-Lean check before semantic "

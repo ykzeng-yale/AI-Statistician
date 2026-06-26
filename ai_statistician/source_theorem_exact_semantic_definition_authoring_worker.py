@@ -799,6 +799,7 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         "semantic_alignment_blockers": list(
             task.get("semantic_alignment_blockers", []) or []
         )[:8],
+        "candidate_repair_feedback": _candidate_repair_feedback(task),
         **_exact_semantic_definition_context(task),
         "candidate_definition_request": request,
         "candidate_definition_request_autofilled": request_autofilled,
@@ -860,6 +861,7 @@ def _prompt_payload(
         "semantic_alignment_blockers": list(
             task.get("semantic_alignment_blockers", []) or []
         )[:8],
+        "candidate_repair_feedback": _candidate_repair_feedback(task),
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
         "lean_authoring_environment_contract": (
             _lean_authoring_environment_contract(
@@ -897,6 +899,35 @@ def _prompt_payload(
         ),
         "local_lean_gate": str(
             candidate_definition_request.get("local_lean_gate", "") or ""
+        ),
+    }
+
+
+def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "definition_only_candidate_artifact_path": str(
+            task.get("definition_only_candidate_artifact_path", "") or ""
+        ),
+        "candidate_artifact_path": str(task.get("candidate_artifact_path", "") or ""),
+        "candidate_source_file": str(task.get("candidate_source_file", "") or ""),
+        "candidate_lean_project_hint": str(
+            task.get("candidate_lean_project_hint", "") or ""
+        ),
+        "local_definition_lean_checked": bool(
+            task.get("local_definition_lean_checked", False)
+        ),
+        "local_definition_lean_compiled": bool(
+            task.get("local_definition_lean_compiled", False)
+        ),
+        "local_lean_checked": bool(task.get("local_lean_checked", False)),
+        "local_lean_compiled": bool(task.get("local_lean_compiled", False)),
+        "local_lean_returncode": int(task.get("local_lean_returncode", 0) or 0),
+        "local_lean_diagnostics": list(
+            task.get("local_lean_diagnostics", []) or []
+        )[:12],
+        "failure_classification": str(task.get("failure_classification", "") or ""),
+        "recommended_next_action": str(
+            task.get("recommended_next_action", "") or ""
         ),
     }
 

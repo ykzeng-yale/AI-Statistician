@@ -35878,10 +35878,15 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     else "EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY_REQUIRED"
                 ),
                 "authoring_mode": (
-                    "repair_typechecked_semantic_definition_candidate"
+                    str(
+                        row.get("authoring_mode", "")
+                        or input_summary.get("authoring_mode", "")
+                        or ""
+                    )
                     if authoring_repair_required
                     else "retry_exact_semantic_definition_authoring"
-                ),
+                )
+                or "repair_typechecked_semantic_definition_candidate",
                 "retry_of_authoring_failure": bool(authoring_retry_required),
                 "repair_of_semantic_alignment_blockers": bool(
                     authoring_repair_required

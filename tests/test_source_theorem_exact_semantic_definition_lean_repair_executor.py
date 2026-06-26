@@ -862,6 +862,122 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
     assert results[0]["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
     )
+    assert manifest["n_lean_environment_repair_tasks"] == 1
+    assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
+    assert manifest["n_exact_semantic_definition_authoring_repair_tasks"] == 1
+    environment_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["lean_environment_repair_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert environment_tasks[0]["candidate_source_file"] == str(
+        definition_only_candidate
+    )
+    assert environment_tasks[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["exact_semantic_definition_authoring_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert authoring_tasks[0]["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    assert authoring_tasks[0]["authoring_mode"] == (
+        "repair_failed_exact_semantic_definition_candidate"
+    )
+    assert authoring_tasks[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
+    )
+    assert authoring_tasks[0]["failure_classification"] == (
+        "lean_import_environment_missing"
+    )
+    assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    assert "unknown module prefix" in "\n".join(
+        authoring_tasks[0]["local_lean_diagnostics"]
+    )
+
+
+def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    definition_only_candidate = tmp_path / "candidate_defs_only.lean"
+    definition_only_candidate.write_text(
+        "def reviewedCovered : Prop := by exact True\n",
+        encoding="utf-8",
+    )
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:covered:local-failure",
+        "source_repair_packet_id": "repair:covered",
+        "source_review_packet_id": "review:covered",
+        "source_definition_closure_work_order_id": "closure:covered",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "covered",
+        "lean_repair_action": "author_exact_definition",
+        "repair_strategy": "author_reviewed_definition_from_contract",
+        "definition_only_candidate_artifact_path": str(definition_only_candidate),
+        "candidate_artifact_path": str(tmp_path / "candidate_full.lean"),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "sys.stderr.write('application type mismatch\\n'); "
+                "sys.exit(1)"
+            ),
+        ),
+    )
+
+    results = [
+        json.loads(line)
+        for line in Path(manifest["execution_results_jsonl"]).read_text().splitlines()
+    ]
+    assert results[0]["execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+    )
+    assert results[0]["failure_classification"] == "local_lean_failed_unclassified"
+    assert manifest["n_lean_environment_repair_tasks"] == 0
+    assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
+    assert manifest["n_exact_semantic_definition_authoring_repair_tasks"] == 1
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["exact_semantic_definition_authoring_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert authoring_tasks[0]["authoring_mode"] == (
+        "repair_failed_exact_semantic_definition_candidate"
+    )
+    assert authoring_tasks[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    assert "application type mismatch" in "\n".join(
+        authoring_tasks[0]["local_lean_diagnostics"]
+    )
+    assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
+    assert authoring_tasks[0]["semantic_definition_kernel_verified"] is False
 
 
 def test_typechecked_definition_candidate_without_project_does_not_create_false_env_blocker(
