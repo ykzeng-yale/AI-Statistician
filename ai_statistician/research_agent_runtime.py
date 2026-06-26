@@ -20118,12 +20118,9 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
             for value in diagnostic.get("adapter_candidate_imports", []) or []
             if str(value).strip()
         ]
-        structured_imports = (
-            [unavailable_import] if unavailable_import else candidate_imports
-        )
-        import_prefixes = list(dict.fromkeys(structured_imports))
-        if not import_prefixes:
-            import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
+        exact_import_prefixes = [unavailable_import] if unavailable_import else []
+        if not exact_import_prefixes:
+            exact_import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
                 [
                     {
                         "local_lean_stdout_excerpt": diagnostic_text,
@@ -20131,31 +20128,66 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                     }
                 ]
             )
+        candidate_import_prefixes = list(dict.fromkeys(candidate_imports))
+        candidate_import_source = (
+            "adapter_candidate_imports" if candidate_import_prefixes else ""
+        )
         if (
-            not import_prefixes
+            not exact_import_prefixes
+            and not candidate_import_prefixes
             and failure == "adapter_lean_import_environment_missing"
         ):
-            import_prefixes = _lean_import_modules_from_artifact_path(artifact_path)
-        if import_prefixes:
-            for module in import_prefixes[:2]:
+            candidate_import_prefixes = _lean_import_modules_from_artifact_path(
+                artifact_path
+            )
+            if candidate_import_prefixes:
+                candidate_import_source = "adapter_candidate_artifact_imports"
+        import_requests: list[tuple[str, bool]] = [
+            (module, True)
+            for module in list(dict.fromkeys(exact_import_prefixes))[:2]
+        ]
+        if not import_requests:
+            import_requests = [
+                (module, False)
+                for module in list(dict.fromkeys(candidate_import_prefixes))[:4]
+            ]
+        if import_requests:
+            for module, exact_unavailable in import_requests:
+                blocker_kind = (
+                    "source_theorem_proof_body_adapter_unavailable_import"
+                    if exact_unavailable
+                    else "source_theorem_proof_body_adapter_candidate_import_resolution"
+                )
                 blocker = (
                     f"{module} unavailable import while checking source-theorem "
                     "proof-body adapter"
+                    if exact_unavailable
+                    else f"{module} appears in a source-theorem proof-body "
+                    "adapter candidate whose import diagnostic was truncated"
                 )
                 if declaration:
                     blocker += f" `{declaration}`"
                 if artifact_path:
                     blocker += f" at {artifact_path}"
-                blocker += (
-                    ". Retrieve or select a verified local import/declaration in the "
-                    "configured Lean project, or keep the adapter/source theorem as "
-                    "FORMAL_GAP with the missing dependency named."
-                )
+                if exact_unavailable:
+                    blocker += (
+                        ". Retrieve or select a verified local import/declaration "
+                        "in the configured Lean project, or keep the adapter/source "
+                        "theorem as FORMAL_GAP with the missing dependency named."
+                    )
+                else:
+                    blocker += (
+                        ". Verify this candidate import in the configured Lean "
+                        "project, recover the exact missing module from local Lean "
+                        "or LSP diagnostics, or keep the adapter/source theorem as "
+                        "FORMAL_GAP with the unresolved dependency named."
+                    )
                 fingerprint = stable_hash(
                     [
                         "critic_source_theorem_proof_body_adapter_feedback",
-                        "source_theorem_proof_body_adapter_unavailable_import",
+                        blocker_kind,
                         module,
+                        exact_unavailable,
                         target_ids,
                         artifact_path,
                     ]
@@ -20164,9 +20196,7 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                     f"{module} Lean import",
                     *_formal_blocker_resource_request_queries(
                         blocker,
-                        blocker_kind=(
-                            "source_theorem_proof_body_adapter_unavailable_import"
-                        ),
+                        blocker_kind=blocker_kind,
                         target_ids=target_ids,
                     ),
                 ]
@@ -20178,13 +20208,18 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                         "source": (
                             "critic_source_theorem_proof_body_adapter_feedback"
                         ),
-                        "blocker_kind": (
-                            "source_theorem_proof_body_adapter_unavailable_import"
-                        ),
+                        "blocker_kind": blocker_kind,
                         "blocker": blocker,
                         "next_owner": "Formalizer/ProofEngineer/LeanProver",
                         "target_ids": target_ids,
-                        "unavailable_import": module,
+                        "unavailable_import": module if exact_unavailable else "",
+                        "candidate_import": "" if exact_unavailable else module,
+                        "unavailable_import_exact": exact_unavailable,
+                        "import_resolution_source": (
+                            "adapter_unavailable_import_diagnostic"
+                            if exact_unavailable
+                            else candidate_import_source
+                        ),
                         "formal_source_queries": list(
                             dict.fromkeys(formal_source_queries)
                         )[:5],
@@ -20198,6 +20233,13 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                             "local import/declaration, derive a smaller source-to-bridge "
                             "primitive, or keep the adapter/source theorem as FORMAL_GAP. "
                             "Do not repeat the unresolved import."
+                            if exact_unavailable
+                            else (
+                                "Use formal-source retrieval, Lean LSP/MCP, or local "
+                                "Lean to determine whether this candidate import is "
+                                "available in the configured project and recover the "
+                                "exact unavailable module before retrying the adapter."
+                            )
                         ),
                         "proof_evidence_status": (
                             "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"

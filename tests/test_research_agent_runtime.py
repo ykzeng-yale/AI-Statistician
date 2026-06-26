@@ -602,6 +602,8 @@ def test_critic_adapter_feedback_names_import_from_adapter_artifact(
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     adapter_artifact = tmp_path / "frontier_source_theorem_adapter.lean"
     adapter_artifact.write_text(
+        "import Mathlib.Data.Finset.Sort\n"
+        "import Mathlib.Data.Real.Basic\n"
         "import Mathlib.Algebra.Order.Floor\n\n"
         "theorem frontier_source_theorem_adapter : True := by\n"
         "  trivial\n",
@@ -650,16 +652,27 @@ def test_critic_adapter_feedback_names_import_from_adapter_artifact(
         agenda=[],
     )
 
-    import_request = next(
+    import_requests = [
         row
         for row in feedback["formal_blocker_resource_requests"]
         if row["blocker_kind"]
-        == "source_theorem_proof_body_adapter_unavailable_import"
-    )
+        == "source_theorem_proof_body_adapter_candidate_import_resolution"
+    ]
+    assert [row["candidate_import"] for row in import_requests] == [
+        "Mathlib.Data.Finset.Sort",
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Algebra.Order.Floor",
+    ]
+    import_request = import_requests[2]
     assert import_request["source"] == (
         "critic_source_theorem_proof_body_adapter_feedback"
     )
-    assert import_request["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert import_request["unavailable_import"] == ""
+    assert import_request["candidate_import"] == "Mathlib.Algebra.Order.Floor"
+    assert import_request["unavailable_import_exact"] is False
+    assert import_request["import_resolution_source"] == (
+        "adapter_candidate_artifact_imports"
+    )
     assert "Mathlib.Algebra.Order.Floor Lean import" in import_request[
         "formal_source_queries"
     ]
@@ -724,6 +737,11 @@ def test_critic_adapter_feedback_prefers_structured_unavailable_import() -> None
     assert [row["unavailable_import"] for row in import_requests] == [
         "Mathlib.Algebra.Order.Floor"
     ]
+    assert import_requests[0]["candidate_import"] == ""
+    assert import_requests[0]["unavailable_import_exact"] is True
+    assert import_requests[0]["import_resolution_source"] == (
+        "adapter_unavailable_import_diagnostic"
+    )
     assert import_requests[0]["formal_source_queries"][0] == (
         "Mathlib.Algebra.Order.Floor Lean import"
     )

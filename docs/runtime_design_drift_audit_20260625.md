@@ -358,3 +358,22 @@ bridge now records `adapter_candidate_imports` and exact
 and runtime learning rows. That is the intended contract: ProofEngineer bridge
 observations carry precise Lean import blockers before Critic summarization or
 prompt compaction can truncate diagnostics.
+
+The next Critic replay exposed a subtler evidence-boundary mistake in the
+fallback path. When old runtime rows lacked bridge-exported
+`unavailable_import` metadata, Critic recovered imports from the generated
+adapter artifact and labeled the first recovered modules as exact unavailable
+imports. That was too strong: a source file import line is only a candidate for
+formal-source/Lean-LSP/local-Lean resolution unless the bridge row or full Lean
+diagnostic identifies the missing module. Runtime now separates exact
+`source_theorem_proof_body_adapter_unavailable_import` requests from
+artifact-only `source_theorem_proof_body_adapter_candidate_import_resolution`
+requests. The live probe
+`runs/main_worker_live_runtime_resume_critic_after_candidate_import_resolution_probe/research_agent_runtime_manifest.json`
+keeps the direct Formalizer handoff non-proof and asks the prover/RAG layer to
+resolve `Mathlib.Data.Finset.Sort`, `Mathlib.Data.Real.Basic`, and
+`Mathlib.Algebra.Order.Floor` as candidate imports, with `unavailable_import`
+left empty, `unavailable_import_exact=false`, and artifact provenance recorded
+separately from structured bridge candidate imports. Exact unavailable-import
+rows remain available only when structured bridge/diagnostic metadata supplies
+the missing module.
