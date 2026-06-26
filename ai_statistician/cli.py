@@ -766,9 +766,20 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
     rows: list[dict[str, object]] = []
     retention_policy = "latest_rows"
     if row_limit:
-        pinned_rows = [
-            row for row in all_rows if _runtime_learning_memory_should_pin_row(row)
-        ][-row_limit:]
+        pinned_rows: list[dict[str, object]] = []
+        seen_pin_keys: set[str] = set()
+        for row in reversed(all_rows):
+            if not _runtime_learning_memory_should_pin_row(row):
+                continue
+            pin_key = _runtime_learning_memory_pin_key(row)
+            if pin_key and pin_key in seen_pin_keys:
+                continue
+            if pin_key:
+                seen_pin_keys.add(pin_key)
+            pinned_rows.append(row)
+            if len(pinned_rows) >= row_limit:
+                break
+        pinned_rows.reverse()
         latest_rows = all_rows[-row_limit:]
         seen: set[str] = set()
         for row in [*pinned_rows, *latest_rows]:
@@ -802,6 +813,89 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
     }
 
 
+def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    learning_task = str(row.get("learning_task", "") or "")
+    target = str(
+        row.get("target_theorem_name", "")
+        or input_summary.get("target_theorem_name", "")
+        or ""
+    )
+    placeholder = str(
+        row.get("placeholder_symbol", "")
+        or input_summary.get("placeholder_symbol", "")
+        or ""
+    )
+    if (
+        learning_task == "source_theorem_exact_semantic_definition_work_order"
+        and placeholder
+    ):
+        return f"{learning_task}:{target}:{placeholder}"
+    premise_names = _runtime_learning_memory_string_values(
+        row,
+        "source_to_bridge_premise_name",
+        "premise_name",
+        "source_to_bridge_premise_names",
+        "premise_names",
+    )
+    verified_premise_ids = _runtime_learning_memory_string_values(
+        row,
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
+    )
+    if premise_names and (
+        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or bool(row.get("premise_derivation_kernel_verified", False))
+        or bool(
+            input_summary.get(
+                "source_to_bridge_premise_derivation_kernel_verified",
+                False,
+            )
+        )
+        or bool(input_summary.get("premise_derivation_kernel_verified", False))
+    ):
+        return "verified_source_to_bridge_premise:" + target + ":" + ",".join(
+            premise_names
+        )
+    if verified_premise_ids:
+        return "verified_source_to_bridge_premise_ids:" + target + ":" + ",".join(
+            verified_premise_ids
+        )
+    if (
+        learning_task == "source_theorem_proof_body_adapter_feedback"
+        and premise_names
+    ):
+        return "source_theorem_proof_body_adapter_feedback:" + target + ":" + ",".join(
+            premise_names
+        )
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return "candidate_materialization_required:" + target
+    return ""
+
+
+def _runtime_learning_memory_string_values(
+    row: Mapping[str, object],
+    *keys: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    sources: list[Mapping[str, object]] = [row]
+    input_summary = row.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        sources.append(input_summary)
+    for source in sources:
+        for key in keys:
+            raw = source.get(key)
+            candidates = raw if isinstance(raw, list | tuple | set) else [raw]
+            for value in candidates:
+                text = str(value or "").strip()
+                if text:
+                    values.append(text)
+    return tuple(dict.fromkeys(values))
+
+
 def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if not isinstance(row, Mapping):
         return False
@@ -810,6 +904,12 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         input_summary = {}
     trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
     proof_evidence_status = str(row.get("proof_evidence_status", "") or "")
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    learning_task = str(row.get("learning_task", "") or "")
     if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
         row.get("premise_derivation_kernel_verified", False)
     ) or bool(
@@ -822,9 +922,15 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         == "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
     ):
         return True
+    if _runtime_learning_memory_string_values(
+        row,
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
+        "verified_source_to_bridge_premise_derivation_signature_excerpts",
+        "source_to_bridge_premise_derivation_signature_excerpts",
+    ):
+        return True
     if (
-        str(row.get("learning_task", "") or "")
-        == "source_theorem_proof_body_adapter_feedback"
+        learning_task == "source_theorem_proof_body_adapter_feedback"
         and (
             bool(row.get("adapter_candidate_requires_unproven_bridge_premises", False))
             or bool(
@@ -835,6 +941,27 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
             )
             or bool(row.get("unproven_bridge_premise_names", []) or [])
             or bool(input_summary.get("unproven_bridge_premise_names", []) or [])
+        )
+    ):
+        return True
+    placeholder_definition_status = str(
+        row.get("placeholder_definition_status", "")
+        or input_summary.get("placeholder_definition_status", "")
+        or ""
+    )
+    if learning_task == "source_theorem_exact_semantic_definition_work_order" and (
+        runtime_queue_status
+        == "PENDING_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION"
+        or placeholder_definition_status
+        == "OPEN_REQUIRES_REVIEWED_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_DEFINITION"
+        or proof_evidence_status
+        == "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        or bool(row.get("source_to_bridge_adapter_object_names_requiring_source_instantiation", []))
+        or bool(
+            input_summary.get(
+                "source_to_bridge_adapter_object_names_requiring_source_instantiation",
+                [],
+            )
         )
     ):
         return True
@@ -1082,6 +1209,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "required_candidate_fields",
         "candidate_materialization_statuses",
         "kernel_verified_source_to_bridge_premise_derivation_ids",
+        "verified_source_to_bridge_premise_derivation_signature_excerpts",
+        "source_to_bridge_premise_derivation_signature_excerpts",
+        "premise_candidate_signature_excerpts",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -1148,6 +1278,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "candidate_materialization_statuses",
             "kernel_verified_source_to_bridge_premise_derivation_ids",
             "unproven_bridge_premise_names",
+            "verified_source_to_bridge_premise_derivation_signature_excerpts",
+            "source_to_bridge_premise_derivation_signature_excerpts",
+            "premise_candidate_signature_excerpts",
         ):
             value = input_summary.get(key)
             if (
@@ -1380,6 +1513,9 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "required_candidate_fields",
         "candidate_materialization_statuses",
         "kernel_verified_source_to_bridge_premise_derivation_ids",
+        "verified_source_to_bridge_premise_derivation_signature_excerpts",
+        "source_to_bridge_premise_derivation_signature_excerpts",
+        "premise_candidate_signature_excerpts",
     )
     mapping_keys = (
         "formalization_counts",

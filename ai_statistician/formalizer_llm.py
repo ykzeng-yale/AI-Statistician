@@ -3421,7 +3421,10 @@ def _formalizer_mode_specific_instructions(
             "statement in that field. Name the adapter theorem `<source theorem declaration>"
             "_source_to_bridge_adapter`, use proof_body_goal_excerpt, "
             "proof_body_attempt_summaries, memory_kernel_verified_theorem_reduction_closure_"
-            "signature_excerpts, and do not guess closure theorem fields."
+            "signature_excerpts, and do not guess closure theorem fields. If "
+            "verified_source_to_bridge_premise_derivation_signature_excerpts are "
+            "present, consume those exact checked theorem headers as dependency "
+            "context for the adapter instead of inventing new bridge premise binders."
         )
     if proof_memory_summary.get(
         "source_theorem_proof_body_adapter_unproven_bridge_premises_required"
@@ -4164,6 +4167,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_to_bridge_premise_derivation_pending_premise_names",
         "source_to_bridge_premise_derivation_verified_premise_names",
         "source_to_bridge_premise_derivation_diagnostics",
+        "verified_source_to_bridge_premise_derivation_signature_excerpts",
         "source_to_bridge_metadata_authoring_required",
         "source_to_bridge_metadata_authoring_target_ids",
         "source_to_bridge_metadata_authoring_helper_candidate_ids",
@@ -4276,6 +4280,9 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "candidate_artifact_path",
                 "adapter_candidate_artifact_path",
                 "adapter_declaration_name",
+                "verified_source_to_bridge_premise_derivation_artifact_paths",
+                "verified_source_to_bridge_premise_derivation_declarations",
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
                 "adapter_kernel_verified",
                 "adapter_candidate_requires_unproven_bridge_premises",
                 "unproven_bridge_premise_names",
@@ -4373,6 +4380,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "premise_derivation_kernel_verified",
                 "premise_candidate_artifact_path",
                 "premise_candidate_declaration_name",
+                "premise_candidate_signature_excerpts",
                 "premise_candidate_evidence_eligible",
                 "premise_candidate_assumes_forbidden_premise",
                 "premise_candidate_uninstantiated_adapter_object_binders",

@@ -21394,8 +21394,8 @@ def _lean_declaration_signature_excerpt_from_artifact_path(
         return ""
     excerpt_lines: list[str] = []
     for line in lines[start : start + max_lines]:
-        if ":= by" in line:
-            before, _sep, _after = line.partition(":= by")
+        if ":=" in line:
+            before, _sep, _after = line.partition(":=")
             excerpt_lines.append(before.rstrip())
             break
         excerpt_lines.append(line.rstrip())
@@ -21962,6 +21962,44 @@ def _runtime_verified_source_to_bridge_premise_names(
             )
         )
     }
+
+
+def _runtime_verified_source_to_bridge_premise_signature_excerpts(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    excerpts = list(
+        _runtime_row_string_values(
+            row,
+            "verified_source_to_bridge_premise_derivation_signature_excerpts",
+            "source_to_bridge_premise_derivation_signature_excerpts",
+            "premise_candidate_signature_excerpts",
+            "premise_candidate_signature_excerpt",
+        )
+    )
+    if not excerpts:
+        artifact_paths = list(
+            _runtime_row_string_values(
+                row,
+                "source_to_bridge_premise_candidate_artifact_path",
+                "premise_candidate_artifact_path",
+                "verified_source_to_bridge_premise_derivation_artifact_paths",
+            )
+        )
+        declarations = list(
+            _runtime_row_string_values(
+                row,
+                "source_to_bridge_premise_candidate_declaration_name",
+                "premise_candidate_declaration_name",
+                "verified_source_to_bridge_premise_derivation_declarations",
+            )
+        )
+        excerpts.extend(
+            _lean_declaration_signature_excerpts_from_artifacts(
+                artifact_paths=artifact_paths,
+                declarations=declarations,
+            )
+        )
+    return tuple(dict.fromkeys(excerpts))
 
 
 def _runtime_is_source_to_bridge_premise_gap_row(row: Mapping[str, Any]) -> bool:
@@ -25580,6 +25618,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
             )
         )
     )
+    verified_source_to_bridge_premise_signature_excerpts = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_verified_source_to_bridge_premise_signature_excerpts(
+                row
+            )
+        )
+    )
     verified_source_proof_body_adapter_ids = tuple(
         dict.fromkeys(
             value
@@ -25664,6 +25711,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "unproven_bridge_premise_names": [],
                 "adapter_candidate_artifact_path": "",
                 "adapter_declaration_name": "",
+                "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                    verified_source_to_bridge_premise_artifact_paths
+                )[:5],
+                "verified_source_to_bridge_premise_derivation_declarations": list(
+                    verified_source_to_bridge_premise_declarations
+                )[:5],
+                "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                    verified_source_to_bridge_premise_signature_excerpts
+                )[:5],
                 "kernel_verified_theorem_reduction_closure_declarations": list(
                     theorem_closure_memory["declarations"]
                 )[:5],
@@ -26183,6 +26239,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "verified_source_to_bridge_premise_derivation_declarations": list(
             verified_source_to_bridge_premise_declarations
         ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+            verified_source_to_bridge_premise_signature_excerpts
+        ),
         "source_to_bridge_premise_derivation_diagnostics": [
             {
                 "target_theorem_name": str(
@@ -26247,6 +26306,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
                         "",
                     )
                 ),
+                "premise_candidate_signature_excerpts": list(
+                    _runtime_verified_source_to_bridge_premise_signature_excerpts(row)
+                )[:3],
                 "premise_candidate_evidence_eligible": bool(
                     row.get(
                         "source_to_bridge_premise_candidate_evidence_eligible",
@@ -26712,6 +26774,25 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "adapter_declaration_name": str(
                         row.get("adapter_declaration_name", "") or ""
                     ),
+                    "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                        _runtime_row_string_values(
+                            row,
+                            "verified_source_to_bridge_premise_derivation_artifact_paths",
+                            "source_to_bridge_premise_candidate_artifact_path",
+                            "premise_candidate_artifact_path",
+                        )
+                    )[:5],
+                    "verified_source_to_bridge_premise_derivation_declarations": list(
+                        _runtime_row_string_values(
+                            row,
+                            "verified_source_to_bridge_premise_derivation_declarations",
+                            "source_to_bridge_premise_candidate_declaration_name",
+                            "premise_candidate_declaration_name",
+                        )
+                    )[:5],
+                    "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                        _runtime_verified_source_to_bridge_premise_signature_excerpts(row)
+                    )[:5],
                     "kernel_verified_theorem_reduction_closure_declarations": list(
                         row.get(
                             "kernel_verified_theorem_reduction_closure_declarations",

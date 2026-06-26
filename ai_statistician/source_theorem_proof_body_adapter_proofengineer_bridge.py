@@ -73,6 +73,7 @@ class SourceTheoremProofBodyAdapterCheckRow:
     kernel_verified_source_to_bridge_premise_derivation_ids: tuple[str, ...]
     verified_source_to_bridge_premise_derivation_artifact_paths: tuple[str, ...]
     verified_source_to_bridge_premise_derivation_declarations: tuple[str, ...]
+    verified_source_to_bridge_premise_derivation_signature_excerpts: tuple[str, ...]
     forbidden_tokens_found: tuple[str, ...]
     adapter_candidate_evidence_eligible: bool
     proof_body_goal_excerpt: tuple[str, ...]
@@ -308,6 +309,9 @@ def _adapter_check_row(
     premise_derivation_work_items = _source_to_bridge_premise_derivation_work_items(
         row
     )
+    verified_premise_signature_excerpts = (
+        _verified_source_to_bridge_premise_derivation_signature_excerpts(row)
+    )
     requires_unproven_bridge_premises = bool(unproven_bridge_premise_names)
     evidence_eligible = bool(
         generation_mode == "formalizer_provided_adapter_candidate"
@@ -397,6 +401,9 @@ def _adapter_check_row(
         ),
         verified_source_to_bridge_premise_derivation_declarations=_str_tuple(
             row.get("verified_source_to_bridge_premise_derivation_declarations", [])
+        ),
+        verified_source_to_bridge_premise_derivation_signature_excerpts=(
+            verified_premise_signature_excerpts
         ),
         forbidden_tokens_found=forbidden_tokens,
         adapter_candidate_evidence_eligible=evidence_eligible,
@@ -488,6 +495,9 @@ def _generated_adapter_skeleton(
     verified_premise_derivation_declarations = _str_tuple(
         row.get("verified_source_to_bridge_premise_derivation_declarations", [])
     )[:12]
+    verified_premise_derivation_signature_excerpts = (
+        _verified_source_to_bridge_premise_derivation_signature_excerpts(row)[:6]
+    )
     premise_work_items = _source_to_bridge_premise_derivation_work_items(row)[:12]
     reason_comment = "\n".join(
         f"-- reason: {_sanitize_comment_text(reason)}" for reason in reasons
@@ -526,6 +536,13 @@ def _generated_adapter_skeleton(
     verified_premise_derivation_declaration_comment = "\n".join(
         f"-- verified source-to-bridge premise derivation declaration: {_sanitize_comment_text(line)}"
         for line in verified_premise_derivation_declarations
+    )
+    verified_premise_derivation_signature_comment = "\n".join(
+        _lean_comment_block(
+            "verified source-to-bridge premise derivation signature excerpt",
+            excerpt,
+        )
+        for excerpt in verified_premise_derivation_signature_excerpts
     )
     premise_work_item_comment = "\n".join(
         "\n".join(
@@ -613,6 +630,7 @@ def _generated_adapter_skeleton(
         f"{verified_premise_derivation_id_comment}\n"
         f"{verified_premise_derivation_artifact_comment}\n"
         f"{verified_premise_derivation_declaration_comment}\n"
+        f"{verified_premise_derivation_signature_comment}\n"
         f"{premise_work_item_comment}\n"
         f"{goal_comment}\n"
         f"{attempt_comment}\n"
@@ -754,6 +772,93 @@ def _normalize_adapter_source(source: str) -> str:
     if "import " not in source:
         return source.rstrip() + "\n"
     return source.rstrip() + "\n"
+
+
+def _verified_source_to_bridge_premise_derivation_signature_excerpts(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    existing = _str_tuple(
+        row.get("verified_source_to_bridge_premise_derivation_signature_excerpts", [])
+    )
+    if existing:
+        return existing
+    return tuple(
+        _lean_declaration_signature_excerpts_from_artifacts(
+            artifact_paths=list(
+                _str_tuple(
+                    row.get("verified_source_to_bridge_premise_derivation_artifact_paths", [])
+                )
+            ),
+            declarations=list(
+                _str_tuple(row.get("verified_source_to_bridge_premise_derivation_declarations", []))
+            ),
+        )
+    )
+
+
+def _lean_declaration_signature_excerpts_from_artifacts(
+    *,
+    artifact_paths: list[str],
+    declarations: list[str],
+    max_artifacts: int = 3,
+) -> list[str]:
+    excerpts: list[str] = []
+    for index, artifact_path in enumerate(artifact_paths[:max_artifacts]):
+        declaration = declarations[index] if index < len(declarations) else ""
+        excerpt = _lean_declaration_signature_excerpt_from_artifact_path(
+            artifact_path,
+            declaration=declaration,
+        )
+        if excerpt and excerpt not in excerpts:
+            excerpts.append(excerpt)
+    return excerpts
+
+
+def _lean_declaration_signature_excerpt_from_artifact_path(
+    artifact_path: str,
+    *,
+    declaration: str = "",
+    max_lines: int = 32,
+    max_chars: int = 1600,
+) -> str:
+    path_text = str(artifact_path or "").strip()
+    if not path_text or not path_text.endswith(".lean"):
+        return ""
+    try:
+        text = Path(path_text).expanduser().read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    wanted = str(declaration or "").strip()
+    pattern = (
+        rf"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
+        rf"{re.escape(wanted)}\b"
+        if wanted
+        else r"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
+    )
+    lines = text.splitlines()
+    start = -1
+    for index, line in enumerate(lines):
+        if re.search(pattern, line):
+            start = index
+            break
+    if start < 0:
+        return ""
+    excerpt_lines: list[str] = []
+    for line in lines[start : start + max_lines]:
+        if ":=" in line:
+            before, _sep, _after = line.partition(":=")
+            excerpt_lines.append(before.rstrip())
+            break
+        excerpt_lines.append(line.rstrip())
+    return "\n".join(excerpt_lines).strip()[:max_chars]
+
+
+def _lean_comment_block(label: str, excerpt: str) -> str:
+    lines = [_sanitize_comment_text(line) for line in str(excerpt or "").splitlines()]
+    lines = [line for line in lines if line.strip()]
+    if not lines:
+        return ""
+    return "\n".join([f"-- {label}:", *[f"--   {line}" for line in lines[:16]]])
 
 
 def _provided_adapter_declaration(source: str) -> str:
@@ -991,6 +1096,9 @@ def _export_runtime_learning_rows(
                 ),
                 "verified_source_to_bridge_premise_derivation_declarations": list(
                     row.verified_source_to_bridge_premise_derivation_declarations
+                ),
+                "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                    row.verified_source_to_bridge_premise_derivation_signature_excerpts
                 ),
                 "kernel_verified_source_theorem_proof_body_adapter_ids": (
                     [row.adapter_check_id] if row.adapter_kernel_verified else []

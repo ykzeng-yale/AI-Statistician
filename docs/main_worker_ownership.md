@@ -601,6 +601,23 @@ real adapter proof candidate that consumes the verified premise and then rerun
 the exact proof-body path, while keeping exact semantic-definition gaps as
 formal blockers rather than proof evidence.
 
+The next patch makes that handoff less brittle. The adapter bridge now extracts
+checked Lean signature excerpts from verified source-to-bridge premise artifacts
+and carries them through learning rows, bounded memory, proof-bank summaries,
+and Formalizer prompts. Replaying the adapter bridge at
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_retry_signature_context_bridge_replay/source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json`
+still correctly leaves the adapter unverified, but the row and skeleton now show
+the exact checked `hGoodRankImpliesCovered` theorem header. A two-iteration live
+continuation at
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_signature_context_probe/research_agent_runtime_manifest.json`
+kept the scorecard at 42/49, emitted four source-to-bridge premise work orders
+with one kernel-verified row, and surfaced the real next blocker: reviewed
+adapter-object semantic definitions for `coverage_event`, `good_rank_event`,
+and `C_n`. Bounded memory now pins the latest unique copies of those blockers
+plus adapter feedback carrying verified premise ids/signatures, so a short
+resume window does not forget either the checked premise or the
+semantic-definition frontier.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
