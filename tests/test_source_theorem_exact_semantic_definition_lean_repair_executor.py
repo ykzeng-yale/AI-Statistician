@@ -303,7 +303,6 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
         "candidate_definition_request": {
             "schema_version": 1,
             "request_kind": "source_theorem_exact_semantic_definition_candidate",
-            "placeholder_symbol": "Exchangeable",
             "required_adapter_object_names": ["rank"],
             "available_adapter_object_names": ["covered", "rank"],
             "missing_required_adapter_object_names": [],
@@ -366,6 +365,9 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert results[0]["candidate_definition_request"][
         "available_adapter_object_names"
     ] == ["covered", "rank"]
+    assert results[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "Exchangeable"
+    )
     assert results[0]["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
@@ -408,6 +410,9 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert review_packets[0]["candidate_definition_request"][
         "missing_required_adapter_object_names"
     ] == []
+    assert review_packets[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "Exchangeable"
+    )
     assert review_packets[0]["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
@@ -434,6 +439,12 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[0]["input_summary"]["target_ids"] == [
         "split_conformal_coverage"
     ]
+    assert learning_rows[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "Exchangeable"
+    )
+    assert learning_rows[0]["input_summary"]["candidate_definition_request"][
+        "placeholder_symbol"
+    ] == "Exchangeable"
     assert learning_rows[0]["authoring_mode"] == (
         "repair_typechecked_semantic_definition_candidate"
     )
@@ -1214,6 +1225,12 @@ def test_exact_semantic_definition_lean_repair_executor_classifies_import_enviro
         "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairTask"
     )
     assert repair_tasks[0]["candidate_lean_project_hint"] == str(source_root)
+    assert repair_tasks[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "orderStat"
+    )
+    assert repair_tasks[0]["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert repair_tasks[0]["runtime_queue_status"] == (
         "PENDING_LEAN_IMPORT_ENVIRONMENT_REPAIR"
     )
@@ -1229,6 +1246,18 @@ def test_exact_semantic_definition_lean_repair_executor_classifies_import_enviro
         == "source_theorem_exact_semantic_definition_lean_environment_repair"
         for row in learning_rows
     )
+    environment_learning = [
+        row
+        for row in learning_rows
+        if row["learning_task"]
+        == "source_theorem_exact_semantic_definition_lean_environment_repair"
+    ][0]
+    assert environment_learning["candidate_definition_request"][
+        "placeholder_symbol"
+    ] == "orderStat"
+    assert environment_learning["input_summary"]["candidate_definition_request"][
+        "target_ids"
+    ] == ["split_conformal_coverage"]
 
 
 def test_exact_semantic_definition_lean_repair_executor_classifies_local_library_build(

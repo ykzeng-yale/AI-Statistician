@@ -677,9 +677,12 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
         target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
         normalized_request = dict(candidate_request)
         normalized_request.setdefault("target_theorem_name", target_theorem_name)
+        if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
+            normalized_request["placeholder_symbol"] = placeholder_symbol
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request

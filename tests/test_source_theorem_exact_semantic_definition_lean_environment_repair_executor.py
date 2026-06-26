@@ -33,6 +33,9 @@ def _write_environment_task(path: Path, *, project: Path, candidate: Path) -> No
         "candidate_repair_feedback": {
             "failure_classification": "lean_import_environment_missing",
         },
+        "candidate_definition_request": {
+            "semantic_intent": "review exact order statistic definition"
+        },
         "runtime_queue_status": "PENDING_LEAN_DEPENDENCY_ENVIRONMENT_REPAIR",
         "failure_classification": "lean_dependency_fetch_failed",
         "proof_evidence_status": (
@@ -80,6 +83,12 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     assert results[0]["candidate_repair_feedback"]["failure_classification"] == (
         "lean_import_environment_missing"
     )
+    assert results[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "orderStat"
+    )
+    assert results[0]["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
@@ -117,6 +126,12 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     assert learning_rows[0]["candidate_repair_feedback"][
         "failure_classification"
     ] == "lean_import_environment_missing"
+    assert learning_rows[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "orderStat"
+    )
+    assert learning_rows[0]["input_summary"]["candidate_definition_request"][
+        "placeholder_symbol"
+    ] == "orderStat"
     assert "prepare Lake dependencies/cache" in learning_rows[0]["input_summary"][
         "recommended_next_action"
     ]

@@ -353,7 +353,6 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
             ),
         },
         "candidate_definition_request": {
-            "placeholder_symbol": "covered",
             "semantic_intent": "exact source coverage event tied to hC",
         },
         "semantic_review_required_before_proof_body": True,
@@ -404,6 +403,7 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     assert packet["repair_strategy"] == "review_typechecked_exact_definition_candidate"
     assert packet["placeholder_symbol"] == "covered"
     assert packet["target_ids"] == ["split_conformal_coverage"]
+    assert packet["candidate_definition_request"]["placeholder_symbol"] == "covered"
     assert packet["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
@@ -419,6 +419,7 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     task = tasks[0]
     assert task["lean_repair_action"] == "review_typechecked_exact_definition_candidate"
     assert task["target_ids"] == ["split_conformal_coverage"]
+    assert task["candidate_definition_request"]["placeholder_symbol"] == "covered"
     assert task["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]

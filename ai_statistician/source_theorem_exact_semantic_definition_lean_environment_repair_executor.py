@@ -153,6 +153,11 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
     candidate_file = Path(str(row.get("candidate_source_file", "") or ""))
     target_theorem_name = str(row.get("target_theorem_name", "") or "")
     target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
+    candidate_definition_request = _candidate_definition_request_from_row(
+        row,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
+    )
     lakefile_lean = project / "lakefile.lean"
     lakefile_toml = project / "lakefile.toml"
     lean_toolchain = project / "lean-toolchain"
@@ -228,6 +233,7 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
         ),
+        "candidate_definition_request": candidate_definition_request,
         "lake_project_exists": project_exists,
         "lakefile_exists": lakefile_exists,
         "lean_toolchain_exists": toolchain_exists,
@@ -289,6 +295,11 @@ def _recommended_next_action(status: str) -> str:
 def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
     target_theorem_name = str(row.get("target_theorem_name", "") or "")
     target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
+    candidate_definition_request = _candidate_definition_request_from_row(
+        row,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
+    )
     return {
         "schema_version": 1,
         "artifact_kind": RESULT_ARTIFACT_KIND,
@@ -314,6 +325,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
         ),
+        "candidate_definition_request": candidate_definition_request,
         "environment_repair_status": str(
             row.get("environment_repair_status", "") or ""
         ),
@@ -354,6 +366,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "definition_only_candidate_artifact_path": str(
                 row.get("definition_only_candidate_artifact_path", "") or ""
             ),
+            "candidate_definition_request": candidate_definition_request,
             "recommended_commands": [
                 str(command)
                 for command in row.get("recommended_commands", []) or []
@@ -371,6 +384,24 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
     }
+
+
+def _candidate_definition_request_from_row(
+    row: Mapping[str, Any],
+    *,
+    target_theorem_name: str,
+    target_ids: list[str],
+) -> dict[str, Any]:
+    raw_request = row.get("candidate_definition_request", {})
+    request = dict(raw_request) if isinstance(raw_request, Mapping) else {}
+    placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
+    if target_theorem_name:
+        request.setdefault("target_theorem_name", target_theorem_name)
+    if target_ids and not request.get("target_ids"):
+        request["target_ids"] = list(target_ids)
+    if placeholder_symbol and not request.get("placeholder_symbol"):
+        request["placeholder_symbol"] = placeholder_symbol
+    return request
 
 
 def _target_ids_from_row(
