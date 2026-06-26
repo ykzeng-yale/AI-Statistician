@@ -5,7 +5,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
@@ -1580,6 +1580,93 @@ def _adapter_object_semantic_definition_work_order_rows(
     rows: list[SourceToBridgePremiseDerivationCheckRow],
     queue_path: Path,
 ) -> list[dict[str, Any]]:
+    def extend_unique(
+        payload: dict[str, Any],
+        field: str,
+        values: Iterable[Any],
+    ) -> None:
+        current = list(payload.get(field, []) or [])
+        seen = {
+            json.dumps(value, sort_keys=True, default=str)
+            for value in current
+        }
+        for value in values:
+            if value is None:
+                continue
+            key = json.dumps(value, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
+            current.append(value)
+            seen.add(key)
+        payload[field] = current
+
+    def merge_work_order(
+        existing: dict[str, Any],
+        candidate: dict[str, Any],
+    ) -> None:
+        scalar_fields = (
+            "question_id",
+            "question_title",
+            "target_theorem_name",
+            "target_lean_declaration",
+            "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+        )
+        for field in scalar_fields:
+            if not existing.get(field) and candidate.get(field):
+                existing[field] = candidate[field]
+        for field in (
+            "target_theorem_goal_ids",
+            "search_targets",
+            "candidate_registered_obligation_ids",
+            "kernel_verified_source_theorem_semantic_support_obligation_ids",
+            "kernel_verified_source_theorem_semantic_primitive_ids",
+            "source_to_bridge_adapter_instantiation_group_ids",
+            "source_to_bridge_adapter_object_names_requiring_source_instantiation",
+            "required_bridge_premise_names_for_shared_instantiation",
+            "source_to_bridge_grouped_premise_derivation_candidate_request_ids",
+            "source_to_bridge_grouped_premise_derivation_candidate_requests",
+            "exact_source_theorem_binders",
+            "premise_semantic_anchor_binders",
+            "premise_semantic_anchor_binder_names",
+            "premise_semantic_dependency_requirements",
+            "semantic_alignment_constraints",
+            "semantic_alignment_blockers",
+            "exact_goal_shape_obligation_ids",
+            "kernel_verified_theorem_reduction_closure_declarations",
+            "verified_theorem_reduction_closure_artifact_paths",
+        ):
+            extend_unique(existing, field, candidate.get(field, []) or [])
+
+        existing_summary = existing.setdefault("input_summary", {})
+        candidate_summary = dict(candidate.get("input_summary", {}) or {})
+        for field in (
+            "target_theorem_name",
+            "target_lean_declaration",
+            "placeholder_symbol",
+            "adapter_object_name",
+            "source_to_bridge_adapter_instantiation_group_id",
+            "work_order_id",
+        ):
+            if not existing_summary.get(field) and candidate_summary.get(field):
+                existing_summary[field] = candidate_summary[field]
+        for field in (
+            "source_to_bridge_adapter_instantiation_group_ids",
+            "source_to_bridge_grouped_premise_derivation_candidate_request_ids",
+            "required_bridge_premise_names_for_shared_instantiation",
+            "exact_source_theorem_binders",
+            "premise_semantic_anchor_binders",
+            "premise_semantic_dependency_requirements",
+            "semantic_alignment_blockers",
+            "candidate_registered_obligation_ids",
+        ):
+            extend_unique(
+                existing_summary,
+                field,
+                candidate_summary.get(field, []) or [],
+            )
+
     grouped: dict[str, list[SourceToBridgePremiseDerivationCheckRow]] = {}
     for row in rows:
         if row.premise_derivation_kernel_verified:
@@ -1593,7 +1680,7 @@ def _adapter_object_semantic_definition_work_order_rows(
         grouped.setdefault(group_id, []).append(row)
 
     work_orders: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
+    work_orders_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for group_id, group_rows in grouped.items():
         if not group_rows:
             continue
@@ -1734,13 +1821,10 @@ def _adapter_object_semantic_definition_work_order_rows(
             )
         )
         for adapter_object in adapter_objects:
-            key = (group_id, target_lean_declaration, adapter_object)
-            if key in seen:
-                continue
-            seen.add(key)
+            key = (target_lean_declaration or target_theorem_name, adapter_object)
             work_order_id = (
                 "source_to_bridge_adapter_object_semantic_definition_work_order:"
-                + stable_hash([group_id, target_lean_declaration, adapter_object])[:20]
+                + stable_hash([target_lean_declaration, adapter_object])[:20]
             )
             semantic_blockers = [
                 (
@@ -1792,6 +1876,7 @@ def _adapter_object_semantic_definition_work_order_rows(
                     ),
                     "kernel_verified_source_theorem_semantic_definition_ids": [],
                     "source_to_bridge_adapter_instantiation_group_id": group_id,
+                    "source_to_bridge_adapter_instantiation_group_ids": [group_id],
                     "adapter_object_name": adapter_object,
                     "source_to_bridge_adapter_object_names_requiring_source_instantiation": (
                         list(adapter_objects)
@@ -1802,8 +1887,14 @@ def _adapter_object_semantic_definition_work_order_rows(
                     "source_to_bridge_grouped_premise_derivation_candidate_request_id": (
                         grouped_request_id
                     ),
+                    "source_to_bridge_grouped_premise_derivation_candidate_request_ids": (
+                        [grouped_request_id] if grouped_request_id else []
+                    ),
                     "source_to_bridge_grouped_premise_derivation_candidate_request": (
                         source_grouped_request
+                    ),
+                    "source_to_bridge_grouped_premise_derivation_candidate_requests": (
+                        [source_grouped_request] if source_grouped_request else []
                     ),
                     "exact_source_theorem_binders": list(source_binders),
                     "premise_semantic_anchor_binders": list(semantic_anchor_binders),
@@ -1862,6 +1953,12 @@ def _adapter_object_semantic_definition_work_order_rows(
                         "placeholder_symbol": adapter_object,
                         "adapter_object_name": adapter_object,
                         "source_to_bridge_adapter_instantiation_group_id": group_id,
+                        "source_to_bridge_adapter_instantiation_group_ids": [
+                            group_id
+                        ],
+                        "source_to_bridge_grouped_premise_derivation_candidate_request_ids": (
+                            [grouped_request_id] if grouped_request_id else []
+                        ),
                         "required_bridge_premise_names_for_shared_instantiation": (
                             list(premise_names)
                         ),
@@ -1879,6 +1976,12 @@ def _adapter_object_semantic_definition_work_order_rows(
                     },
                 }
             )
+            existing = work_orders_by_key.get(key)
+            if existing is not None:
+                merge_work_order(existing, work_orders[-1])
+                work_orders.pop()
+                continue
+            work_orders_by_key[key] = work_orders[-1]
     return work_orders
 
 

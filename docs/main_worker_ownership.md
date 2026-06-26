@@ -618,6 +618,18 @@ plus adapter feedback carrying verified premise ids/signatures, so a short
 resume window does not forget either the checked premise or the
 semantic-definition frontier.
 
+The latest bridge hygiene patch keeps that frontier from duplicating itself.
+Replaying the same live source-to-bridge queue through
+`runs/main_worker_live_runtime_resume_verified_premise_adapter_signature_context_deduped_semantic_work_orders_replay/source_to_bridge_premise_derivation_bridge/source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json`
+still sees four input premise work orders and one kernel-verified premise
+derivation, but now emits exactly three adapter-object semantic-definition work
+orders instead of nine repeated rows. The merged work orders are
+`coverage_event`, `good_rank_event`, and `C_n`; each carries all three live
+adapter-instantiation group ids plus required bridge premises
+`hGoodRankImpliesCovered` and `hQuantileThreshold`. This is queue hygiene and
+repair context only. The reviewed exact semantic definitions, real adapter
+proof candidate, and full source theorem proof remain open.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

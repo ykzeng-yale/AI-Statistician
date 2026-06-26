@@ -911,6 +911,161 @@ def test_premise_bridge_preserves_upstream_shared_instantiation_contract(
     ]
 
 
+def test_premise_bridge_merges_adapter_object_definition_work_across_groups(
+    tmp_path: Path,
+) -> None:
+    target = "split_conformal_coverage"
+    group_a = "source_to_bridge_adapter_instantiation_group:covered"
+    group_b = "source_to_bridge_adapter_instantiation_group:rank"
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                f"theorem {target}",
+                "    (hexch hq hC : Prop) :",
+                "    True := by",
+                "  trivial",
+                f"theorem {target}_source_to_bridge_adapter",
+                "    (covered : Set Nat)",
+                "    (rank : Nat → Nat)",
+                "    (hCovered : covered ⊆ covered)",
+                "    (hRank : True) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    candidate = (
+        "import Mathlib\n\n"
+        "theorem {declaration} "
+        "(covered : Set Nat) (rank : Nat → Nat) : "
+        "covered ⊆ covered := by\n"
+        "  intro x hx\n"
+        "  exact hx"
+    )
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                work_order_id="source_to_bridge_premise_derivation_work_order:hCovered",
+                premise_name="hCovered",
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_instantiation_group_id=group_a,
+                required_bridge_premise_names_for_shared_instantiation=[
+                    "hCovered",
+                ],
+                shared_adapter_instantiation_contract=(
+                    "Use reviewed definitions for covered and rank."
+                ),
+                adapter_object_names_requiring_source_instantiation=[
+                    "covered",
+                    "rank",
+                ],
+                forbidden_as_adapter_assumption=False,
+                premise_derivation_candidate_lean_source=candidate.format(
+                    declaration=f"{target}_hCovered_source_to_bridge_derivation"
+                ),
+            ),
+            _premise_work_order(
+                work_order_id="source_to_bridge_premise_derivation_work_order:hRank",
+                premise_name="hRank",
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_instantiation_group_id=group_b,
+                required_bridge_premise_names_for_shared_instantiation=[
+                    "hRank",
+                ],
+                shared_adapter_instantiation_contract=(
+                    "Use reviewed definitions for covered and rank."
+                ),
+                adapter_object_names_requiring_source_instantiation=[
+                    "covered",
+                    "rank",
+                ],
+                forbidden_as_adapter_assumption=False,
+                premise_derivation_candidate_lean_source=candidate.format(
+                    declaration=f"{target}_hRank_source_to_bridge_derivation"
+                ),
+            ),
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=True,
+        lean_command=(sys.executable, "-c", "import sys; sys.exit(0)"),
+    )
+
+    assert (
+        manifest["n_source_to_bridge_adapter_object_semantic_definition_work_orders"]
+        == 2
+    )
+    assert manifest[
+        "source_to_bridge_adapter_object_semantic_definition_placeholder_symbols"
+    ] == ["covered", "rank"]
+    semantic_work_orders = [
+        json.loads(line)
+        for line in Path(
+            str(
+                manifest[
+                    "source_to_bridge_adapter_object_semantic_definition_work_orders_jsonl"
+                ]
+            )
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    semantic_by_symbol = {
+        row["placeholder_symbol"]: row for row in semantic_work_orders
+    }
+    for symbol in ("covered", "rank"):
+        row = semantic_by_symbol[symbol]
+        assert row["source_to_bridge_adapter_instantiation_group_id"] == group_a
+        assert row["source_to_bridge_adapter_instantiation_group_ids"] == [
+            group_a,
+            group_b,
+        ]
+        assert row[
+            "required_bridge_premise_names_for_shared_instantiation"
+        ] == ["hCovered", "hRank"]
+        assert row[
+            "source_to_bridge_adapter_object_names_requiring_source_instantiation"
+        ] == ["covered", "rank"]
+        assert (
+            len(
+                row[
+                    "source_to_bridge_grouped_premise_derivation_candidate_request_ids"
+                ]
+            )
+            == 2
+        )
+        assert row["input_summary"][
+            "source_to_bridge_adapter_instantiation_group_ids"
+        ] == [group_a, group_b]
+
+    all_learning_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    semantic_learning_rows = [
+        row
+        for row in all_learning_rows
+        if row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_work_order"
+    ]
+    assert [row["placeholder_symbol"] for row in semantic_learning_rows] == [
+        "covered",
+        "rank",
+    ]
+
+
 def test_premise_bridge_checks_grouped_source_per_requested_declaration(
     tmp_path: Path,
 ) -> None:
