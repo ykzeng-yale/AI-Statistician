@@ -680,6 +680,13 @@ def _execution_result(
         "source_lean_repair_task_id": str(task.get("lean_repair_task_id", "") or ""),
         "source_repair_packet_id": str(task.get("source_repair_packet_id", "") or ""),
         "source_review_packet_id": str(task.get("source_review_packet_id", "") or ""),
+        "source_execution_status": str(task.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(task.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(task.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            task.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(task.get("source_repair_strategy", "") or ""),
         "source_definition_closure_work_order_id": str(
             task.get("source_definition_closure_work_order_id", "") or ""
         ),
@@ -736,6 +743,9 @@ def _execution_result(
             task.get("candidate_definition_request", {}) or {}
         ),
         **_exact_semantic_definition_context(task),
+        "candidate_repair_feedback": dict(
+            task.get("candidate_repair_feedback", {}) or {}
+        ),
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
         "execution_status": status,
         "local_lean_requested": bool(local_lean),
@@ -948,6 +958,13 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_lean_repair_task_id": str(
             row.get("source_lean_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
@@ -955,6 +972,9 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_source_file": candidate_file,
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
+        ),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
         ),
         "candidate_lean_project_hint": project_hint,
         "recommended_command": command_hint,
@@ -1188,6 +1208,13 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         ),
         "source_repair_packet_id": str(row.get("source_repair_packet_id", "") or ""),
         "source_review_packet_id": str(row.get("source_review_packet_id", "") or ""),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "source_definition_closure_work_order_id": str(
             row.get("source_definition_closure_work_order_id", "") or ""
         ),
@@ -1221,6 +1248,9 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         ),
         "semantic_alignment_blockers": list(
             row.get("semantic_alignment_blockers", []) or []
+        ),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
         ),
         "source_to_bridge_adapter_instantiation_group_id": str(
             row.get("source_to_bridge_adapter_instantiation_group_id", "") or ""
@@ -1364,6 +1394,15 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "authoring_task_id": task_id,
         "source_execution_result_id": str(row.get("execution_result_id", "") or ""),
         "source_execution_status": execution_status,
+        "prior_source_execution_status": str(
+            row.get("source_execution_status", "") or ""
+        ),
+        "prior_authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "prior_authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "source_lean_repair_task_id": str(
             row.get("source_lean_repair_task_id", "") or ""
         ),
@@ -1412,6 +1451,9 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         **_exact_semantic_definition_context(row),
         "candidate_definition_request": candidate_definition_request,
         "required_output_artifacts": [
@@ -1685,6 +1727,13 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("source_lean_repair_task_id", "") or ""
         ),
         "source_repair_packet_id": str(row.get("source_repair_packet_id", "") or ""),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "execution_status": execution_status,
         "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
         "candidate_lean_project_hint": str(
@@ -1722,9 +1771,22 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "runtime_queue_status": runtime_queue_status,
         **_exact_semantic_definition_context(row),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         "input_summary": {
             "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
             "lean_repair_action": str(row.get("lean_repair_action", "") or ""),
+            "source_execution_status": str(
+                row.get("source_execution_status", "") or ""
+            ),
+            "authoring_mode": str(row.get("authoring_mode", "") or ""),
+            "source_lean_repair_action": str(
+                row.get("source_lean_repair_action", "") or ""
+            ),
+            "source_repair_strategy": str(
+                row.get("source_repair_strategy", "") or ""
+            ),
             "execution_status": execution_status,
             "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
             "candidate_source_file_resolved": bool(

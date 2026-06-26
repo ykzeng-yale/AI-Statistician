@@ -266,6 +266,19 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
         "materialization_order_index": 4,
         "lean_repair_action": "synthesize_exact_definition",
         "repair_strategy": "synthesize_reviewed_definition_from_source_references",
+        "source_execution_status": (
+            "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+        ),
+        "authoring_trigger": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+        ),
+        "authoring_mode": "repair_typechecked_semantic_definition_candidate",
+        "source_lean_repair_action": "review_typechecked_exact_definition_candidate",
+        "source_repair_strategy": "review_typechecked_exact_definition_candidate",
+        "candidate_repair_feedback": {
+            "failure_classification": "semantic_definition_review_blocked",
+            "recommended_next_action": "repair semantic blockers",
+        },
         "definition_only_candidate_artifact_path": str(definition_only_candidate),
         "candidate_artifact_path": str(tmp_path / "candidate_full.lean"),
         "local_definition_lean_checked": True,
@@ -329,6 +342,18 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert results[0]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
+    assert results[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert results[0]["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert results[0]["source_repair_strategy"] == (
+        "review_typechecked_exact_definition_candidate"
+    )
+    assert results[0]["candidate_repair_feedback"]["failure_classification"] == (
+        "semantic_definition_review_blocked"
+    )
     assert results[0]["definition_only_candidate_artifact_path"] == str(
         definition_only_candidate
     )
@@ -359,6 +384,18 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert review_packets[0]["semantic_definition_kernel_verified"] is False
     assert review_packets[0]["source_theorem_kernel_verified"] is False
     assert review_packets[0]["materialization_order_index"] == 4
+    assert review_packets[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert review_packets[0]["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert review_packets[0]["source_repair_strategy"] == (
+        "review_typechecked_exact_definition_candidate"
+    )
+    assert review_packets[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "semantic_definition_review_blocked"
     assert review_packets[0]["required_adapter_object_names"] == ["rank"]
     assert review_packets[0]["available_adapter_object_names"] == ["covered", "rank"]
     assert review_packets[0]["missing_required_adapter_object_names"] == []
@@ -384,6 +421,15 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[0]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
+    assert learning_rows[0]["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert learning_rows[0]["input_summary"]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert learning_rows[0]["candidate_repair_feedback"][
+        "recommended_next_action"
+    ] == "repair semantic blockers"
     assert learning_rows[0]["input_summary"][
         "semantic_definition_typecheck_evidence_status"
     ] == typechecked_status

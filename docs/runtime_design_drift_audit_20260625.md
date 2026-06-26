@@ -653,3 +653,24 @@ and routes `good_rank_event` plus `C_n` to Lean environment/import repair. This
 is the intended design split: core runtime enforces evidence boundaries and
 typed routing, while the LLM/prover workers perform the actual Lean repair.
 Source theorem and semantic-definition kernel flags remain false.
+
+The patched live rerun
+`runs/main_worker_exact_semantic_definition_554b_provenance_patched_formalizer_live`
+confirmed the integrated behavior with Claude/Sonnet authoring enabled. The
+authoring worker made 3 live calls for `good_rank_event`, `coverage_event`, and
+`covered`. The materialized Lean repair executor checked all 3 definition-only
+candidates: `good_rank_event` and `coverage_event` compiled and now require
+semantic faithfulness review, while `covered` failed on a Lean import
+environment blocker and was routed back to exact semantic-definition authoring
+repair plus environment repair. A second control-plane loss showed up in this
+run: authoring provenance (`authoring_mode`, source execution status, and
+candidate repair feedback) survived the prompt but was dropped from candidate
+packets, materialization rows, Lean repair results, review packets, and
+environment preflight learning rows. Those artifacts now preserve the
+provenance as non-proof metadata. Deterministic replay of the materialized
+repair tasks confirms the final review packets for `good_rank_event` and
+`coverage_event`, the follow-up authoring repair for `covered`, and the
+environment preflight learning row all carry the source repair mode and
+diagnostics context. This is still not semantic review and not source theorem
+proof: exact proof-body execution remains blocked by
+`source_theorem_semantic_alignment_unreviewed`.

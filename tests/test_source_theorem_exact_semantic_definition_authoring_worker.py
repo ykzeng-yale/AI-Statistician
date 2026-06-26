@@ -478,6 +478,12 @@ def test_authoring_worker_marks_provider_connection_failure_retryable(
     assert candidate["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
     )
+    assert candidate["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert candidate["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
     assert candidate["failure_classification"] == "provider_connection_error"
     assert candidate["candidate_definition_request"]["placeholder_symbol"] == "rank"
     assert candidate["candidate_definition_request"]["missing_required_anchor_names"] == []
@@ -792,6 +798,15 @@ def test_authoring_worker_static_candidate_preserves_kernel_boundary(
     assert candidate["ok"] is True
     assert candidate["provider"] == "static"
     assert candidate["placeholder_symbol"] == "covered"
+    assert candidate["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert candidate["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert candidate["candidate_repair_feedback"]["failure_classification"] == (
+        "local_lean_failed_unclassified"
+    )
     assert candidate["local_definition_lean_checked"] is False
     assert candidate["local_definition_lean_compiled"] is False
     assert candidate["semantic_definition_kernel_verified"] is False
@@ -808,6 +823,15 @@ def test_authoring_worker_static_candidate_preserves_kernel_boundary(
     assert candidate_learning["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
     )
+    assert candidate_learning["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert candidate_learning["input_summary"]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert candidate_learning["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "local_lean_failed_unclassified"
     assert candidate_learning["input_summary"]["local_definition_lean_checked"] is False
     assert candidate_learning["input_summary"]["source_theorem_kernel_verified"] is False
 
@@ -922,10 +946,26 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
     assert rows[0]["materialization_status"] == (
         "EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZED_PENDING_LOCAL_LEAN"
     )
+    assert rows[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert rows[0]["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert rows[0]["source_repair_strategy"] == (
+        "synthesize_reviewed_definition_from_source_references"
+    )
+    assert rows[0]["candidate_repair_feedback"]["failure_classification"] == (
+        "local_lean_failed_unclassified"
+    )
     definition_path = Path(rows[0]["definition_only_candidate_artifact_path"])
     assert definition_path.exists()
     definition_text = definition_path.read_text()
     assert "def reviewedCovered : Nat := 0" in definition_text
+    assert "source_execution_status:" in definition_text
+    assert "authoring_mode: repair_typechecked_semantic_definition_candidate" in (
+        definition_text
+    )
     assert definition_text.count("import Mathlib.Data.Set.Basic") == 1
     assert definition_text.count("import Mathlib.Data.Fin.Basic") == 1
     assert definition_text.index("import Mathlib.Data.Fin.Basic") < definition_text.index(
@@ -946,6 +986,18 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
         ).read_text().splitlines()
     ]
     assert repair_tasks[0]["lean_repair_action"] == "author_exact_definition"
+    assert repair_tasks[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert repair_tasks[0]["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert repair_tasks[0]["source_repair_strategy"] == (
+        "synthesize_reviewed_definition_from_source_references"
+    )
+    assert repair_tasks[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "local_lean_failed_unclassified"
     assert repair_tasks[0]["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_MATERIALIZED_LOCAL_LEAN_CHECK"
     )

@@ -210,8 +210,21 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "candidate_source_file": str(candidate_file) if str(candidate_file) else "",
+        "definition_only_candidate_artifact_path": str(
+            row.get("definition_only_candidate_artifact_path", "") or ""
+        ),
         "candidate_source_file_exists": candidate_exists,
         "candidate_lean_project_hint": str(project) if str(project) else "",
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         "lake_project_exists": project_exists,
         "lakefile_exists": lakefile_exists,
         "lean_toolchain_exists": toolchain_exists,
@@ -285,11 +298,41 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_environment_repair_task_id": str(
             row.get("source_environment_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
+        "environment_repair_status": str(
+            row.get("environment_repair_status", "") or ""
+        ),
+        "dependency_fetch_required": bool(
+            row.get("dependency_fetch_required", False)
+        ),
+        "ready_to_rerun_lean_repair": bool(
+            row.get("ready_to_rerun_lean_repair", False)
+        ),
+        "candidate_lean_project_hint": str(
+            row.get("candidate_lean_project_hint", "") or ""
+        ),
+        "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
+        "definition_only_candidate_artifact_path": str(
+            row.get("definition_only_candidate_artifact_path", "") or ""
+        ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
             "environment_repair_status": str(
                 row.get("environment_repair_status", "") or ""
             ),
+            "source_execution_status": str(
+                row.get("source_execution_status", "") or ""
+            ),
+            "authoring_mode": str(row.get("authoring_mode", "") or ""),
             "dependency_fetch_required": bool(
                 row.get("dependency_fetch_required", False)
             ),
@@ -300,6 +343,9 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("candidate_lean_project_hint", "") or ""
             ),
             "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
+            "definition_only_candidate_artifact_path": str(
+                row.get("definition_only_candidate_artifact_path", "") or ""
+            ),
             "recommended_commands": [
                 str(command)
                 for command in row.get("recommended_commands", []) or []

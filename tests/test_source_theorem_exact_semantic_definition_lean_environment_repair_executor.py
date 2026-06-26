@@ -18,7 +18,20 @@ def _write_environment_task(path: Path, *, project: Path, candidate: Path) -> No
         "target_theorem_name": "split_conformal_coverage",
         "placeholder_symbol": "orderStat",
         "candidate_source_file": str(candidate),
+        "definition_only_candidate_artifact_path": str(candidate),
         "candidate_lean_project_hint": str(project),
+        "source_execution_status": (
+            "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
+        ),
+        "authoring_trigger": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+        ),
+        "authoring_mode": "repair_failed_exact_semantic_definition_candidate",
+        "source_lean_repair_action": "author_exact_definition",
+        "source_repair_strategy": "author_reviewed_definition_from_contract",
+        "candidate_repair_feedback": {
+            "failure_classification": "lean_import_environment_missing",
+        },
         "runtime_queue_status": "PENDING_LEAN_DEPENDENCY_ENVIRONMENT_REPAIR",
         "failure_classification": "lean_dependency_fetch_failed",
         "proof_evidence_status": (
@@ -55,6 +68,16 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     assert results[0]["environment_repair_status"] == (
         "LAKE_MANIFEST_MISSING_DEPENDENCY_UPDATE_REQUIRED"
     )
+    assert results[0]["definition_only_candidate_artifact_path"] == str(candidate)
+    assert results[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
+    )
+    assert results[0]["authoring_mode"] == (
+        "repair_failed_exact_semantic_definition_candidate"
+    )
+    assert results[0]["candidate_repair_feedback"]["failure_classification"] == (
+        "lean_import_environment_missing"
+    )
     assert results[0]["recommended_commands"][:2] == [
         "lake update",
         "lake exe cache get",
@@ -68,6 +91,22 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
         "lake update",
         "lake exe cache get",
     ]
+    assert learning_rows[0]["authoring_mode"] == (
+        "repair_failed_exact_semantic_definition_candidate"
+    )
+    assert learning_rows[0]["environment_repair_status"] == (
+        "LAKE_MANIFEST_MISSING_DEPENDENCY_UPDATE_REQUIRED"
+    )
+    assert learning_rows[0]["candidate_source_file"] == str(candidate)
+    assert learning_rows[0]["definition_only_candidate_artifact_path"] == str(
+        candidate
+    )
+    assert learning_rows[0]["input_summary"]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
+    )
+    assert learning_rows[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "lean_import_environment_missing"
     assert "prepare Lake dependencies/cache" in learning_rows[0]["input_summary"][
         "recommended_next_action"
     ]

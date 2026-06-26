@@ -1286,6 +1286,11 @@ def _normalize_candidate_packet(
         "source_lean_repair_task_id": str(
             task.get("source_lean_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(task.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(task.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(task.get("authoring_mode", "") or ""),
+        "lean_repair_action": str(task.get("lean_repair_action", "") or ""),
+        "repair_strategy": str(task.get("repair_strategy", "") or ""),
         "question_id": str(task.get("question_id", "") or ""),
         "question_title": str(task.get("question_title", "") or ""),
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
@@ -1299,6 +1304,7 @@ def _normalize_candidate_packet(
             prompt_packet,
             task=task,
         ),
+        "candidate_repair_feedback": _candidate_repair_feedback(task),
         **body,
         "definition_only_candidate_artifact_path": "",
         "candidate_artifact_path": "",
@@ -1355,6 +1361,11 @@ def _failed_candidate_packet(
         "source_lean_repair_task_id": str(
             task.get("source_lean_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(task.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(task.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(task.get("authoring_mode", "") or ""),
+        "lean_repair_action": str(task.get("lean_repair_action", "") or ""),
+        "repair_strategy": str(task.get("repair_strategy", "") or ""),
         "question_id": str(task.get("question_id", "") or ""),
         "question_title": str(task.get("question_title", "") or ""),
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
@@ -1367,6 +1378,7 @@ def _failed_candidate_packet(
             prompt_packet,
             task=task,
         ),
+        "candidate_repair_feedback": _candidate_repair_feedback(task),
         "definition_design": "",
         "lean_definition_candidate": "",
         "required_imports": [],
@@ -1719,6 +1731,11 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
         "source_authoring_task_id": str(packet.get("source_authoring_task_id", "") or ""),
         "source_prompt_packet_id": str(packet.get("source_prompt_packet_id", "") or ""),
         "candidate_packet_id": str(packet.get("candidate_packet_id", "") or ""),
+        "source_execution_status": str(packet.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(packet.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(packet.get("authoring_mode", "") or ""),
+        "lean_repair_action": str(packet.get("lean_repair_action", "") or ""),
+        "repair_strategy": str(packet.get("repair_strategy", "") or ""),
         "runtime_queue_status": str(packet.get("runtime_queue_status", "") or ""),
         "failure_classification": str(packet.get("failure_classification", "") or ""),
         "recommended_next_action": str(packet.get("recommended_next_action", "") or ""),
@@ -1726,9 +1743,16 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
         "candidate_definition_request": dict(
             packet.get("candidate_definition_request", {}) or {}
         ),
+        "candidate_repair_feedback": dict(
+            packet.get("candidate_repair_feedback", {}) or {}
+        ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_PACKET",
             "authoring_status": str(packet.get("authoring_status", "") or ""),
+            "authoring_mode": str(packet.get("authoring_mode", "") or ""),
+            "source_execution_status": str(
+                packet.get("source_execution_status", "") or ""
+            ),
             "ok": bool(packet.get("ok", False)),
             "local_definition_lean_checked": False,
             "local_definition_lean_compiled": False,
@@ -1869,6 +1893,11 @@ def _materialization_row(
         "source_lean_repair_task_id": str(
             packet.get("source_lean_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(packet.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(packet.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(packet.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(packet.get("lean_repair_action", "") or ""),
+        "source_repair_strategy": str(packet.get("repair_strategy", "") or ""),
         "question_id": str(packet.get("question_id", "") or ""),
         "question_title": str(packet.get("question_title", "") or ""),
         "target_theorem_name": str(packet.get("target_theorem_name", "") or ""),
@@ -1909,6 +1938,9 @@ def _materialization_row(
         "semantic_alignment_blockers": semantic_alignment_blockers,
         "missing_required_anchor_references": missing_source_anchor_references,
         "known_gaps": list(packet.get("known_gaps", []) or []),
+        "candidate_repair_feedback": dict(
+            packet.get("candidate_repair_feedback", {}) or {}
+        ),
         "definition_only_candidate_artifact_path": artifact_path_text,
         "candidate_artifact_path": "",
         "materialization_status": status,
@@ -1958,6 +1990,13 @@ def _lean_repair_task_from_materialization_row(row: Mapping[str, Any]) -> dict[s
         "source_lean_repair_task_id": str(
             row.get("source_lean_repair_task_id", "") or ""
         ),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
@@ -1975,6 +2014,9 @@ def _lean_repair_task_from_materialization_row(row: Mapping[str, Any]) -> dict[s
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
         "candidate_artifact_path": "",
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         "runtime_queue_status": (
             "PENDING_EXACT_SEMANTIC_DEFINITION_MATERIALIZED_LOCAL_LEAN_CHECK"
         ),
@@ -2062,6 +2104,13 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "source_authoring_task_id": str(row.get("source_authoring_task_id", "") or ""),
         "source_candidate_packet_id": str(row.get("source_candidate_packet_id", "") or ""),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "materialization_row_id": str(row.get("materialization_row_id", "") or ""),
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
@@ -2071,9 +2120,16 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
         "candidate_definition_request": dict(
             row.get("candidate_definition_request", {}) or {}
         ),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZED",
             "materialization_status": str(row.get("materialization_status", "") or ""),
+            "authoring_mode": str(row.get("authoring_mode", "") or ""),
+            "source_execution_status": str(
+                row.get("source_execution_status", "") or ""
+            ),
             "definition_only_candidate_artifact_path": str(
                 row.get("definition_only_candidate_artifact_path", "") or ""
             ),
@@ -2113,6 +2169,8 @@ def _definition_only_candidate_text(
         f"target_theorem_name: {packet.get('target_theorem_name', '')}",
         f"placeholder_symbol: {packet.get('placeholder_symbol', '')}",
         f"source_candidate_packet_id: {packet.get('candidate_packet_id', '')}",
+        f"source_execution_status: {packet.get('source_execution_status', '')}",
+        f"authoring_mode: {packet.get('authoring_mode', '')}",
         "-/",
     ]
     if include_source_comments:
