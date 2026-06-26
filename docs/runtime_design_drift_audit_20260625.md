@@ -320,3 +320,17 @@ source anchors such as `hQuantileThreshold` and `hExch`. That is the right
 handoff for TheoryDeveloper/Formalizer/ProofEngineer plus formal-source
 retrieval, because it asks the system to derive or retrieve the missing theorem
 structure instead of accumulating local Lean corner-case rewrites.
+
+The next live Critic handoff exposed the same problem at a more architectural
+level: source-theorem proof-body adapter failures were present in runtime
+learning rows and the latest proof-bank summary, but the next Formalizer repair
+task received `source_theorem_proof_body_adapter_feedback=null`. That kind of
+feedback loss is what forces AgentRuntime to grow hardcoded rescue rules. The
+runtime now carries a compact
+`source_theorem_proof_body_adapter_feedback` object through Critic repair
+feedback, converts unverified adapter residuals into typed formal blocker
+resource requests, preserves the object in the Formalizer prompt, and pins
+adapter/proof-route feedback rows in rolling runtime memory. This is intended
+as a reusable proof-route contract: Claude and prover/RAG adapters receive the
+actual bridge failure, artifact path, declaration, and diagnostics, while the
+evidence boundary still says adapter rows are not full source-theorem proof.

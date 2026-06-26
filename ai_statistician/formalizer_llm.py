@@ -3034,6 +3034,20 @@ def _formalizer_mode_specific_instructions(
         or []
         if isinstance(row, Mapping)
     ]
+    source_theorem_proof_body_adapter_feedback = (
+        runtime_environment_feedback.get(
+            "source_theorem_proof_body_adapter_feedback",
+            {},
+        )
+        if isinstance(
+            runtime_environment_feedback.get(
+                "source_theorem_proof_body_adapter_feedback",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
     if repair_owner_agent == "ProofEngineer" or proofengineer_repair_context:
         instructions.append(
             "ProofEngineer repair loop is active: consume "
@@ -3070,6 +3084,17 @@ def _formalizer_mode_specific_instructions(
             "Lean candidate that reuses an unresolved API, import, semantic definition, or "
             "proof-search blocker; if the request cannot be resolved, keep the affected "
             "source theorem as FORMAL_GAP and name the exact missing resource."
+        )
+    if source_theorem_proof_body_adapter_feedback:
+        instructions.append(
+            "Source theorem proof-body adapter feedback is active: consume "
+            "runtime_environment_feedback.source_theorem_proof_body_adapter_feedback "
+            "as proof-route context. If adapter_kernel_verified=false, strengthen the "
+            "source-to-bridge adapter or derive missing bridge premises from exact "
+            "source hypotheses before retrying the exact source theorem. If "
+            "adapter_kernel_verified=true, use the verified adapter only as context "
+            "for an exact source-theorem proof-body retry. Adapter rows are not full "
+            "source-theorem proof evidence."
         )
     carried_local_lean_repair_contract = (
         runtime_environment_feedback.get("local_lean_repair_contract", {})
@@ -4116,6 +4141,14 @@ def _compact_formalizer_environment_feedback(
         payload["formal_blocker_resource_requests"] = _compact_value(
             formal_blocker_resource_requests
         )
+    source_theorem_proof_body_adapter_feedback = (
+        feedback.get("source_theorem_proof_body_adapter_feedback", {})
+        or input_summary.get("source_theorem_proof_body_adapter_feedback", {})
+    )
+    if source_theorem_proof_body_adapter_feedback:
+        payload["source_theorem_proof_body_adapter_feedback"] = _compact_value(
+            source_theorem_proof_body_adapter_feedback
+        )
     return payload
 
 
@@ -5007,9 +5040,18 @@ def _compact_value(value: Any) -> Any:
         return value[:FORMALIZER_MAX_TEXT_CHARS]
     if isinstance(value, Mapping):
         priority_keys = (
+            "feedback_kind",
             "contract_kind",
+            "source",
+            "source_theorem_proof_body_adapter_required",
+            "source_theorem_proof_body_adapter_feedback_available",
+            "adapter_kernel_verified",
+            "target_names",
+            "diagnostics",
             "diagnostic_classes",
             "required_behavior",
+            "acceptance_gate",
+            "proof_evidence_status",
             "blocked_import_prefixes",
             "mathlib_import_unavailable",
             "mathlib_root_import_unavailable",

@@ -164,6 +164,7 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY = (
 )
 FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
+FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT = 12
 
 
 def _executor_manifest_compact_payload(
@@ -18772,6 +18773,29 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    trigger = _runtime_learning_row_trigger(row, input_summary)
+    route_critical_learning_tasks = {
+        "source_theorem_proof_body_adapter_feedback",
+        "source_to_bridge_premise_derivation_feedback",
+        "source_theorem_formal_environment_repair_feedback",
+        "exact_source_theorem_proof_body_execution_feedback",
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
+    }
+    route_critical_triggers = {
+        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
+        "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+    }
+    if learning_task in route_critical_learning_tasks:
+        return True
+    if trigger in route_critical_triggers:
+        return True
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -19410,6 +19434,179 @@ def _critic_source_to_bridge_premise_derivation_feedback(
     }
 
 
+def _critic_source_theorem_proof_body_adapter_feedback(
+    formalization_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compact source-theorem adapter bridge feedback for the next repair agent."""
+
+    if not isinstance(formalization_manifest, Mapping):
+        return {}
+    proof_bank_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if not proof_bank_summary:
+        return {}
+    diagnostics: list[dict[str, Any]] = []
+    for row in (
+        proof_bank_summary.get("source_theorem_proof_body_adapter_diagnostics", [])
+        or []
+    )[:5]:
+        if not isinstance(row, Mapping):
+            continue
+        compact: dict[str, Any] = {
+            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+            "failure_classification": str(
+                row.get("failure_classification", "") or ""
+            ),
+            "runtime_queue_status": str(row.get("runtime_queue_status", "") or ""),
+            "adapter_kernel_verified": bool(
+                row.get("adapter_kernel_verified", False)
+            ),
+            "adapter_candidate_requires_unproven_bridge_premises": bool(
+                row.get(
+                    "adapter_candidate_requires_unproven_bridge_premises",
+                    False,
+                )
+            ),
+            "adapter_candidate_artifact_path": str(
+                row.get("adapter_candidate_artifact_path", "") or ""
+            ),
+            "adapter_declaration_name": str(
+                row.get("adapter_declaration_name", "") or ""
+            ),
+            "proof_body_goal_excerpt": list(
+                row.get("proof_body_goal_excerpt", []) or []
+            )[:5],
+            "unproven_bridge_premise_names": [
+                str(value)
+                for value in row.get("unproven_bridge_premise_names", []) or []
+                if str(value).strip()
+            ][:8],
+            "diagnostics": [
+                str(value)
+                for value in row.get("diagnostics", []) or []
+                if str(value).strip()
+            ][:5],
+            "recommended_repair_tasks": [
+                str(value)
+                for value in row.get("recommended_repair_tasks", []) or []
+                if str(value).strip()
+            ][:5],
+            "proof_body_adapter_required_reasons": [
+                str(value)
+                for value in row.get("proof_body_adapter_required_reasons", []) or []
+                if str(value).strip()
+            ][:5],
+        }
+        compact = {
+            key: value
+            for key, value in compact.items()
+            if value not in ("", [], {}, None)
+        }
+        if compact:
+            diagnostics.append(compact)
+    adapter_required = bool(
+        proof_bank_summary.get("source_theorem_proof_body_adapter_required", False)
+    )
+    adapter_feedback_available = bool(
+        proof_bank_summary.get(
+            "source_theorem_proof_body_adapter_feedback_available",
+            False,
+        )
+    )
+    adapter_kernel_verified = bool(
+        proof_bank_summary.get(
+            "source_theorem_proof_body_adapter_kernel_verified",
+            False,
+        )
+    )
+    if not (adapter_required or adapter_feedback_available or diagnostics):
+        return {}
+    target_names = [
+        str(value).strip()
+        for value in proof_bank_summary.get(
+            "source_theorem_proof_body_adapter_target_names",
+            [],
+        )
+        or proof_bank_summary.get(
+            "source_theorem_proof_body_adapter_feedback_target_names",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    pending_bridge_premise_names = [
+        str(value).strip()
+        for value in proof_bank_summary.get(
+            "source_theorem_proof_body_adapter_unproven_bridge_premise_names",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    return {
+        "feedback_kind": "critic_source_theorem_proof_body_adapter_feedback",
+        "source": "proof_bank_runtime_memory_summary",
+        "source_theorem_proof_body_adapter_required": adapter_required,
+        "source_theorem_proof_body_adapter_feedback_available": (
+            adapter_feedback_available
+        ),
+        "adapter_kernel_verified": adapter_kernel_verified,
+        "target_names": list(dict.fromkeys(target_names)),
+        "diagnostics": diagnostics,
+        "unproven_bridge_premise_names": list(
+            dict.fromkeys(pending_bridge_premise_names)
+        ),
+        "source_to_bridge_premise_derivation_all_required_verified": bool(
+            proof_bank_summary.get(
+                "source_to_bridge_premise_derivation_all_required_verified",
+                False,
+            )
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": list(
+            proof_bank_summary.get(
+                "kernel_verified_source_theorem_proof_body_adapter_ids",
+                [],
+            )
+            or []
+        )[:5],
+        "verified_source_theorem_proof_body_adapter_artifact_paths": list(
+            proof_bank_summary.get(
+                "verified_source_theorem_proof_body_adapter_artifact_paths",
+                [],
+            )
+            or []
+        )[:5],
+        "verified_source_theorem_proof_body_adapter_declarations": list(
+            proof_bank_summary.get(
+                "verified_source_theorem_proof_body_adapter_declarations",
+                [],
+            )
+            or []
+        )[:5],
+        "required_behavior": (
+            "If adapter_kernel_verified=true, rerun exact source-theorem proof-body "
+            "search with the verified adapter as context. If false, route back to "
+            "Formalizer/ProofEngineer to strengthen the source-to-bridge adapter or "
+            "derive missing bridge premises from exact source hypotheses. Do not "
+            "treat adapter rows as source-theorem proof."
+        ),
+        "acceptance_gate": (
+            "local Lean/AXLE verifies the exact source theorem after consuming any "
+            "verified adapter; adapter verification alone is not full theorem proof"
+        ),
+        "proof_evidence_status": (
+            "CRITIC_SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
 def _critic_semantic_anchor_blocker_feedback(
     formal_blocker_resource_requests: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -19509,6 +19706,18 @@ def _critic_repair_feedback(
             formalization_manifest
         )
     )
+    source_theorem_proof_body_adapter_feedback = (
+        _critic_source_theorem_proof_body_adapter_feedback(
+            formalization_manifest
+        )
+    )
+    if source_theorem_proof_body_adapter_feedback:
+        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
+            _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_feedback(
+                source_theorem_proof_body_adapter_feedback
+            ),
+            formal_blocker_resource_requests,
+        )
     if formalizer_local_lean_contract:
         formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
             formal_blocker_resource_requests,
@@ -19619,6 +19828,10 @@ def _critic_repair_feedback(
         feedback["local_lean_repair_contract"] = formalizer_local_lean_contract
     if formalizer_candidate_diagnostics:
         feedback["candidate_diagnostics"] = formalizer_candidate_diagnostics
+    if source_theorem_proof_body_adapter_feedback:
+        feedback["source_theorem_proof_body_adapter_feedback"] = (
+            source_theorem_proof_body_adapter_feedback
+        )
     return feedback
 
 
@@ -19794,7 +20007,7 @@ def _critic_formal_blocker_resource_requests(
             ],
         )
 
-    return request_rows[:8]
+    return request_rows[:FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT]
 
 
 def _formal_blocker_resource_request_queries(
@@ -19821,6 +20034,184 @@ def _formal_blocker_resource_request_queries(
         if query not in queries:
             queries.append(query)
     return queries[:5]
+
+
+def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_feedback(
+    feedback: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Convert adapter bridge residuals into typed prover/RAG work requests."""
+
+    if not isinstance(feedback, Mapping):
+        return []
+    diagnostics = [
+        row
+        for row in feedback.get("diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not diagnostics:
+        return []
+    default_targets = [
+        str(value).strip()
+        for value in feedback.get("target_names", []) or []
+        if str(value).strip()
+    ]
+    rows: list[dict[str, Any]] = []
+    for diagnostic in diagnostics[:4]:
+        if bool(diagnostic.get("adapter_kernel_verified", False)):
+            continue
+        target_ids = [
+            str(value).strip()
+            for value in [
+                diagnostic.get("target_theorem_name", ""),
+                *default_targets,
+            ]
+            if str(value).strip()
+        ]
+        target_ids = list(dict.fromkeys(target_ids))
+        failure = str(diagnostic.get("failure_classification", "") or "").strip()
+        artifact_path = str(
+            diagnostic.get("adapter_candidate_artifact_path", "") or ""
+        ).strip()
+        declaration = str(diagnostic.get("adapter_declaration_name", "") or "").strip()
+        diagnostic_lines = [
+            str(value)
+            for value in diagnostic.get("diagnostics", []) or []
+            if str(value).strip()
+        ]
+        diagnostic_text = "\n".join(diagnostic_lines)
+        import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
+            [
+                {
+                    "local_lean_stdout_excerpt": diagnostic_text,
+                    "local_lean_stderr_excerpt": diagnostic_text,
+                }
+            ]
+        )
+        if import_prefixes:
+            for module in import_prefixes[:2]:
+                blocker = (
+                    f"{module} unavailable import while checking source-theorem "
+                    "proof-body adapter"
+                )
+                if declaration:
+                    blocker += f" `{declaration}`"
+                if artifact_path:
+                    blocker += f" at {artifact_path}"
+                blocker += (
+                    ". Retrieve or select a verified local import/declaration in the "
+                    "configured Lean project, or keep the adapter/source theorem as "
+                    "FORMAL_GAP with the missing dependency named."
+                )
+                fingerprint = stable_hash(
+                    [
+                        "critic_source_theorem_proof_body_adapter_feedback",
+                        "source_theorem_proof_body_adapter_unavailable_import",
+                        module,
+                        target_ids,
+                        artifact_path,
+                    ]
+                )[:20]
+                rows.append(
+                    {
+                        "request_id": (
+                            f"formal_blocker_resource_request:{fingerprint}"
+                        ),
+                        "source": (
+                            "critic_source_theorem_proof_body_adapter_feedback"
+                        ),
+                        "blocker_kind": (
+                            "source_theorem_proof_body_adapter_unavailable_import"
+                        ),
+                        "blocker": blocker,
+                        "next_owner": "Formalizer/ProofEngineer/LeanProver",
+                        "target_ids": target_ids,
+                        "unavailable_import": module,
+                        "formal_source_queries": (
+                            _formal_blocker_resource_request_queries(
+                                blocker,
+                                blocker_kind=(
+                                    "source_theorem_proof_body_adapter_unavailable_import"
+                                ),
+                                target_ids=target_ids,
+                            )
+                            + [f"{module} Lean import"]
+                        )[:5],
+                        "recommended_tools": [
+                            "formal_source_retriever",
+                            "lean_lsp_mcp_when_configured",
+                            "local_lean_or_axle",
+                        ],
+                        "required_resolution": (
+                            "Replace the unavailable adapter import with a verified "
+                            "local import/declaration, derive a smaller source-to-bridge "
+                            "primitive, or keep the adapter/source theorem as FORMAL_GAP. "
+                            "Do not repeat the unresolved import."
+                        ),
+                        "proof_evidence_status": (
+                            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                    }
+                )
+            continue
+        blocker_parts = [
+            "Source-theorem proof-body adapter did not produce kernel-verified "
+            "adapter evidence"
+        ]
+        if failure:
+            blocker_parts.append(f"failure_classification={failure}")
+        if declaration:
+            blocker_parts.append(f"adapter_declaration={declaration}")
+        if artifact_path:
+            blocker_parts.append(f"artifact={artifact_path}")
+        if diagnostic_lines:
+            blocker_parts.append("diagnostic=" + diagnostic_lines[0][:320])
+        blocker = "; ".join(blocker_parts)
+        fingerprint = stable_hash(
+            [
+                "critic_source_theorem_proof_body_adapter_feedback",
+                failure or "source_theorem_proof_body_adapter_unverified",
+                target_ids,
+                artifact_path,
+                declaration,
+            ]
+        )[:20]
+        rows.append(
+            {
+                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "source": "critic_source_theorem_proof_body_adapter_feedback",
+                "blocker_kind": (
+                    failure or "source_theorem_proof_body_adapter_unverified"
+                ),
+                "blocker": blocker,
+                "next_owner": "Formalizer/ProofEngineer/LeanProver",
+                "target_ids": target_ids,
+                "formal_source_queries": _formal_blocker_resource_request_queries(
+                    blocker,
+                    blocker_kind=(
+                        failure or "source_theorem_proof_body_adapter_unverified"
+                    ),
+                    target_ids=target_ids,
+                ),
+                "recommended_tools": [
+                    "formal_source_retriever",
+                    "proof_search",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ],
+                "required_resolution": (
+                    "Strengthen the source-to-bridge adapter by deriving bridge "
+                    "premises from exact source hypotheses, retrieve/prove any "
+                    "missing smaller primitive, rerun local Lean/AXLE, or keep the "
+                    "source theorem as FORMAL_GAP with the adapter blocker named."
+                ),
+                "proof_evidence_status": (
+                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
 
 
 def _formal_blocker_resource_requests_from_feedback(
@@ -20244,7 +20635,7 @@ def _merge_formal_blocker_resource_requests(
                     "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
                 }
             )
-            if len(merged) >= 8:
+            if len(merged) >= FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT:
                 return merged
     return merged
 
@@ -24982,6 +25373,100 @@ def _runtime_learning_memory_source_to_bridge_metadata_authoring_requests(
     )
 
 
+def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
+    environment_feedback: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Project Critic adapter feedback into proof-bank memory-row shape."""
+
+    if not isinstance(environment_feedback, Mapping):
+        return ()
+    input_summary = (
+        environment_feedback.get("input_summary", {})
+        if isinstance(environment_feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    feedback = (
+        environment_feedback.get("source_theorem_proof_body_adapter_feedback", {})
+        or input_summary.get("source_theorem_proof_body_adapter_feedback", {})
+    )
+    if not isinstance(feedback, Mapping):
+        return ()
+    diagnostics = [
+        row for row in feedback.get("diagnostics", []) or [] if isinstance(row, Mapping)
+    ]
+    target_names = [
+        str(value).strip()
+        for value in feedback.get("target_names", []) or []
+        if str(value).strip()
+    ]
+    rows: list[dict[str, Any]] = []
+    for diagnostic in diagnostics[:5]:
+        target_name = str(diagnostic.get("target_theorem_name", "") or "").strip()
+        if not target_name and target_names:
+            target_name = target_names[0]
+        row = {
+            **dict(diagnostic),
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "trigger": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
+            "target_theorem_name": target_name,
+            "adapter_kernel_verified": bool(
+                diagnostic.get(
+                    "adapter_kernel_verified",
+                    feedback.get("adapter_kernel_verified", False),
+                )
+            ),
+            "proof_evidence_status": str(
+                diagnostic.get("proof_evidence_status", "")
+                or feedback.get("proof_evidence_status", "")
+                or "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": str(
+                diagnostic.get("proof_evidence_boundary", "")
+                or feedback.get("proof_evidence_boundary", "")
+                or KERNEL_PROOF_BOUNDARY
+            ),
+        }
+        if not str(row.get("failure_classification", "") or "").strip():
+            row["failure_classification"] = (
+                "adapter_kernel_verified"
+                if bool(row.get("adapter_kernel_verified", False))
+                else "source_theorem_proof_body_adapter_unverified"
+            )
+        rows.append(row)
+    if rows:
+        return tuple(rows)
+    if not (
+        bool(feedback.get("source_theorem_proof_body_adapter_required", False))
+        or bool(
+            feedback.get("source_theorem_proof_body_adapter_feedback_available", False)
+        )
+    ):
+        return ()
+    return tuple(
+        {
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "trigger": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
+            "target_theorem_name": target_name,
+            "adapter_kernel_verified": bool(
+                feedback.get("adapter_kernel_verified", False)
+            ),
+            "failure_classification": (
+                "adapter_kernel_verified"
+                if bool(feedback.get("adapter_kernel_verified", False))
+                else "source_theorem_proof_body_adapter_unverified"
+            ),
+            "proof_evidence_status": str(
+                feedback.get("proof_evidence_status", "")
+                or "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": str(
+                feedback.get("proof_evidence_boundary", "") or KERNEL_PROOF_BOUNDARY
+            ),
+        }
+        for target_name in target_names[:5]
+    )
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -25042,6 +25527,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     source_theorem_exact_candidate_repairs = (
         _runtime_learning_memory_source_theorem_exact_candidate_repairs(context)
+        + _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
+            environment_feedback
+        )
     )
     source_to_bridge_metadata_authoring_rows = (
         _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(

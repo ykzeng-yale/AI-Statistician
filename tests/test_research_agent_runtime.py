@@ -491,6 +491,149 @@ def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> Non
     )
 
 
+def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=1,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest={
+            "manifest_id": "formalization_manifest:adapter_feedback",
+            "counts": {"formal_gap": 1},
+            "deterministic_theorem_goals": [
+                {"id": "frontier_source_theorem"}
+            ],
+            "proof_bank_runtime_memory_summary": {
+                "recommended_formalizer_target_mode": (
+                    "source_theorem_proof_body_adapter_required"
+                ),
+                "source_theorem_proof_body_adapter_required": True,
+                "source_theorem_proof_body_adapter_feedback_available": True,
+                "source_theorem_proof_body_adapter_kernel_verified": False,
+                "source_theorem_proof_body_adapter_target_names": [
+                    "frontier_source_theorem"
+                ],
+                "source_theorem_proof_body_adapter_diagnostics": [
+                    {
+                        "target_theorem_name": "frontier_source_theorem",
+                        "failure_classification": "adapter_local_lean_failed",
+                        "runtime_queue_status": (
+                            "PENDING_SOURCE_THEOREM_PROOF_BODY_ADAPTER"
+                        ),
+                        "adapter_kernel_verified": False,
+                        "adapter_candidate_artifact_path": (
+                            "/tmp/frontier_source_theorem_adapter.lean"
+                        ),
+                        "adapter_declaration_name": (
+                            "frontier_source_theorem_adapter"
+                        ),
+                        "proof_body_goal_excerpt": ["⊢ bridge_premises"],
+                        "diagnostics": [
+                            "frontier_source_theorem_adapter.lean:7:2: "
+                            "error: unsolved goals",
+                            "⊢ bridge_premises",
+                        ],
+                        "recommended_repair_tasks": [
+                            "derive bridge premises from exact source hypotheses"
+                        ],
+                    }
+                ],
+            },
+        },
+        agenda=[],
+    )
+
+    adapter_feedback = feedback["source_theorem_proof_body_adapter_feedback"]
+    assert adapter_feedback["source"] == "proof_bank_runtime_memory_summary"
+    assert adapter_feedback["source_theorem_proof_body_adapter_required"] is True
+    assert adapter_feedback["adapter_kernel_verified"] is False
+    assert adapter_feedback["diagnostics"][0]["adapter_declaration_name"] == (
+        "frontier_source_theorem_adapter"
+    )
+    adapter_request = next(
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["source"] == "critic_source_theorem_proof_body_adapter_feedback"
+    )
+    assert adapter_request["blocker_kind"] == "adapter_local_lean_failed"
+    assert adapter_request["target_ids"] == ["frontier_source_theorem"]
+    assert adapter_request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"environment_feedback": feedback},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert summary["source_theorem_proof_body_adapter_feedback_available"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary["source_theorem_proof_body_adapter_target_names"] == [
+        "frontier_source_theorem"
+    ]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "generic"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "source_theorem_proof_body_adapter_feedback" in prompt
+    assert "Source theorem proof-body adapter feedback is active" in prompt
+    assert "frontier_source_theorem_adapter" in prompt
+    assert "Adapter rows are not full source-theorem proof evidence" in prompt
+
+
+def test_runtime_learning_memory_pins_proof_body_adapter_feedback() -> None:
+    adapter_row = {
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "frontier_source_theorem",
+        "failure_classification": "adapter_local_lean_failed",
+    }
+    existing = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "counts": {"max_rows": 3},
+        "rows": [
+            adapter_row,
+            {"learning_task": "filler", "index": 0},
+            {"learning_task": "filler", "index": 1},
+            {"learning_task": "filler", "index": 2},
+        ],
+    }
+    incoming = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "counts": {"max_rows": 3},
+        "rows": [
+            {"learning_task": "latest", "index": 3},
+            {"learning_task": "latest", "index": 4},
+            {"learning_task": "latest", "index": 5},
+        ],
+    }
+
+    merged = runtime_module._merge_runtime_learning_memory_context(
+        existing,
+        incoming,
+    )
+
+    assert any(
+        row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
+        for row in merged["rows"]
+    )
+    assert merged["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+
+
 def test_critic_handoff_recomputes_materialization_request_from_runtime_memory(
     tmp_path: Path,
 ) -> None:
