@@ -684,3 +684,20 @@ environment preflight learning row all carry the source repair mode and
 diagnostics context. This is still not semantic review and not source theorem
 proof: exact proof-body execution remains blocked by
 `source_theorem_semantic_alignment_unreviewed`.
+
+The next Critic continuation
+`runs/main_worker_design_policy_patch_critic_after_554b_provenance_live`
+confirmed the review-ready candidates were generated, but exposed one more
+control-plane handoff leak: artifact-distinct typechecked exact
+semantic-definition candidates for the same placeholder were deduped as the
+same memory row, and the Formalizer summary could therefore surface stale
+pinned candidates before the current run's artifacts. The runtime summary now
+dedupes exact semantic-definition candidates by concrete artifact/status
+evidence and prioritizes direct review-required local-Lean-checked candidates
+over generic older repair rows, while keeping compiled import candidates first
+in diagnostic lanes. A deterministic recomputation over the pending task now
+surfaces the current `coverage_event` and `good_rank_event` definition-only
+artifacts from that run, and `tests/test_research_agent_runtime.py` passes
+346/346. This is not a conformal theorem shortcut: it is generic evidence
+handoff hygiene so Claude/ProofEngineer reviews the actual current Lean
+candidate instead of rediscovering or repairing stale artifacts.

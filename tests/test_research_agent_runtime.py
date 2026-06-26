@@ -13342,6 +13342,172 @@ def test_formalizer_summary_surfaces_typechecked_semantic_definition_candidate(
     assert "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE" in prompt
 
 
+def test_formalizer_summary_prioritizes_current_reviewed_semantic_candidates() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    old_coverage_path = "runs/old/coverage_event_definition_only.lean"
+    old_generic_repair_path = "runs/older_retry/coverage_event_definition_only.lean"
+    live_good_rank_path = (
+        "runs/current/runtime_source_theorem_exact_semantic_definition_"
+        "authoring_retry_candidate_materializer/candidate_artifacts/"
+        "good_rank_event_definition_only.lean"
+    )
+    live_coverage_path = (
+        "runs/current/runtime_source_theorem_exact_semantic_definition_"
+        "authoring_retry_candidate_materializer/candidate_artifacts/"
+        "coverage_event_definition_only.lean"
+    )
+    typechecked_status = (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_"
+        "REVIEW_REQUIRED"
+    )
+    memory_rows = [
+        {
+            "learning_task": "generated_next_action_routing",
+            "input_summary": {
+                "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "coverage_event",
+                "runtime_queue_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                ),
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": typechecked_status,
+                "definition_only_candidate_artifact_path": old_coverage_path,
+            },
+            "target_behavior": (
+                "review the typechecked exact semantic definition candidate"
+            ),
+            "proof_evidence_status": (
+                "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "execution_status": "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+            "runtime_queue_status": (
+                "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+            ),
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": typechecked_status,
+            "definition_only_candidate_artifact_path": live_good_rank_path,
+            "authoring_mode": "repair_failed_exact_semantic_definition_candidate",
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        },
+        {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "coverage_event",
+            "execution_status": "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+            "runtime_queue_status": (
+                "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+            ),
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": typechecked_status,
+            "definition_only_candidate_artifact_path": live_coverage_path,
+            "authoring_mode": "repair_typechecked_semantic_definition_candidate",
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        },
+        {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "coverage_event",
+            "execution_status": "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+            "runtime_queue_status": "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": typechecked_status,
+            "definition_only_candidate_artifact_path": old_generic_repair_path,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        },
+    ]
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": memory_rows,
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": problem.problem_class},
+        theorem_goals=[
+            {
+                "id": row.id,
+                "title": row.title,
+                "proof_obligations": list(row.proof_obligations),
+            }
+            for row in theorem_goals
+        ],
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    candidates = summary[
+        "source_theorem_exact_semantic_definition_typechecked_candidates"
+    ]
+    candidate_by_symbol = {
+        str(row["placeholder_symbol"]): row
+        for row in candidates
+    }
+    assert candidate_by_symbol["coverage_event"][
+        "definition_only_candidate_artifact_path"
+    ] == live_coverage_path
+    assert candidate_by_symbol["good_rank_event"][
+        "definition_only_candidate_artifact_path"
+    ] == live_good_rank_path
+    assert old_coverage_path not in {
+        row["definition_only_candidate_artifact_path"]
+        for row in candidates
+    }
+    assert old_generic_repair_path not in {
+        row["definition_only_candidate_artifact_path"]
+        for row in candidates
+    }
+    diagnostics = summary["source_theorem_exact_candidate_repair_diagnostics"]
+    assert diagnostics[0]["definition_only_candidate_artifact_path"] == live_coverage_path
+    assert diagnostics[1]["definition_only_candidate_artifact_path"] == live_good_rank_path
+    assert "repair_reviewed_exact_semantic_definitions" in prompt
+    assert live_coverage_path in prompt
+    assert live_good_rank_path in prompt
+
+
 def test_runtime_exports_formalizer_semantic_definition_repair_work_order() -> None:
     proposal_packet = {
         "artifact_kind": "LLMFormalizerProofEngineerProposal",

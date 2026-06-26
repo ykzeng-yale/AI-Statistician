@@ -19469,12 +19469,10 @@ def _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candi
     ).strip()
     if local_compiled and (artifact_path or semantic_status):
         return True
-    return semantic_status in {
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
-        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
-    }
+    return (
+        semantic_status
+        in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
+    )
 
 
 def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]:
@@ -20298,6 +20296,22 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES = frozenset(
     {
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
         "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES = frozenset(
+    {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES = frozenset(
+    {
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
     }
 )
 
@@ -25122,12 +25136,52 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     adapter_artifact_for_key,
                 ]
             )[:16]
+        exact_semantic_definition_candidate_dedupe_key = ""
+        input_mapping = input_summary if isinstance(input_summary, Mapping) else {}
+        candidate_artifact_path_for_key = str(
+            row.get("synthesized_candidate_artifact_path", "")
+            or row.get("candidate_artifact_path", "")
+            or input_mapping.get("synthesized_candidate_artifact_path", "")
+            or input_mapping.get("candidate_artifact_path", "")
+            or ""
+        ).strip()
+        source_execution_status_for_key = str(
+            row.get("source_execution_status", "")
+            or input_mapping.get("source_execution_status", "")
+            or row.get("execution_status", "")
+            or input_mapping.get("execution_status", "")
+            or ""
+        ).strip()
+        authoring_mode_for_key = str(
+            row.get("authoring_mode", "")
+            or input_mapping.get("authoring_mode", "")
+            or ""
+        ).strip()
+        if (
+            _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+                row,
+                input_mapping,
+            )
+            or definition_only_candidate_artifact_path
+            or semantic_definition_typecheck_evidence_status
+        ):
+            exact_semantic_definition_candidate_dedupe_key = stable_hash(
+                [
+                    definition_only_candidate_artifact_path,
+                    candidate_artifact_path_for_key,
+                    runtime_queue_status,
+                    semantic_definition_typecheck_evidence_status,
+                    source_execution_status_for_key,
+                    authoring_mode_for_key,
+                ]
+            )[:16]
         key = (
             target,
             trigger,
             premise_dedupe_key,
             premise_kernel_verified_dedupe_key,
             adapter_feedback_dedupe_key,
+            exact_semantic_definition_candidate_dedupe_key,
             ",".join(missing_symbols),
             failure_classification,
         )
@@ -26812,6 +26866,159 @@ def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
     )
 
 
+def _source_theorem_exact_semantic_definition_candidate_artifact_path(
+    row: Mapping[str, Any],
+) -> str:
+    return str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or row.get("candidate_artifact_path", "")
+        or row.get("synthesized_candidate_artifact_path", "")
+        or ""
+    ).strip()
+
+
+def _source_theorem_exact_semantic_definition_candidate_review_priority(
+    row: Mapping[str, Any],
+) -> int:
+    """Rank exact semantic-definition candidate rows by actionable evidence."""
+
+    score = 0
+    semantic_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "") or ""
+    ).strip()
+    runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+    trigger = str(row.get("trigger", "") or "").strip()
+    failure_classification = str(
+        row.get("failure_classification", "") or ""
+    ).strip()
+    source_execution_status = str(
+        row.get("source_execution_status", "") or row.get("verification_status", "") or ""
+    ).strip()
+    authoring_mode = str(row.get("authoring_mode", "") or "").strip()
+    artifact_path = (
+        _source_theorem_exact_semantic_definition_candidate_artifact_path(row)
+    )
+    if bool(row.get("local_definition_lean_compiled", False)):
+        score += 100
+    if bool(row.get("semantic_definition_import_candidate_ready", False)):
+        score += 260
+    if runtime_queue_status == "PENDING_REVIEWED_SEMANTIC_DEFINITION_IMPORT":
+        score += 120
+    if semantic_status in (
+        _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
+    ):
+        score += 40
+    if (
+        runtime_queue_status
+        in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES
+    ):
+        score += 40
+    if (
+        failure_classification
+        == "typechecked_exact_semantic_definition_candidate_review_required"
+    ):
+        score += 25
+    if trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION":
+        score += 20
+    if source_execution_status:
+        score += 18
+    if artifact_path:
+        score += 10
+    if "authoring_retry" in artifact_path or authoring_mode:
+        score += 8
+    return score
+
+
+def _source_theorem_exact_semantic_definition_typechecked_candidate_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    limit: int = 8,
+) -> tuple[Mapping[str, Any], ...]:
+    """Return best current typechecked definition candidates per placeholder."""
+
+    best_by_placeholder: dict[tuple[str, str], tuple[int, int, Mapping[str, Any]]] = {}
+    supplemental: list[tuple[int, int, Mapping[str, Any]]] = []
+    for index, row in enumerate(rows):
+        semantic_status = str(
+            row.get("semantic_definition_typecheck_evidence_status", "") or ""
+        ).strip()
+        is_typechecked_candidate = bool(
+            row.get("local_definition_lean_compiled", False)
+            or semantic_status
+            in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
+        )
+        if not is_typechecked_candidate:
+            continue
+        priority = _source_theorem_exact_semantic_definition_candidate_review_priority(
+            row
+        )
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+        key = (target, placeholder)
+        ranked = (priority, index, row)
+        if key[0] and key[1]:
+            existing = best_by_placeholder.get(key)
+            if existing is None or ranked[:2] > existing[:2]:
+                best_by_placeholder[key] = ranked
+        else:
+            supplemental.append(ranked)
+    selected = sorted(
+        best_by_placeholder.values(),
+        key=lambda item: (-item[0], -item[1]),
+    )
+    selected.extend(sorted(supplemental, key=lambda item: (-item[0], -item[1])))
+    return tuple(item[2] for item in selected[:limit])
+
+
+def _source_theorem_exact_candidate_repair_diagnostic_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[Mapping[str, Any], ...]:
+    def diagnostic_priority(row: Mapping[str, Any]) -> int:
+        runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+        failure_classification = str(
+            row.get("failure_classification", "") or ""
+        ).strip()
+        verification_status = str(row.get("verification_status", "") or "").strip()
+        candidate_score = min(
+            _source_theorem_exact_semantic_definition_candidate_review_priority(row),
+            99,
+        )
+        if bool(row.get("semantic_definition_import_candidate_ready", False)):
+            return 1000 + candidate_score
+        if (
+            runtime_queue_status
+            == "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ):
+            return 900 + candidate_score
+        if (
+            failure_classification == "exact_semantic_definition_authoring_required"
+            or verification_status
+            == "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN"
+        ):
+            return 800 + candidate_score
+        if (
+            failure_classification
+            == "typechecked_exact_semantic_definition_candidate_review_required"
+        ):
+            return 700 + candidate_score
+        return candidate_score
+
+    return tuple(
+        item[2]
+        for item in sorted(
+            (
+                (
+                    diagnostic_priority(row),
+                    index,
+                    row,
+                )
+                for index, row in enumerate(rows)
+            ),
+            key=lambda item: (-item[0], -item[1]),
+        )
+    )
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -27001,11 +27208,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
         if bool(row.get("semantic_definition_import_candidate_ready", False))
     )
     exact_semantic_definition_typechecked_candidates = tuple(
-        row
-        for row in source_theorem_exact_candidate_repairs
-        if bool(row.get("local_definition_lean_compiled", False))
-        or str(row.get("semantic_definition_typecheck_evidence_status", "") or "")
-        == "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        _source_theorem_exact_semantic_definition_typechecked_candidate_rows(
+            source_theorem_exact_candidate_repairs,
+            limit=8,
+        )
+    )
+    exact_candidate_repair_diagnostic_rows = tuple(
+        _source_theorem_exact_candidate_repair_diagnostic_rows(
+            source_theorem_exact_candidate_repairs
+        )
     )
     exact_semantic_definition_authoring_retry_rows = tuple(
         row
@@ -28921,7 +29132,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("recommended_repair_tasks", []) or []
                 ),
             }
-            for row in source_theorem_exact_candidate_repairs[:3]
+            for row in exact_candidate_repair_diagnostic_rows[:3]
         ],
         "formalizer_lean_candidate_repair_required": bool(
             formalizer_lean_candidate_repair_rows
@@ -30267,16 +30478,19 @@ def _formalizer_source_theorem_exact_semantic_definition_work_orders(
         for row in diagnostics
         if str(row.get("placeholder_symbol", "") or "").strip()
     }
-    typechecked_candidate_by_symbol = {
-        str(row.get("placeholder_symbol", "") or "").strip(): dict(row)
-        for row in proof_bank_runtime_memory_summary.get(
+    typechecked_candidate_by_symbol: dict[str, dict[str, Any]] = {}
+    for row in (
+        proof_bank_runtime_memory_summary.get(
             "source_theorem_exact_semantic_definition_typechecked_candidates",
             [],
         )
         or []
-        if isinstance(row, Mapping)
-        and str(row.get("placeholder_symbol", "") or "").strip()
-    }
+    ):
+        if not isinstance(row, Mapping):
+            continue
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        if symbol and symbol not in typechecked_candidate_by_symbol:
+            typechecked_candidate_by_symbol[symbol] = dict(row)
     placeholder_plan = _source_theorem_placeholder_resolution_rows(
         (
             {
