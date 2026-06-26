@@ -19355,6 +19355,11 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    environment_repair_status = str(
+        row.get("environment_repair_status", "")
+        or input_summary.get("environment_repair_status", "")
+        or ""
+    )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
         bool(row.get("adapter_kernel_verified", False))
         or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
@@ -19380,6 +19385,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if environment_repair_status:
+        return 96
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
         row,
         input_summary,
@@ -19763,6 +19770,11 @@ def _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    environment_repair_status = str(
+        row.get("environment_repair_status", "")
+        or input_summary.get("environment_repair_status", "")
+        or ""
+    ).strip()
     semantic_status = str(
         row.get("semantic_definition_typecheck_evidence_status", "")
         or input_summary.get("semantic_definition_typecheck_evidence_status", "")
@@ -19775,6 +19787,8 @@ def _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
         or input_summary.get("candidate_artifact_path", "")
         or ""
     ).strip()
+    if environment_repair_status:
+        return 96
     if (
         artifact_path
         or semantic_status
@@ -21049,6 +21063,16 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "semantic_alignment_constraints",
         "semantic_alignment_blockers",
         "semantic_definition_risks",
+        "environment_repair_status",
+        "candidate_lean_project_hint",
+        "candidate_source_file",
+        "unavailable_module_prefix",
+        "dependency_fetch_required",
+        "ready_to_rerun_lean_repair",
+        "recommended_commands",
+        "recommended_next_action",
+        "local_lean_diagnostics",
+        "source_environment_repair_task_id",
         "recommended_repair_tasks",
         "diagnostics",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
@@ -21909,6 +21933,26 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
         runtime_queue_status = str(
             diagnostic.get("runtime_queue_status", "") or ""
         ).strip()
+        environment_repair_status = str(
+            diagnostic.get("environment_repair_status", "") or ""
+        ).strip()
+        candidate_lean_project_hint = str(
+            diagnostic.get("candidate_lean_project_hint", "") or ""
+        ).strip()
+        candidate_source_file = str(
+            diagnostic.get("candidate_source_file", "") or ""
+        ).strip()
+        unavailable_module_prefix = str(
+            diagnostic.get("unavailable_module_prefix", "") or ""
+        ).strip()
+        recommended_next_action = str(
+            diagnostic.get("recommended_next_action", "") or ""
+        ).strip()
+        recommended_commands = [
+            str(value).strip()
+            for value in diagnostic.get("recommended_commands", []) or []
+            if str(value).strip()
+        ]
         candidate_path = str(
             diagnostic.get("candidate_artifact_path", "") or ""
         ).strip()
@@ -21944,8 +21988,30 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             blocker_parts.append(f"proof_body_gate_status={gate}")
         if runtime_queue_status:
             blocker_parts.append(f"runtime_queue_status={runtime_queue_status}")
+        if environment_repair_status:
+            blocker_parts.append(
+                f"environment_repair_status={environment_repair_status}"
+            )
+        if unavailable_module_prefix:
+            blocker_parts.append(
+                f"unavailable_module_prefix={unavailable_module_prefix}"
+            )
+        if candidate_lean_project_hint:
+            blocker_parts.append(
+                f"candidate_lean_project_hint={candidate_lean_project_hint}"
+            )
+        if candidate_source_file:
+            blocker_parts.append(f"candidate_source_file={candidate_source_file}")
+        if recommended_next_action:
+            blocker_parts.append(
+                f"recommended_next_action={recommended_next_action}"
+            )
         if candidate_path:
             blocker_parts.append(f"candidate_artifact={candidate_path}")
+        if recommended_commands:
+            blocker_parts.append(
+                "recommended_commands=" + ", ".join(recommended_commands[:3])
+            )
         if semantic_blockers:
             blocker_parts.append(
                 "semantic_alignment_blockers="
@@ -21957,7 +22023,8 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             )
         blocker = "; ".join(blocker_parts)
         blocker_kind = (
-            failure
+            environment_repair_status
+            or failure
             or trigger
             or "source_theorem_exact_semantic_definition_repair_required"
         )
@@ -21967,6 +22034,10 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
                 blocker_kind,
                 placeholder_symbol,
                 gate,
+                environment_repair_status,
+                unavailable_module_prefix,
+                candidate_lean_project_hint,
+                candidate_source_file,
                 target_ids,
                 semantic_blockers,
             ]
@@ -21985,6 +22056,12 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
                 "placeholder_symbol": placeholder_symbol,
                 "proof_body_gate_status": gate,
                 "runtime_queue_status": runtime_queue_status,
+                "environment_repair_status": environment_repair_status,
+                "candidate_lean_project_hint": candidate_lean_project_hint,
+                "candidate_source_file": candidate_source_file,
+                "unavailable_module_prefix": unavailable_module_prefix,
+                "recommended_next_action": recommended_next_action,
+                "recommended_commands": recommended_commands,
                 "blocker": blocker,
                 "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
                 "target_ids": target_ids,
@@ -22003,11 +22080,19 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
                     "local_lean_or_axle",
                 ],
                 "required_resolution": (
-                    "Resolve the exact source-theorem semantic definitions and "
-                    "target provenance before retrying proof-body tactics. A verified "
-                    "adapter may be consumed as context, but source-theorem proof "
-                    "evidence requires local Lean/AXLE verification of the exact "
-                    "declaration."
+                    "Repair the selected Lean project/source-root/import-prefix "
+                    "mapping for this exact semantic definition before retrying "
+                    "proof-body tactics. A verified adapter may be consumed as "
+                    "context, but source-theorem proof evidence requires local "
+                    "Lean/AXLE verification of the exact declaration."
+                    if environment_repair_status
+                    else (
+                        "Resolve the exact source-theorem semantic definitions and "
+                        "target provenance before retrying proof-body tactics. A verified "
+                        "adapter may be consumed as context, but source-theorem proof "
+                        "evidence requires local Lean/AXLE verification of the exact "
+                        "declaration."
+                    )
                 ),
                 "proof_evidence_status": (
                     "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
@@ -22354,6 +22439,85 @@ def _formal_blocker_resource_requests_from_repeated_syntax_failures(
     ]
 
 
+def _exact_semantic_formal_blocker_request_key(
+    row: Mapping[str, Any],
+) -> tuple[str, tuple[str, ...]] | None:
+    if (
+        str(row.get("source", "") or "")
+        != "critic_source_theorem_exact_semantic_definition_repair_feedback"
+    ):
+        return None
+    placeholder_symbol = str(row.get("placeholder_symbol", "") or "").strip()
+    if not placeholder_symbol:
+        return None
+    target_ids = tuple(
+        str(value).strip()
+        for value in row.get("target_ids", []) or []
+        if str(value).strip()
+    )
+    return (placeholder_symbol, target_ids)
+
+
+def _exact_semantic_formal_blocker_requests_overlap(
+    existing: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> bool:
+    existing_key = _exact_semantic_formal_blocker_request_key(existing)
+    candidate_key = _exact_semantic_formal_blocker_request_key(candidate)
+    if existing_key is None or candidate_key is None:
+        return False
+    existing_placeholder, existing_targets = existing_key
+    candidate_placeholder, candidate_targets = candidate_key
+    if existing_placeholder != candidate_placeholder:
+        return False
+    return (
+        existing_targets == candidate_targets
+        or not existing_targets
+        or not candidate_targets
+    )
+
+
+def _exact_semantic_formal_blocker_request_is_stronger(
+    existing: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> bool:
+    existing_score = _exact_semantic_environment_repair_evidence_score(existing)
+    candidate_score = _exact_semantic_environment_repair_evidence_score(candidate)
+    if candidate_score != existing_score:
+        return candidate_score > existing_score
+    existing_key = _exact_semantic_formal_blocker_request_key(existing)
+    candidate_key = _exact_semantic_formal_blocker_request_key(candidate)
+    existing_targets = existing_key[1] if existing_key is not None else ()
+    candidate_targets = candidate_key[1] if candidate_key is not None else ()
+    return bool(candidate_targets) and not existing_targets
+
+
+def _dedupe_exact_semantic_formal_blocker_resource_requests(
+    requests: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows = [dict(row) for row in requests if isinstance(row, Mapping)]
+    retained: list[dict[str, Any]] = []
+    for row in rows:
+        if _exact_semantic_formal_blocker_request_key(row) is None:
+            retained.append(row)
+            continue
+        existing_index = next(
+            (
+                index
+                for index, existing in enumerate(retained)
+                if _exact_semantic_formal_blocker_requests_overlap(existing, row)
+            ),
+            None,
+        )
+        if existing_index is None:
+            retained.append(row)
+            continue
+        existing = retained[existing_index]
+        if _exact_semantic_formal_blocker_request_is_stronger(existing, row):
+            retained[existing_index] = row
+    return retained
+
+
 def _merge_formal_blocker_resource_requests(
     *request_groups: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -22440,8 +22604,8 @@ def _merge_formal_blocker_resource_requests(
                 }
             )
             if len(merged) >= FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT:
-                return merged
-    return merged
+                return _dedupe_exact_semantic_formal_blocker_resource_requests(merged)
+    return _dedupe_exact_semantic_formal_blocker_resource_requests(merged)
 
 
 def _critic_candidate_diagnostics_from_formalization_manifest(
@@ -35192,12 +35356,18 @@ def _runtime_pending_task_with_runtime_learning_memory(
         )
     elif isinstance(existing_memory, Mapping):
         architect_context["runtime_learning_memory"] = dict(existing_memory)
-    exact_semantic_feedback = (
-        dict(exact_semantic_work_order_feedback)
-        if has_exact_semantic_feedback
-        else _runtime_exact_semantic_definition_work_order_feedback_from_memory(
+    memory_exact_semantic_feedback = (
+        _runtime_exact_semantic_definition_work_order_feedback_from_memory(
             architect_context.get("runtime_learning_memory", {}),
         )
+    )
+    exact_semantic_feedback = (
+        _merge_runtime_exact_semantic_definition_work_order_feedback(
+            exact_semantic_work_order_feedback,
+            memory_exact_semantic_feedback,
+        )
+        if has_exact_semantic_feedback
+        else memory_exact_semantic_feedback
     )
     if exact_semantic_feedback:
         environment_feedback = (
@@ -35232,18 +35402,52 @@ def _runtime_pending_task_with_runtime_learning_memory(
             )
         )
         if exact_semantic_resource_requests:
+            specific_exact_semantic_request_keys = {
+                (
+                    str(row.get("placeholder_symbol", "") or "").strip(),
+                    tuple(
+                        str(value).strip()
+                        for value in row.get("target_ids", []) or []
+                        if str(value).strip()
+                    ),
+                )
+                for row in exact_semantic_resource_requests
+                if str(row.get("environment_repair_status", "") or "").strip()
+            }
+            existing_resource_requests = [
+                row
+                for row in environment_feedback.get(
+                    "formal_blocker_resource_requests",
+                    [],
+                )
+                or []
+                if isinstance(row, Mapping)
+            ]
+            if specific_exact_semantic_request_keys:
+                existing_resource_requests = [
+                    row
+                    for row in existing_resource_requests
+                    if not (
+                        str(row.get("source", "") or "")
+                        == "critic_source_theorem_exact_semantic_definition_repair_feedback"
+                        and not str(
+                            row.get("environment_repair_status", "") or ""
+                        ).strip()
+                        and (
+                            str(row.get("placeholder_symbol", "") or "").strip(),
+                            tuple(
+                                str(value).strip()
+                                for value in row.get("target_ids", []) or []
+                                if str(value).strip()
+                            ),
+                        )
+                        in specific_exact_semantic_request_keys
+                    )
+                ]
             environment_feedback["formal_blocker_resource_requests"] = (
                 _merge_formal_blocker_resource_requests(
                     exact_semantic_resource_requests,
-                    [
-                        row
-                        for row in environment_feedback.get(
-                            "formal_blocker_resource_requests",
-                            [],
-                        )
-                        or []
-                        if isinstance(row, Mapping)
-                    ],
+                    existing_resource_requests,
                 )
             )
         inputs["environment_feedback"] = environment_feedback
@@ -35290,6 +35494,16 @@ def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
         for value in repair_feedback.get("runtime_queue_statuses", []) or []
         if str(value).strip()
     ]
+    environment_repair_statuses = [
+        str(value).strip()
+        for value in repair_feedback.get("environment_repair_statuses", []) or []
+        if str(value).strip()
+    ]
+    unavailable_module_prefixes = [
+        str(value).strip()
+        for value in repair_feedback.get("unavailable_module_prefixes", []) or []
+        if str(value).strip()
+    ]
     diagnostics = [
         row
         for row in repair_feedback.get("diagnostics", []) or []
@@ -35327,6 +35541,22 @@ def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
                 if str(row.get("runtime_queue_status", "") or "").strip()
             )
         )
+    if not environment_repair_statuses:
+        environment_repair_statuses = list(
+            dict.fromkeys(
+                str(row.get("environment_repair_status", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("environment_repair_status", "") or "").strip()
+            )
+        )
+    if not unavailable_module_prefixes:
+        unavailable_module_prefixes = list(
+            dict.fromkeys(
+                str(row.get("unavailable_module_prefix", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("unavailable_module_prefix", "") or "").strip()
+            )
+        )
     item = {
         "id": agenda_id,
         "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
@@ -35343,6 +35573,12 @@ def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
         "placeholder_symbols": list(dict.fromkeys(placeholder_symbols)),
         "proof_body_gate_statuses": list(dict.fromkeys(proof_body_gate_statuses)),
         "runtime_queue_statuses": list(dict.fromkeys(runtime_queue_statuses)),
+        "environment_repair_statuses": list(
+            dict.fromkeys(environment_repair_statuses)
+        ),
+        "unavailable_module_prefixes": list(
+            dict.fromkeys(unavailable_module_prefixes)
+        ),
         "recommended_formalizer_target_mode": (
             _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
         ),
@@ -35420,6 +35656,16 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
             "local_definition_lean_compiled",
             "semantic_alignment_blockers",
             "semantic_alignment_constraints",
+            "environment_repair_status",
+            "candidate_lean_project_hint",
+            "candidate_source_file",
+            "unavailable_module_prefix",
+            "dependency_fetch_required",
+            "ready_to_rerun_lean_repair",
+            "recommended_commands",
+            "recommended_next_action",
+            "local_lean_diagnostics",
+            "source_environment_repair_task_id",
             "proof_evidence_status",
         ):
             value = row.get(key)
@@ -35473,6 +35719,74 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+
+
+def _merge_runtime_exact_semantic_definition_work_order_feedback(
+    primary: Mapping[str, Any],
+    secondary: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = dict(primary) if isinstance(primary, Mapping) else {}
+    if not isinstance(secondary, Mapping) or not secondary:
+        return merged
+    for key in ("target_names", "target_ids", "placeholder_symbols"):
+        merged[key] = list(
+            dict.fromkeys(
+                [
+                    *[
+                        str(value).strip()
+                        for value in merged.get(key, []) or []
+                        if str(value).strip()
+                    ],
+                    *[
+                        str(value).strip()
+                        for value in secondary.get(key, []) or []
+                        if str(value).strip()
+                    ],
+                ]
+            )
+        )
+    merged.setdefault("feedback_kind", secondary.get("feedback_kind", ""))
+    merged.setdefault("source", secondary.get("source", ""))
+    merged.setdefault("required_behavior", secondary.get("required_behavior", ""))
+    merged.setdefault("acceptance_gate", secondary.get("acceptance_gate", ""))
+    merged.setdefault(
+        "proof_evidence_status",
+        secondary.get("proof_evidence_status", ""),
+    )
+    merged.setdefault(
+        "proof_evidence_boundary",
+        secondary.get("proof_evidence_boundary", KERNEL_PROOF_BOUNDARY),
+    )
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str]] = []
+    for row in [
+        *[
+            candidate
+            for candidate in merged.get("work_orders", []) or []
+            if isinstance(candidate, Mapping)
+        ],
+        *[
+            candidate
+            for candidate in secondary.get("work_orders", []) or []
+            if isinstance(candidate, Mapping)
+        ],
+    ]:
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        if not target or not symbol:
+            continue
+        key = (target, symbol)
+        if key not in by_key:
+            by_key[key] = dict(row)
+            order.append(key)
+            continue
+        _merge_exact_semantic_definition_work_order_candidate_metadata(
+            by_key[key],
+            row,
+        )
+    merged["work_orders"] = [by_key[key] for key in order]
+    merged["n_work_orders"] = len(merged["work_orders"])
+    return merged
 
 
 def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
@@ -35562,6 +35876,24 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
                     ]
                 )
             )
+        environment_repair_keys = {
+            "environment_repair_status",
+            "candidate_lean_project_hint",
+            "candidate_source_file",
+            "unavailable_module_prefix",
+            "dependency_fetch_required",
+            "ready_to_rerun_lean_repair",
+            "recommended_commands",
+            "recommended_next_action",
+            "local_lean_diagnostics",
+            "source_environment_repair_task_id",
+        }
+        row_environment_is_stronger = (
+            _exact_semantic_environment_repair_candidate_is_stronger(
+                diagnostic,
+                row,
+            )
+        )
         for source_key, target_key in (
             (
                 "definition_only_candidate_artifact_path",
@@ -35576,6 +35908,16 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
             ("local_definition_lean_compiled", "local_definition_lean_compiled"),
             ("semantic_alignment_blockers", "semantic_alignment_blockers"),
             ("semantic_alignment_constraints", "semantic_alignment_constraints"),
+            ("environment_repair_status", "environment_repair_status"),
+            ("candidate_lean_project_hint", "candidate_lean_project_hint"),
+            ("candidate_source_file", "candidate_source_file"),
+            ("unavailable_module_prefix", "unavailable_module_prefix"),
+            ("dependency_fetch_required", "dependency_fetch_required"),
+            ("ready_to_rerun_lean_repair", "ready_to_rerun_lean_repair"),
+            ("recommended_commands", "recommended_commands"),
+            ("recommended_next_action", "recommended_next_action"),
+            ("local_lean_diagnostics", "local_lean_diagnostics"),
+            ("source_environment_repair_task_id", "source_environment_repair_task_id"),
         ):
             value = row.get(source_key)
             if isinstance(value, bool) or value not in (None, "", [], {}):
@@ -35585,11 +35927,26 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
                         for item in diagnostic.get(target_key, []) or []
                         if str(item).strip()
                     ]
+                    if (
+                        target_key in environment_repair_keys
+                        and row_environment_is_stronger
+                    ):
+                        diagnostic[target_key] = list(
+                            dict.fromkeys(
+                                [*[str(item) for item in value], *existing_values]
+                            )
+                        )
+                        continue
                     diagnostic[target_key] = list(
                         dict.fromkeys(
                             [*existing_values, *[str(item) for item in value]]
                         )
                     )
+                elif (
+                    target_key in environment_repair_keys
+                    and row_environment_is_stronger
+                ):
+                    diagnostic[target_key] = value
                 elif not diagnostic.get(target_key):
                     diagnostic[target_key] = value
         diagnostic.setdefault(
@@ -35686,6 +36043,20 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
                     if str(row.get("runtime_queue_status", "") or "").strip()
                 ],
             ]
+        )
+    )
+    feedback["environment_repair_statuses"] = list(
+        dict.fromkeys(
+            str(row.get("environment_repair_status", "") or "").strip()
+            for row in merged_diagnostics
+            if str(row.get("environment_repair_status", "") or "").strip()
+        )
+    )
+    feedback["unavailable_module_prefixes"] = list(
+        dict.fromkeys(
+            str(row.get("unavailable_module_prefix", "") or "").strip()
+            for row in merged_diagnostics
+            if str(row.get("unavailable_module_prefix", "") or "").strip()
         )
     )
     feedback.setdefault(
@@ -37082,28 +37453,126 @@ def _runtime_exact_semantic_definition_target_ids(
     return list(dict.fromkeys(target_ids))
 
 
+_EXACT_SEMANTIC_ENVIRONMENT_REPAIR_STATUS_PRIORITY = {
+    "DEPENDENCY_ENVIRONMENT_READY_TO_RERUN_LEAN_REPAIR": 100,
+    "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT": 95,
+    "LOCAL_LIBRARY_BUILD_OR_IMPORT_UNRESOLVED": 90,
+    "LEAN_IMPORT_ENVIRONMENT_UNRESOLVED": 85,
+    "CANDIDATE_SOURCE_FILE_MISSING": 80,
+    "LAKE_MANIFEST_MISSING_DEPENDENCY_UPDATE_REQUIRED": 70,
+    "LAKE_PACKAGE_CACHE_MISSING": 65,
+    "LEAN_TOOLCHAIN_MISSING": 60,
+    "LAKEFILE_MISSING": 40,
+    "LAKE_PROJECT_MISSING": 30,
+}
+
+
+def _exact_semantic_environment_repair_status_priority(status: Any) -> int:
+    value = str(status or "").strip()
+    if not value:
+        return 0
+    return _EXACT_SEMANTIC_ENVIRONMENT_REPAIR_STATUS_PRIORITY.get(value, 50)
+
+
+def _exact_semantic_environment_repair_evidence_score(
+    row: Mapping[str, Any],
+) -> int:
+    """Rank exact semantic-definition environment rows by diagnostic specificity."""
+
+    status = str(row.get("environment_repair_status", "") or "").strip()
+    score = _exact_semantic_environment_repair_status_priority(status) * 100
+    if str(row.get("unavailable_module_prefix", "") or "").strip():
+        score += 30
+    project_hint = str(row.get("candidate_lean_project_hint", "") or "").strip()
+    if project_hint and project_hint != ".":
+        score += 20
+    elif project_hint:
+        score += 1
+    if str(row.get("candidate_source_file", "") or "").strip():
+        score += 10
+    if row.get("local_lean_diagnostics"):
+        score += 5
+    if str(row.get("source_environment_repair_task_id", "") or "").strip():
+        score += 3
+    return score
+
+
+def _exact_semantic_environment_repair_candidate_is_stronger(
+    existing: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> bool:
+    return _exact_semantic_environment_repair_evidence_score(
+        candidate
+    ) > _exact_semantic_environment_repair_evidence_score(existing)
+
+
 def _merge_exact_semantic_definition_work_order_candidate_metadata(
     existing: dict[str, Any],
     candidate: Mapping[str, Any],
 ) -> None:
     """Preserve reviewed-definition candidate evidence when deduping work orders."""
 
+    environment_scalar_keys = (
+        "environment_repair_status",
+        "candidate_lean_project_hint",
+        "candidate_source_file",
+        "unavailable_module_prefix",
+        "recommended_next_action",
+        "source_environment_repair_task_id",
+    )
     scalar_keys = (
         "definition_only_candidate_artifact_path",
         "candidate_artifact_path",
         "semantic_definition_typecheck_evidence_status",
+        *environment_scalar_keys,
+    )
+    environment_bool_keys = (
+        "dependency_fetch_required",
+        "ready_to_rerun_lean_repair",
     )
     bool_keys = (
         "local_definition_lean_checked",
         "local_definition_lean_compiled",
+        *environment_bool_keys,
+    )
+    environment_list_keys = (
+        "recommended_commands",
+        "local_lean_diagnostics",
+    )
+    list_keys = environment_list_keys
+    candidate_environment_is_stronger = (
+        _exact_semantic_environment_repair_candidate_is_stronger(
+            existing,
+            candidate,
+        )
     )
     for key in scalar_keys:
-        if not str(existing.get(key, "") or "").strip() and str(
-            candidate.get(key, "") or ""
-        ).strip():
-            existing[key] = str(candidate.get(key, "") or "")
+        candidate_value = str(candidate.get(key, "") or "")
+        if not candidate_value.strip():
+            continue
+        existing_value = str(existing.get(key, "") or "")
+        if (
+            key in environment_scalar_keys
+            and candidate_environment_is_stronger
+            and candidate_value.strip()
+        ):
+            existing[key] = candidate_value
+        elif not existing_value.strip():
+            existing[key] = candidate_value
     for key in bool_keys:
-        existing[key] = bool(existing.get(key, False) or candidate.get(key, False))
+        if key in environment_bool_keys and candidate_environment_is_stronger:
+            existing[key] = bool(candidate.get(key, False))
+        else:
+            existing[key] = bool(existing.get(key, False) or candidate.get(key, False))
+    for key in list_keys:
+        candidate_values = [str(value) for value in candidate.get(key, []) or [] if str(value).strip()]
+        if not candidate_values:
+            continue
+        existing_values = [str(value) for value in existing.get(key, []) or [] if str(value).strip()]
+        if key in environment_list_keys and candidate_environment_is_stronger:
+            existing[key] = list(dict.fromkeys([*candidate_values, *existing_values]))
+        else:
+            existing[key] = list(dict.fromkeys([*existing_values, *candidate_values]))
     existing_typechecked = (
         existing.get("source_theorem_exact_semantic_definition_typechecked_candidate", {})
         if isinstance(
@@ -37131,12 +37600,21 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         if not merged_typechecked.get(key) and value:
             merged_typechecked[key] = value
     for key in scalar_keys:
-        if not merged_typechecked.get(key) and existing.get(key):
+        if (
+            key in environment_scalar_keys
+            and candidate_environment_is_stronger
+            and existing.get(key)
+        ):
+            merged_typechecked[key] = existing.get(key)
+        elif not merged_typechecked.get(key) and existing.get(key):
             merged_typechecked[key] = existing.get(key)
     for key in bool_keys:
-        merged_typechecked[key] = bool(
-            merged_typechecked.get(key, False) or existing.get(key, False)
-        )
+        if key in environment_bool_keys and candidate_environment_is_stronger:
+            merged_typechecked[key] = bool(existing.get(key, False))
+        else:
+            merged_typechecked[key] = bool(
+                merged_typechecked.get(key, False) or existing.get(key, False)
+            )
     if merged_typechecked:
         target_ids = _runtime_exact_semantic_definition_target_ids(
             existing,
@@ -37182,22 +37660,39 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
     learning_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    seen: set[tuple[str, str, tuple[str, ...], str]] = set()
     for row in learning_rows:
         if not isinstance(row, Mapping):
-            continue
-        if (
-            str(row.get("artifact_kind", "") or "")
-            != "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
-            and str(row.get("learning_task", "") or "")
-            != "source_theorem_exact_semantic_definition_work_order"
-        ):
             continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        learning_task = str(row.get("learning_task", "") or "")
+        trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+        environment_repair_status = str(
+            row.get("environment_repair_status", "")
+            or input_summary.get("environment_repair_status", "")
+            or ""
+        ).strip()
+        exact_environment_repair_row = bool(
+            environment_repair_status
+            and (
+                learning_task.startswith(
+                    "source_theorem_exact_semantic_definition_"
+                )
+                or trigger == "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT"
+            )
+        )
+        if (
+            str(row.get("artifact_kind", "") or "")
+            != "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+            and str(row.get("learning_task", "") or "")
+            != "source_theorem_exact_semantic_definition_work_order"
+            and not exact_environment_repair_row
+        ):
+            continue
         source_theorem_kernel_verified = bool(
             row.get("source_theorem_kernel_verified", False)
             or input_summary.get("source_theorem_kernel_verified", False)
@@ -37229,7 +37724,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         )
         if not target or not symbol:
             continue
-        key = (target, symbol, candidate_ids)
+        environment_stage = environment_repair_status if exact_environment_repair_row else ""
+        key = (target, symbol, candidate_ids, environment_stage)
         if key in seen:
             continue
         seen.add(key)
@@ -37340,7 +37836,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                     or input_summary.get("work_order_id", "")
                     or (
                         "source_theorem_exact_semantic_definition_work_order:"
-                        + stable_hash([target, symbol, candidate_ids])[:20]
+                        + stable_hash([target, symbol, candidate_ids, environment_stage])[:20]
                     )
                 ),
                 "source_materialization_seed_id": str(
@@ -37424,6 +37920,55 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                 "local_definition_lean_compiled": local_definition_lean_compiled,
                 "semantic_definition_typecheck_evidence_status": (
                     semantic_definition_typecheck_evidence_status
+                ),
+                "source_runtime_learning_task": learning_task,
+                "source_environment_repair_task_id": str(
+                    row.get("source_environment_repair_task_id", "")
+                    or input_summary.get("source_environment_repair_task_id", "")
+                    or ""
+                ),
+                "environment_repair_status": environment_repair_status,
+                "candidate_lean_project_hint": str(
+                    row.get("candidate_lean_project_hint", "")
+                    or input_summary.get("candidate_lean_project_hint", "")
+                    or ""
+                ),
+                "candidate_source_file": str(
+                    row.get("candidate_source_file", "")
+                    or input_summary.get("candidate_source_file", "")
+                    or ""
+                ),
+                "unavailable_module_prefix": str(
+                    row.get("unavailable_module_prefix", "")
+                    or input_summary.get("unavailable_module_prefix", "")
+                    or ""
+                ),
+                "dependency_fetch_required": bool(
+                    row.get("dependency_fetch_required", False)
+                    or input_summary.get("dependency_fetch_required", False)
+                ),
+                "ready_to_rerun_lean_repair": bool(
+                    row.get("ready_to_rerun_lean_repair", False)
+                    or input_summary.get("ready_to_rerun_lean_repair", False)
+                ),
+                "recommended_commands": list(
+                    _str_tuple(
+                        row.get("recommended_commands", [])
+                        or input_summary.get("recommended_commands", [])
+                        or []
+                    )
+                ),
+                "recommended_next_action": str(
+                    row.get("recommended_next_action", "")
+                    or input_summary.get("recommended_next_action", "")
+                    or ""
+                ),
+                "local_lean_diagnostics": list(
+                    _str_tuple(
+                        row.get("local_lean_diagnostics", [])
+                        or input_summary.get("local_lean_diagnostics", [])
+                        or []
+                    )
                 ),
                 "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
                     _str_tuple(

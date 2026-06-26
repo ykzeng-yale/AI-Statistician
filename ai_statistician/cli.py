@@ -847,6 +847,11 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    environment_repair_status = str(
+        row.get("environment_repair_status", "")
+        or input_summary.get("environment_repair_status", "")
+        or ""
+    )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
         bool(row.get("adapter_kernel_verified", False))
         or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
@@ -869,6 +874,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if environment_repair_status:
+        return 96
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
         row
     ):
@@ -1294,6 +1301,11 @@ def _runtime_learning_memory_exact_semantic_definition_repair_priority(
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    environment_repair_status = str(
+        row.get("environment_repair_status", "")
+        or input_summary.get("environment_repair_status", "")
+        or ""
+    ).strip()
     semantic_status = str(
         row.get("semantic_definition_typecheck_evidence_status", "")
         or input_summary.get("semantic_definition_typecheck_evidence_status", "")
@@ -1306,6 +1318,8 @@ def _runtime_learning_memory_exact_semantic_definition_repair_priority(
         or input_summary.get("candidate_artifact_path", "")
         or ""
     ).strip()
+    if environment_repair_status:
+        return 96
     if (
         artifact_path
         or semantic_status
@@ -1511,6 +1525,13 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "authoring_trigger",
         "authoring_mode",
         "runtime_queue_status",
+        "environment_repair_status",
+        "candidate_lean_project_hint",
+        "candidate_source_file",
+        "unavailable_module_prefix",
+        "dependency_fetch_required",
+        "ready_to_rerun_lean_repair",
+        "source_environment_repair_task_id",
         "source_to_bridge_metadata_blocker_status",
         "source_to_bridge_metadata_blocker_kind",
         "source_formalizer_packet_id",
@@ -1592,6 +1613,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "required_next_checks",
         "forbidden_placeholder_matches",
         "semantic_definition_risks",
+        "recommended_commands",
         "local_lean_diagnostics",
         "verified_bridge_obligation_ids",
         "proof_body_attempt_summaries",
@@ -1778,6 +1800,13 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "lookup_id",
         "lookup_status",
         "runtime_queue_status",
+        "environment_repair_status",
+        "candidate_lean_project_hint",
+        "candidate_source_file",
+        "unavailable_module_prefix",
+        "dependency_fetch_required",
+        "ready_to_rerun_lean_repair",
+        "source_environment_repair_task_id",
         "verification_status",
         "execution_status",
         "source_execution_status",
@@ -1900,6 +1929,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "required_next_checks",
         "forbidden_placeholder_matches",
         "semantic_definition_risks",
+        "recommended_commands",
         "local_lean_diagnostics",
         "formal_gap_target_ids",
         "formal_environment_placeholder_symbols",

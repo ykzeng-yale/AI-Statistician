@@ -1887,6 +1887,93 @@ def test_runtime_learning_memory_loader_pins_untyped_exact_semantic_repair_route
     )
 
 
+def test_runtime_learning_memory_loader_pins_exact_semantic_environment_blocker(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    verified_adapter = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "adapter_kernel_verified": True,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+        ),
+        "kernel_verified_source_theorem_proof_body_adapter_ids": [
+            "source_theorem_proof_body_adapter_check:verified"
+        ],
+    }
+    typechecked_candidate = {
+        "schema_version": 1,
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_lean_repair_execution"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "coverage_event",
+        "definition_only_candidate_artifact_path": "runs/coverage_event.lean",
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    environment_blocker = {
+        "schema_version": 1,
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_lean_environment_repair_execution"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "C_n",
+        "environment_repair_status": "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT",
+        "candidate_lean_project_hint": "legacy_sources/emperical_process_lean",
+        "candidate_source_file": (
+            "legacy_sources/ai_statistician/StatInference/Asymptotics/"
+            "AsymptoticNormal.lean"
+        ),
+        "unavailable_module_prefix": "StatInference",
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_"
+            "NOT_PROOF_EVIDENCE"
+        ),
+    }
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                verified_adapter,
+                typechecked_candidate,
+                environment_blocker,
+                *[
+                    {"schema_version": 1, "learning_task": "latest", "index": index}
+                    for index in range(8)
+                ],
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+
+    environment_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("environment_repair_status")
+        == "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    ]
+    assert len(environment_rows) == 1
+    assert environment_rows[0]["placeholder_symbol"] == "C_n"
+    assert environment_rows[0]["unavailable_module_prefix"] == "StatInference"
+    assert environment_rows[0]["candidate_lean_project_hint"] == (
+        "legacy_sources/emperical_process_lean"
+    )
+
+
 def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -> None:
     pending_task = {
         "task_id": "critic:conformal_prediction_coverage:next",
@@ -1961,7 +2048,68 @@ def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_re
         "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
         "owner_subsystem": "FormalizationEvaluator",
         "objective": "Repair exact semantic definitions.",
-        "inputs": {"architect_context": {"runtime_learning_memory": {"rows": []}}},
+        "inputs": {
+            "architect_context": {"runtime_learning_memory": {"rows": []}},
+            "environment_feedback": {
+                "source_theorem_exact_semantic_definition_repair_feedback": {
+                    "source_theorem_exact_semantic_definition_repair_required": True,
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "target_names": ["split_conformal_finite_sample_coverage"],
+                    "placeholder_symbols": ["C_n"],
+                    "environment_repair_statuses": ["LAKEFILE_MISSING"],
+                    "diagnostics": [
+                        {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "target_ids": [
+                                "split_conformal_finite_sample_coverage"
+                            ],
+                            "placeholder_symbol": "C_n",
+                            "environment_repair_status": "LAKEFILE_MISSING",
+                            "candidate_lean_project_hint": ".",
+                            "candidate_source_file": (
+                                "legacy_sources/ai_statistician/StatInference/"
+                                "Asymptotics/AsymptoticNormal.lean"
+                            ),
+                            "recommended_next_action": (
+                                "repair the inferred Lake project path before "
+                                "rerunning local Lean"
+                            ),
+                        }
+                    ],
+                },
+                "high_priority_agenda": [
+                    {
+                        "id": (
+                            "formal_gap:"
+                            "source_theorem_exact_semantic_definition_repair"
+                        ),
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                        "placeholder_symbols": ["C_n"],
+                        "environment_repair_statuses": ["LAKEFILE_MISSING"],
+                    }
+                ],
+                "formal_blocker_resource_requests": [
+                    {
+                        "request_id": "formal_blocker_resource_request:stale",
+                        "source": (
+                            "critic_source_theorem_exact_semantic_definition_"
+                            "repair_feedback"
+                        ),
+                        "blocker_kind": "LAKEFILE_MISSING",
+                        "blocker": (
+                            "Exact semantic-definition repair blocked; "
+                            "placeholder_symbol=C_n; "
+                            "environment_repair_status=LAKEFILE_MISSING"
+                        ),
+                        "placeholder_symbol": "C_n",
+                        "environment_repair_status": "LAKEFILE_MISSING",
+                        "candidate_lean_project_hint": ".",
+                    }
+                ],
+            },
+        },
     }
     duplicate_verified_adapter_rows = [
         {
@@ -2043,6 +2191,166 @@ def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_re
     for row in rows:
         if row.get("placeholder_symbol") in {"good_rank_event", "C_n"}:
             assert row.get("source_theorem_kernel_verified") is False
+
+
+def test_pending_task_handoff_carries_exact_semantic_environment_blocker() -> None:
+    pending_task = {
+        "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": "Repair exact semantic definitions.",
+        "inputs": {"architect_context": {"runtime_learning_memory": {"rows": []}}},
+    }
+    queue_feedback = (
+        runtime_module._runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+            [
+                {
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "placeholder_symbol": "C_n",
+                    "runtime_queue_status": (
+                        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                    ),
+                    "environment_repair_status": "LAKEFILE_MISSING",
+                    "candidate_lean_project_hint": ".",
+                    "candidate_source_file": (
+                        "legacy_sources/ai_statistician/StatInference/"
+                        "Asymptotics/AsymptoticNormal.lean"
+                    ),
+                    "recommended_next_action": (
+                        "repair the inferred Lake project path before rerunning "
+                        "local Lean"
+                    ),
+                    "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                }
+            ],
+            source="runtime_exact_semantic_definition_work_order_queue",
+        )
+    )
+    same_run_memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "adapter_kernel_verified": True,
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+                ),
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+            },
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_lean_repair_execution"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "coverage_event",
+                "definition_only_candidate_artifact_path": (
+                    "runs/coverage_event_definition_only.lean"
+                ),
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                    "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                ),
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_"
+                    "SOURCE_THEOREM_PROOF"
+                ),
+            },
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_lean_environment_repair_execution"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "placeholder_symbol": "C_n",
+                "environment_repair_status": (
+                    "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+                ),
+                "candidate_lean_project_hint": (
+                    "legacy_sources/emperical_process_lean"
+                ),
+                "candidate_source_file": (
+                    "legacy_sources/ai_statistician/StatInference/Asymptotics/"
+                    "AsymptoticNormal.lean"
+                ),
+                "unavailable_module_prefix": "StatInference",
+                "recommended_commands": [
+                    "lake env lean legacy_sources/ai_statistician/"
+                    "StatInference/Asymptotics/AsymptoticNormal.lean"
+                ],
+                "recommended_next_action": (
+                    "rerun the Lean repair executor with a Lake project/source "
+                    "root that exposes the candidate module prefix"
+                ),
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_"
+                    "NOT_PROOF_EVIDENCE"
+                ),
+            },
+        ],
+        max_rows=3,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        same_run_memory,
+        exact_semantic_work_order_feedback=queue_feedback,
+    )
+
+    memory_rows = enriched["inputs"]["architect_context"]["runtime_learning_memory"][
+        "rows"
+    ]
+    assert any(
+        row.get("environment_repair_status")
+        == "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+        and row.get("placeholder_symbol") == "C_n"
+        for row in memory_rows
+    )
+    environment_feedback = enriched["inputs"]["environment_feedback"]
+    repair_feedback = environment_feedback[
+        "source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    c_n_diagnostic = next(
+        row
+        for row in repair_feedback["diagnostics"]
+        if row["placeholder_symbol"] == "C_n"
+    )
+    assert c_n_diagnostic["environment_repair_status"] == (
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    )
+    assert c_n_diagnostic["unavailable_module_prefix"] == "StatInference"
+    assert c_n_diagnostic["candidate_lean_project_hint"] == (
+        "legacy_sources/emperical_process_lean"
+    )
+    exact_requests = [
+        row
+        for row in environment_feedback["formal_blocker_resource_requests"]
+        if row.get("placeholder_symbol") == "C_n"
+    ]
+    assert len(exact_requests) == 1
+    assert exact_requests[0]["blocker_kind"] == (
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    )
+    assert exact_requests[0]["unavailable_module_prefix"] == "StatInference"
+    assert exact_requests[0]["candidate_source_file"].endswith(
+        "StatInference/Asymptotics/AsymptoticNormal.lean"
+    )
+    assert exact_requests[0]["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+    exact_agenda = next(
+        row
+        for row in environment_feedback["high_priority_agenda"]
+        if row["id"] == "formal_gap:source_theorem_exact_semantic_definition_repair"
+    )
+    assert exact_agenda["environment_repair_statuses"] == [
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    ]
+    assert exact_agenda["unavailable_module_prefixes"] == ["StatInference"]
 
 
 def test_pending_next_task_handoff_pins_typechecked_semantic_definition_candidate() -> None:
