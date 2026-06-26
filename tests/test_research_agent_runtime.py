@@ -443,6 +443,184 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     )
 
 
+def test_critic_packet_validation_failure_fail_closes_and_preserves_exact_semantic_handoff() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    class RejectingCritic:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM CriticEvaluator packet",
+                attempts=2,
+                errors=["packet contains forbidden proof claim: theorem proved"],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "provider": "anthropic",
+                        "model": "claude-haiku-4-5",
+                        "ok": False,
+                        "errors": [
+                            "packet contains forbidden proof claim: theorem proved"
+                        ],
+                    }
+                ],
+            )
+
+    target_name = "split_conformal_finite_sample_coverage"
+    blackboard = BlackboardState(project_id="critic-validation-fail-closed-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+            },
+            "theory_derivation:test": {
+                "artifact_kind": "RuntimeTheoryDerivationPacket",
+                "packet_id": "theory_derivation:test",
+            },
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+                "deterministic_theorem_goals": [
+                    {"id": target_name, "status": "FORMAL_GAP"}
+                ],
+                "proof_bank_runtime_memory_summary": {
+                    "recommended_formalizer_target_mode": (
+                        "source_theorem_exact_semantic_definition_repair"
+                    ),
+                    "source_theorem_exact_semantic_definition_repair_required": True,
+                    "source_theorem_exact_candidate_repair_target_names": [
+                        target_name
+                    ],
+                    "source_theorem_exact_candidate_failure_classifications": [
+                        "typechecked_exact_semantic_definition_candidate_review_required"
+                    ],
+                    "source_theorem_exact_candidate_repair_triggers": [
+                        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+                    ],
+                    "source_theorem_exact_candidate_repair_placeholder_symbols": [
+                        "good_rank_event",
+                        "C_n",
+                    ],
+                    "source_theorem_exact_semantic_definition_typechecked_candidates": [
+                        {
+                            "target_theorem_name": target_name,
+                            "placeholder_symbol": "good_rank_event",
+                            "definition_only_candidate_artifact_path": (
+                                "runs/exact_semantics/good_rank_event.lean"
+                            ),
+                            "semantic_definition_typecheck_evidence_status": (
+                                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                            ),
+                            "local_definition_lean_checked": True,
+                            "local_definition_lean_compiled": True,
+                        }
+                    ],
+                    "source_theorem_kernel_verified": False,
+                },
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:bad-proof-claim",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate runtime artifacts.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                }
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        proposal_agent=RejectingCritic(),
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1),
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "critic_requested_formalizer_proofengineer_repair"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+
+    failure_artifact = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorValidationFailure"
+    )
+    assert failure_artifact["proof_evidence_status"] == (
+        "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+    )
+    assert "theorem proved" in " ".join(failure_artifact["validation_errors"])
+    assert any(
+        "source_theorem_kernel_verified is false" in directive
+        for directive in failure_artifact["validation_repair_directives"]
+    )
+
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert (
+        critic_manifest["llm_critic_evaluator_validation_failure_id"]
+        == failure_artifact["failure_id"]
+    )
+    assert (
+        critic_manifest["runtime_reroute_decision"][
+            "reroute_to_formalizer_proofengineer"
+        ]
+        is True
+    )
+
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["high_priority_agenda"][0]["id"] == (
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    )
+    exact_feedback = feedback[
+        "source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    assert (
+        exact_feedback[
+            "source_theorem_exact_semantic_definition_repair_required"
+        ]
+        is True
+    )
+    assert exact_feedback["target_names"] == [target_name]
+    assert {
+        row.get("placeholder_symbol")
+        for row in exact_feedback["diagnostics"]
+    } >= {"good_rank_event", "C_n"}
+    assert any(
+        row["source"]
+        == "critic_source_theorem_exact_semantic_definition_repair_feedback"
+        and row["proof_evidence_status"]
+        == "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+        for row in feedback["formal_blocker_resource_requests"]
+    )
+    assert any(
+        row.evidence_type == "critic_packet_validation_failure"
+        and row.payload["proof_evidence_status"]
+        == "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+        for row in result.evidence_entries
+    )
+
+
 def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
 

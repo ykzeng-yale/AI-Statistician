@@ -54,6 +54,7 @@ class LLMCriticEvaluatorAgent:
         formalization_manifest: Mapping[str, Any],
         deterministic_agenda: list[Mapping[str, Any]],
         deterministic_learning_rows: list[Mapping[str, Any]],
+        environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         user_prompt = build_critic_evaluator_prompt(
             question=question,
@@ -64,6 +65,7 @@ class LLMCriticEvaluatorAgent:
             formalization_manifest=formalization_manifest,
             deterministic_agenda=deterministic_agenda,
             deterministic_learning_rows=deterministic_learning_rows,
+            environment_feedback=environment_feedback or {},
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -117,6 +119,7 @@ def build_critic_evaluator_prompt(
     formalization_manifest: Mapping[str, Any],
     deterministic_agenda: list[Mapping[str, Any]],
     deterministic_learning_rows: list[Mapping[str, Any]],
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
     payload = {
         "question": {
@@ -134,6 +137,10 @@ def build_critic_evaluator_prompt(
         },
         "deterministic_next_action_agenda": _compact_rows(deterministic_agenda, limit=4),
         "deterministic_learning_rows": _compact_rows(deterministic_learning_rows, limit=4),
+        "critic_environment_feedback": _compact_mapping(
+            environment_feedback or {},
+            limit=10,
+        ),
         "required_output_contract": CRITIC_EVALUATOR_OUTPUT_CONTRACT,
         "boundary": CRITIC_EVALUATOR_BOUNDARY,
     }
@@ -381,6 +388,15 @@ def _compact_rows(rows: list[Mapping[str, Any]], *, limit: int) -> list[dict[str
                 }
             }
         )
+    return compact
+
+
+def _compact_mapping(row: Mapping[str, Any], *, limit: int) -> dict[str, str]:
+    compact: dict[str, str] = {}
+    for index, (key, value) in enumerate(row.items()):
+        if index >= limit:
+            break
+        compact[str(key)] = _truncate_text(value)
     return compact
 
 

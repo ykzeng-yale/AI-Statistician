@@ -801,3 +801,15 @@ rows and four structured exact-semantic blocker requests. The Formalizer
 consumption run `runs/main_worker_formalizer_after_exact_agenda_enrichment_live`
 raised support subclaims to 78, kept the source theorem as an empty
 `FORMAL_GAP`, and handed off `critic:conformal_prediction_coverage:d4a10a5c`.
+
+The next Critic continuation found a different kind of drift: the optional LLM
+Critic packet can itself violate the evidence contract by saying a theorem is
+proved. That must not become either proof evidence or a terminal subsystem
+crash. CriticEvaluator now catches `PacketValidationError`, records a
+`RuntimeCriticEvaluatorValidationFailure` artifact and evidence row with
+`CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE`, preserves the local
+repair directives, and lets deterministic Critic routing carry the exact
+semantic-definition agenda onward. The live replay
+`runs/main_worker_critic_validation_failclosed_live` reached the same open-proof
+frontier as a pending Formalizer task instead of `FAILED`; the source theorem
+and exact semantic definitions remain unproved.

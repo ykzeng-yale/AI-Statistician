@@ -7964,6 +7964,222 @@ def _source_theorem_target_known_value(provenance: object) -> bool | None:
     return None
 
 
+def _critic_packet_validation_repair_directives(
+    validation_errors: Sequence[str],
+) -> list[str]:
+    """Turn CriticEvaluator packet validator failures into boundary directives."""
+
+    error_text = " ".join(str(error) for error in validation_errors).lower()
+    directives = [
+        (
+            "Return a locally valid CriticEvaluator packet with "
+            f"proof_evidence_status={CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE}, "
+            "kernel_verified=false, and full_frontier_theorem_proved=false."
+        ),
+        (
+            "Treat CriticEvaluator output as audit and routing advice only; only "
+            "AXLE/local Lean/kernel records may close theorem proof gates."
+        ),
+    ]
+    if "forbidden proof claim" in error_text or "theorem proved" in error_text:
+        directives.append(
+            "Remove forbidden proof-completion wording such as theorem proved, "
+            "source theorem proved, proof complete, Lean verified theorem, or "
+            "kernel verified theorem unless the runtime manifest explicitly "
+            "reports source_theorem_kernel_verified=true."
+        )
+        directives.append(
+            "When source_theorem_kernel_verified is false, null, or absent, state "
+            "that source-theorem proof remains open and route to ProofEngineer, "
+            "Formalizer, or LeanProver repair work."
+        )
+    if "kernel_verified=true" in error_text:
+        directives.append(
+            "Do not set kernel_verified=true in an LLM CriticEvaluator packet."
+        )
+    if "full_frontier_theorem_proved=true" in error_text:
+        directives.append(
+            "Do not set full_frontier_theorem_proved=true in an LLM "
+            "CriticEvaluator packet."
+        )
+    if "missing or empty field" in error_text:
+        directives.append(
+            "Populate evidence_boundary_audit, reroute_recommendations, "
+            "critic_findings, and next_actions with concise non-empty audit rows."
+        )
+    return list(dict.fromkeys(directives))
+
+
+def _critic_packet_validation_failure_bundle(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    retrieval_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    simulation_manifest: Mapping[str, Any],
+    algorithm_manifest: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    agenda: Sequence[Mapping[str, Any]],
+    deterministic_learning_rows: Sequence[Mapping[str, Any]],
+    deterministic_repair_feedback: Mapping[str, Any],
+    exc: PacketValidationError,
+) -> tuple[str, dict[str, Any], dict[str, Any], EnvironmentObservation, EvidenceLedgerEntry]:
+    validation_errors = [str(error) for error in exc.errors if str(error)]
+    validation_repair_directives = _critic_packet_validation_repair_directives(
+        validation_errors
+    )
+    failure_id = (
+        "critic_validation_failure:"
+        + stable_hash(
+            [task.task_id, exc.validation_label, validation_errors, exc.history]
+        )[:20]
+    )
+    compact_agenda = [
+        _compact_agenda_item(row) for row in agenda if isinstance(row, Mapping)
+    ][:8]
+    deterministic_learning_summary = [
+        {
+            "learning_task": str(row.get("learning_task", "") or ""),
+            "target_behavior": str(row.get("target_behavior", "") or "")[:500],
+        }
+        for row in deterministic_learning_rows
+        if isinstance(row, Mapping)
+    ][:6]
+    deterministic_repair_feedback_payload = (
+        dict(deterministic_repair_feedback)
+        if isinstance(deterministic_repair_feedback, Mapping)
+        else {}
+    )
+    repair_feedback = {
+        "feedback_type": "critic_packet_validation_feedback",
+        "feedback_source": "CriticEvaluator",
+        "failure_classification": "critic_packet_validation_failed",
+        "validation_label": exc.validation_label,
+        "validation_errors": validation_errors,
+        "validation_repair_directives": validation_repair_directives,
+        "attempts": exc.attempts,
+        "last_attempt_summary": exc.history[-1] if exc.history else {},
+        "deterministic_next_action_agenda": compact_agenda,
+        "deterministic_repair_feedback": deterministic_repair_feedback_payload,
+        "required_repair": (
+            "Regenerate only a boundary-safe CriticEvaluator audit packet. Do not "
+            "claim theorem proof, source theorem proof, or frontier closure unless "
+            "the local kernel evidence fields already prove that status. Preserve "
+            "the deterministic agenda and route open proof work to the appropriate "
+            "Formalizer/ProofEngineer/LeanProver owner."
+        ),
+        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "question_id": question.id,
+        "question_title": question.title,
+        "theory_packet_id": str(theory_packet.get("packet_id", "")),
+        "simulation_manifest_id": str(simulation_manifest.get("manifest_id", "")),
+        "algorithm_sandbox_manifest_id": str(
+            algorithm_manifest.get("manifest_id", "")
+        ),
+        "formalization_manifest_id": str(
+            formalization_manifest.get("manifest_id", "")
+        ),
+        "learning_task": "critic_packet_validation_feedback",
+        "input_summary": {
+            "trigger": "CRITIC_PACKET_VALIDATION_FAILED",
+            "failed_subsystem": "CriticEvaluator",
+            "failure_classification": "critic_packet_validation_failed",
+            "validation_label": exc.validation_label,
+            "validation_errors": validation_errors,
+            "validation_repair_directives": validation_repair_directives,
+            "attempts": exc.attempts,
+            "last_attempt_summary": exc.history[-1] if exc.history else {},
+            "deterministic_agenda_ids": [
+                str(row.get("id", "") or "")
+                for row in agenda
+                if isinstance(row, Mapping)
+            ],
+        },
+        "target_behavior": (
+            "Continue deterministic CriticEvaluator routing while requiring any "
+            "LLM CriticEvaluator proposal to remain non-authoritative audit text "
+            "with proof completion claims removed."
+        ),
+        "acceptance_gate": (
+            "CriticEvaluator packet passes local validation; theorem proof status "
+            "still requires explicit local Lean/AXLE/kernel verification records."
+        ),
+        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    failure_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeCriticEvaluatorValidationFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "retrieval_memory_manifest_id": str(
+            retrieval_manifest.get("manifest_id", "")
+        ),
+        "theory_packet_id": str(theory_packet.get("packet_id", "")),
+        "simulation_manifest_id": str(simulation_manifest.get("manifest_id", "")),
+        "algorithm_sandbox_manifest_id": str(
+            algorithm_manifest.get("manifest_id", "")
+        ),
+        "formalization_manifest_id": str(
+            formalization_manifest.get("manifest_id", "")
+        ),
+        "validation_label": exc.validation_label,
+        "failure_classification": "critic_packet_validation_failed",
+        "validation_errors": validation_errors,
+        "validation_repair_directives": validation_repair_directives,
+        "llm_json_repair_history": exc.history,
+        "deterministic_next_action_agenda": compact_agenda,
+        "deterministic_learning_rows": deterministic_learning_summary,
+        "deterministic_repair_feedback": deterministic_repair_feedback_payload,
+        "learning_rows": [learning_row],
+        "recommended_next_action": learning_row["target_behavior"],
+        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This artifact records a local validator failure from an LLM "
+            "CriticEvaluator proposal. The proposal is discarded as proof "
+            "evidence; deterministic runtime agenda and kernel gates remain the "
+            "authority for routing and proof status."
+        ),
+    }
+    observation = EnvironmentObservation(
+        observation_type="critic_packet_validation_failure",
+        summary="; ".join(validation_errors)[:500],
+        payload={
+            "failure_id": failure_id,
+            "failure_classification": "critic_packet_validation_failed",
+            "validation_errors": validation_errors,
+            "validation_repair_directives": validation_repair_directives,
+            "proof_evidence_status": (
+                "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="critic_packet_validation_failure",
+        status="VALIDATION_FAILED_RECORDED_NOT_PROOF_EVIDENCE",
+        boundary=CRITIC_EVALUATOR_BOUNDARY,
+        payload={
+            "failure_classification": "critic_packet_validation_failed",
+            "validation_errors": validation_errors,
+            "attempts": exc.attempts,
+            "proof_evidence_status": (
+                "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    )
+    return failure_id, failure_artifact, repair_feedback, observation, evidence
+
+
 class CriticEvaluatorRuntimeSubsystem:
     name = "CriticEvaluator"
 
@@ -8037,50 +8253,100 @@ class CriticEvaluatorRuntimeSubsystem:
         )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
+        proposal_validation_failure_id = ""
+        proposal_validation_failure_feedback: dict[str, Any] | None = None
+        proposal_validation_failure_evidence: EvidenceLedgerEntry | None = None
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None:
-            proposal_packet = self.proposal_agent.propose(
-                question=question,
-                retrieval_manifest=retrieval_manifest,
-                theory_packet=theory_packet,
-                simulation_manifest=simulation_manifest,
-                algorithm_manifest=algorithm_manifest,
-                formalization_manifest=formalization_manifest,
-                deterministic_agenda=agenda,
-                deterministic_learning_rows=learning_rows,
+            critic_environment_feedback = (
+                task.inputs.get("environment_feedback", {})
+                if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+                else context.get("environment_feedback", {})
+                if isinstance(context.get("environment_feedback", {}), Mapping)
+                else {}
             )
-            proposal_id = str(proposal_packet["packet_id"])
-            produced_artifacts[proposal_id] = proposal_packet
-            observations.append(
-                EnvironmentObservation(
-                    observation_type="llm_critic_evaluator_proposal",
-                    summary=(
-                        "validated LLM CriticEvaluator boundary-audit and learning "
-                        "proposal recorded before deterministic agenda export"
-                    ),
+            try:
+                proposal_packet = self.proposal_agent.propose(
+                    question=question,
+                    retrieval_manifest=retrieval_manifest,
+                    theory_packet=theory_packet,
+                    simulation_manifest=simulation_manifest,
+                    algorithm_manifest=algorithm_manifest,
+                    formalization_manifest=formalization_manifest,
+                    deterministic_agenda=agenda,
+                    deterministic_learning_rows=learning_rows,
+                    environment_feedback=critic_environment_feedback,
+                )
+            except PacketValidationError as exc:
+                (
+                    proposal_validation_failure_id,
+                    failure_artifact,
+                    proposal_validation_failure_feedback,
+                    failure_observation,
+                    proposal_validation_failure_evidence,
+                ) = _critic_packet_validation_failure_bundle(
+                    task=task,
+                    question=question,
+                    retrieval_manifest=retrieval_manifest,
+                    theory_packet=theory_packet,
+                    simulation_manifest=simulation_manifest,
+                    algorithm_manifest=algorithm_manifest,
+                    formalization_manifest=formalization_manifest,
+                    agenda=agenda,
+                    deterministic_learning_rows=learning_rows,
+                    deterministic_repair_feedback=repair_feedback,
+                    exc=exc,
+                )
+                produced_artifacts[proposal_validation_failure_id] = (
+                    failure_artifact
+                )
+                observations.append(failure_observation)
+            if proposal_packet is not None:
+                proposal_id = str(proposal_packet["packet_id"])
+                produced_artifacts[proposal_id] = proposal_packet
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="llm_critic_evaluator_proposal",
+                        summary=(
+                            "validated LLM CriticEvaluator boundary-audit and learning "
+                            "proposal recorded before deterministic agenda export"
+                        ),
+                        payload={
+                            "packet_id": proposal_id,
+                            "n_boundary_audit_rows": len(
+                                proposal_packet.get("evidence_boundary_audit", [])
+                                or []
+                            ),
+                            "n_reroute_recommendations": len(
+                                proposal_packet.get("reroute_recommendations", [])
+                                or []
+                            ),
+                            "proof_evidence_status": (
+                                CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE
+                            ),
+                        },
+                    )
+                )
+                proposal_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, proposal_id])[:20],
+                    task_id=task.task_id,
+                    artifact_id=proposal_id,
+                    evidence_type="llm_critic_evaluator_proposal",
+                    status="PROPOSAL_RECORDED_NOT_AUTHORITY_GATE",
+                    boundary=CRITIC_EVALUATOR_BOUNDARY,
                     payload={
-                        "packet_id": proposal_id,
-                        "n_boundary_audit_rows": len(proposal_packet.get("evidence_boundary_audit", []) or []),
-                        "n_reroute_recommendations": len(proposal_packet.get("reroute_recommendations", []) or []),
-                        "proof_evidence_status": CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
+                        "n_boundary_audit_rows": len(
+                            proposal_packet.get("evidence_boundary_audit", []) or []
+                        ),
+                        "n_learning_updates": len(
+                            proposal_packet.get("learning_updates", []) or []
+                        ),
+                        "kernel_verified": False,
+                        "full_frontier_theorem_proved": False,
                     },
                 )
-            )
-            proposal_evidence = EvidenceLedgerEntry(
-                evidence_id="evidence:" + stable_hash([task.task_id, proposal_id])[:20],
-                task_id=task.task_id,
-                artifact_id=proposal_id,
-                evidence_type="llm_critic_evaluator_proposal",
-                status="PROPOSAL_RECORDED_NOT_AUTHORITY_GATE",
-                boundary=CRITIC_EVALUATOR_BOUNDARY,
-                payload={
-                    "n_boundary_audit_rows": len(proposal_packet.get("evidence_boundary_audit", []) or []),
-                    "n_learning_updates": len(proposal_packet.get("learning_updates", []) or []),
-                    "kernel_verified": False,
-                    "full_frontier_theorem_proved": False,
-                },
-            )
         manifest_id = "critic_evaluator_manifest:" + stable_hash([task.task_id, agenda, learning_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -8091,6 +8357,9 @@ class CriticEvaluatorRuntimeSubsystem:
             "runtime_architect_control": critic_control,
             "llm_critic_evaluator_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
+            ),
+            "llm_critic_evaluator_validation_failure_id": (
+                proposal_validation_failure_id
             ),
             "next_action_agenda": agenda,
             "learning_rows": learning_rows,
@@ -8186,7 +8455,15 @@ class CriticEvaluatorRuntimeSubsystem:
                 ),
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
-                evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_evidence,
+                        proposal_validation_failure_evidence,
+                        evidence,
+                    )
+                    if row is not None
+                ),
                 next_task=AgentTask(
                     task_id=f"theory-critic-revise:{question.id}:{stable_hash([manifest_id, critic_round])[:8]}",
                     owner_subsystem="TheoryDeveloper",
@@ -8268,19 +8545,95 @@ class CriticEvaluatorRuntimeSubsystem:
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 evidence_entries=tuple(
-                    row for row in (proposal_evidence, evidence) if row is not None
+                    row
+                    for row in (
+                        proposal_evidence,
+                        proposal_validation_failure_evidence,
+                        evidence,
+                    )
+                    if row is not None
                 ),
                 next_task=formalizer_task,
                 failure_classification=(
                     "critic_requested_formalizer_proofengineer_repair"
                 ),
             )
+        if proposal_validation_failure_feedback is not None:
+            critic_repair_context = dict(context)
+            critic_repair_context["environment_feedback"] = (
+                proposal_validation_failure_feedback
+            )
+            critic_repair_context["runtime_feedback_loop"] = {
+                **(
+                    dict(context.get("runtime_feedback_loop", {}))
+                    if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+                    else {}
+                ),
+                "source_subsystem": "CriticEvaluator",
+                "critic_packet_validation_failure_id": (
+                    proposal_validation_failure_id
+                ),
+            }
+            next_inputs = dict(task.inputs)
+            next_inputs["architect_context"] = critic_repair_context
+            next_inputs["environment_feedback"] = (
+                proposal_validation_failure_feedback
+            )
+            return AgentStepResult(
+                status="REVISE",
+                rationale=(
+                    "LLM CriticEvaluator packet failed local validation; "
+                    "structured feedback was recorded and routed back to "
+                    "CriticEvaluator without accepting proof claims."
+                ),
+                produced_artifacts=produced_artifacts,
+                observations=tuple(observations),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_validation_failure_evidence,
+                        evidence,
+                    )
+                    if row is not None
+                ),
+                next_task=AgentTask(
+                    task_id=(
+                        f"critic-repair:{question.id}:"
+                        f"{stable_hash([proposal_validation_failure_id, next_inputs])[:8]}"
+                    ),
+                    owner_subsystem="CriticEvaluator",
+                    objective=(
+                        "Repair the CriticEvaluator audit packet using local "
+                        "validator feedback while preserving evidence boundaries."
+                    ),
+                    inputs=next_inputs,
+                    allowed_tools=task.allowed_tools,
+                    expected_artifacts=task.expected_artifacts,
+                    acceptance_gate=(
+                        "repaired CriticEvaluator packet passes local validation "
+                        "and does not claim theorem proof without kernel evidence"
+                    ),
+                    stop_condition=(
+                        "repaired critic audit packet or deterministic proof-repair "
+                        "handoff recorded"
+                    ),
+                ),
+                failure_classification="critic_packet_validation_failed",
+            )
         return AgentStepResult(
             status="ACCEPTED",
             rationale="CriticEvaluator recorded next-action agenda and learning rows from the runtime trace.",
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
-            evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
+            evidence_entries=tuple(
+                row
+                for row in (
+                    proposal_evidence,
+                    proposal_validation_failure_evidence,
+                    evidence,
+                )
+                if row is not None
+            ),
         )
 
 

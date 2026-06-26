@@ -765,6 +765,21 @@ subclaims to 78 and formal gaps to 57, then rerouted to
 semantic definitions remain unproved; this is still orchestration progress
 toward reviewed definitions and a later local Lean/AXLE source-theorem proof.
 
+The next live Critic replay exposed an evidence-boundary failure mode at the
+CriticEvaluator layer itself. A prior live attempt died as a subsystem exception
+when the optional LLM Critic packet included forbidden proof-completion wording.
+CriticEvaluator now treats that as a local packet-validation event:
+`RuntimeCriticEvaluatorValidationFailure` records the invalid packet as
+`CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE`, emits repair directives,
+and then deterministic Critic routing continues to the appropriate
+TheoryDeveloper/Formalizer/ProofEngineer task. The patched live replay
+`runs/main_worker_critic_validation_failclosed_live` did not fail; it produced a
+valid Critic proposal and handed off
+`formalize-critic-repair:conformal_prediction_coverage:480c63dd` with the four
+exact-semantic placeholders still present. The scorecard remains 44/49, support
+subclaims remain 78, formal gaps remain 57, and the source theorem is still not
+kernel verified.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
