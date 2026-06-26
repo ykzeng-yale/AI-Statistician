@@ -138,6 +138,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_learning_rows,
     _exact_semantic_definition_lean_repair_executor_project,
+    _dedupe_runtime_next_action_agenda_rows,
     _late_typechecked_candidate_review_unresolved,
     _runtime_source_theorem_promotion_bridge_learning_rows,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
@@ -22552,6 +22553,7 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
         post_executor_by_symbol["Exchangeable"]["work_order_id"]
     )
     assert compact_row["input_summary"]["placeholder_symbol"] == "Exchangeable"
+
     orderstat_agenda_rows = _append_runtime_generated_next_action_rows(
         agenda_rows,
         [post_executor_by_symbol["orderStatistic"]],
@@ -22602,6 +22604,88 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     )
     assert duplicate_rows == []
     assert len(agenda_rows) == 3
+
+
+def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance() -> None:
+    generic_rows = [
+        {
+            "id": "formal_gap:gap_planner_handoff",
+            "owner_subsystem": "FormalizationGapPlanner",
+            "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+            "action": "stage planner packets",
+            "acceptance_gate": "run standalone planner",
+            "target_ids": ["split_conformal_coverage"],
+            "priority": "high",
+            "formalization_gap_planner_bridge_id": "bridge:one",
+            "standalone_seed_artifact_id": "seed:one",
+            "failure_classifications": ["formal_environment_placeholder_primitives"],
+        },
+        {
+            "id": "formal_gap:gap_planner_handoff",
+            "owner_subsystem": "FormalizationGapPlanner",
+            "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+            "action": "stage planner packets",
+            "acceptance_gate": "run standalone planner",
+            "target_ids": ["split_conformal_coverage"],
+            "priority": "high",
+            "formalization_gap_planner_bridge_id": "bridge:two",
+            "standalone_seed_artifact_id": "seed:two",
+            "failure_classifications": [
+                "formal_environment_placeholder_primitives",
+                "source_theorem_semantic_alignment_unreviewed",
+            ],
+        },
+    ]
+    proof_feedback_rows = [
+        {
+            "id": "proof_feedback:source_theorem_exact_semantic_definitions:one",
+            "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+            "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+            "action": "consume exact semantic work order",
+            "acceptance_gate": "local Lean verifies reviewed definition",
+            "target_ids": ["split_conformal_coverage"],
+            "placeholder_symbol": "covered",
+            "work_order_id": "work-order:covered",
+            "runtime_queue_status": "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+            "priority": "high",
+        },
+        {
+            "id": "proof_feedback:source_theorem_exact_semantic_definitions:two",
+            "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+            "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+            "action": "consume exact semantic work order",
+            "acceptance_gate": "local Lean verifies reviewed definition",
+            "target_ids": ["split_conformal_coverage"],
+            "placeholder_symbol": "coverage_event",
+            "work_order_id": "work-order:coverage_event",
+            "runtime_queue_status": "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+            "priority": "high",
+        },
+    ]
+
+    compacted = _dedupe_runtime_next_action_agenda_rows(
+        [*generic_rows, *proof_feedback_rows]
+    )
+
+    assert [row["id"] for row in compacted] == [
+        "formal_gap:gap_planner_handoff",
+        "proof_feedback:source_theorem_exact_semantic_definitions:one",
+        "proof_feedback:source_theorem_exact_semantic_definitions:two",
+    ]
+    planner_row = compacted[0]
+    assert planner_row["collapsed_agenda_row_count"] == 2
+    assert planner_row["supporting_formalization_gap_planner_bridge_ids"] == [
+        "bridge:one",
+        "bridge:two",
+    ]
+    assert planner_row["supporting_standalone_seed_artifact_ids"] == [
+        "seed:one",
+        "seed:two",
+    ]
+    assert planner_row["failure_classifications"] == [
+        "formal_environment_placeholder_primitives",
+        "source_theorem_semantic_alignment_unreviewed",
+    ]
 
 
 def test_verified_adapter_goal_shape_feedback_exports_proof_library_work_orders() -> None:

@@ -18965,6 +18965,7 @@ def run_research_agent_runtime(
         [*stale_gap_pruning_evidence_rows, *generated_next_action_rows],
         generated_routing_only=True,
     )
+    agenda_rows[:] = _dedupe_runtime_next_action_agenda_rows(agenda_rows)
     _write_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     manifest.setdefault(
@@ -23536,7 +23537,7 @@ def _critic_next_action_agenda(
     for row in agenda:
         row["question_id"] = question.id
         row["theory_packet_id"] = str(theory_packet.get("packet_id", ""))
-    return agenda
+    return _dedupe_runtime_next_action_agenda_rows(agenda)
 
 
 def _formalization_manifest_has_remaining_proof_bank_work(
@@ -32848,7 +32849,127 @@ def _runtime_agenda_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 for item in artifact.get("next_action_agenda", []) or []:
                     if isinstance(item, Mapping):
                         rows.append(dict(item))
-    return rows
+    return _dedupe_runtime_next_action_agenda_rows(rows)
+
+
+def _dedupe_runtime_next_action_agenda_rows(
+    agenda_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    compacted: list[dict[str, Any]] = []
+    by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for row in agenda_rows:
+        if not isinstance(row, Mapping):
+            continue
+        normalized = dict(row)
+        key = _runtime_next_action_agenda_dedupe_key(normalized)
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = normalized
+            compacted.append(normalized)
+            continue
+        _merge_runtime_next_action_agenda_row(existing, normalized)
+    return compacted
+
+
+def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+    target_ids = _runtime_row_string_values(
+        row,
+        "target_ids",
+        "target_id",
+        "target_theorem_goal_ids",
+    )
+    if not target_ids:
+        target_ids = _runtime_row_string_values(
+            row,
+            "target_theorem_name",
+            "semantic_primitive_id",
+        )
+    scalar_keys = (
+        "id",
+        "owner_subsystem",
+        "trigger",
+        "priority",
+        "action",
+        "acceptance_gate",
+        "runtime_queue_status",
+        "environment_repair_status",
+        "placeholder_symbol",
+        "work_order_id",
+        "semantic_primitive_id",
+        "target_theorem_name",
+        "premise_name",
+        "premise_target_type",
+        "candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+    )
+    return (
+        *(str(row.get(key, "") or "") for key in scalar_keys),
+        tuple(target_ids),
+        tuple(_runtime_recommended_commands(row)),
+    )
+
+
+def _merge_runtime_next_action_agenda_row(
+    existing: dict[str, Any],
+    incoming: Mapping[str, Any],
+) -> None:
+    existing_count = int(existing.get("collapsed_agenda_row_count", 1) or 1)
+    incoming_count = int(incoming.get("collapsed_agenda_row_count", 1) or 1)
+    collapsed_count = existing_count + incoming_count
+    if collapsed_count > 1:
+        existing["collapsed_agenda_row_count"] = collapsed_count
+
+    for key in (
+        "target_ids",
+        "failure_classifications",
+        "source_theorem_exact_candidate_repair_triggers",
+        "proof_body_gate_statuses",
+        "semantic_alignment_blockers",
+        "premise_names",
+        "premise_target_types",
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
+        "recommended_commands",
+    ):
+        merged = _agenda_string_values(existing.get(key, []))
+        merged.extend(_agenda_string_values(incoming.get(key, [])))
+        if merged:
+            existing[key] = list(dict.fromkeys(merged))
+
+    for source_key, support_key in (
+        (
+            "formalization_gap_planner_bridge_id",
+            "supporting_formalization_gap_planner_bridge_ids",
+        ),
+        ("standalone_seed_artifact_id", "supporting_standalone_seed_artifact_ids"),
+        ("work_order_id", "supporting_work_order_ids"),
+        ("source_manifest_path", "supporting_source_manifest_paths"),
+    ):
+        values = _agenda_string_values(existing.get(support_key, []))
+        values.extend(_agenda_string_values(existing.get(source_key, "")))
+        values.extend(_agenda_string_values(incoming.get(source_key, "")))
+        values.extend(_agenda_string_values(incoming.get(support_key, [])))
+        values = list(dict.fromkeys(values))
+        if values:
+            existing[support_key] = values
+
+    for key, value in incoming.items():
+        if key in existing:
+            continue
+        if isinstance(value, bool) or value not in (None, "", [], {}):
+            existing[key] = value
+
+
+def _agenda_string_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, Mapping):
+        return [str(key) for key in value.keys() if str(key)]
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if str(item)]
+    text = str(value)
+    return [text] if text else []
 
 
 def _append_runtime_generated_next_action_rows(
