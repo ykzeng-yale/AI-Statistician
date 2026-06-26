@@ -864,6 +864,215 @@ def test_critic_formalizer_handoff_refreshes_nested_adapter_feedback() -> None:
     ]
 
 
+def test_critic_exact_semantic_feedback_covers_placeholder_candidate_list() -> None:
+    feedback = (
+        runtime_module._critic_source_theorem_exact_semantic_definition_repair_feedback(
+            {
+                "proof_bank_runtime_memory_summary": {
+                    "recommended_formalizer_target_mode": (
+                        "source_theorem_exact_semantic_definition_repair"
+                    ),
+                    "source_theorem_exact_semantic_definition_repair_required": True,
+                    "source_theorem_ready_for_exact_proof_body": False,
+                    "source_theorem_exact_candidate_repair_target_names": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
+                    "source_theorem_exact_candidate_repair_placeholder_symbols": [
+                        "coverage_event",
+                        "good_rank_event",
+                        "C_n",
+                    ],
+                    "source_theorem_exact_candidate_failure_classifications": [
+                        "typechecked_exact_semantic_definition_candidate_review_required"
+                    ],
+                    "source_theorem_exact_candidate_repair_triggers": [
+                        "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION"
+                    ],
+                    "source_theorem_exact_candidate_repair_diagnostics": [
+                        {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "placeholder_symbol": "coverage_event",
+                            "failure_classification": (
+                                "typechecked_exact_semantic_definition_candidate_review_required"
+                            ),
+                            "runtime_queue_status": (
+                                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                            ),
+                        }
+                    ],
+                    "source_theorem_exact_semantic_definition_typechecked_candidates": [
+                        {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "placeholder_symbol": "coverage_event",
+                            "definition_only_candidate_artifact_path": (
+                                "runs/current/coverage_event_definition_only.lean"
+                            ),
+                            "local_definition_lean_compiled": True,
+                            "semantic_definition_typecheck_evidence_status": (
+                                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                            ),
+                            "proof_evidence_status": (
+                                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                        {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "placeholder_symbol": "good_rank_event",
+                            "definition_only_candidate_artifact_path": (
+                                "runs/current/good_rank_event_definition_only.lean"
+                            ),
+                            "local_definition_lean_compiled": True,
+                            "semantic_definition_typecheck_evidence_status": (
+                                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                            ),
+                            "proof_evidence_status": (
+                                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    ],
+                }
+            }
+        )
+    )
+
+    diagnostics = {
+        row["placeholder_symbol"]: row for row in feedback["diagnostics"]
+    }
+
+    assert set(diagnostics) == {"coverage_event", "good_rank_event", "C_n"}
+    assert diagnostics["coverage_event"][
+        "definition_only_candidate_artifact_path"
+    ] == "runs/current/coverage_event_definition_only.lean"
+    assert diagnostics["good_rank_event"][
+        "definition_only_candidate_artifact_path"
+    ] == "runs/current/good_rank_event_definition_only.lean"
+    assert diagnostics["good_rank_event"]["local_definition_lean_compiled"] is True
+    assert diagnostics["C_n"]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    )
+    assert feedback["proof_evidence_status"] == (
+        "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> None:
+    pending = {
+        "task_id": "formalize-critic-repair:coverage",
+        "owner_subsystem": "FormalizationEvaluator",
+        "inputs": {
+            "environment_feedback": {
+                "source_theorem_exact_semantic_definition_repair_feedback": {
+                    "source_theorem_exact_semantic_definition_repair_required": True,
+                    "target_names": ["split_conformal_finite_sample_coverage"],
+                    "diagnostics": [
+                        {
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "failure_classification": (
+                                "typechecked_exact_semantic_definition_candidate_review_required"
+                            ),
+                        }
+                    ],
+                    "proof_evidence_status": (
+                        "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            },
+            "architect_context": {},
+        },
+    }
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_work_order"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "good_rank_event",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+                "definition_only_candidate_artifact_path": (
+                    "runs/current/good_rank_event_definition_only.lean"
+                ),
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_work_order"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+        ],
+        "counts": {"rows_loaded": 2, "rows_seen": 2, "max_rows": 20},
+    }
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending,
+        memory,
+    )
+
+    environment_feedback = enriched["inputs"]["environment_feedback"]
+    work_order_feedback = environment_feedback[
+        "runtime_exact_semantic_definition_work_order_feedback"
+    ]
+    repair_feedback = environment_feedback[
+        "source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    diagnostics = {
+        row["placeholder_symbol"]: row for row in repair_feedback["diagnostics"]
+    }
+
+    assert work_order_feedback["placeholder_symbols"] == ["good_rank_event", "C_n"]
+    assert set(diagnostics) == {"good_rank_event", "C_n"}
+    assert diagnostics["good_rank_event"][
+        "definition_only_candidate_artifact_path"
+    ] == "runs/current/good_rank_event_definition_only.lean"
+    assert diagnostics["C_n"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+    )
+    assert work_order_feedback["proof_evidence_status"] == (
+        "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert repair_feedback["proof_evidence_status"] == (
+        "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert enriched["inputs"]["architect_context"]["environment_feedback"] == (
+        environment_feedback
+    )
+
+    queue_only_enriched = (
+        runtime_module._runtime_pending_task_with_runtime_learning_memory(
+            pending,
+            {"artifact_kind": "RuntimeLearningMemoryContext", "rows": []},
+            exact_semantic_work_order_feedback=work_order_feedback,
+        )
+    )
+    queue_only_feedback = queue_only_enriched["inputs"]["environment_feedback"][
+        "source_theorem_exact_semantic_definition_repair_feedback"
+    ]
+    assert {
+        row["placeholder_symbol"] for row in queue_only_feedback["diagnostics"]
+    } == {"good_rank_event", "C_n"}
+
+
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(
     tmp_path: Path,
 ) -> None:

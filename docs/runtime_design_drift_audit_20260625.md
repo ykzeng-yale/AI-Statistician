@@ -719,3 +719,24 @@ work orders and selects the current `coverage_event` and `good_rank_event`
 artifacts. This remains orchestration memory only: these definition-only
 candidates are review inputs, not semantic-definition proof or source theorem
 proof.
+
+The next Critic/Formalizer continuation exposed a subtler version of the same
+design issue. The bounded pending-task memory could retain only a subset of the
+exact semantic-definition work orders, while the full exported queue already
+contained the complete frontier: `good_rank_event`, `C_n`, `coverage_event`,
+and `covered`. Critic feedback also compacted exact semantic-definition
+diagnostics without consistently carrying `placeholder_symbol`, so the next
+Formalizer could receive a generic target-level repair note instead of a
+machine-actionable placeholder-level queue. The runtime now attaches
+`runtime_exact_semantic_definition_work_order_feedback` to pending tasks from
+the full exact semantic-definition work-order queue, and merges those rows back
+into Critic's exact semantic-definition repair feedback. The enriched live
+Critic run
+`runs/main_worker_resume_pending_critic_full_exact_queue_feedback_live` hands
+off all four placeholders with non-proof statuses. The follow-up Formalizer run
+`runs/main_worker_formalizer_after_full_exact_queue_feedback_live` consumed
+that queue, advanced support subclaims from 70 to 72, produced review packets
+for `good_rank_event`, `coverage_event`, and `covered`, and kept `C_n` as the
+named Lakefile/import-environment blocker. This is still not source theorem
+proof: it is a queue-integrity fix so Claude/ProofEngineer works from the full
+runtime frontier rather than a lossy memory sample.

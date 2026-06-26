@@ -18545,9 +18545,18 @@ def run_research_agent_runtime(
     )
     pending_next_task = manifest.get("incomplete_pending_next_task")
     if isinstance(pending_next_task, Mapping) and pending_next_task:
+        pending_exact_semantic_definition_feedback = (
+            _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+                source_theorem_exact_semantic_definition_work_order_rows,
+                source="runtime_exact_semantic_definition_work_order_queue",
+            )
+        )
         pending_next_task = _runtime_pending_task_with_runtime_learning_memory(
             pending_next_task,
             pending_memory_context,
+            exact_semantic_work_order_feedback=(
+                pending_exact_semantic_definition_feedback
+            ),
         )
         manifest["incomplete_pending_next_task"] = pending_next_task
         failure_summary["pending_next_task"] = pending_next_task
@@ -20401,6 +20410,97 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         if str(value).strip()
     ]
     semantic_rows = [row for row in raw_diagnostics if is_semantic_repair_row(row)]
+    placeholder_symbols = [
+        str(value).strip()
+        for value in proof_bank_summary.get(
+            "source_theorem_exact_candidate_repair_placeholder_symbols",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    typechecked_candidates = [
+        dict(row)
+        for row in proof_bank_summary.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidates",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    for row in raw_diagnostics:
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        if symbol:
+            placeholder_symbols.append(symbol)
+    for row in typechecked_candidates:
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        if symbol:
+            placeholder_symbols.append(symbol)
+    placeholder_symbols = list(dict.fromkeys(placeholder_symbols))
+
+    def row_target(row: Mapping[str, Any]) -> str:
+        return (
+            str(row.get("target_theorem_name", "") or "").strip()
+            or (target_names[0] if target_names else "")
+        )
+
+    def row_key(row: Mapping[str, Any]) -> tuple[str, str]:
+        return (
+            row_target(row),
+            str(row.get("placeholder_symbol", "") or "").strip(),
+        )
+
+    def merge_typechecked_candidate(
+        row: dict[str, Any],
+        candidate: Mapping[str, Any],
+    ) -> None:
+        candidate_target = row_target(candidate)
+        candidate_symbol = str(candidate.get("placeholder_symbol", "") or "").strip()
+        if candidate_target and not str(
+            row.get("target_theorem_name", "") or ""
+        ).strip():
+            row["target_theorem_name"] = candidate_target
+        if candidate_symbol and not str(
+            row.get("placeholder_symbol", "") or ""
+        ).strip():
+            row["placeholder_symbol"] = candidate_symbol
+        scalar_keys = (
+            "definition_only_candidate_artifact_path",
+            "candidate_artifact_path",
+            "semantic_definition_typecheck_evidence_status",
+        )
+        for key in scalar_keys:
+            value = str(candidate.get(key, "") or "").strip()
+            if value and not str(row.get(key, "") or "").strip():
+                row[key] = value
+        for key in ("local_definition_lean_checked", "local_definition_lean_compiled"):
+            if candidate.get(key) is not None:
+                row[key] = bool(row.get(key, False) or candidate.get(key, False))
+        status = str(
+            candidate.get("semantic_definition_typecheck_evidence_status", "") or ""
+        ).strip()
+        if (
+            status in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
+            and not str(row.get("runtime_queue_status", "") or "").strip()
+        ):
+            row["runtime_queue_status"] = (
+                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+            )
+        if not str(row.get("failure_classification", "") or "").strip():
+            row["failure_classification"] = (
+                "typechecked_exact_semantic_definition_candidate_review_required"
+            )
+        row.setdefault(
+            "definition_candidate_review_mode",
+            "typechecked_candidate_semantic_review_required",
+        )
+        row.setdefault("source_theorem_kernel_evidence_eligible", False)
+        row["source_theorem_exact_semantic_definition_typechecked_candidate"] = {
+            key: value
+            for key, value in candidate.items()
+            if value not in (None, "", [], {})
+        }
+
     semantic_review_failure = next(
         (
             value
@@ -20453,8 +20553,68 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         ]
     else:
         selected_rows = raw_diagnostics[:3]
+    keyed_rows: dict[tuple[str, str], dict[str, Any]] = {}
+    unkeyed_rows: list[dict[str, Any]] = []
+    for row in selected_rows:
+        compactable = dict(row)
+        key = row_key(compactable)
+        if key[0] and key[1]:
+            keyed_rows.setdefault(key, compactable)
+        else:
+            unkeyed_rows.append(compactable)
+    for candidate in typechecked_candidates:
+        key = row_key(candidate)
+        if not key[0] or not key[1]:
+            continue
+        row = keyed_rows.setdefault(
+            key,
+            {
+                "target_theorem_name": key[0],
+                "placeholder_symbol": key[1],
+                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_CANDIDATE_REVIEW",
+                "failure_classification": (
+                    "typechecked_exact_semantic_definition_candidate_review_required"
+                ),
+                "runtime_queue_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                ),
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+                "source_theorem_kernel_evidence_eligible": False,
+            },
+        )
+        merge_typechecked_candidate(row, candidate)
+    default_target = target_names[0] if target_names else ""
+    for symbol in placeholder_symbols:
+        if not default_target:
+            continue
+        key = (default_target, symbol)
+        keyed_rows.setdefault(
+            key,
+            {
+                "target_theorem_name": default_target,
+                "placeholder_symbol": symbol,
+                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_REQUIRED",
+                "failure_classification": (
+                    "source_theorem_exact_semantic_definition_repair_required"
+                ),
+                "runtime_queue_status": (
+                    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+                ),
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+                "source_theorem_kernel_evidence_eligible": False,
+                "recommended_repair_tasks": [
+                    "retrieve, review, or formalize the exact semantic definition for this placeholder before retrying proof-body tactics"
+                ],
+            },
+        )
+    selected_rows = [*keyed_rows.values(), *unkeyed_rows]
     compact_keys = (
         "target_theorem_name",
+        "placeholder_symbol",
         "trigger",
         "failure_classification",
         "runtime_queue_status",
@@ -20462,6 +20622,9 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "candidate_source_file",
         "definition_only_candidate_artifact_path",
         "definition_candidate_review_mode",
+        "semantic_definition_typecheck_evidence_status",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
         "proof_body_gate_status",
         "proof_body_goal_reached",
         "source_theorem_kernel_evidence_eligible",
@@ -20475,9 +20638,10 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "semantic_definition_risks",
         "recommended_repair_tasks",
         "diagnostics",
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
     )
     diagnostics: list[dict[str, Any]] = []
-    for row in selected_rows[:4]:
+    for row in selected_rows[:8]:
         compact: dict[str, Any] = {
             key: row[key]
             for key in compact_keys
@@ -21288,7 +21452,7 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             }
         ]
     rows: list[dict[str, Any]] = []
-    for diagnostic in diagnostics[:4]:
+    for diagnostic in diagnostics[:8]:
         target_ids = [
             str(value).strip()
             for value in [
@@ -34299,11 +34463,17 @@ def _runtime_learning_memory_context_row_limit(
 def _runtime_pending_task_with_runtime_learning_memory(
     pending_next_task: Mapping[str, Any],
     memory_context: Mapping[str, Any],
+    *,
+    exact_semantic_work_order_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pending = dict(pending_next_task)
+    has_exact_semantic_feedback = (
+        isinstance(exact_semantic_work_order_feedback, Mapping)
+        and bool(exact_semantic_work_order_feedback)
+    )
     if not isinstance(memory_context, Mapping):
-        return pending
-    if not memory_context.get("rows"):
+        memory_context = {}
+    if not memory_context.get("rows") and not has_exact_semantic_feedback:
         return pending
     inputs = (
         dict(pending.get("inputs", {}))
@@ -34316,18 +34486,297 @@ def _runtime_pending_task_with_runtime_learning_memory(
         else {}
     )
     existing_memory = architect_context.get("runtime_learning_memory", {})
-    architect_context["runtime_learning_memory"] = _merge_runtime_learning_memory_context(
-        existing_memory,
-        memory_context,
+    if memory_context.get("rows"):
+        architect_context["runtime_learning_memory"] = (
+            _merge_runtime_learning_memory_context(
+                existing_memory,
+                memory_context,
+            )
+        )
+        architect_context["runtime_learning_memory"]["handoff_boundary"] = (
+            "Pending-task runtime learning memory is orchestration memory only. "
+            "Rows may prioritize future Lean/R/Python work when they cite verifier or "
+            "execution artifacts, but they are not theorem proof or simulation evidence."
+        )
+    elif isinstance(existing_memory, Mapping):
+        architect_context["runtime_learning_memory"] = dict(existing_memory)
+    exact_semantic_feedback = (
+        dict(exact_semantic_work_order_feedback)
+        if has_exact_semantic_feedback
+        else _runtime_exact_semantic_definition_work_order_feedback_from_memory(
+            architect_context.get("runtime_learning_memory", {}),
+        )
     )
-    architect_context["runtime_learning_memory"]["handoff_boundary"] = (
-        "Pending-task runtime learning memory is orchestration memory only. "
-        "Rows may prioritize future Lean/R/Python work when they cite verifier or "
-        "execution artifacts, but they are not theorem proof or simulation evidence."
-    )
+    if exact_semantic_feedback:
+        environment_feedback = (
+            dict(inputs.get("environment_feedback", {}))
+            if isinstance(inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        environment_feedback[
+            "runtime_exact_semantic_definition_work_order_feedback"
+        ] = exact_semantic_feedback
+        environment_feedback[
+            "source_theorem_exact_semantic_definition_repair_feedback"
+        ] = _merge_exact_semantic_definition_repair_feedback_with_work_orders(
+            environment_feedback.get(
+                "source_theorem_exact_semantic_definition_repair_feedback",
+                {},
+            ),
+            exact_semantic_feedback,
+        )
+        inputs["environment_feedback"] = environment_feedback
+        architect_context["environment_feedback"] = environment_feedback
     inputs["architect_context"] = architect_context
     pending["inputs"] = inputs
     return pending
+
+
+def _runtime_exact_semantic_definition_work_order_feedback_from_memory(
+    memory_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(memory_context, Mapping):
+        return {}
+    learning_rows = [
+        dict(row)
+        for row in memory_context.get("rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    work_orders = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
+            learning_rows
+        )
+    )
+    return _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+        work_orders,
+        source="pending_task_runtime_learning_memory",
+    )
+
+
+def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+    work_orders: Sequence[Mapping[str, Any]],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    if not work_orders:
+        return {}
+    compact_rows: list[dict[str, Any]] = []
+    for row in work_orders[:8]:
+        if not isinstance(row, Mapping):
+            continue
+        compact: dict[str, Any] = {}
+        for key in (
+            "work_order_id",
+            "target_theorem_name",
+            "placeholder_symbol",
+            "runtime_queue_status",
+            "definition_only_candidate_artifact_path",
+            "candidate_artifact_path",
+            "semantic_definition_typecheck_evidence_status",
+            "local_definition_lean_checked",
+            "local_definition_lean_compiled",
+            "semantic_alignment_blockers",
+            "semantic_alignment_constraints",
+            "proof_evidence_status",
+        ):
+            value = row.get(key)
+            if isinstance(value, bool) or value not in (None, "", [], {}):
+                compact[key] = value
+        if compact:
+            compact_rows.append(compact)
+    if not compact_rows:
+        return {}
+    return {
+        "feedback_kind": "runtime_exact_semantic_definition_work_order_feedback",
+        "source": source,
+        "n_work_orders": len(work_orders),
+        "target_names": list(
+            dict.fromkeys(
+                str(row.get("target_theorem_name", "") or "").strip()
+                for row in work_orders
+                if str(row.get("target_theorem_name", "") or "").strip()
+            )
+        ),
+        "placeholder_symbols": list(
+            dict.fromkeys(
+                str(row.get("placeholder_symbol", "") or "").strip()
+                for row in work_orders
+                if str(row.get("placeholder_symbol", "") or "").strip()
+            )
+        ),
+        "work_orders": compact_rows,
+        "required_behavior": (
+            "Use these runtime exact semantic-definition work orders to review, "
+            "retrieve, import, or formalize each named placeholder before retrying "
+            "exact source-theorem proof-body tactics."
+        ),
+        "acceptance_gate": (
+            "A later local Lean/AXLE run must verify reviewed semantic definitions "
+            "and then verify the exact source theorem declaration before any source "
+            "theorem proof is claimed."
+        ),
+        "proof_evidence_status": (
+            "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
+    repair_feedback: Mapping[str, Any] | None,
+    work_order_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    feedback = (
+        dict(repair_feedback)
+        if isinstance(repair_feedback, Mapping) and repair_feedback
+        else {}
+    )
+    if not isinstance(work_order_feedback, Mapping):
+        return feedback
+    work_orders = [
+        row
+        for row in work_order_feedback.get("work_orders", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not work_orders:
+        return feedback
+    feedback.setdefault(
+        "feedback_kind",
+        "critic_source_theorem_exact_semantic_definition_repair_feedback",
+    )
+    feedback.setdefault("source", "critic_and_runtime_learning_memory")
+    feedback["source_theorem_exact_semantic_definition_repair_required"] = True
+    feedback.setdefault(
+        "recommended_formalizer_target_mode",
+        _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE,
+    )
+    feedback.setdefault(
+        "recommended_source_theorem_integration_action",
+        "repair_reviewed_exact_semantic_definitions",
+    )
+    diagnostics = [
+        dict(row)
+        for row in feedback.get("diagnostics", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("placeholder_symbol", "") or "").strip()
+    ]
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for diagnostic in diagnostics:
+        key = (
+            str(diagnostic.get("target_theorem_name", "") or "").strip(),
+            str(diagnostic.get("placeholder_symbol", "") or "").strip(),
+        )
+        if key[0] and key[1]:
+            by_key[key] = diagnostic
+    for row in work_orders:
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        if not target or not symbol:
+            continue
+        key = (target, symbol)
+        diagnostic = by_key.setdefault(
+            key,
+            {
+                "target_theorem_name": target,
+                "placeholder_symbol": symbol,
+                "trigger": "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER",
+                "failure_classification": (
+                    "source_theorem_exact_semantic_definition_repair_required"
+                ),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "") or ""
+                )
+                or _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS,
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+                "source_theorem_kernel_evidence_eligible": False,
+            },
+        )
+        for source_key, target_key in (
+            (
+                "definition_only_candidate_artifact_path",
+                "definition_only_candidate_artifact_path",
+            ),
+            ("candidate_artifact_path", "candidate_artifact_path"),
+            (
+                "semantic_definition_typecheck_evidence_status",
+                "semantic_definition_typecheck_evidence_status",
+            ),
+            ("local_definition_lean_checked", "local_definition_lean_checked"),
+            ("local_definition_lean_compiled", "local_definition_lean_compiled"),
+            ("semantic_alignment_blockers", "semantic_alignment_blockers"),
+            ("semantic_alignment_constraints", "semantic_alignment_constraints"),
+        ):
+            value = row.get(source_key)
+            if isinstance(value, bool) or value not in (None, "", [], {}):
+                if isinstance(value, list):
+                    existing_values = [
+                        str(item)
+                        for item in diagnostic.get(target_key, []) or []
+                        if str(item).strip()
+                    ]
+                    diagnostic[target_key] = list(
+                        dict.fromkeys(
+                            [*existing_values, *[str(item) for item in value]]
+                        )
+                    )
+                elif not diagnostic.get(target_key):
+                    diagnostic[target_key] = value
+        diagnostic.setdefault(
+            "recommended_repair_tasks",
+            [
+                "review or formalize this exact semantic-definition placeholder before retrying source-theorem proof-body tactics"
+            ],
+        )
+    merged_diagnostics = list(by_key.values())
+    feedback["diagnostics"] = merged_diagnostics[:8]
+    feedback["target_names"] = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in feedback.get("target_names", []) or []
+                    if str(value).strip()
+                ],
+                *[
+                    str(value).strip()
+                    for value in work_order_feedback.get("target_names", []) or []
+                    if str(value).strip()
+                ],
+            ]
+        )
+    )
+    feedback["placeholder_symbols"] = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in feedback.get("placeholder_symbols", []) or []
+                    if str(value).strip()
+                ],
+                *[
+                    str(value).strip()
+                    for value in work_order_feedback.get("placeholder_symbols", []) or []
+                    if str(value).strip()
+                ],
+            ]
+        )
+    )
+    feedback.setdefault(
+        "required_behavior",
+        "Review, retrieve, import, or formalize exact semantic definitions before spending proof-body budget.",
+    )
+    feedback.setdefault(
+        "acceptance_gate",
+        "Reviewed exact semantic definitions and the exact source theorem must pass local Lean/AXLE before proof evidence is claimed.",
+    )
+    feedback.setdefault(
+        "proof_evidence_status",
+        "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
+    )
+    feedback.setdefault("proof_evidence_boundary", KERNEL_PROOF_BOUNDARY)
+    return feedback
 
 
 def _runtime_learning_rows_with_input_memory(
@@ -36038,6 +36487,20 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                 "source_theorem_semantic_support_only": True,
                 "owner_agent": "Formalizer/ProofEngineer/LeanProver",
                 "action_type": "formalize_reviewed_exact_semantic_definition",
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "")
+                    or input_summary.get("runtime_queue_status", "")
+                    or _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+                ),
+                "runtime_queue_boundary": str(
+                    row.get("runtime_queue_boundary", "")
+                    or input_summary.get("runtime_queue_boundary", "")
+                    or (
+                        "This runtime memory exact semantic-definition work order "
+                        "is not proof evidence; it only routes review/import/formalization "
+                        "of a named source-theorem placeholder."
+                    )
+                ),
                 "acceptance_gate": str(
                     row.get("acceptance_gate", "")
                     or input_summary.get("acceptance_gate", "")
