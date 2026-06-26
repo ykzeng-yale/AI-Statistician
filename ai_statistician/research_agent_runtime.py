@@ -7215,6 +7215,11 @@ def _formalizer_lean_candidate_sources(
         expected_status = str(row.get("expected_status", "") or "")
         if expected_status not in {"NEEDS_KERNEL_CHECK", "OPEN"}:
             continue
+        if _formalizer_formal_target_should_skip_lean_candidate_materialization(
+            row,
+            source,
+        ):
+            continue
         candidate_id = (
             str(row.get("id", "") or "").strip()
             or f"formal_target_candidate_{index}"
@@ -7248,6 +7253,47 @@ def _formalizer_lean_candidate_sources(
             }
         )
     return rows
+
+
+def _formalizer_formal_target_should_skip_lean_candidate_materialization(
+    row: Mapping[str, Any],
+    source: str,
+) -> bool:
+    route = str(row.get("runtime_materialization_route", "") or "").strip()
+    if route == "source_theorem_proof_body_adapter_bridge":
+        return True
+    skip_requested = bool(
+        row.get("skip_formalizer_lean_candidate_materialization", False)
+    )
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    source_theorem_target_known = _source_theorem_target_known_value(provenance)
+    if (
+        not bool(row.get("diagnostic_helper_not_source_theorem", False))
+        and not skip_requested
+        and source_theorem_target_known is not False
+        and not bool(
+            provenance.get("diagnostic_helper_from_source_theorem_shape_drift", False)
+        )
+    ):
+        return False
+    text_parts = [
+        str(row.get(field, "") or "")
+        for field in (
+            "id",
+            "informal_source",
+            "target_lean_declaration",
+        )
+    ]
+    constraints = row.get("semantic_alignment_constraints", [])
+    if isinstance(constraints, list | tuple | set):
+        text_parts.extend(str(value or "") for value in constraints)
+    text_parts.append(source)
+    text = " ".join(text_parts).lower()
+    return "source_to_bridge_adapter" in text or "source-to-bridge adapter" in text
 
 
 def _run_formalizer_lean_candidate_local_check(

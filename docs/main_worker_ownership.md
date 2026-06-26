@@ -675,6 +675,26 @@ right design boundary: Claude can propose Lean, R/Python, and proof plans, but
 unanchored bridge derivations become explicit semantic/prover work, not
 runtime-approved proof evidence.
 
+The next routing cleanup keeps adapter proof attempts inside the adapter bridge
+instead of duplicating them as generic Formalizer Lean-candidate repairs.
+Rerouted source-to-bridge adapter helpers now carry
+`runtime_materialization_route=source_theorem_proof_body_adapter_bridge`, and
+the generic materializer skips adapter-named formal targets when
+`source_theorem_target_known=false`. The first live probe at
+`runs/main_worker_live_runtime_resume_adapter_route_normalized_probe/research_agent_runtime_manifest.json`
+showed why the fallback was needed: Claude emitted a direct adapter target with
+`source_theorem_target_known=false` and an unavailable
+`Mathlib.Algebra.Order.Floor` import, which still entered generic precheck. The
+follow-up at
+`runs/main_worker_live_runtime_resume_adapter_route_direct_skip_probe/research_agent_runtime_manifest.json`
+moved out of Formalizer Lean precheck entirely: the pending task is now
+`critic:conformal_prediction_coverage:a68cd26d`, with no candidate diagnostics,
+while adapter failures remain in
+`runtime_source_theorem_proof_body_adapter_proofengineer_bridge` as
+`adapter_candidate_not_evidence_eligible` or adapter/local Lean environment
+blockers. Scorecard remains 42/49; helper/subclaim rows reached 44, but no
+source theorem or full frontier theorem is proved.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

@@ -22413,7 +22413,9 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
     )
 
 
-def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper() -> None:
+def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper(
+    tmp_path: Path,
+) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -22514,6 +22516,10 @@ def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper() -> N
     helper_target = packet["formal_targets"][0]
     assert helper_target["expected_status"] == "NEEDS_KERNEL_CHECK"
     assert helper_target["diagnostic_helper_not_source_theorem"] is True
+    assert helper_target["runtime_materialization_route"] == (
+        "source_theorem_proof_body_adapter_bridge"
+    )
+    assert helper_target["skip_formalizer_lean_candidate_materialization"] is True
     assert helper_target["source_theorem_target_provenance"][
         "source_theorem_target_known"
     ] is False
@@ -22526,6 +22532,66 @@ def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper() -> N
     assert packet["rerouted_source_theorem_shape_drift_targets"][0]["id"] == (
         "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
     )
+    assert packet["rerouted_source_theorem_shape_drift_targets"][0][
+        "runtime_materialization_route"
+    ] == "source_theorem_proof_body_adapter_bridge"
+    materialization = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=AgentTask(
+            task_id="formalize:test:adapter-route",
+            owner_subsystem="ProofEngineer",
+            objective="route adapter-shaped helper to adapter bridge",
+        ),
+        proposal_packet=packet,
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+    assert materialization["n_candidate_sources"] == 0
+    assert materialization["n_candidate_artifacts_written"] == 0
+    assert materialization["n_precheck_rejected"] == 0
+    direct_adapter_materialization = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "direct_adapter_formalizer_lean_candidates",
+        question=question,
+        task=AgentTask(
+            task_id="formalize:test:direct-adapter-route",
+            owner_subsystem="ProofEngineer",
+            objective="route direct adapter helper to adapter bridge",
+        ),
+        proposal_packet={
+            "packet_id": "formalizer_proposal:direct_adapter_route",
+            "formal_targets": [
+                {
+                    "id": (
+                        "split_conformal_finite_sample_coverage_"
+                        "source_to_bridge_adapter_NEEDS_KERNEL_CHECK"
+                    ),
+                    "lean_statement_sketch": (
+                        "theorem split_conformal_finite_sample_coverage_"
+                        "source_to_bridge_adapter "
+                        "(source_hypotheses bridge_premises : Prop) "
+                        "(hsource : source_hypotheses) "
+                        "(hbridge : source_hypotheses -> bridge_premises) : "
+                        "bridge_premises := by\n"
+                        "  exact hbridge hsource\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "false",
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+    assert direct_adapter_materialization["n_candidate_sources"] == 0
+    assert direct_adapter_materialization["n_precheck_rejected"] == 0
     assert validate_formalizer_packet(packet) == []
     assert (
         _validate_capability_eval_formalizer_lean_candidate_packet(

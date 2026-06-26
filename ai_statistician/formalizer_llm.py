@@ -1442,6 +1442,14 @@ def _normalize_source_theorem_target_shape_drift(
         row["source_theorem_shape_normalizer_status"] = (
             "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_TO_DIAGNOSTIC_HELPER"
         )
+        if _formal_target_is_source_to_bridge_adapter_candidate(row, lean_source):
+            row["runtime_materialization_route"] = (
+                "source_theorem_proof_body_adapter_bridge"
+            )
+            row["skip_formalizer_lean_candidate_materialization"] = True
+            row["adapter_candidate_route_status"] = (
+                "SOURCE_THEOREM_ADAPTER_TARGET_REROUTED_TO_ADAPTER_BRIDGE"
+            )
         row.setdefault(
             "proof_evidence_status",
             "SOURCE_THEOREM_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE",
@@ -1452,6 +1460,9 @@ def _normalize_source_theorem_target_shape_drift(
                 "id": str(row.get("id", "") or ""),
                 "previous_target_lean_declaration": declaration,
                 "previous_source_theorem_goal_id": goal_id,
+                "runtime_materialization_route": str(
+                    row.get("runtime_materialization_route", "") or ""
+                ),
                 "lean_source_fingerprint": stable_hash(lean_source)[:20],
             }
         )
@@ -1525,6 +1536,34 @@ def _normalize_source_theorem_target_shape_drift(
         }
     )
     packet["critic_findings"] = findings
+
+
+def _formal_target_is_source_to_bridge_adapter_candidate(
+    row: Mapping[str, Any],
+    lean_source: str,
+) -> bool:
+    text_parts = [
+        str(row.get(field, "") or "")
+        for field in (
+            "id",
+            "informal_source",
+            "target_lean_declaration",
+            "source_theorem_goal_id",
+            "runtime_materialization_route",
+        )
+    ]
+    constraints = row.get("semantic_alignment_constraints", [])
+    if isinstance(constraints, list | tuple | set):
+        text_parts.extend(str(value or "") for value in constraints)
+    text = " ".join(text_parts).lower()
+    if "source_to_bridge_adapter" in text or "source-to-bridge adapter" in text:
+        return True
+    return bool(
+        re.search(
+            r"\b(?:theorem|lemma)\s+[A-Za-z_][A-Za-z0-9_'.]*source_to_bridge_adapter\b",
+            lean_source,
+        )
+    )
 
 
 def _drop_semantically_unanchored_source_to_bridge_candidates(
