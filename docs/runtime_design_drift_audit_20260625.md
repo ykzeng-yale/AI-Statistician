@@ -772,3 +772,19 @@ theorem remained an empty `FORMAL_GAP`; the executable helper was marked
 premise-derivation evidence. The remaining frontier is semantic review and
 Lean environment repair for exact definitions, not another opportunity to
 promote helper Lean or retrieval hits as source-theorem proof.
+
+The next Critic handoff showed why typed artifacts matter more than longer
+instructions. Critic preserved the four exact-semantic blocker requests, but
+the placeholder/gate/queue metadata lived only inside the human-readable
+`blocker` string. The runtime now emits `placeholder_symbol`,
+`proof_body_gate_status`, `runtime_queue_status`, and `request_fingerprint`
+directly on each exact-semantic blocker request, and also carries compact
+gate/status summaries on the merged exact-semantic repair feedback. The patched
+Critic replay
+`runs/main_worker_critic_after_exact_request_metadata_v2_live` verifies those
+fields for `good_rank_event`, `C_n`, `coverage_event`, and `covered`. The
+Formalizer consumption run
+`runs/main_worker_formalizer_after_exact_request_metadata_live` increased
+support subclaims to 76 but still kept the source theorem as a non-proof
+`FORMAL_GAP`, with semantic review and the `C_n` Lake/import repair as the
+active frontier.

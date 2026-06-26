@@ -731,6 +731,24 @@ definitions remain unproved. The exact semantic-definition Lean repair frontier
 is still three typechecked definition candidates requiring review plus the
 `C_n` Lake/import-environment repair blocker.
 
+The next Critic/Formalizer turn exposed and fixed another handoff-shape issue:
+Critic regenerated one exact-semantic blocker request per placeholder, but the
+placeholder, gate, and queue status were only embedded in prose. The request
+converter now emits `placeholder_symbol`, `proof_body_gate_status`,
+`runtime_queue_status`, and `request_fingerprint` as first-class fields, and
+the merged exact-semantic repair feedback carries compact gate/status summaries.
+The patched Critic replay
+`runs/main_worker_critic_after_exact_request_metadata_v2_live` hands off
+`formalize-critic-repair:conformal_prediction_coverage:64946840` with four
+machine-actionable exact-semantic blocker requests. The consuming Formalizer run
+`runs/main_worker_formalizer_after_exact_request_metadata_live` advanced support
+subclaims to 76 and formal gaps to 56, then rerouted to
+`critic:conformal_prediction_coverage:07104fdc`. The source theorem remains an
+empty `FORMAL_GAP`; the new executable helper remains
+`source_theorem_target_known=false`; and exact semantic-definition repair still
+requires review of three typechecked candidates plus the `C_n` import/Lake
+environment blocker.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

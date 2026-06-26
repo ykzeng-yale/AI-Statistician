@@ -730,6 +730,12 @@ def test_critic_routes_exact_semantic_definition_review_before_proof_bank() -> N
     assert semantic_feedback["diagnostics"][0]["proof_body_gate_status"] == (
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
+    assert semantic_feedback["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
+    assert semantic_feedback["runtime_queue_statuses"] == [
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    ]
     assert semantic_feedback["diagnostics"][0][
         "source_theorem_kernel_evidence_eligible"
     ] is False
@@ -744,6 +750,18 @@ def test_critic_routes_exact_semantic_definition_review_before_proof_bank() -> N
         == "critic_source_theorem_exact_semantic_definition_repair_feedback"
     )
     assert request["blocker_kind"] == "source_theorem_semantic_alignment_unreviewed"
+    assert request["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert request["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    )
+    assert request["candidate_artifact_path"].endswith(
+        "split_conformal_finite_sample_coverage.lean"
+    )
+    assert request["verified_adapter_context_ids"] == [
+        "source_theorem_proof_body_adapter_check:ok"
+    ]
     assert "verified_adapter_context_ids" in request["blocker"]
     assert request["proof_evidence_status"] == (
         "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
@@ -1064,6 +1082,20 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
         "source_theorem_exact_semantic_definition_repair_required"
     }
     assert len(exact_requests) == 2
+    assert {row["placeholder_symbol"] for row in exact_requests} == {
+        "good_rank_event",
+        "C_n",
+    }
+    assert {
+        row["runtime_queue_status"] for row in exact_requests
+    } == {"PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"}
+    assert {
+        row["proof_body_gate_status"] for row in exact_requests
+    } == {"SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"}
+    assert all(
+        row["request_fingerprint"] in row["request_id"]
+        for row in exact_requests
+    )
     assert all(
         row["proof_evidence_status"]
         == "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
@@ -1086,12 +1118,21 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert {
         row["placeholder_symbol"] for row in queue_only_feedback["diagnostics"]
     } == {"good_rank_event", "C_n"}
+    assert queue_only_feedback["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
+    assert queue_only_feedback["runtime_queue_statuses"] == [
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+    ]
     queue_only_requests = queue_only_enriched["inputs"]["environment_feedback"][
         "formal_blocker_resource_requests"
     ]
     assert {
         row["source"] for row in queue_only_requests
     } == {"critic_source_theorem_exact_semantic_definition_repair_feedback"}
+    assert {
+        row["placeholder_symbol"] for row in queue_only_requests
+    } == {"good_rank_event", "C_n"}
 
 
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(

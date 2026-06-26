@@ -20696,6 +20696,20 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         }
         if compact:
             diagnostics.append(compact)
+    proof_body_gate_statuses = list(
+        dict.fromkeys(
+            str(row.get("proof_body_gate_status", "") or "").strip()
+            for row in diagnostics
+            if str(row.get("proof_body_gate_status", "") or "").strip()
+        )
+    )
+    runtime_queue_statuses = list(
+        dict.fromkeys(
+            str(row.get("runtime_queue_status", "") or "").strip()
+            for row in diagnostics
+            if str(row.get("runtime_queue_status", "") or "").strip()
+        )
+    )
     return {
         "feedback_kind": (
             "critic_source_theorem_exact_semantic_definition_repair_feedback"
@@ -20713,6 +20727,8 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "target_names": list(dict.fromkeys(target_names)),
         "failure_classifications": list(dict.fromkeys(failure_classifications)),
         "triggers": list(dict.fromkeys(triggers)),
+        "proof_body_gate_statuses": proof_body_gate_statuses,
+        "runtime_queue_statuses": runtime_queue_statuses,
         "source_theorem_ready_for_exact_proof_body": bool(
             proof_bank_summary.get("source_theorem_ready_for_exact_proof_body", False)
         ),
@@ -21580,16 +21596,26 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
                 semantic_blockers,
             ]
         )[:20]
+        request_id = f"formal_blocker_resource_request:{fingerprint}"
         rows.append(
             {
-                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "request_id": request_id,
+                "request_fingerprint": fingerprint,
                 "source": (
                     "critic_source_theorem_exact_semantic_definition_repair_feedback"
                 ),
                 "blocker_kind": blocker_kind,
+                "failure_classification": failure,
+                "trigger": trigger,
+                "placeholder_symbol": placeholder_symbol,
+                "proof_body_gate_status": gate,
+                "runtime_queue_status": runtime_queue_status,
                 "blocker": blocker,
                 "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
                 "target_ids": target_ids,
+                "candidate_artifact_path": candidate_path,
+                "semantic_alignment_blockers": semantic_blockers,
+                "verified_adapter_context_ids": adapter_ids[:5],
                 "formal_source_queries": _formal_blocker_resource_request_queries(
                     blocker,
                     blocker_kind=blocker_kind,
@@ -34835,6 +34861,38 @@ def _merge_exact_semantic_definition_repair_feedback_with_work_orders(
                     str(value).strip()
                     for value in work_order_feedback.get("placeholder_symbols", []) or []
                     if str(value).strip()
+                ],
+            ]
+        )
+    )
+    feedback["proof_body_gate_statuses"] = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in feedback.get("proof_body_gate_statuses", []) or []
+                    if str(value).strip()
+                ],
+                *[
+                    str(row.get("proof_body_gate_status", "") or "").strip()
+                    for row in merged_diagnostics
+                    if str(row.get("proof_body_gate_status", "") or "").strip()
+                ],
+            ]
+        )
+    )
+    feedback["runtime_queue_statuses"] = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in feedback.get("runtime_queue_statuses", []) or []
+                    if str(value).strip()
+                ],
+                *[
+                    str(row.get("runtime_queue_status", "") or "").strip()
+                    for row in merged_diagnostics
+                    if str(row.get("runtime_queue_status", "") or "").strip()
                 ],
             ]
         )
