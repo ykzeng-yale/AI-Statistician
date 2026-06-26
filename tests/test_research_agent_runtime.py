@@ -31277,6 +31277,100 @@ def test_verified_proof_body_adapter_feedback_routes_back_to_exact_proof_body(
     ]
 
 
+def test_verified_adapter_suppresses_stale_premise_unblocked_adapter_retry() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "kernel_verified_proof_obligation_ids": verified_ids,
+                "recommended_proof_obligation_ids": verified_ids,
+                "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                    "theorem_reduction_closure_work_order:good_rank"
+                ],
+                "kernel_verified_theorem_reduction_closure_target_ids": [
+                    "split_conformal_finite_sample_coverage_reduction_closure"
+                ],
+                "kernel_verified_theorem_reduction_closure_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+            },
+            {
+                "schema_version": 1,
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_to_bridge_premise_name": "hGoodRankImpliesCovered",
+                "source_to_bridge_premise_derivation_kernel_verified": True,
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:verified"
+                ],
+                "source_to_bridge_premise_candidate_artifact_path": (
+                    "runs/premise_derivation/hGoodRankImpliesCovered.lean"
+                ),
+                "source_to_bridge_premise_candidate_declaration_name": (
+                    "split_conformal_hGoodRankImpliesCovered"
+                ),
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+                ),
+            },
+            {
+                "schema_version": 1,
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_kernel_verified": False,
+                "adapter_kernel_verified": True,
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+                "adapter_candidate_artifact_path": (
+                    "runs/adapter_candidates/split_conformal_coverage_adapter.lean"
+                ),
+                "adapter_declaration_name": (
+                    "split_conformal_coverage_source_to_bridge_adapter"
+                ),
+                "proof_body_goal_excerpt": ["⊢ bridge_premises"],
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+                ),
+            },
+        ],
+        max_rows=10,
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert (
+        summary["source_to_bridge_premise_derivation_all_required_verified"]
+        is True
+    )
+    assert (
+        summary["source_to_bridge_adapter_retry_unblocked_by_verified_premises"]
+        is False
+    )
+    assert summary["source_theorem_proof_body_adapter_kernel_verified"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is False
+    assert summary["source_theorem_exact_proof_body_repair_required"] is True
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_exact_source_theorem_candidate_proof_body"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_proof_body_repair"
+    )
+
+
 def test_verified_adapter_context_inside_exact_proof_body_feedback_routes_repair(
     tmp_path: Path,
 ) -> None:

@@ -26583,6 +26583,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             or verified_source_to_bridge_premise_derivation_rows
         )
         and source_to_bridge_premise_derivation_all_required_verified
+        and not verified_source_proof_body_adapter_context_rows
     )
     source_to_bridge_verified_premise_adapter_retry_diagnostics = (
         tuple(

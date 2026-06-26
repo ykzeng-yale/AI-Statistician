@@ -455,3 +455,21 @@ This remains non-proof orchestration context: the adapter helper compiled, but
 `source_theorem_kernel_verified=false`, so the full conformal source theorem and
 frontier theorem remain formal gaps until the exact source theorem target is
 verified by local Lean/AXLE.
+
+The first live continuation after that handoff showed the next stage of the
+same design problem. The runtime correctly carried verified adapter ids and
+created another kernel-verified adapter helper, but the final proof-bank summary
+still recommended `source_theorem_proof_body_adapter_required` because an older
+"verified premise derivations unblock adapter retry" flag outranked the newer
+"proof-body adapter is already kernel verified" fact. That created a loop back
+into adapter derivation even though the adapter stage had succeeded. The route
+policy now disables premise-unblocked adapter retry once a kernel-verified
+source-theorem proof-body adapter row exists, letting
+`source_theorem_exact_proof_body_repair` become the next target. Deterministic
+recomputation over
+`runs/main_worker_verified_adapter_exact_proof_body_followup/conformal_prediction_coverage_runtime_result.json`
+now reports `recommended_formalizer_target_mode=source_theorem_exact_proof_body_repair`,
+with the verified adapter ids preserved and
+`source_to_bridge_adapter_retry_unblocked_by_verified_premises=false`. This is
+still orchestration, not proof: the next required artifact is an exact source
+theorem proof-body candidate checked by local Lean/AXLE.
