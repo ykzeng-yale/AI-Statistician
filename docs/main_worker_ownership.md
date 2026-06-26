@@ -749,6 +749,22 @@ empty `FORMAL_GAP`; the new executable helper remains
 requires review of three typechecked candidates plus the `C_n` import/Lake
 environment blocker.
 
+The follow-up Critic replay showed that late exact-semantic work-order memory
+also has to update the pending task agenda, not only blocker requests. The
+runtime now injects `formal_gap:source_theorem_exact_semantic_definition_repair`
+into `high_priority_agenda` when pending-task memory enrichment merges exact
+semantic-definition repair feedback, ordered after formal-environment repair
+when both are active. The patched Critic replay
+`runs/main_worker_critic_after_exact_agenda_enrichment_live` handed off
+`formalize-critic-repair:conformal_prediction_coverage:f32a20c8` with four
+structured exact-semantic blocker requests and an explicit exact-semantic agenda
+row. The consuming Formalizer run
+`runs/main_worker_formalizer_after_exact_agenda_enrichment_live` advanced support
+subclaims to 78 and formal gaps to 57, then rerouted to
+`critic:conformal_prediction_coverage:d4a10a5c`. The source theorem and exact
+semantic definitions remain unproved; this is still orchestration progress
+toward reviewed definitions and a later local Lean/AXLE source-theorem proof.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

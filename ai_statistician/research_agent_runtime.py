@@ -22898,7 +22898,7 @@ def _critic_next_action_agenda(
                     "proof_boundary": KERNEL_PROOF_BOUNDARY,
                 }
             )
-        elif exact_semantic_definition_repair_required:
+        if exact_semantic_definition_repair_required:
             agenda.append(
                 _source_theorem_exact_semantic_definition_repair_agenda_item(
                     proof_bank_memory_summary=proof_bank_memory_summary,
@@ -34612,6 +34612,12 @@ def _runtime_pending_task_with_runtime_learning_memory(
                 merged_exact_semantic_repair_feedback
             )
         )
+        environment_feedback["high_priority_agenda"] = (
+            _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
+                environment_feedback.get("high_priority_agenda", []),
+                merged_exact_semantic_repair_feedback,
+            )
+        )
         if exact_semantic_resource_requests:
             environment_feedback["formal_blocker_resource_requests"] = (
                 _merge_formal_blocker_resource_requests(
@@ -34632,6 +34638,121 @@ def _runtime_pending_task_with_runtime_learning_memory(
     inputs["architect_context"] = architect_context
     pending["inputs"] = inputs
     return pending
+
+
+def _high_priority_agenda_with_exact_semantic_definition_repair_feedback(
+    agenda: Any,
+    repair_feedback: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    rows = [dict(row) for row in agenda or [] if isinstance(row, Mapping)]
+    if not (
+        isinstance(repair_feedback, Mapping)
+        and repair_feedback.get("source_theorem_exact_semantic_definition_repair_required")
+    ):
+        return rows
+    agenda_id = "formal_gap:source_theorem_exact_semantic_definition_repair"
+    target_ids = [
+        str(value).strip()
+        for value in repair_feedback.get("target_names", []) or []
+        if str(value).strip()
+    ]
+    placeholder_symbols = [
+        str(value).strip()
+        for value in repair_feedback.get("placeholder_symbols", []) or []
+        if str(value).strip()
+    ]
+    proof_body_gate_statuses = [
+        str(value).strip()
+        for value in repair_feedback.get("proof_body_gate_statuses", []) or []
+        if str(value).strip()
+    ]
+    runtime_queue_statuses = [
+        str(value).strip()
+        for value in repair_feedback.get("runtime_queue_statuses", []) or []
+        if str(value).strip()
+    ]
+    diagnostics = [
+        row
+        for row in repair_feedback.get("diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not target_ids:
+        target_ids = list(
+            dict.fromkeys(
+                str(row.get("target_theorem_name", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("target_theorem_name", "") or "").strip()
+            )
+        )
+    if not placeholder_symbols:
+        placeholder_symbols = list(
+            dict.fromkeys(
+                str(row.get("placeholder_symbol", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("placeholder_symbol", "") or "").strip()
+            )
+        )
+    if not proof_body_gate_statuses:
+        proof_body_gate_statuses = list(
+            dict.fromkeys(
+                str(row.get("proof_body_gate_status", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("proof_body_gate_status", "") or "").strip()
+            )
+        )
+    if not runtime_queue_statuses:
+        runtime_queue_statuses = list(
+            dict.fromkeys(
+                str(row.get("runtime_queue_status", "") or "").strip()
+                for row in diagnostics
+                if str(row.get("runtime_queue_status", "") or "").strip()
+            )
+        )
+    item = {
+        "id": agenda_id,
+        "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+        "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+        "action": (
+            "review, retrieve, import, or formalize exact source-theorem semantic "
+            "definitions before retrying the exact proof body"
+        ),
+        "acceptance_gate": (
+            "reviewed exact semantic definitions and the exact source theorem must "
+            "pass local Lean/AXLE before proof evidence is claimed"
+        ),
+        "target_ids": target_ids,
+        "placeholder_symbols": list(dict.fromkeys(placeholder_symbols)),
+        "proof_body_gate_statuses": list(dict.fromkeys(proof_body_gate_statuses)),
+        "runtime_queue_statuses": list(dict.fromkeys(runtime_queue_statuses)),
+        "recommended_formalizer_target_mode": (
+            _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
+        ),
+        "runtime_queue_status": (
+            runtime_queue_statuses[0]
+            if runtime_queue_statuses
+            else _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+        ),
+        "priority": "high",
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "Exact semantic-definition repair agenda rows are orchestration context "
+            "only, not proof evidence."
+        ),
+    }
+    for index, row in enumerate(rows):
+        if str(row.get("id", "") or "") == agenda_id:
+            merged = {**row, **{key: value for key, value in item.items() if value}}
+            rows[index] = merged
+            return rows
+    insert_at = 0
+    for index, row in enumerate(rows):
+        if str(row.get("id", "") or "") == (
+            "formal_gap:source_theorem_formal_environment_repair"
+        ):
+            insert_at = index + 1
+            break
+    rows.insert(insert_at, item)
+    return rows
 
 
 def _runtime_exact_semantic_definition_work_order_feedback_from_memory(

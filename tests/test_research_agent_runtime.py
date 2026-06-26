@@ -1101,6 +1101,14 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
         == "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
         for row in exact_requests
     )
+    exact_agenda = environment_feedback["high_priority_agenda"][0]
+    assert exact_agenda["id"] == (
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    )
+    assert exact_agenda["placeholder_symbols"] == ["good_rank_event", "C_n"]
+    assert exact_agenda["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
     assert enriched["inputs"]["architect_context"]["environment_feedback"] == (
         environment_feedback
     )
@@ -1133,6 +1141,12 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
     assert {
         row["placeholder_symbol"] for row in queue_only_requests
     } == {"good_rank_event", "C_n"}
+    queue_only_agenda = queue_only_enriched["inputs"]["environment_feedback"][
+        "high_priority_agenda"
+    ]
+    assert queue_only_agenda[0]["id"] == (
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    )
 
 
 def test_critic_adapter_feedback_names_import_from_adapter_artifact(
@@ -21737,6 +21751,48 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert agenda[0]["trigger"] == (
         "SOURCE_THEOREM_EXACT_CANDIDATE_FORMAL_ENVIRONMENT_GAP"
     )
+    both_active_summary = dict(summary)
+    both_active_summary["recommended_formalizer_target_mode"] = (
+        "source_theorem_exact_semantic_definition_repair"
+    )
+    both_active_summary[
+        "source_theorem_exact_semantic_definition_repair_required"
+    ] = True
+    both_active_summary["source_theorem_exact_candidate_repair_diagnostics"] = [
+        {
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "coverage_event",
+            "failure_classification": (
+                "source_theorem_exact_semantic_definition_repair_required"
+            ),
+            "runtime_queue_status": (
+                "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+            ),
+            "proof_body_gate_status": (
+                "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+            ),
+        }
+    ]
+    both_active_manifest = {
+        **formalization_manifest,
+        "proof_bank_runtime_memory_summary": both_active_summary,
+    }
+    both_active_agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={},
+        formalization_manifest=both_active_manifest,
+    )
+    both_active_ids = [row["id"] for row in both_active_agenda]
+    assert both_active_ids[:2] == [
+        "formal_gap:source_theorem_formal_environment_repair",
+        "formal_gap:source_theorem_exact_semantic_definition_repair",
+    ]
+    assert both_active_agenda[1]["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
 
     work_orders = _runtime_source_theorem_formal_environment_work_order_rows(
         [{"blackboard": {"artifacts": {"formalization": formalization_manifest}}}]

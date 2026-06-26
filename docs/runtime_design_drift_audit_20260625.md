@@ -788,3 +788,16 @@ Formalizer consumption run
 support subclaims to 76 but still kept the source theorem as a non-proof
 `FORMAL_GAP`, with semantic review and the `C_n` Lake/import repair as the
 active frontier.
+
+The next replay found the same class of issue one level higher: late
+exact-semantic work-order memory enriched blocker requests but did not update
+the pending task's `high_priority_agenda`, so formal-environment repair could
+crowd out the exact semantic-definition repair row. Pending-task enrichment now
+adds `formal_gap:source_theorem_exact_semantic_definition_repair` whenever it
+merges exact semantic-definition repair feedback, ordered after
+formal-environment repair when both are active. The patched Critic replay
+`runs/main_worker_critic_after_exact_agenda_enrichment_live` shows both agenda
+rows and four structured exact-semantic blocker requests. The Formalizer
+consumption run `runs/main_worker_formalizer_after_exact_agenda_enrichment_live`
+raised support subclaims to 78, kept the source theorem as an empty
+`FORMAL_GAP`, and handed off `critic:conformal_prediction_coverage:d4a10a5c`.
