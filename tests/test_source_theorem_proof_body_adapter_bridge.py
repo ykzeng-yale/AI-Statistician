@@ -32,6 +32,7 @@ def _adapter_work_order(**overrides: object) -> dict[str, object]:
         "source_formalizer_packet_id": "formalizer:source-adapter",
         "source_formal_target_id": "target:source-adapter",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
         "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
         "source_theorem_target_known": True,
         "source_theorem_target_provenance": {
@@ -136,6 +137,10 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
     row = manifest["rows"][0]
+    assert list(row["target_ids"]) == ["split_conformal_finite_sample_coverage"]
+    assert list(row["target_theorem_goal_ids"]) == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert row["adapter_generation_mode"] == "proofengineer_generated_adapter_skeleton"
     assert row["adapter_candidate_evidence_eligible"] is False
     assert row["source_candidate_artifact_path"] == (
@@ -203,6 +208,12 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         ]
         == 1
     )
+    assert learning_rows[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert learning_rows[0]["input_summary"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert premise_queue_manifest["n_queue_rows"] == 1
     assert premise_queue_manifest["proof_evidence_status"] == (
         "WORK_ORDER_QUEUE_NOT_PROOF_EVIDENCE"

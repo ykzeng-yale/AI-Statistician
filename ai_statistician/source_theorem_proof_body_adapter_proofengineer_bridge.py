@@ -59,6 +59,7 @@ class SourceTheoremProofBodyAdapterCheckRow:
     source_formal_target_id: str
     target_theorem_name: str
     target_lean_declaration: str
+    target_ids: tuple[str, ...]
     target_theorem_goal_ids: tuple[str, ...]
     source_theorem_target_known: bool
     source_theorem_target_provenance: dict[str, Any]
@@ -389,6 +390,11 @@ def _adapter_check_row(
         source_formal_target_id=str(row.get("source_formal_target_id", "") or ""),
         target_theorem_name=target,
         target_lean_declaration=target_declaration,
+        target_ids=(
+            _str_tuple(row.get("target_ids", []))
+            or _str_tuple(row.get("target_theorem_goal_ids", []))
+            or _str_tuple(target)
+        ),
         target_theorem_goal_ids=_str_tuple(row.get("target_theorem_goal_ids", [])),
         source_theorem_target_known=bool(
             row.get("source_theorem_target_known", False)
@@ -1120,6 +1126,8 @@ def _export_runtime_learning_rows(
                 "learning_task": "source_theorem_proof_body_adapter_feedback",
                 "target_theorem_name": row.target_theorem_name,
                 "target_lean_declaration": row.target_lean_declaration,
+                "target_ids": list(row.target_ids),
+                "target_theorem_goal_ids": list(row.target_theorem_goal_ids),
                 "source_work_order_id": row.source_work_order_id,
                 "source_queue_artifact_kind": row.source_queue_artifact_kind,
                 "source_queue_status": row.source_queue_status,
