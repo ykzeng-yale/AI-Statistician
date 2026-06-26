@@ -591,3 +591,23 @@ pending Critic task. The subsequent Critic continuation handed back
 `SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`, and compiled `coverage_event`
 review rows still visible. The exact source-theorem proof body remains
 unverified; this was routing repair, not proof promotion.
+
+The next Formalizer continuation from
+`formalize-critic-repair:conformal_prediction_coverage:4b94cd47` advanced the
+runtime counters to 66 kernel-verified helper/subclaim rows and 51 formal gaps,
+but exposed another control-plane evidence-boundary bug. Closure review
+packets include a nested
+`source_theorem_exact_semantic_definition_typechecked_candidate` object for
+each placeholder, even when that object is only a shell with
+`local_definition_lean_compiled=false` and no candidate artifact or typecheck
+status. The ProofEngineer bridge treated the mere presence of that shell as a
+real typechecked candidate, so `good_rank_event` was routed to
+`review_typechecked_exact_definition_candidate` despite having no candidate to
+review. The bridge now requires concrete candidate evidence: a definitions-only
+or full candidate artifact path, `local_definition_lean_compiled=true`, or a
+typechecked/semantic-review-required status. A patched integrated replay in
+`runs/main_worker_exact_semantic_definition_4b94_formalizer_bridge_strategy_fix_live`
+routes `good_rank_event` to `author_reviewed_definition_from_contract`, `C_n`
+to import/declaration review, and only `coverage_event`/`covered` to candidate
+review. Source theorem and semantic-definition kernel flags remain false, and
+the exact proof-body gate remains `SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY`.

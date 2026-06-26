@@ -252,11 +252,8 @@ def _repair_packet(row: Mapping[str, Any], *, question_id: str = "") -> dict[str
     placeholder = str(row.get("placeholder_symbol", "") or "").strip()
     target = str(row.get("target_theorem_name", "") or "").strip()
     artifact_kind = str(row.get("artifact_kind", "") or "")
-    has_typechecked_candidate = bool(
-        row.get("definition_only_candidate_artifact_path")
-        or row.get("local_definition_lean_compiled")
-        or row.get("semantic_definition_typecheck_evidence_status")
-        or row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
+    has_typechecked_candidate = (
+        _has_typechecked_exact_semantic_definition_candidate(row)
     )
     is_closure_review_handoff = (
         artifact_kind == "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
@@ -387,6 +384,42 @@ def _repair_packet(row: Mapping[str, Any], *, question_id: str = "") -> dict[str
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _has_typechecked_exact_semantic_definition_candidate(
+    row: Mapping[str, Any],
+) -> bool:
+    candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if not isinstance(candidate, Mapping):
+        candidate = {}
+    semantic_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "")
+        or candidate.get("semantic_definition_typecheck_evidence_status", "")
+        or ""
+    ).strip()
+    local_compiled = bool(
+        row.get("local_definition_lean_compiled", False)
+        or candidate.get("local_definition_lean_compiled", False)
+    )
+    artifact_path = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or row.get("candidate_artifact_path", "")
+        or candidate.get("definition_only_candidate_artifact_path", "")
+        or candidate.get("candidate_artifact_path", "")
+        or ""
+    ).strip()
+    if local_compiled and (artifact_path or semantic_status):
+        return True
+    return semantic_status in {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
+        "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
     }
 
 

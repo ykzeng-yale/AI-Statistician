@@ -237,6 +237,61 @@ def test_exact_semantic_definition_proofengineer_bridge_exports_repair_packets(
     )
 
 
+def test_exact_semantic_definition_bridge_ignores_placeholder_only_candidate_shell(
+    tmp_path: Path,
+) -> None:
+    review_packets = tmp_path / "review_packets.jsonl"
+    review_packet = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
+        ),
+        "review_packet_id": "review:good_rank_event",
+        "source_definition_closure_work_order_id": "closure:good_rank_event",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "lookup_status": "NO_REVIEWED_FORMAL_DEFINITION_FOUND",
+        "candidate_source_declarations": [],
+        "candidate_source_references": [],
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "local_definition_lean_checked": False,
+            "local_definition_lean_compiled": False,
+            "placeholder_symbol": "good_rank_event",
+            "target_theorem_name": "split_conformal_coverage",
+        },
+        "definition_contract": {
+            "semantic_intent": "source good-rank event used by the coverage proof",
+        },
+        "proof_evidence_status": (
+            "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    review_packets.write_text(json.dumps(review_packet) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        review_packets_jsonl=review_packets,
+        question_id="conformal_prediction_coverage",
+    )
+
+    assert manifest["n_review_typechecked_candidate_packets"] == 0
+    assert manifest["n_no_source_hit_packets"] == 1
+    packets = [
+        json.loads(line)
+        for line in Path(manifest["repair_packets_jsonl"]).read_text().splitlines()
+    ]
+    packet = packets[0]
+    assert packet["repair_strategy"] == "author_reviewed_definition_from_contract"
+    assert packet["definition_only_candidate_artifact_path"] == ""
+    assert packet["local_definition_lean_compiled"] is False
+    tasks = [
+        json.loads(line)
+        for line in Path(manifest["lean_repair_tasks_jsonl"]).read_text().splitlines()
+    ]
+    assert tasks[0]["lean_repair_action"] == "author_exact_definition"
+
+
 def test_exact_semantic_definition_proofengineer_bridge_resolves_lookup_manifest(
     tmp_path: Path,
 ) -> None:
