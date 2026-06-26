@@ -3415,6 +3415,9 @@ def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -
         for directive in refreshed["validation_repair_directives"]
     )
     assert refreshed["validation_repair_directives"][0] == existing_directive
+    assert refreshed["validation_repair_policy"]["rules"][0]["rule_id"] == (
+        "lean_declaration_required"
+    )
 
 
 def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate() -> None:
@@ -3898,6 +3901,14 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
         "conformal_bad_ranks",
     ]
     assert feedback["missing_source_binding_contract_metadata"] is True
+    assert feedback["validation_repair_policy"]["policy_kind"] == (
+        "formalizer_validation_repair_policy"
+    )
+    assert any(
+        row["rule_id"] == "forbidden_contradiction_shortcut"
+        for row in feedback["validation_repair_policy"]["rules"]
+    )
+    assert "guardrails" in feedback["validation_repair_policy_boundary"]
     assert any(
         "Remove unsupported contradiction shortcuts" in directive
         for directive in feedback["validation_repair_directives"]
@@ -3937,6 +3948,11 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
         "conformal_bad_ranks",
     ]
     assert artifact["missing_source_binding_contract_metadata"] is True
+    assert artifact["validation_repair_policy"]["n_rules"] >= 3
+    assert any(
+        row["rule_id"] == "lean_declaration_required"
+        for row in artifact["validation_repair_policy"]["rules"]
+    )
     assert any(
         "Remove unsupported contradiction shortcuts" in directive
         for directive in artifact["validation_repair_directives"]
@@ -13424,6 +13440,7 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
     assert "copy one of its" in prompt
     assert "formalizer_packet_validation_failed" in prompt
+    assert "Typed validation repair policy is active" in prompt
     assert "Mandatory packet-validator repair" in prompt
     assert "Mandatory validation repair directives" in prompt
     assert "Mandatory forbidden-shortcut repair" in prompt

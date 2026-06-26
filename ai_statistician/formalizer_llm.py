@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .formalizer_repair_policy import (
+    render_formalizer_validation_repair_policy_instructions,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -3439,6 +3442,11 @@ def _formalizer_mode_specific_instructions(
             "source, preserve source-binding request metadata, and avoid new unverified "
             "assumptions. If the exact source hypotheses cannot supply an anchor, report "
             "that semantic blocker in gap_taxonomy/next_actions."
+        )
+        instructions.extend(
+            render_formalizer_validation_repair_policy_instructions(
+                runtime_environment_feedback
+            )
         )
         if validation_errors:
             instructions.append(

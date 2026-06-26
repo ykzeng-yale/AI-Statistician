@@ -62,6 +62,11 @@ from .formalizer_llm import (
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
     LLMFormalizerProofEngineerAgent,
 )
+from .formalizer_repair_policy import (
+    FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY,
+    formalizer_validation_repair_directives,
+    formalizer_validation_repair_policy,
+)
 from .llm_json_repair import PacketValidationError
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
@@ -4461,7 +4466,8 @@ def _formalizer_packet_validation_failure_result(
     formal_source_retriever: Any | None = None,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
-    validation_repair_directives = _formalizer_packet_validation_repair_directives(
+    validation_repair_policy = formalizer_validation_repair_policy(validation_errors)
+    validation_repair_directives = formalizer_validation_repair_directives(
         validation_errors
     )
     packet_repair_retry_depth = (
@@ -4613,6 +4619,10 @@ def _formalizer_packet_validation_failure_result(
             "failure_classification": "formalizer_packet_validation_failed",
             "validation_label": exc.validation_label,
             "validation_errors": validation_errors,
+            "validation_repair_policy": validation_repair_policy,
+            "validation_repair_policy_boundary": (
+                FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
+            ),
             "validation_repair_directives": validation_repair_directives,
             "target_shape_contract": active_target_shape_contract,
             "target_drift_repair_contract": active_target_drift_repair_contract,
@@ -4692,6 +4702,10 @@ def _formalizer_packet_validation_failure_result(
         "validation_label": exc.validation_label,
         "failure_classification": "formalizer_packet_validation_failed",
         "validation_errors": validation_errors,
+        "validation_repair_policy": validation_repair_policy,
+        "validation_repair_policy_boundary": (
+            FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
+        ),
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
@@ -4722,6 +4736,10 @@ def _formalizer_packet_validation_failure_result(
         "failure_classification": "formalizer_packet_validation_failed",
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
+        "validation_repair_policy": validation_repair_policy,
+        "validation_repair_policy_boundary": (
+            FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
+        ),
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
@@ -4854,96 +4872,7 @@ def _formalizer_packet_validation_repair_directives(
     validation_errors: Sequence[str],
 ) -> list[str]:
     """Convert local packet validation failures into concrete LLM repair directives."""
-
-    error_text = " ".join(str(error) for error in validation_errors).lower()
-    directives: list[str] = []
-    if any(
-        marker in error_text
-        for marker in (
-            "unsupported contradiction proof shortcut",
-            "absurd",
-            "false.elim",
-            "contradiction proof shortcut",
-        )
-    ):
-        directives.append(
-            "Remove unsupported contradiction shortcuts (`absurd`, `False.elim`, "
-            "fabricated contradictory hypotheses, or fake impossible facts); derive "
-            "the claim from real source assumptions/verified lemmas or emit an "
-            "explicit FORMAL_GAP without Lean source."
-        )
-    if "must set expected_status=needs_kernel_check" in error_text:
-        directives.append(
-            "Set expected_status=NEEDS_KERNEL_CHECK on every generated Lean "
-            "candidate. Use expected_status=FORMAL_GAP only for an honest source "
-            "theorem gap without a Lean sketch."
-        )
-    if "must contain a lean theorem or lemma declaration" in error_text:
-        directives.append(
-            "Do not put prose, dependency notes, or informal blockers in "
-            "lean_statement_sketch. If a formal target is executable, its Lean "
-            "sketch must contain a concrete theorem or lemma declaration and use "
-            "expected_status=NEEDS_KERNEL_CHECK; if the source theorem is blocked, "
-            "set expected_status=FORMAL_GAP with an empty lean_statement_sketch and "
-            "record the blocker in gap_taxonomy, lemma_dependency_plan, or "
-            "formal_blocker_resource_requests."
-        )
-    if any(
-        marker in error_text
-        for marker in (
-            "lean sorry placeholder",
-            "unsupported tactic hole",
-            " exact?",
-            " by?",
-            "admit",
-        )
-    ):
-        directives.append(
-            "Remove `sorry`, `admit`, `by?`, `exact?`, and exploratory tactic holes; "
-            "return a complete candidate or an explicit FORMAL_GAP."
-        )
-    if "violates target_shape_contract" in error_text:
-        directives.append(
-            "Preserve the target_shape_contract: source-theorem formal targets "
-            "must keep the probability/measure coverage conclusion; route helper "
-            "lemmas through support/source-to-bridge channels."
-        )
-    if (
-        "next_actions reference source_to_bridge_premise_derivation_candidates"
-        in error_text
-    ):
-        directives.append(
-            "Do not point next_actions at phantom source-to-bridge work items. "
-            "Either emit a concrete source_to_bridge_premise_derivation_candidates "
-            "object with Lean source and source-binding metadata, or rewrite the "
-            "action as an explicit FORMAL_GAP/proof-bank dependency task."
-        )
-    if any(
-        marker in error_text
-        for marker in (
-            "source-to-bridge premise derivation contract requires",
-            "source_to_bridge_premise_derivation_candidates entry missing lean candidate source",
-        )
-    ):
-        directives.append(
-            "For each pending source-to-bridge premise, either emit a concrete "
-            "source_to_bridge_premise_derivation_candidates object with Lean "
-            "source, expected_status=NEEDS_KERNEL_CHECK, copied source-binding "
-            "request metadata, and required semantic anchors, or emit no "
-            "executable candidate and record the exact semantic/import/API "
-            "blocker as a FORMAL_GAP. Helper-only formal_targets do not satisfy "
-            "a pending source-to-bridge premise derivation contract."
-        )
-    if "missing required semantic anchor references" in error_text:
-        directives.append(
-            "Repair the source-to-bridge premise candidate by referencing every "
-            "missing required semantic anchor by its exact name outside comments, "
-            "not only in theorem headers or unused assumptions. If those anchors "
-            "cannot be used non-vacuously in the Lean proof body, emit no executable "
-            "source_to_bridge_premise_derivation_candidates entry and report the "
-            "specific semantic-anchor blocker instead."
-        )
-    return directives
+    return formalizer_validation_repair_directives(validation_errors)
 
 
 def _formalizer_next_action_reference_contract_from_validation_errors(
@@ -6297,6 +6226,12 @@ def _formalizer_environment_feedback_with_refreshed_validation_repair_directives
     derived = _formalizer_packet_validation_repair_directives(validation_errors)
     if not derived:
         return payload
+    payload["validation_repair_policy"] = formalizer_validation_repair_policy(
+        validation_errors
+    )
+    payload["validation_repair_policy_boundary"] = (
+        FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
+    )
     payload["validation_repair_directives"] = list(
         dict.fromkeys([*existing, *derived])
     )
