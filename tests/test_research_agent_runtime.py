@@ -1264,6 +1264,89 @@ def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -
     assert "orchestration memory only" in memory["handoff_boundary"]
 
 
+def test_pending_next_task_handoff_pins_typechecked_semantic_definition_candidate() -> None:
+    pending_task = {
+        "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": "Repair exact semantic definitions.",
+        "inputs": {"architect_context": {"runtime_learning_memory": {"rows": []}}},
+    }
+    same_run_memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:premise"
+                ],
+            },
+            {
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "adapter_kernel_verified": True,
+                "source_theorem_kernel_verified": False,
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+            },
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_lean_repair_execution"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "coverage_event",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+                ),
+                "definition_only_candidate_artifact_path": (
+                    "runs/coverage_event_definition_only.lean"
+                ),
+                "local_definition_lean_checked": True,
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                    "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                ),
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_"
+                    "SOURCE_THEOREM_PROOF"
+                ),
+                "source_theorem_kernel_verified": False,
+                "semantic_definition_kernel_verified": False,
+            },
+        ],
+        max_rows=2,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        same_run_memory,
+    )
+
+    rows = enriched["inputs"]["architect_context"]["runtime_learning_memory"]["rows"]
+    assert len(rows) == 2
+    assert any(
+        row.get("adapter_kernel_verified") is True
+        and row.get("source_theorem_kernel_verified") is False
+        for row in rows
+    )
+    semantic_rows = [
+        row
+        for row in rows
+        if row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_lean_repair_execution"
+    ]
+    assert len(semantic_rows) == 1
+    assert semantic_rows[0]["placeholder_symbol"] == "coverage_event"
+    assert semantic_rows[0]["local_definition_lean_compiled"] is True
+    assert semantic_rows[0]["source_theorem_kernel_verified"] is False
+    assert semantic_rows[0]["semantic_definition_kernel_verified"] is False
+    assert semantic_rows[0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    )
+
+
 def test_critic_handoff_prioritizes_exact_adapter_import_from_runtime_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     stale_rows = [

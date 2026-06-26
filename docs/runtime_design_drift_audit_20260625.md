@@ -552,3 +552,22 @@ definition/import closure. The freshest runtime handoff is
 `source_theorem_exact_semantic_definition_repair` mode, and the source theorem
 remains unverified until reviewed exact definitions and the proof body are
 kernel checked by the prover stack.
+
+The next live FormalizationEvaluator continuation from that handoff raised the
+runtime counters to 62 kernel-verified helper/subclaim rows and 49 formal gaps,
+and produced another Real-based `coverage_event` definition-only Lean candidate
+that compiled locally. The subsequent Critic continuation preserved
+`source_theorem_exact_semantic_definition_repair` as the top agenda and handed
+off `formalize-critic-repair:conformal_prediction_coverage:c1d311e5`, while
+keeping compiled `coverage_event` and semantic-review-blocked `covered`
+candidates as review input only. That run exposed a smaller but important
+design-level handoff bug: the full `runtime_learning_rows.jsonl` contained the
+typechecked semantic-definition candidates, but the serialized pending task's
+30-row bounded memory dropped them behind older adapter and routing rows. The
+memory selector now pins local-Lean typechecked exact semantic-definition
+candidate rows below verified adapter rows but above ordinary premise context;
+a deterministic replay over the post-Critic learning rows retains 6
+`coverage_event` candidate/work-order rows in the 30-row handoff. This changes
+handoff visibility only: no source theorem or semantic definition is promoted
+to kernel proof without reviewed exact definitions and local Lean/AXLE proof of
+the intended source theorem.

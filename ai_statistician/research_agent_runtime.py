@@ -18967,6 +18967,11 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
     ):
         return 100
+    if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+        row,
+        input_summary,
+    ):
+        return 95
     if (
         bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
         or bool(row.get("premise_derivation_kernel_verified", False))
@@ -19028,6 +19033,11 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         return True
     if trigger in route_critical_triggers:
         return True
+    if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+        row,
+        input_summary,
+    ):
+        return True
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -19049,6 +19059,45 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         if probe_failure in materialization_failures:
             return True
     return False
+
+
+def _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> bool:
+    """Return whether row carries a local-Lean checked semantic definition candidate."""
+
+    nested_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        input_summary.get("source_theorem_exact_semantic_definition_typechecked_candidate", {}),
+    )
+    if not isinstance(nested_candidate, Mapping):
+        nested_candidate = {}
+    semantic_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "")
+        or input_summary.get("semantic_definition_typecheck_evidence_status", "")
+        or nested_candidate.get("semantic_definition_typecheck_evidence_status", "")
+        or ""
+    )
+    local_compiled = bool(
+        row.get("local_definition_lean_compiled", False)
+        or input_summary.get("local_definition_lean_compiled", False)
+        or nested_candidate.get("local_definition_lean_compiled", False)
+    )
+    artifact_path = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or input_summary.get("definition_only_candidate_artifact_path", "")
+        or nested_candidate.get("definition_only_candidate_artifact_path", "")
+        or ""
+    ).strip()
+    if local_compiled and (artifact_path or semantic_status):
+        return True
+    return semantic_status in {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+    }
 
 
 def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]:
