@@ -16,6 +16,7 @@ def _write_environment_task(path: Path, *, project: Path, candidate: Path) -> No
         "environment_repair_task_id": "lean-env-repair:orderStat",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
         "placeholder_symbol": "orderStat",
         "candidate_source_file": str(candidate),
         "definition_only_candidate_artifact_path": str(candidate),
@@ -68,6 +69,7 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     assert results[0]["environment_repair_status"] == (
         "LAKE_MANIFEST_MISSING_DEPENDENCY_UPDATE_REQUIRED"
     )
+    assert results[0]["target_ids"] == ["split_conformal_coverage"]
     assert results[0]["definition_only_candidate_artifact_path"] == str(candidate)
     assert results[0]["source_execution_status"] == (
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
@@ -78,6 +80,14 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     assert results[0]["candidate_repair_feedback"]["failure_classification"] == (
         "lean_import_environment_missing"
     )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert learning_rows[0]["target_ids"] == ["split_conformal_coverage"]
+    assert learning_rows[0]["input_summary"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert results[0]["recommended_commands"][:2] == [
         "lake update",
         "lake exe cache get",

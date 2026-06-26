@@ -31184,6 +31184,7 @@ def _formalizer_source_theorem_exact_semantic_definition_work_orders(
                     else ""
                 ),
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_goal_ids or [target_theorem_name],
                 "target_lean_declaration": target_theorem_name,
                 "target_theorem_goal_ids": target_goal_ids,
                 "source_theorem_target_provenance": dict(
@@ -35235,6 +35236,7 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
         for key in (
             "work_order_id",
             "target_theorem_name",
+            "target_ids",
             "placeholder_symbol",
             "runtime_queue_status",
             "definition_only_candidate_artifact_path",
@@ -35262,6 +35264,16 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
                 str(row.get("target_theorem_name", "") or "").strip()
                 for row in work_orders
                 if str(row.get("target_theorem_name", "") or "").strip()
+            )
+        ),
+        "target_ids": list(
+            dict.fromkeys(
+                target_id
+                for row in work_orders
+                for target_id in _runtime_exact_semantic_definition_target_ids(
+                    row,
+                    target_theorem_name=str(row.get("target_theorem_name", "") or ""),
+                )
             )
         ),
         "placeholder_symbols": list(
@@ -36604,6 +36616,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
             or item.get("target_lean_declaration", "")
             or ""
         ).strip()
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            item,
+            target_theorem_name=target_theorem_name,
+        )
         support_ids = [
             str(value).strip()
             for value in item.get(
@@ -36678,6 +36694,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
                 ),
                 {},
             )
+            if typechecked_candidate:
+                typechecked_candidate.setdefault("target_theorem_name", target_theorem_name)
+                if target_ids and not typechecked_candidate.get("target_ids"):
+                    typechecked_candidate["target_ids"] = list(target_ids)
             work_order_id = (
                 "source_theorem_exact_semantic_definition_work_order:"
                 + stable_hash(
@@ -36708,8 +36728,9 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
                     "question_id": str(item.get("question_id", "") or ""),
                     "question_title": str(item.get("question_title", "") or ""),
                     "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "target_theorem_goal_ids": list(
-                        item.get("target_theorem_goal_ids", []) or []
+                        item.get("target_theorem_goal_ids", []) or target_ids
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "source_theorem_target_identity_status": (
@@ -36786,6 +36807,7 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         else {}
     )
     keys = (
+        "target_ids",
         "exact_source_theorem_binders",
         "premise_semantic_anchor_binders",
         "premise_semantic_anchor_binder_names",
@@ -36818,6 +36840,32 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         else:
             context[key] = value
     return context
+
+
+def _runtime_exact_semantic_definition_target_ids(
+    row: Mapping[str, Any],
+    *,
+    target_theorem_name: str = "",
+) -> list[str]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    target_ids = list(_str_tuple(raw_values))
+    fallback = str(target_theorem_name or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _merge_exact_semantic_definition_work_order_candidate_metadata(
@@ -36876,10 +36924,16 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
             merged_typechecked.get(key, False) or existing.get(key, False)
         )
     if merged_typechecked:
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            existing,
+            target_theorem_name=str(existing.get("target_theorem_name", "") or ""),
+        )
         merged_typechecked.setdefault(
             "target_theorem_name",
             str(existing.get("target_theorem_name", "") or ""),
         )
+        if target_ids and not merged_typechecked.get("target_ids"):
+            merged_typechecked["target_ids"] = list(target_ids)
         merged_typechecked.setdefault(
             "placeholder_symbol",
             str(existing.get("placeholder_symbol", "") or ""),
@@ -36887,6 +36941,17 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         existing[
             "source_theorem_exact_semantic_definition_typechecked_candidate"
         ] = merged_typechecked
+    existing_target_ids = _runtime_exact_semantic_definition_target_ids(
+        existing,
+        target_theorem_name=str(existing.get("target_theorem_name", "") or ""),
+    )
+    candidate_target_ids = _runtime_exact_semantic_definition_target_ids(
+        candidate,
+        target_theorem_name=str(candidate.get("target_theorem_name", "") or ""),
+    )
+    merged_target_ids = list(dict.fromkeys([*existing_target_ids, *candidate_target_ids]))
+    if merged_target_ids and not existing.get("target_ids"):
+        existing["target_ids"] = merged_target_ids
     candidate_status = str(candidate.get("proof_evidence_status", "") or "")
     if candidate_status == "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE":
         existing["proof_evidence_status"] = candidate_status
@@ -36930,6 +36995,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
             or input_summary.get("target_theorem_name", "")
             or ""
         ).strip()
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            row,
+            target_theorem_name=target,
+        )
         symbol = str(
             row.get("placeholder_symbol", "")
             or input_summary.get("placeholder_symbol", "")
@@ -37025,6 +37094,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         )
         if typechecked_candidate or definition_only_candidate_artifact_path:
             typechecked_candidate.setdefault("target_theorem_name", target)
+            if target_ids and not typechecked_candidate.get("target_ids"):
+                typechecked_candidate["target_ids"] = list(target_ids)
             typechecked_candidate.setdefault("placeholder_symbol", symbol)
             typechecked_candidate.setdefault(
                 "definition_only_candidate_artifact_path",
@@ -37081,11 +37152,13 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                     or ""
                 ),
                 "target_theorem_name": target,
+                "target_ids": target_ids,
                 "target_theorem_goal_ids": list(
                     _str_tuple(
                         row.get("target_theorem_goal_ids", [])
                         or input_summary.get("target_theorem_goal_ids", [])
                         or input_summary.get("target_ids", [])
+                        or target_ids
                         or []
                     )
                 ),
@@ -37421,6 +37494,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             )
         if not target_theorem_name or not placeholder_symbols:
             continue
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            item,
+            target_theorem_name=target_theorem_name,
+        )
         placeholder_plan = _source_theorem_placeholder_resolution_rows(
             (
                 {
@@ -37455,9 +37532,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
                 "question_id": question_id,
                 "question_title": str(item.get("question_title", "") or ""),
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "target_lean_declaration": target_theorem_name,
                 "target_theorem_goal_ids": list(
-                    item.get("target_theorem_goal_ids", []) or []
+                    item.get("target_theorem_goal_ids", []) or target_ids
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "source_theorem_exact_candidate_placeholder_resolution_plan": (
@@ -37687,6 +37765,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
         ).strip()
         if not target_theorem_name:
             continue
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            row,
+            target_theorem_name=target_theorem_name,
+        )
         source_target_provenance = _source_theorem_target_provenance_from_row(row)
         input_summary_provenance = _source_theorem_target_provenance_from_row(
             input_summary
@@ -37721,6 +37803,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
         typechecked_candidates = [
             {
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "placeholder_symbol": str(
                     row.get("placeholder_symbol", "")
                     or input_summary.get("placeholder_symbol", "")
@@ -37828,8 +37911,9 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
                     or ""
                 ),
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "target_lean_declaration": target_theorem_name,
-                "target_theorem_goal_ids": [target_theorem_name],
+                "target_theorem_goal_ids": target_ids,
                 "source_theorem_target_provenance": source_target_provenance,
                 "source_theorem_target_identity_status": (
                     source_theorem_target_identity_status
@@ -37987,6 +38071,11 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
         source_semantic_alignment_review_required = bool(
             item.get("source_semantic_alignment_review_required", False)
         )
+        target_theorem_name = str(item.get("target_theorem_name", "") or "")
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            item,
+            target_theorem_name=target_theorem_name,
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -37998,9 +38087,8 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                 "question_title": str(item.get("question_title", "") or ""),
                 "work_order_id": str(item.get("work_order_id", "") or ""),
                 "action_type": "formalize_reviewed_exact_semantic_definition",
-                "target_theorem_name": str(
-                    item.get("target_theorem_name", "") or ""
-                ),
+                "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "placeholder_symbol": str(item.get("placeholder_symbol", "") or ""),
                 "replacement_strategy": str(
                     item.get("replacement_strategy", "") or ""
@@ -38060,9 +38148,8 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                 "input_summary": {
                     "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER",
                     "work_order_id": str(item.get("work_order_id", "") or ""),
-                    "target_theorem_name": str(
-                        item.get("target_theorem_name", "") or ""
-                    ),
+                    "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "placeholder_symbol": str(
                         item.get("placeholder_symbol", "") or ""
                     ),

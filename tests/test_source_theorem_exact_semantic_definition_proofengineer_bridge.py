@@ -330,6 +330,7 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
         "source_lean_repair_task_id": "lean-repair-task:covered",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
         "placeholder_symbol": "covered",
         "definition_only_candidate_artifact_path": (
             "runs/candidate_artifacts/covered_defs_only.lean"
@@ -402,6 +403,10 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     packet = packets[0]
     assert packet["repair_strategy"] == "review_typechecked_exact_definition_candidate"
     assert packet["placeholder_symbol"] == "covered"
+    assert packet["target_ids"] == ["split_conformal_coverage"]
+    assert packet["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert packet["definition_only_candidate_artifact_path"] == (
         "runs/candidate_artifacts/covered_defs_only.lean"
     )
@@ -413,6 +418,10 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     ]
     task = tasks[0]
     assert task["lean_repair_action"] == "review_typechecked_exact_definition_candidate"
+    assert task["target_ids"] == ["split_conformal_coverage"]
+    assert task["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert task["definition_only_candidate_artifact_path"] == (
         "runs/candidate_artifacts/covered_defs_only.lean"
     )

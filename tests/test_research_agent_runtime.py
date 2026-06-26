@@ -13729,6 +13729,7 @@ def test_formalizer_semantic_definition_repair_target_exports_work_order() -> No
         == "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
     )
     assert row["target_theorem_name"] == "split_conformal_coverage"
+    assert row["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert row["placeholder_symbol"] == "orderStat"
     assert row["action_type"] == "formalize_reviewed_exact_semantic_definition"
     assert (
@@ -13755,6 +13756,9 @@ def test_formalizer_semantic_definition_repair_target_exports_work_order() -> No
     assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
         "proof_evidence_status"
     ] == "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+    assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
+        "target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
     assert any(
         "finite maximum" in blocker
         for blocker in row["semantic_alignment_blockers"]
@@ -16602,6 +16606,7 @@ def test_exact_semantic_definition_work_orders_from_typechecked_candidate_synthe
     assert len(work_orders) == 1
     row = work_orders[0]
     assert row["target_theorem_name"] == "split_conformal_coverage"
+    assert row["target_ids"] == ["split_conformal_coverage"]
     assert row["placeholder_symbol"] == "orderStat"
     assert row["definition_only_candidate_artifact_path"] == "runs/defs_only.lean"
     assert row["candidate_artifact_path"] == "runs/candidate_full.lean"
@@ -16613,12 +16618,19 @@ def test_exact_semantic_definition_work_orders_from_typechecked_candidate_synthe
     assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
         "definition_only_candidate_artifact_path"
     ] == "runs/defs_only.lean"
+    assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
+        "target_ids"
+    ] == ["split_conformal_coverage"]
     assert row["source_theorem_ready_for_exact_proof_body"] is False
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
     replay_rows = _runtime_source_theorem_exact_semantic_definition_learning_rows(
         work_orders
     )
+    assert replay_rows[0]["target_ids"] == ["split_conformal_coverage"]
+    assert replay_rows[0]["input_summary"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert replay_rows[0]["definition_only_candidate_artifact_path"] == (
         "runs/defs_only.lean"
     )
@@ -20884,6 +20896,10 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     }
     assert len(seed_queue["blocked_rows"]) == 1
     assert len(exact_semantic_work_orders) == 3
+    assert all(
+        row["target_ids"] == ["split_conformal_coverage"]
+        for row in exact_semantic_work_orders
+    )
     assert {
         row["placeholder_symbol"] for row in exact_semantic_work_orders
     } == {"MeasureProbability", "Exchangeable", "orderStatistic"}
@@ -20901,6 +20917,10 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
         for row in exact_semantic_work_orders
     )
     assert len(exact_semantic_learning_rows) == 3
+    assert all(
+        row["target_ids"] == ["split_conformal_coverage"]
+        for row in exact_semantic_learning_rows
+    )
     assert {
         row["learning_task"] for row in exact_semantic_learning_rows
     } == {"source_theorem_exact_semantic_definition_work_order"}

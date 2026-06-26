@@ -262,6 +262,7 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
         "source_definition_closure_work_order_id": "closure:Exchangeable",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
         "placeholder_symbol": "Exchangeable",
         "materialization_order_index": 4,
         "lean_repair_action": "synthesize_exact_definition",
@@ -339,6 +340,7 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert results[0]["execution_status"] == (
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
     )
+    assert results[0]["target_ids"] == ["split_conformal_coverage"]
     assert results[0]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
@@ -364,6 +366,9 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert results[0]["candidate_definition_request"][
         "available_adapter_object_names"
     ] == ["covered", "rank"]
+    assert results[0]["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert results[0]["semantic_definition_typecheck_evidence_status"] == (
         typechecked_status
     )
@@ -379,6 +384,7 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert review_packets[0]["artifact_kind"] == (
         "SourceTheoremExactSemanticDefinitionTypecheckedCandidateReviewPacket"
     )
+    assert review_packets[0]["target_ids"] == ["split_conformal_coverage"]
     assert review_packets[0]["semantic_review_required_before_proof_body"] is True
     assert review_packets[0]["source_theorem_ready_for_exact_proof_body"] is False
     assert review_packets[0]["semantic_definition_kernel_verified"] is False
@@ -402,6 +408,9 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert review_packets[0]["candidate_definition_request"][
         "missing_required_adapter_object_names"
     ] == []
+    assert review_packets[0]["candidate_definition_request"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert review_packets[0]["semantic_definition_typecheck_evidence_status"] == (
         typechecked_status
     )
@@ -421,6 +430,10 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[0]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
+    assert learning_rows[0]["target_ids"] == ["split_conformal_coverage"]
+    assert learning_rows[0]["input_summary"]["target_ids"] == [
+        "split_conformal_coverage"
+    ]
     assert learning_rows[0]["authoring_mode"] == (
         "repair_typechecked_semantic_definition_candidate"
     )

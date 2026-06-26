@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_materializer import (
@@ -60,6 +60,7 @@ BOUNDARY = (
     "a reviewed exact semantic definition and the target theorem pass local Lean/AXLE."
 )
 EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
+    "target_ids",
     "exact_source_theorem_binders",
     "premise_semantic_anchor_binders",
     "premise_semantic_anchor_binder_names",
@@ -1545,7 +1546,50 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    candidate_request = context.get("candidate_definition_request", {})
+    if isinstance(candidate_request, Mapping):
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
+        normalized_request = dict(candidate_request)
+        normalized_request.setdefault("target_theorem_name", target_theorem_name)
+        if target_ids and not normalized_request.get("target_ids"):
+            normalized_request["target_ids"] = list(target_ids)
+        context["candidate_definition_request"] = normalized_request
     return context
+
+
+def _target_ids_from_row(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> list[str]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, Sequence):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _definition_closure_work_order_from_lookup(row: Mapping[str, Any]) -> dict[str, Any]:

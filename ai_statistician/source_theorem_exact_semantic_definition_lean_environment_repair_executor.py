@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
@@ -151,6 +151,8 @@ def resolve_source_theorem_exact_semantic_definition_environment_tasks_path(
 def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
     project = Path(str(row.get("candidate_lean_project_hint", "") or ""))
     candidate_file = Path(str(row.get("candidate_source_file", "") or ""))
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
     lakefile_lean = project / "lakefile.lean"
     lakefile_toml = project / "lakefile.toml"
     lean_toolchain = project / "lean-toolchain"
@@ -190,7 +192,7 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         + stable_hash(
             [
                 row.get("environment_repair_task_id", ""),
-                row.get("target_theorem_name", ""),
+                target_theorem_name,
                 row.get("placeholder_symbol", ""),
                 str(project),
                 str(candidate_file),
@@ -207,7 +209,8 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "candidate_source_file": str(candidate_file) if str(candidate_file) else "",
         "definition_only_candidate_artifact_path": str(
@@ -284,13 +287,16 @@ def _recommended_next_action(status: str) -> str:
 
 
 def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
     return {
         "schema_version": 1,
         "artifact_kind": RESULT_ARTIFACT_KIND,
         "learning_task": LEARNING_TASK,
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "environment_repair_result_id": str(
             row.get("environment_repair_result_id", "") or ""
@@ -326,6 +332,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "environment_repair_status": str(
                 row.get("environment_repair_status", "") or ""
             ),
@@ -363,6 +371,40 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
     }
+
+
+def _target_ids_from_row(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> list[str]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, Sequence):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _resolve_relative_artifact_path(*, base_dir: Path, raw_path: str) -> Path:

@@ -422,11 +422,23 @@ def _execution_result(
     lean_command_explicit: bool,
 ) -> dict[str, Any]:
     action = str(task.get("lean_repair_action", "") or "")
+    target_theorem_name = str(task.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        task,
+        fallback_target=target_theorem_name,
+    )
     candidate_declarations = [
         dict(row)
         for row in task.get("candidate_import_declarations", []) or []
         if isinstance(row, Mapping)
     ]
+    candidate_definition_request = dict(
+        task.get("candidate_definition_request", {}) or {}
+    )
+    if candidate_definition_request:
+        candidate_definition_request.setdefault("target_theorem_name", target_theorem_name)
+        if target_ids and not candidate_definition_request.get("target_ids"):
+            candidate_definition_request["target_ids"] = list(target_ids)
     candidate_path = Path()
     candidate_raw_path = ""
     if candidate_declarations:
@@ -663,7 +675,7 @@ def _execution_result(
             [
                 task.get("lean_repair_task_id", ""),
                 task.get("source_repair_packet_id", ""),
-                task.get("target_theorem_name", ""),
+                target_theorem_name,
                 task.get("placeholder_symbol", ""),
                 action,
                 candidate_raw_path,
@@ -692,7 +704,8 @@ def _execution_result(
         ),
         "question_id": str(task.get("question_id", "") or ""),
         "question_title": str(task.get("question_title", "") or ""),
-        "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(task.get("placeholder_symbol", "") or ""),
         "materialization_order_index": int(
             task.get("materialization_order_index", 0) or 0
@@ -739,9 +752,7 @@ def _execution_result(
         "missing_required_adapter_object_names": list(
             task.get("missing_required_adapter_object_names", []) or []
         ),
-        "candidate_definition_request": dict(
-            task.get("candidate_definition_request", {}) or {}
-        ),
+        "candidate_definition_request": candidate_definition_request,
         **_exact_semantic_definition_context(task),
         "candidate_repair_feedback": dict(
             task.get("candidate_repair_feedback", {}) or {}
@@ -926,12 +937,17 @@ def _runtime_queue_status_from_execution(
 
 def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
     candidate_file = _environment_repair_candidate_file(row)
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     task_id = (
         "source_theorem_exact_semantic_definition_lean_environment_repair_task:"
         + stable_hash(
             [
                 row.get("execution_result_id", ""),
-                row.get("target_theorem_name", ""),
+                target_theorem_name,
                 row.get("placeholder_symbol", ""),
                 candidate_file,
                 row.get("candidate_lean_project_hint", ""),
@@ -967,7 +983,8 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "candidate_source_file": candidate_file,
         "definition_only_candidate_artifact_path": str(
@@ -1011,6 +1028,11 @@ def _candidate_definition_request(
     *,
     placeholder_symbol: str,
 ) -> dict[str, Any]:
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     normalized = _compact_identifier(placeholder_symbol)
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
     available_anchor_names = [
@@ -1079,7 +1101,8 @@ def _candidate_definition_request(
     return {
         "schema_version": 1,
         "request_kind": "source_theorem_exact_semantic_definition_candidate",
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": placeholder_symbol,
         "semantic_goal": semantic_goal,
         "required_anchor_names": required_anchor_names,
@@ -1176,6 +1199,11 @@ def _available_semantic_binders_by_name(
 def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     """Create a semantic-review handoff for a typechecked definition candidate."""
 
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     packet_id = (
         "source_theorem_exact_semantic_definition_typechecked_candidate_review:"
         + stable_hash(
@@ -1198,6 +1226,13 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
             row,
             placeholder_symbol=placeholder,
         )
+    else:
+        candidate_definition_request.setdefault(
+            "target_theorem_name",
+            target_theorem_name,
+        )
+        if target_ids and not candidate_definition_request.get("target_ids"):
+            candidate_definition_request["target_ids"] = list(target_ids)
     return {
         "schema_version": 1,
         "artifact_kind": TYPECHECKED_CANDIDATE_REVIEW_PACKET_ARTIFACT_KIND,
@@ -1220,7 +1255,8 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         ),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": placeholder,
         "materialization_order_index": int(
             row.get("materialization_order_index", 0) or 0
@@ -1365,6 +1401,11 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
     """Create an executable handoff when source references require synthesis."""
 
     execution_status = str(row.get("execution_status", "") or "")
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     authoring_trigger = _author_definition_trigger(row)
     authoring_mode = _author_definition_mode(execution_status)
     task_id = (
@@ -1373,7 +1414,7 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
             [
                 row.get("execution_result_id", ""),
                 row.get("source_lean_repair_task_id", ""),
-                row.get("target_theorem_name", ""),
+                target_theorem_name,
                 row.get("placeholder_symbol", ""),
                 row.get("repair_strategy", ""),
                 row.get("execution_status", ""),
@@ -1413,7 +1454,8 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": placeholder,
         "authoring_trigger": authoring_trigger,
         "authoring_mode": authoring_mode,
@@ -1542,7 +1584,53 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    candidate_request = context.get("candidate_definition_request", {})
+    if isinstance(candidate_request, Mapping):
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_ids = _exact_semantic_definition_target_ids(
+            row,
+            fallback_target=target_theorem_name,
+        )
+        normalized_request = dict(candidate_request)
+        normalized_request.setdefault("target_theorem_name", target_theorem_name)
+        if target_ids and not normalized_request.get("target_ids"):
+            normalized_request["target_ids"] = list(target_ids)
+        context["candidate_definition_request"] = normalized_request
     return context
+
+
+def _exact_semantic_definition_target_ids(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> list[str]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, Sequence):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _compact_identifier(value: str) -> str:
@@ -1558,19 +1646,27 @@ def _boolish(value: Any) -> bool:
 
 
 def _environment_repair_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     return {
         "schema_version": 1,
         "artifact_kind": ENVIRONMENT_REPAIR_TASK_ARTIFACT_KIND,
         "learning_task": ENVIRONMENT_REPAIR_LEARNING_TASK,
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "environment_repair_task_id": str(
             row.get("environment_repair_task_id", "") or ""
         ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_IMPORT_ENVIRONMENT_REPAIR",
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
             "candidate_lean_project_hint": str(
                 row.get("candidate_lean_project_hint", "") or ""
@@ -1588,13 +1684,19 @@ def _environment_repair_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     return {
         "schema_version": 1,
         "artifact_kind": AUTHOR_DEFINITION_TASK_ARTIFACT_KIND,
         "learning_task": AUTHOR_DEFINITION_LEARNING_TASK,
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "authoring_task_id": str(row.get("authoring_task_id", "") or ""),
         "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
@@ -1614,6 +1716,8 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "input_summary": {
             "trigger": str(row.get("authoring_trigger", "") or "")
             or "EXACT_SEMANTIC_DEFINITION_AUTHORING_REQUIRED",
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "authoring_mode": str(row.get("authoring_mode", "") or ""),
             "source_execution_status": str(row.get("source_execution_status", "") or ""),
             "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
@@ -1681,6 +1785,11 @@ def _find_lake_project_root(path: Path) -> Path | None:
 
 def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
     execution_status = str(row.get("execution_status", "") or "")
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    target_ids = _exact_semantic_definition_target_ids(
+        row,
+        fallback_target=target_theorem_name,
+    )
     local_lean_compiled = bool(row.get("local_lean_compiled", False))
     local_definition_lean_compiled = bool(
         row.get("local_definition_lean_compiled", False)
@@ -1720,7 +1829,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "learning_task": LEARNING_TASK,
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
-        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "execution_result_id": str(row.get("execution_result_id", "") or ""),
         "source_lean_repair_task_id": str(
@@ -1776,6 +1886,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "input_summary": {
             "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "lean_repair_action": str(row.get("lean_repair_action", "") or ""),
             "source_execution_status": str(
                 row.get("source_execution_status", "") or ""

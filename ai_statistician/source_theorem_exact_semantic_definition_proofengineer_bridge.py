@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
@@ -251,6 +251,7 @@ def _repair_packet(row: Mapping[str, Any], *, question_id: str = "") -> dict[str
     ]
     placeholder = str(row.get("placeholder_symbol", "") or "").strip()
     target = str(row.get("target_theorem_name", "") or "").strip()
+    target_ids = _target_ids_from_row(row, fallback_target=target)
     artifact_kind = str(row.get("artifact_kind", "") or "")
     has_typechecked_candidate = (
         _has_typechecked_exact_semantic_definition_candidate(row)
@@ -322,6 +323,7 @@ def _repair_packet(row: Mapping[str, Any], *, question_id: str = "") -> dict[str
         "question_id": str(question_id or row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": target,
+        "target_ids": target_ids,
         "placeholder_symbol": placeholder,
         "repair_strategy": repair_strategy,
         "definition_contract": dict(row.get("definition_contract", {}) or {}),
@@ -424,6 +426,11 @@ def _has_typechecked_exact_semantic_definition_candidate(
 
 
 def _lean_repair_task(repair_packet: Mapping[str, Any]) -> dict[str, Any]:
+    target_theorem_name = str(repair_packet.get("target_theorem_name", "") or "")
+    target_ids = _target_ids_from_row(
+        repair_packet,
+        fallback_target=target_theorem_name,
+    )
     declarations = [
         dict(value)
         for value in repair_packet.get("candidate_source_declarations", []) or []
@@ -513,9 +520,8 @@ def _lean_repair_task(repair_packet: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "question_id": str(repair_packet.get("question_id", "") or ""),
         "question_title": str(repair_packet.get("question_title", "") or ""),
-        "target_theorem_name": str(
-            repair_packet.get("target_theorem_name", "") or ""
-        ),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(repair_packet.get("placeholder_symbol", "") or ""),
         "lean_repair_action": lean_repair_action,
         "repair_strategy": repair_strategy,
@@ -583,13 +589,19 @@ def _learning_row(
     *,
     source_review_packet: Mapping[str, Any],
 ) -> dict[str, Any]:
+    target_theorem_name = str(repair_packet.get("target_theorem_name", "") or "")
+    target_ids = _target_ids_from_row(
+        repair_packet,
+        fallback_target=target_theorem_name,
+    )
     return {
         "schema_version": 1,
         "artifact_kind": REPAIR_PACKET_ARTIFACT_KIND,
         "learning_task": LEARNING_TASK,
         "question_id": str(repair_packet.get("question_id", "") or ""),
         "question_title": str(repair_packet.get("question_title", "") or ""),
-        "target_theorem_name": str(repair_packet.get("target_theorem_name", "") or ""),
+        "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
         "placeholder_symbol": str(repair_packet.get("placeholder_symbol", "") or ""),
         "repair_packet_id": str(repair_packet.get("repair_packet_id", "") or ""),
         "source_review_packet_id": str(
@@ -605,9 +617,8 @@ def _learning_row(
                 source_review_packet.get("lookup_status", "") or ""
             ),
             "repair_packet_id": str(repair_packet.get("repair_packet_id", "") or ""),
-            "target_theorem_name": str(
-                repair_packet.get("target_theorem_name", "") or ""
-            ),
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "placeholder_symbol": str(
                 repair_packet.get("placeholder_symbol", "") or ""
             ),
@@ -663,7 +674,50 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    candidate_request = context.get("candidate_definition_request", {})
+    if isinstance(candidate_request, Mapping):
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
+        normalized_request = dict(candidate_request)
+        normalized_request.setdefault("target_theorem_name", target_theorem_name)
+        if target_ids and not normalized_request.get("target_ids"):
+            normalized_request["target_ids"] = list(target_ids)
+        context["candidate_definition_request"] = normalized_request
     return context
+
+
+def _target_ids_from_row(
+    row: Mapping[str, Any],
+    *,
+    fallback_target: str = "",
+) -> list[str]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    raw_values = (
+        row.get("target_ids", [])
+        or row.get("target_id", "")
+        or row.get("target_theorem_goal_ids", [])
+        or input_summary.get("target_ids", [])
+        or input_summary.get("target_id", "")
+        or input_summary.get("target_theorem_goal_ids", [])
+        or []
+    )
+    if isinstance(raw_values, Mapping):
+        values = [str(key).strip() for key in raw_values.keys()]
+    elif isinstance(raw_values, str):
+        values = [raw_values.strip()]
+    elif isinstance(raw_values, Sequence):
+        values = [str(value).strip() for value in raw_values]
+    else:
+        values = [str(raw_values).strip()]
+    target_ids = [value for value in values if value]
+    fallback = str(fallback_target or "").strip()
+    if not target_ids and fallback:
+        target_ids = [fallback]
+    return list(dict.fromkeys(target_ids))
 
 
 def _resolve_runtime_artifact_path(*, runtime_dir: Path, raw_path: str) -> Path:
