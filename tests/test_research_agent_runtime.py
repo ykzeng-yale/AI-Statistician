@@ -22218,6 +22218,56 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
     )
 
+    seed_replayed_row = {
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "coverage_event",
+        "target_ids": ["split_conformal_coverage"],
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "placeholder_symbol": "coverage_event",
+            "local_definition_lean_compiled": True,
+        },
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    memory_replayed_row = {
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "coverage_event",
+        "target_ids": ["split_conformal_coverage"],
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "runtime_queue_boundary": (
+            "runtime memory work order routes semantic review only"
+        ),
+        "acceptance_gate": "review exact semantic definition before proof-body retry",
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "proof_evidence_status": "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE",
+    }
+
+    runtime_module._merge_exact_semantic_definition_work_order_candidate_metadata(
+        seed_replayed_row,
+        memory_replayed_row,
+    )
+
+    assert seed_replayed_row["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    )
+    assert seed_replayed_row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert seed_replayed_row[
+        "semantic_definition_typecheck_evidence_status"
+    ] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert seed_replayed_row[
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ]["runtime_queue_status"] == "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    assert seed_replayed_row["proof_evidence_status"] == (
+        "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE"
+    )
+
     adapter_object_learning_rows = [
         {
             "schema_version": 1,

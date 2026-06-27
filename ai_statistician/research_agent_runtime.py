@@ -39028,11 +39028,18 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         "recommended_next_action",
         "source_environment_repair_task_id",
     )
+    queue_scalar_keys = (
+        "runtime_queue_status",
+        "runtime_queue_boundary",
+        "acceptance_gate",
+        "proof_body_gate_status",
+    )
     scalar_keys = (
         "definition_only_candidate_artifact_path",
         "candidate_artifact_path",
         "semantic_definition_typecheck_evidence_status",
         *environment_scalar_keys,
+        *queue_scalar_keys,
     )
     environment_bool_keys = (
         "dependency_fetch_required",
@@ -39069,6 +39076,15 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
             not existing_value.strip()
             or _runtime_exact_semantic_definition_status_rank(candidate_value)
             > _runtime_exact_semantic_definition_status_rank(existing_value)
+        ):
+            existing[key] = candidate_value
+        elif key in queue_scalar_keys and (
+            not existing_value.strip()
+            or (
+                key == "runtime_queue_status"
+                and _runtime_exact_semantic_definition_status_rank(candidate_value)
+                > _runtime_exact_semantic_definition_status_rank(existing_value)
+            )
         ):
             existing[key] = candidate_value
         elif not existing_value.strip():
@@ -39129,6 +39145,8 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
                 > _runtime_exact_semantic_definition_status_rank(merged_status)
             ):
                 merged_typechecked[key] = existing_status
+        elif key in queue_scalar_keys and existing.get(key):
+            merged_typechecked.setdefault(key, existing.get(key))
         elif not merged_typechecked.get(key) and existing.get(key):
             merged_typechecked[key] = existing.get(key)
     for key in bool_keys:
