@@ -13996,7 +13996,11 @@ def _write_simulation_repair_static_response(tmp_path: Path) -> Path:
 
 
 def test_formal_subclaim_prover_uses_batch_kernel_verifier() -> None:
-    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question = next(
+        row
+        for row in load_open_research_questions(Path("examples/research_questions.json"))
+        if row.id == "conformal_prediction_coverage"
+    )
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
 
@@ -21473,6 +21477,519 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
         == "source_theorem_exact_semantic_definition_repair_queue:orderStat"
         for row in generated_rows
     )
+
+
+def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:covered",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "covered",
+        "candidate_registered_obligation_ids": [
+            "split_conformal_good_rank_set_inclusion_bridge"
+        ],
+        "action_type": "formalize_reviewed_exact_semantic_definition",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    proof_body_queue_manifest_path = tmp_path / "proof_body_queue_manifest.json"
+    proof_body_queue_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "execution_queue_id": "exact-proof-body:split",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "candidate_artifact_path": str(tmp_path / "source.lean"),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    def fake_semantic_work_order_rows(
+        _rows: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        return [dict(fake_work_order)]
+
+    def fake_proof_body_queue_manifest(*_manifests: object) -> Path:
+        return proof_body_queue_manifest_path
+
+    def fake_lookup(
+        *,
+        out_dir: Path,
+        queue_jsonl: Path | None = None,
+        runtime_dir: Path | None = None,
+        source_roots: list[Path] | None = None,
+        max_hits_per_work_order: int = 8,
+    ) -> dict[str, object]:
+        assert queue_jsonl is not None and queue_jsonl.exists()
+        assert runtime_dir is None
+        assert source_roots == [source_root]
+        assert max_hits_per_work_order == 3
+        out_dir.mkdir(parents=True, exist_ok=True)
+        review_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_closure_review_packets.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_source_lookup_manifest.json"
+        )
+        review_packet = {
+            "artifact_kind": (
+                "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
+            ),
+            "review_packet_id": "lookup-review:covered",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "proof_evidence_status": (
+                "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        learning_row = {
+            "learning_task": "source_theorem_exact_semantic_definition_source_lookup",
+            "placeholder_symbol": "covered",
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        review_packets_path.write_text(
+            json.dumps(review_packet) + "\n",
+            encoding="utf-8",
+        )
+        learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "definition_closure_review_packets_jsonl": str(review_packets_path),
+            "n_runtime_learning_rows": 1,
+            "n_definition_closure_review_packets": 1,
+            "n_source_lookup_hits": 0,
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append("lookup")
+        return manifest
+
+    def fake_bridge(
+        *,
+        out_dir: Path,
+        runtime_dir: Path | None = None,
+        lookup_manifest: Path | None = None,
+        review_packets_jsonl: Path | None = None,
+        question_id: str = "",
+    ) -> dict[str, object]:
+        assert runtime_dir is None
+        assert question_id == "conformal_prediction_coverage"
+        assert (lookup_manifest is not None) ^ (review_packets_jsonl is not None)
+        source_kind = (
+            "typechecked_candidate_reviews"
+            if review_packets_jsonl is not None
+            else "lookup"
+        )
+        if review_packets_jsonl is not None:
+            assert review_packets_jsonl.exists()
+            assert "from_typechecked_candidate_reviews" in str(out_dir)
+        else:
+            assert lookup_manifest is not None and lookup_manifest.exists()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        repair_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_proofengineer_repair_packets.jsonl"
+        )
+        lean_tasks_path = (
+            out_dir / "source_theorem_exact_semantic_definition_lean_repair_tasks.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_proofengineer_bridge_manifest.json"
+        )
+        repair_packet = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionProofEngineerRepairPacket"
+            ),
+            "repair_packet_id": f"repair:{source_kind}",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "repair_strategy": (
+                "review_typechecked_exact_definition_candidate"
+                if source_kind == "typechecked_candidate_reviews"
+                else "author_reviewed_definition_from_contract"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        lean_task = {
+            "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+            "lean_repair_task_id": f"lean-task:{source_kind}",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "lean_repair_action": (
+                "review_typechecked_exact_definition_candidate"
+                if source_kind == "typechecked_candidate_reviews"
+                else "author_exact_definition"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        learning_row = {
+            "learning_task": "source_theorem_exact_semantic_definition_proofengineer_bridge",
+            "placeholder_symbol": "covered",
+            "input_summary": {"source_kind": source_kind},
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        repair_packets_path.write_text(
+            json.dumps(repair_packet) + "\n",
+            encoding="utf-8",
+        )
+        lean_tasks_path.write_text(json.dumps(lean_task) + "\n", encoding="utf-8")
+        learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "repair_packets_jsonl": str(repair_packets_path),
+            "lean_repair_tasks_jsonl": str(lean_tasks_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_repair_packets": 1,
+            "n_lean_repair_tasks": 1,
+            "n_review_typechecked_candidate_packets": (
+                1 if source_kind == "typechecked_candidate_reviews" else 0
+            ),
+            "n_lean_review_typechecked_candidate_tasks": (
+                1 if source_kind == "typechecked_candidate_reviews" else 0
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append(f"bridge:{source_kind}")
+        return manifest
+
+    def fake_executor(
+        *,
+        out_dir: Path,
+        runtime_dir: Path | None = None,
+        bridge_manifest: Path | None = None,
+        tasks_jsonl: Path | None = None,
+        source_roots: object = (),
+        local_lean: bool = False,
+        lean_project: Path | None = None,
+        lean_timeout: int = 90,
+    ) -> dict[str, object]:
+        assert runtime_dir is None
+        assert tasks_jsonl is None
+        assert bridge_manifest is not None and bridge_manifest.exists()
+        assert source_roots == [source_root]
+        assert local_lean is True
+        assert lean_project == tmp_path / "LeanProject"
+        assert lean_timeout == 13
+        source_kind = (
+            "typechecked_candidate_reviews"
+            if "from_typechecked_candidate_reviews" in str(bridge_manifest)
+            else "lookup"
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        results_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_lean_repair_execution_results.jsonl"
+        )
+        review_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_typechecked_candidate_review_packets.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        environment_tasks_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_lean_environment_repair_tasks.jsonl"
+        )
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_lean_repair_executor_manifest.json"
+        )
+        result = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
+            ),
+            "execution_result_id": f"lean-result:{source_kind}",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "execution_status": (
+                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+            ),
+            "local_lean_checked": True,
+            "local_lean_compiled": True,
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        review_packet = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionTypecheckedCandidateReviewPacket"
+            ),
+            "review_packet_id": f"typechecked-review:{source_kind}",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "candidate_artifact_path": str(tmp_path / f"{source_kind}.lean"),
+            "local_definition_lean_compiled": True,
+            "semantic_review_required_before_proof_body": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+            "semantic_definition_kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        learning_row = {
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "placeholder_symbol": "covered",
+            "input_summary": {"source_kind": source_kind},
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
+        review_packets_path.write_text(
+            json.dumps(review_packet) + "\n",
+            encoding="utf-8",
+        )
+        learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+        environment_tasks_path.write_text("", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "execution_results_jsonl": str(results_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "lean_environment_repair_tasks_jsonl": str(environment_tasks_path),
+            "typechecked_candidate_review_packets_jsonl": str(review_packets_path),
+            "n_results": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 1,
+            "n_typechecked_candidate_review_packets": 1,
+            "semantic_definition_kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "proofengineer_state": (
+                "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED"
+            ),
+            "proofengineer_state_reason": (
+                "candidate must be semantically reviewed before exact proof retry"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append(f"executor:{source_kind}")
+        return manifest
+
+    def fake_recheck_queue(
+        *,
+        out_dir: Path,
+        review_packets_jsonl: Path,
+        proof_body_queue_manifest: Path | None = None,
+        proof_body_queue_jsonl: Path | None = None,
+    ) -> dict[str, object]:
+        assert review_packets_jsonl.exists()
+        assert proof_body_queue_manifest == proof_body_queue_manifest_path
+        assert proof_body_queue_jsonl is None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        queue_path = out_dir / "exact_source_theorem_proof_body_execution_queue.jsonl"
+        blocked_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_typechecked_review_recheck_blocked_packets.jsonl"
+        )
+        manifest_path = out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        blocked_path.write_text(
+            json.dumps(
+                {
+                    "placeholder_symbol": "covered",
+                    "proof_body_recheck_blockers": [
+                        "semantic_review_required_before_proof_body"
+                    ],
+                    "proof_evidence_status": (
+                        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        queue_path.write_text("", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "source_review_packets_jsonl": str(review_packets_jsonl),
+            "proof_body_execution_queue_jsonl": str(queue_path),
+            "blocked_review_packets_jsonl": str(blocked_path),
+            "n_review_packets": 1,
+            "n_semantically_approved_review_packets": 0,
+            "n_blocked_review_packets": 1,
+            "n_execution_queue_rows": 0,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append("recheck_queue")
+        return manifest
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        fake_semantic_work_order_rows,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_proof_body_execution_queue_manifest_from_bridge_manifests",
+        fake_proof_body_queue_manifest,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        fake_lookup,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_proofengineer_bridge",
+        fake_bridge,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_lean_repair_executor",
+        fake_executor,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue",
+        fake_recheck_queue,
+    )
+
+    question = next(
+        row
+        for row in load_open_research_questions(Path("examples/research_questions.json"))
+        if row.id == "conformal_prediction_coverage"
+    )
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+        ),
+        proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260627,
+            max_iterations=2,
+            source_theorem_exact_semantic_definition_source_lookup=True,
+            source_theorem_exact_semantic_definition_source_roots=(str(source_root),),
+            source_theorem_exact_semantic_definition_source_lookup_max_hits=3,
+            source_theorem_exact_semantic_definition_proofengineer_bridge=True,
+            source_theorem_exact_semantic_definition_lean_repair_executor=True,
+            source_theorem_exact_semantic_definition_lean_repair_executor_local_lean=True,
+            source_theorem_exact_semantic_definition_lean_repair_executor_lean_project=str(
+                tmp_path / "LeanProject"
+            ),
+            source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout=13,
+        ),
+    )
+
+    assert calls == [
+        "lookup",
+        "bridge:lookup",
+        "executor:lookup",
+        "bridge:typechecked_candidate_reviews",
+        "executor:typechecked_candidate_reviews",
+        "recheck_queue",
+    ]
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_candidate_review_proofengineer_bridge_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_candidate_review_lean_repair_executor_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required"
+        ]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_repair_required_reason"]
+        == "exact_semantic_definition_typechecked_candidate_review_required"
+    )
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_candidate_review_packets_jsonl"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_proofengineer_bridge_from_typechecked_candidate_reviews_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_review_recheck_blocked_packets_jsonl"
+        ]
+    ).exists()
 
 
 def test_formalizer_prompt_compacts_large_theory_context() -> None:
