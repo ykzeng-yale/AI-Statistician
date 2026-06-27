@@ -42695,6 +42695,153 @@ def _runtime_formalization_gap_planner_target_intake_target(
     }
 
 
+def _runtime_gap_planner_execution_stage(
+    *,
+    stage_id: str,
+    command: str,
+    cli: str,
+    requires_live_llm: bool,
+    required_inputs: list[str],
+    expected_outputs: list[str],
+    purpose: str,
+) -> dict[str, Any]:
+    return {
+        "stage_id": stage_id,
+        "command": command,
+        "cli": cli,
+        "argv": shlex.split(cli),
+        "requires_live_llm": requires_live_llm,
+        "requires_operator_review_before_live": bool(requires_live_llm),
+        "required_inputs": required_inputs,
+        "expected_outputs": expected_outputs,
+        "purpose": purpose,
+        "proof_evidence_status": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
+    }
+
+
+def _runtime_formalization_gap_planner_handoff_execution_plan(
+    *,
+    standalone_plan_cli: str,
+    target_intake_cli: str,
+    component_resource_registry_cli: str,
+    llm_route_planner_prompt_cli: str,
+    llm_route_planner_live_cli: str,
+    reuse_smoke_cli: str,
+    standalone_seed_path: str,
+    target_intake_path: str,
+    standalone_plan_dir: str,
+    target_intake_dir: str,
+    component_resource_registry_dir: str,
+    llm_prompt_out: str,
+    llm_live_out: str,
+    reuse_smoke_out: str,
+    target_prover_family: str,
+    library_snapshot_ref: str,
+    recommended_llm_provider: str = "anthropic",
+    recommended_model_tier: str = "auto",
+) -> dict[str, Any]:
+    stages = [
+        _runtime_gap_planner_execution_stage(
+            stage_id="standalone_plan",
+            command="formalization-gap-planner-standalone-plan",
+            cli=standalone_plan_cli,
+            requires_live_llm=False,
+            required_inputs=[standalone_seed_path],
+            expected_outputs=[standalone_plan_dir],
+            purpose=(
+                "Replay the runtime bridge as a standalone minimal-delta "
+                "formalization planner seed."
+            ),
+        ),
+        _runtime_gap_planner_execution_stage(
+            stage_id="target_intake",
+            command="formalization-gap-planner-target-intake",
+            cli=target_intake_cli,
+            requires_live_llm=False,
+            required_inputs=[target_intake_path],
+            expected_outputs=[target_intake_dir],
+            purpose="Normalize theorem targets into reusable planner intake rows.",
+        ),
+        _runtime_gap_planner_execution_stage(
+            stage_id="component_resource_registry",
+            command="formalization-gap-planner-component-resource-registry",
+            cli=component_resource_registry_cli,
+            requires_live_llm=False,
+            required_inputs=[],
+            expected_outputs=[component_resource_registry_dir],
+            purpose=(
+                "Export tool/resource contracts for literature, library search, "
+                "prover feedback, and cross-prover reuse."
+            ),
+        ),
+        _runtime_gap_planner_execution_stage(
+            stage_id="llm_route_planner_prompt",
+            command="formalization-gap-planner-llm-route-planner",
+            cli=llm_route_planner_prompt_cli,
+            requires_live_llm=False,
+            required_inputs=[
+                standalone_seed_path,
+                standalone_plan_dir,
+                target_intake_dir,
+                component_resource_registry_dir,
+            ],
+            expected_outputs=[llm_prompt_out],
+            purpose=(
+                "Stage Claude route-planner prompt packets with auto tier "
+                "selection and no provider invocation."
+            ),
+        ),
+        _runtime_gap_planner_execution_stage(
+            stage_id="llm_route_planner_live_optional",
+            command="formalization-gap-planner-llm-route-planner",
+            cli=llm_route_planner_live_cli,
+            requires_live_llm=True,
+            required_inputs=[
+                standalone_seed_path,
+                standalone_plan_dir,
+                target_intake_dir,
+                component_resource_registry_dir,
+            ],
+            expected_outputs=[llm_live_out],
+            purpose=(
+                "Optionally invoke the Claude API after operator review of the "
+                "staged prompt packets."
+            ),
+        ),
+        _runtime_gap_planner_execution_stage(
+            stage_id="reuse_smoke",
+            command="formalization-gap-planner-reuse-smoke",
+            cli=reuse_smoke_cli,
+            requires_live_llm=False,
+            required_inputs=[target_intake_path],
+            expected_outputs=[reuse_smoke_out],
+            purpose="Run the reusable planner smoke path without live LLM calls.",
+        ),
+    ]
+    return {
+        "plan_kind": "runtime_formalization_gap_planner_handoff_execution_plan",
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "recommended_llm_provider": recommended_llm_provider,
+        "recommended_model_tier": recommended_model_tier,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "stage_count": len(stages),
+        "stages": stages,
+        "cost_control_boundary": (
+            "Prompt staging and reuse-smoke stages are offline. The only live "
+            "Claude API stage is llm_route_planner_live_optional and it must "
+            "contain --invoke-provider."
+        ),
+        "proof_evidence_status": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
+    }
+
+
 def _runtime_formalization_gap_planner_handoff_rows(
     bridge_rows: list[dict[str, Any]],
     *,
@@ -42791,6 +42938,24 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--feedback-llm-route-planner-max-repair-attempts 1 "
             f"--out {shlex.quote(str(reuse_smoke_out))}"
         )
+        execution_plan = _runtime_formalization_gap_planner_handoff_execution_plan(
+            standalone_plan_cli=standalone_plan_cli,
+            target_intake_cli=target_intake_cli,
+            component_resource_registry_cli=component_resource_registry_cli,
+            llm_route_planner_prompt_cli=llm_route_planner_prompt_cli,
+            llm_route_planner_live_cli=llm_route_planner_live_cli,
+            reuse_smoke_cli=reuse_smoke_cli,
+            standalone_seed_path=seed_path_text,
+            target_intake_path=target_intake_path_text,
+            standalone_plan_dir=str(standalone_out),
+            target_intake_dir=str(target_intake_out),
+            component_resource_registry_dir=str(component_resource_registry_out),
+            llm_prompt_out=str(llm_prompt_out),
+            llm_live_out=str(llm_live_out),
+            reuse_smoke_out=str(reuse_smoke_out),
+            target_prover_family=target_prover_family,
+            library_snapshot_ref=library_snapshot_ref,
+        )
         row = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeFormalizationGapPlannerHandoff",
@@ -42823,6 +42988,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "llm_route_planner_prompt_cli": llm_route_planner_prompt_cli,
             "llm_route_planner_live_cli": llm_route_planner_live_cli,
             "reuse_smoke_cli": reuse_smoke_cli,
+            "execution_plan": execution_plan,
+            "execution_plan_stage_count": execution_plan["stage_count"],
             "cost_control": (
                 "Use reuse_smoke_cli or llm_route_planner_prompt_cli first; "
                 "they write request packets without calling the Anthropic API. "
@@ -42847,6 +43014,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
         bridge["llm_route_planner_prompt_cli"] = llm_route_planner_prompt_cli
         bridge["llm_route_planner_live_cli"] = llm_route_planner_live_cli
         bridge["reuse_smoke_cli"] = reuse_smoke_cli
+        bridge["execution_plan"] = execution_plan
+        bridge["execution_plan_stage_count"] = execution_plan["stage_count"]
         bridge["recommended_llm_provider"] = "anthropic"
         bridge["recommended_model_tier"] = "auto"
         bridge["target_prover_family"] = row["target_prover_family"]

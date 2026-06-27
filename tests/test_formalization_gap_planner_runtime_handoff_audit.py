@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import shlex
 from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
@@ -157,6 +158,98 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "Runtime handoff rows are not theorem proof evidence."
         ),
     }
+    stage_specs = [
+        (
+            "standalone_plan",
+            "formalization-gap-planner-standalone-plan",
+            handoff_row["standalone_plan_cli"],
+            False,
+            [str(seed_path)],
+            [str(root / "standalone_plan")],
+        ),
+        (
+            "target_intake",
+            "formalization-gap-planner-target-intake",
+            handoff_row["target_intake_cli"],
+            False,
+            [str(target_intake_path)],
+            [str(target_intake_dir)],
+        ),
+        (
+            "component_resource_registry",
+            "formalization-gap-planner-component-resource-registry",
+            handoff_row["component_resource_registry_cli"],
+            False,
+            [],
+            [str(registry_dir)],
+        ),
+        (
+            "llm_route_planner_prompt",
+            "formalization-gap-planner-llm-route-planner",
+            handoff_row["llm_route_planner_prompt_cli"],
+            False,
+            [str(seed_path), str(root / "standalone_plan"), str(target_intake_dir), str(registry_dir)],
+            [str(root / "llm_prompt")],
+        ),
+        (
+            "llm_route_planner_live_optional",
+            "formalization-gap-planner-llm-route-planner",
+            handoff_row["llm_route_planner_live_cli"],
+            True,
+            [str(seed_path), str(root / "standalone_plan"), str(target_intake_dir), str(registry_dir)],
+            [str(root / "llm_live")],
+        ),
+        (
+            "reuse_smoke",
+            "formalization-gap-planner-reuse-smoke",
+            handoff_row["reuse_smoke_cli"],
+            False,
+            [str(target_intake_path)],
+            [str(root / "reuse_smoke")],
+        ),
+    ]
+    handoff_row["execution_plan"] = {
+        "plan_kind": "runtime_formalization_gap_planner_handoff_execution_plan",
+        "schema_version": 1,
+        "recommended_llm_provider": "anthropic",
+        "recommended_model_tier": "auto",
+        "target_prover_family": handoff_target,
+        "library_snapshot_ref": "portable:runtime-mixed-targets",
+        "stage_count": len(stage_specs),
+        "stages": [
+            {
+                "stage_id": stage_id,
+                "command": command,
+                "cli": cli,
+                "argv": shlex.split(cli),
+                "requires_live_llm": requires_live_llm,
+                "requires_operator_review_before_live": requires_live_llm,
+                "required_inputs": required_inputs,
+                "expected_outputs": expected_outputs,
+                "purpose": f"run {stage_id}",
+                "proof_evidence_status": RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": (
+                    "Runtime handoff execution stages are not theorem proof evidence."
+                ),
+            }
+            for (
+                stage_id,
+                command,
+                cli,
+                requires_live_llm,
+                required_inputs,
+                expected_outputs,
+            ) in stage_specs
+        ],
+        "cost_control_boundary": (
+            "Prompt stages are offline; the only live Claude API stage is explicit."
+        ),
+        "proof_evidence_status": RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "Runtime handoff execution plans are not theorem proof evidence."
+        ),
+    }
+    handoff_row["execution_plan_stage_count"] = len(stage_specs)
     handoffs_path.write_text(json.dumps(handoff_row) + "\n", encoding="utf-8")
 
     payload = audit_formalization_gap_planner_runtime_handoffs(
@@ -168,6 +261,15 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["all_ok"]
     assert payload["n_mixed_seed_target_prover_families"] == 1
     assert payload["n_seed_target_prover_family_compatible_with_handoff"] == 1
+    assert payload["n_execution_plans"] == 1
+    assert payload["n_execution_plan_stage_rows"] == 6
+    assert payload["n_execution_plan_schema_valid"] == 1
+    assert payload["n_execution_plan_rows"] == 1
+    assert payload["n_execution_plan_row_schema_valid"] == 1
+    assert payload["n_execution_plan_row_schema_invalid"] == 0
+    assert payload["n_execution_plan_prompt_stage_cost_control_ok"] == 1
+    assert payload["n_execution_plan_live_stage_explicit_ok"] == 1
+    assert payload["n_execution_plan_reuse_smoke_stage_cost_control_ok"] == 1
     assert payload["n_llm_prompt_packets"] == 2
     assert payload["n_llm_prompt_model_tier_mismatches"] == 0
     assert payload["n_llm_prompt_model_tier_haiku"] == 0
@@ -184,6 +286,24 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     report = (
         out_dir / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
+    execution_plan_rows_path = (
+        out_dir / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    )
+    assert execution_plan_rows_path.exists()
+    execution_plan_rows = [
+        json.loads(line)
+        for line in execution_plan_rows_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert execution_plan_rows[0]["handoff_id"] == handoff_row["handoff_id"]
+    assert execution_plan_rows[0]["stage_count"] == 6
+    assert (
+        out_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    ).exists()
+    assert "- Execution plan JSONL schema valid: 1/1" in report
     assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
     seed_target_checks = {
         str(check["check_name"]).split(":", 1)[0]: check

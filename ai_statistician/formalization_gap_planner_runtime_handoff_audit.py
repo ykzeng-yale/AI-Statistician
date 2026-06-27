@@ -33,6 +33,10 @@ RUNTIME_HANDOFF_AUDIT_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-runtime-handoff-audit-row:1"
 )
+RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-runtime-handoff-execution-plan:1"
+)
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
 )
@@ -117,6 +121,14 @@ def audit_formalization_gap_planner_runtime_handoffs(
         validate_runtime_handoff_audit_row(row, row_schema) for row in check_dicts
     ]
     n_row_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
+    execution_plan_rows = _runtime_handoff_execution_plan_rows(handoff_rows)
+    execution_plan_row_schema_errors = [
+        validate_runtime_handoff_execution_plan(row)
+        for row in execution_plan_rows
+    ]
+    n_execution_plan_row_schema_valid = sum(
+        1 for row_errors in execution_plan_row_schema_errors if not row_errors
+    )
     by_category: dict[str, int] = {}
     for check in checks:
         by_category[check.category] = by_category.get(check.category, 0) + 1
@@ -135,6 +147,39 @@ def audit_formalization_gap_planner_runtime_handoffs(
         "n_row_schema_invalid": len(row_schema_errors) - n_row_schema_valid,
         "n_seed_schema_valid": sum(
             1 for summary in smoke_summaries if summary.get("seed_schema_ok")
+        ),
+        "n_execution_plans": sum(
+            1 for summary in smoke_summaries if summary.get("execution_plan_present")
+        ),
+        "n_execution_plan_stage_rows": sum(
+            int(summary.get("execution_plan_stage_count", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_execution_plan_schema_valid": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("execution_plan_schema_valid")
+        ),
+        "n_execution_plan_rows": len(execution_plan_rows),
+        "n_execution_plan_row_schema_valid": n_execution_plan_row_schema_valid,
+        "n_execution_plan_row_schema_invalid": (
+            len(execution_plan_row_schema_errors)
+            - n_execution_plan_row_schema_valid
+        ),
+        "n_execution_plan_prompt_stage_cost_control_ok": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("execution_plan_prompt_stage_cost_control_ok")
+        ),
+        "n_execution_plan_live_stage_explicit_ok": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("execution_plan_live_stage_explicit_ok")
+        ),
+        "n_execution_plan_reuse_smoke_stage_cost_control_ok": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("execution_plan_reuse_smoke_stage_cost_control_ok")
         ),
         "n_cost_control_ok": sum(
             1 for summary in smoke_summaries if summary.get("cost_control_ok")
@@ -282,12 +327,19 @@ def audit_formalization_gap_planner_runtime_handoffs(
         "checks": check_dicts,
         "row_schema_errors": row_schema_errors,
         "runtime_handoff_audit_row_schema": row_schema,
+        "execution_plan_rows": execution_plan_rows,
+        "execution_plan_row_schema_errors": execution_plan_row_schema_errors,
+        "runtime_handoff_execution_plan_schema": (
+            runtime_handoff_execution_plan_json_schema()
+        ),
         "smoke_summaries": smoke_summaries,
         "all_ok": (
             not errors
             and bool(handoff_rows)
             and all(check.ok for check in checks)
             and n_row_schema_valid == len(row_schema_errors)
+            and n_execution_plan_row_schema_valid
+            == len(execution_plan_row_schema_errors)
         ),
         "errors": errors,
         "runtime_handoff_audit_fingerprint": stable_hash(check_dicts),
@@ -339,6 +391,7 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
                     "artifacts",
                     "component_resource_registry",
                     "cost_control",
+                    "execution_plan",
                     "llm_prompt_smoke",
                     "proof_boundary",
                     "row",
@@ -356,6 +409,137 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
             "ok": {"type": "boolean"},
             "severity": {"type": "string", "enum": ["error", "warning", "info"]},
             "errors": string_array,
+        },
+    }
+
+
+def _runtime_handoff_execution_plan_rows(
+    handoff_rows: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for row_index, handoff in enumerate(handoff_rows):
+        if not isinstance(handoff, Mapping):
+            continue
+        if "execution_plan" not in handoff:
+            continue
+        execution_plan = handoff.get("execution_plan", {})
+        if not isinstance(execution_plan, Mapping) or not execution_plan:
+            continue
+        plan_row = dict(execution_plan)
+        plan_row.setdefault(
+            "artifact_kind",
+            "RuntimeFormalizationGapPlannerHandoffExecutionPlan",
+        )
+        plan_row["handoff_id"] = str(
+            handoff.get("handoff_id", f"row:{row_index}")
+        )
+        plan_row["bridge_id"] = str(handoff.get("bridge_id", ""))
+        plan_row["source_row_index"] = row_index
+        rows.append(plan_row)
+    return rows
+
+
+def runtime_handoff_execution_plan_json_schema() -> dict[str, object]:
+    """JSON Schema for replayable runtime handoff execution plans."""
+
+    string_array = {"type": "array", "items": {"type": "string"}}
+    execution_stage_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "stage_id",
+            "command",
+            "cli",
+            "argv",
+            "requires_live_llm",
+            "requires_operator_review_before_live",
+            "required_inputs",
+            "expected_outputs",
+            "purpose",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "stage_id": {
+                "type": "string",
+                "enum": [
+                    "standalone_plan",
+                    "target_intake",
+                    "component_resource_registry",
+                    "llm_route_planner_prompt",
+                    "llm_route_planner_live_optional",
+                    "reuse_smoke",
+                ],
+            },
+            "command": {"type": "string", "minLength": 1},
+            "cli": {"type": "string", "minLength": 1},
+            "argv": string_array,
+            "requires_live_llm": {"type": "boolean"},
+            "requires_operator_review_before_live": {"type": "boolean"},
+            "required_inputs": string_array,
+            "expected_outputs": string_array,
+            "purpose": {"type": "string", "minLength": 1},
+            "proof_evidence_status": {
+                "type": "string",
+                "const": RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+    }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID,
+        "title": "Formalization gap planner runtime handoff execution plan",
+        "description": (
+            "Replayable, machine-readable execution plan for moving an AI "
+            "Statistician runtime theorem route into the standalone "
+            "library-aware formalization gap planner. The plan exposes offline "
+            "prompt staging, optional live Claude invocation, expected inputs "
+            "and outputs, and proof-evidence boundaries. It is integration "
+            "metadata, not theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "plan_kind",
+            "schema_version",
+            "recommended_llm_provider",
+            "recommended_model_tier",
+            "target_prover_family",
+            "library_snapshot_ref",
+            "stage_count",
+            "stages",
+            "cost_control_boundary",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "plan_kind": {
+                "type": "string",
+                "const": "runtime_formalization_gap_planner_handoff_execution_plan",
+            },
+            "schema_version": {"type": "integer"},
+            "recommended_llm_provider": {"type": "string", "const": "anthropic"},
+            "recommended_model_tier": {"type": "string", "const": "auto"},
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "library_snapshot_ref": {"type": "string"},
+            "stage_count": {"type": "integer"},
+            "stages": {"type": "array", "items": execution_stage_schema},
+            "cost_control_boundary": {
+                "type": "string",
+                "pattern": "live Claude API stage",
+            },
+            "proof_evidence_status": {
+                "type": "string",
+                "const": RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
         },
     }
 
@@ -381,6 +565,90 @@ def validate_runtime_handoff_audit_row(
     for field_name in row:
         if field_name not in allowed:
             errors.append(f"{field_name} unexpected")
+    return sorted(set(errors))
+
+
+def validate_runtime_handoff_execution_plan(
+    plan: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    plan_schema = schema or runtime_handoff_execution_plan_json_schema()
+    if not isinstance(plan, Mapping):
+        return ["execution_plan must be an object"]
+    errors: list[str] = []
+    for field_name in tuple(plan_schema.get("required", ())):
+        if field_name not in plan:
+            errors.append(f"{field_name} required")
+    properties = plan_schema.get("properties", {})
+    if isinstance(properties, Mapping):
+        for field_name, field_schema in properties.items():
+            if field_name in plan and isinstance(field_schema, Mapping):
+                errors.extend(
+                    _schema_property_errors(field_name, plan[field_name], field_schema)
+                )
+
+    stages = plan.get("stages", [])
+    expected_stage_ids = [
+        "standalone_plan",
+        "target_intake",
+        "component_resource_registry",
+        "llm_route_planner_prompt",
+        "llm_route_planner_live_optional",
+        "reuse_smoke",
+    ]
+    if not isinstance(stages, list):
+        errors.append("stages must be array")
+        stages = []
+    stage_rows = [stage for stage in stages if isinstance(stage, Mapping)]
+    stage_ids = [str(stage.get("stage_id", "")).strip() for stage in stage_rows]
+    if stage_ids != expected_stage_ids:
+        errors.append("stages must follow the runtime handoff execution order")
+    if plan.get("stage_count") != len(stage_rows):
+        errors.append("stage_count must equal the number of stages")
+    stage_schema = runtime_handoff_execution_plan_json_schema()["properties"][
+        "stages"
+    ]["items"]
+    stage_required = (
+        tuple(stage_schema["required"]) if isinstance(stage_schema, Mapping) else ()
+    )
+    for index, stage in enumerate(stage_rows):
+        prefix = f"stages[{index}]"
+        for field_name in stage_required:
+            if field_name not in stage:
+                errors.append(f"{prefix}.{field_name} required")
+        argv = stage.get("argv", [])
+        if not isinstance(argv, list) or not all(
+            isinstance(item, str) for item in argv
+        ):
+            errors.append(f"{prefix}.argv must be array of strings")
+        for field_name in ("requires_live_llm", "requires_operator_review_before_live"):
+            if not isinstance(stage.get(field_name), bool):
+                errors.append(f"{prefix}.{field_name} must be boolean")
+        if (
+            stage.get("proof_evidence_status")
+            != RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS
+        ):
+            errors.append(f"{prefix}.proof_evidence_status must be not-proof evidence")
+
+    by_stage = {
+        str(stage.get("stage_id", "")).strip(): stage
+        for stage in stage_rows
+        if str(stage.get("stage_id", "")).strip()
+    }
+    prompt_argv = by_stage.get("llm_route_planner_prompt", {}).get("argv", [])
+    prompt_argv = prompt_argv if isinstance(prompt_argv, list) else []
+    live_argv = by_stage.get("llm_route_planner_live_optional", {}).get("argv", [])
+    live_argv = live_argv if isinstance(live_argv, list) else []
+    reuse_argv = by_stage.get("reuse_smoke", {}).get("argv", [])
+    reuse_argv = reuse_argv if isinstance(reuse_argv, list) else []
+    if "--invoke-provider" in prompt_argv:
+        errors.append("llm_route_planner_prompt must not invoke the provider")
+    if "--invoke-provider" not in live_argv:
+        errors.append("llm_route_planner_live_optional must invoke the provider")
+    if "--llm-route-planner-invoke-provider" in reuse_argv:
+        errors.append("reuse_smoke must not invoke the primary route planner")
+    if "--feedback-llm-route-planner-invoke-provider" in reuse_argv:
+        errors.append("reuse_smoke must not invoke the feedback route planner")
     return sorted(set(errors))
 
 
@@ -411,6 +679,42 @@ def _audit_handoff_row(
         handoff.get("component_resource_registry_dir", "")
     ).strip()
     handoff_target = str(handoff.get("target_prover_family", "")).strip()
+    execution_plan = handoff.get("execution_plan", {})
+    execution_plan = execution_plan if isinstance(execution_plan, Mapping) else {}
+    execution_plan_schema_errors = validate_runtime_handoff_execution_plan(
+        execution_plan
+    )
+    execution_plan_stages = [
+        dict(stage)
+        for stage in execution_plan.get("stages", [])
+        if isinstance(stage, Mapping)
+    ]
+    execution_plan_stage_ids = [
+        str(stage.get("stage_id", "")).strip()
+        for stage in execution_plan_stages
+    ]
+    expected_execution_plan_stage_ids = [
+        "standalone_plan",
+        "target_intake",
+        "component_resource_registry",
+        "llm_route_planner_prompt",
+        "llm_route_planner_live_optional",
+        "reuse_smoke",
+    ]
+    execution_stage_by_id = {
+        str(stage.get("stage_id", "")).strip(): stage
+        for stage in execution_plan_stages
+        if str(stage.get("stage_id", "")).strip()
+    }
+    prompt_stage = execution_stage_by_id.get("llm_route_planner_prompt", {})
+    live_stage = execution_stage_by_id.get("llm_route_planner_live_optional", {})
+    reuse_smoke_stage = execution_stage_by_id.get("reuse_smoke", {})
+    prompt_stage_argv = prompt_stage.get("argv", [])
+    prompt_stage_argv = prompt_stage_argv if isinstance(prompt_stage_argv, list) else []
+    live_stage_argv = live_stage.get("argv", [])
+    live_stage_argv = live_stage_argv if isinstance(live_stage_argv, list) else []
+    reuse_stage_argv = reuse_smoke_stage.get("argv", [])
+    reuse_stage_argv = reuse_stage_argv if isinstance(reuse_stage_argv, list) else []
     summary: dict[str, object] = {
         "handoff_id": handoff_id,
         "bridge_id": bridge_id,
@@ -425,6 +729,14 @@ def _audit_handoff_row(
         "target_intake_dir_exists": (
             bool(target_intake_dir_text) and target_intake_dir.exists()
         ),
+        "execution_plan_present": bool(execution_plan),
+        "execution_plan_stage_count": len(execution_plan_stages),
+        "execution_plan_stage_ids": execution_plan_stage_ids,
+        "execution_plan_schema_valid": not execution_plan_schema_errors,
+        "execution_plan_schema_errors": execution_plan_schema_errors,
+        "execution_plan_prompt_stage_cost_control_ok": False,
+        "execution_plan_live_stage_explicit_ok": False,
+        "execution_plan_reuse_smoke_stage_cost_control_ok": False,
         "seed_schema_ok": False,
         "cost_control_ok": False,
         "live_explicit_ok": False,
@@ -488,9 +800,60 @@ def _audit_handoff_row(
         target_prover_family=handoff_target,
         library_snapshot_ref=seed_snapshot,
     )
+    execution_plan_prompt_stage_cost_control_ok = (
+        bool(prompt_stage)
+        and prompt_stage.get("cli") == prompt_cli
+        and prompt_stage.get("requires_live_llm") is False
+        and prompt_stage.get("requires_operator_review_before_live") is False
+        and "--invoke-provider" not in prompt_stage_argv
+        and "--model-tier" in prompt_stage_argv
+        and "auto" in prompt_stage_argv
+        and _prompt_cli_cost_control_ok(
+            str(prompt_stage.get("cli", "")),
+            target_intake_dir_text=target_intake_dir_text,
+            component_resource_registry_dir_text=component_resource_registry_dir_text,
+        )
+    )
+    execution_plan_live_stage_explicit_ok = (
+        bool(live_stage)
+        and live_stage.get("cli") == live_cli
+        and live_stage.get("requires_live_llm") is True
+        and live_stage.get("requires_operator_review_before_live") is True
+        and "--invoke-provider" in live_stage_argv
+        and "--model-tier" in live_stage_argv
+        and "auto" in live_stage_argv
+        and _live_cli_explicit_ok(
+            str(live_stage.get("cli", "")),
+            target_intake_dir_text=target_intake_dir_text,
+            component_resource_registry_dir_text=component_resource_registry_dir_text,
+        )
+    )
+    execution_plan_reuse_smoke_stage_cost_control_ok = (
+        bool(reuse_smoke_stage)
+        and reuse_smoke_stage.get("cli") == reuse_smoke_cli
+        and reuse_smoke_stage.get("requires_live_llm") is False
+        and reuse_smoke_stage.get("requires_operator_review_before_live") is False
+        and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
+        and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+        and _reuse_smoke_cli_cost_control_ok(
+            str(reuse_smoke_stage.get("cli", "")),
+            target_intake_path_text=target_intake_path_text,
+            target_prover_family=handoff_target,
+            library_snapshot_ref=seed_snapshot,
+        )
+    )
     summary["cost_control_ok"] = cost_control_ok
     summary["live_explicit_ok"] = live_explicit_ok
     summary["reuse_smoke_cost_control_ok"] = reuse_smoke_cost_control_ok
+    summary["execution_plan_prompt_stage_cost_control_ok"] = (
+        execution_plan_prompt_stage_cost_control_ok
+    )
+    summary["execution_plan_live_stage_explicit_ok"] = (
+        execution_plan_live_stage_explicit_ok
+    )
+    summary["execution_plan_reuse_smoke_stage_cost_control_ok"] = (
+        execution_plan_reuse_smoke_stage_cost_control_ok
+    )
     checks = [
         _row_check(
             "row_artifact_kind",
@@ -717,6 +1080,103 @@ def _audit_handoff_row(
             "Anthropic auto command with explicit --invoke-provider",
             live_cli,
             live_explicit_ok,
+        ),
+        _row_check(
+            "row_execution_plan_present",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "execution_plan present",
+            str(bool(execution_plan)),
+            bool(execution_plan),
+        ),
+        _row_check(
+            "row_execution_plan_kind",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "runtime_formalization_gap_planner_handoff_execution_plan",
+            str(execution_plan.get("plan_kind", "")),
+            execution_plan.get("plan_kind")
+            == "runtime_formalization_gap_planner_handoff_execution_plan",
+        ),
+        _row_check(
+            "row_execution_plan_schema_valid",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID,
+            "; ".join(execution_plan_schema_errors),
+            not execution_plan_schema_errors,
+        ),
+        _row_check(
+            "row_execution_plan_stage_ids",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            ",".join(expected_execution_plan_stage_ids),
+            ",".join(execution_plan_stage_ids),
+            execution_plan_stage_ids == expected_execution_plan_stage_ids,
+        ),
+        _row_check(
+            "row_execution_plan_stage_count",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            str(len(expected_execution_plan_stage_ids)),
+            str(execution_plan.get("stage_count", "")),
+            execution_plan.get("stage_count") == len(execution_plan_stages)
+            and len(execution_plan_stages) == len(expected_execution_plan_stage_ids),
+        ),
+        _row_check(
+            "row_execution_plan_provider",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "anthropic/auto",
+            (
+                f"{execution_plan.get('recommended_llm_provider', '')}/"
+                f"{execution_plan.get('recommended_model_tier', '')}"
+            ),
+            execution_plan.get("recommended_llm_provider") == "anthropic"
+            and execution_plan.get("recommended_model_tier") == "auto",
+        ),
+        _row_check(
+            "row_execution_plan_prompt_stage_cost_control",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "prompt stage has argv, model-tier auto, no --invoke-provider",
+            str(prompt_stage_argv),
+            execution_plan_prompt_stage_cost_control_ok,
+        ),
+        _row_check(
+            "row_execution_plan_live_stage_explicit",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "live stage requires operator review and --invoke-provider",
+            str(live_stage_argv),
+            execution_plan_live_stage_explicit_ok,
+        ),
+        _row_check(
+            "row_execution_plan_reuse_smoke_stage_cost_control",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            "reuse-smoke stage has no live route-planner flags",
+            str(reuse_stage_argv),
+            execution_plan_reuse_smoke_stage_cost_control_ok,
+        ),
+        _row_check(
+            "row_execution_plan_proof_evidence_status",
+            "execution_plan",
+            handoff_id,
+            bridge_id,
+            RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+            str(execution_plan.get("proof_evidence_status", "")),
+            execution_plan.get("proof_evidence_status")
+            == RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
         ),
         _row_check(
             "row_cost_control_text",
@@ -1627,10 +2087,28 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("checks") else ""),
         encoding="utf-8",
     )
+    execution_plan_rows = [
+        row
+        for row in payload.get("execution_plan_rows", [])
+        if isinstance(row, dict)
+    ]
+    (
+        out_dir / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    ).write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in execution_plan_rows)
+        + ("\n" if execution_plan_rows else ""),
+        encoding="utf-8",
+    )
     (
         out_dir / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     ).write_text(
         json.dumps(runtime_handoff_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    ).write_text(
+        json.dumps(runtime_handoff_execution_plan_json_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_runtime_handoff_audit.md").write_text(
@@ -1647,6 +2125,20 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Checks: {payload.get('n_ok')}/{payload.get('n_checks')}",
         f"- Cost control OK: {payload.get('n_cost_control_ok')}",
         f"- Reuse-smoke cost control OK: {payload.get('n_reuse_smoke_cost_control_ok')}",
+        f"- Execution plans: {payload.get('n_execution_plans')}",
+        f"- Execution plan stages: {payload.get('n_execution_plan_stage_rows')}",
+        f"- Execution plan schema valid: {payload.get('n_execution_plan_schema_valid')}",
+        (
+            f"- Execution plan JSONL schema valid: "
+            f"{payload.get('n_execution_plan_row_schema_valid')}/"
+            f"{payload.get('n_execution_plan_rows')}"
+        ),
+        (
+            f"- Execution plan cost controls: "
+            f"prompt={payload.get('n_execution_plan_prompt_stage_cost_control_ok')} "
+            f"live={payload.get('n_execution_plan_live_stage_explicit_ok')} "
+            f"reuse={payload.get('n_execution_plan_reuse_smoke_stage_cost_control_ok')}"
+        ),
         f"- Target-intake smoke OK: {payload.get('n_target_intake_smoke_ok')}",
         f"- Target-intake targets/primitives: {payload.get('n_target_intake_targets')}/{payload.get('n_target_intake_primitive_seeds')}",
         f"- Standalone smoke OK: {payload.get('n_standalone_smoke_ok')}",
