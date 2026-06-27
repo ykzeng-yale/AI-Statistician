@@ -14923,6 +14923,11 @@ def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
         "learning_task": "source_to_bridge_premise_derivation_feedback",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_goal_ids": [
+            "split_conformal_finite_sample_coverage",
+            "unrelated_goal",
+        ],
         "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
         "premise_name": "hGoodCovered",
         "premise_target_status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
@@ -14984,6 +14989,7 @@ def test_verified_source_to_bridge_premise_generates_integration_next_action() -
         "learning_task": "source_to_bridge_premise_derivation_feedback",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
         "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
         "premise_name": "hGoodCovered",
         "premise_derivation_kernel_verified": False,
@@ -15101,6 +15107,11 @@ def test_source_to_bridge_premise_gap_generates_semantic_primitive_work_order() 
         "learning_task": "source_to_bridge_premise_derivation_feedback",
         "question_id": "conformal_prediction_coverage",
         "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_goal_ids": [
+            "split_conformal_finite_sample_coverage",
+            "unrelated_goal",
+        ],
         "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
         "premise_name": "hGoodCovered",
         "premise_target_status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
@@ -15182,6 +15193,13 @@ def test_source_to_bridge_premise_gap_generates_semantic_primitive_work_order() 
     )
     assert work_order["next_owner"] == "TheoryDeveloper/Formalizer/ProofEngineer"
     assert work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert work_order["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert work_order["source_theorem_target_provenance"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert work_order["premise_name"] == "hGoodCovered"
     assert work_order["premise_target_type"] == (
         "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered"
@@ -23102,6 +23120,12 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     assert by_symbol["Exchangeable"]["source_theorem_target_provenance"][
         "source_theorem_goal_id"
     ] == "split_conformal_finite_sample_coverage"
+    assert by_symbol["Exchangeable"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert by_symbol["Exchangeable"]["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert by_symbol["Exchangeable"]["semantic_alignment_constraints"] == [
         "preserve marginal coverage target"
     ]
@@ -23177,7 +23201,7 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
         "exchangeability_to_uniform_rank_semantics"
     )
     assert generated_row["placeholder_symbol"] == "Exchangeable"
-    assert generated_row["target_ids"] == ["split_conformal_coverage"]
+    assert generated_row["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert generated_row["question_id"] == "conformal_prediction_coverage"
     assert generated_row["priority"] == "high"
     assert "not theorem proof evidence" in generated_row["boundary"]
@@ -23189,7 +23213,9 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     assert generated_learning_row["learning_task"] == "generated_next_action_routing"
     assert generated_learning_row["question_id"] == "conformal_prediction_coverage"
     assert generated_learning_row["target_theorem_name"] == "split_conformal_coverage"
-    assert generated_learning_row["target_ids"] == ["split_conformal_coverage"]
+    assert generated_learning_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert generated_learning_row["input_summary"]["work_order_id"] == (
         post_executor_by_symbol["Exchangeable"]["work_order_id"]
     )
@@ -23200,9 +23226,8 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
         "Exchangeable"
     )
     assert generated_learning_row["input_summary"]["target_ids"] == [
-        "split_conformal_coverage"
+        "split_conformal_finite_sample_coverage"
     ]
-
 
     assert generated_learning_row["proof_evidence_status"] == (
         "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
@@ -23216,7 +23241,7 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     compact_row = compact_memory["rows"][0]
     assert compact_row["learning_task"] == "generated_next_action_routing"
     assert compact_row["target_theorem_name"] == "split_conformal_coverage"
-    assert compact_row["target_ids"] == ["split_conformal_coverage"]
+    assert compact_row["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert compact_row["input_summary"]["work_order_id"] == (
         post_executor_by_symbol["Exchangeable"]["work_order_id"]
     )
@@ -30599,6 +30624,10 @@ def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
     assert row["artifact_kind"] == "SourceToBridgePremiseDerivationWorkOrder"
     assert row["premise_name"] == "hGoodCovered"
     assert row["target_lean_declaration"] == "split_conformal_coverage"
+    assert row["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert row["source_to_bridge_premise_derivation_candidate_request_id"] == (
         "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
     )
@@ -30607,6 +30636,9 @@ def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
     ]["premise_candidate_declaration_name"] == (
         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
     )
+    assert row["source_to_bridge_premise_derivation_candidate_request"][
+        "target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
     assert row["premise_derivation_candidate_lean_source"] == candidate_source
     assert row["runtime_queue_status"] == (
         "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
@@ -30685,6 +30717,7 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
             ],
             "target_theorem_name": "split_conformal_coverage",
             "target_lean_declaration": "split_conformal_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
             "premise_derivation_candidate_lean_source": candidate_source,
             "expected_status": "NEEDS_KERNEL_CHECK",
         }
@@ -30696,7 +30729,10 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
             "source_to_bridge_premise_derivation_required"
         ),
         "source_to_bridge_premise_derivation_required": True,
-        "remaining_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+        "remaining_theorem_goal_ids": [
+            "split_conformal_finite_sample_coverage",
+            "unrelated_goal",
+        ],
         "memory_kernel_verified_proof_obligation_ids": verified_ids,
         "source_to_bridge_premise_derivation_pending_premise_names": [
             "hGoodCovered",
@@ -30798,6 +30834,20 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
     )
 
     assert [row["premise_name"] for row in rows] == ["hGoodCovered", "hRank"]
+    assert {tuple(row["target_ids"]) for row in rows} == {
+        ("split_conformal_finite_sample_coverage",)
+    }
+    assert {tuple(row["target_theorem_goal_ids"]) for row in rows} == {
+        ("split_conformal_finite_sample_coverage",)
+    }
+    assert {
+        tuple(
+            row["source_to_bridge_premise_derivation_candidate_request"][
+                "target_ids"
+            ]
+        )
+        for row in rows
+    } == {("split_conformal_finite_sample_coverage",)}
     assert {
         row["premise_derivation_candidate_lean_source"] for row in rows
     } == {candidate_source}
@@ -31293,6 +31343,13 @@ def test_runtime_runs_formalizer_premise_derivation_candidate_bridge(
         ]
         assert len(rows) == 1
         assert rows[0]["premise_name"] == "hGoodCovered"
+        assert rows[0]["target_ids"] == ["split_conformal_finite_sample_coverage"]
+        assert rows[0]["target_theorem_goal_ids"] == [
+            "split_conformal_finite_sample_coverage"
+        ]
+        assert rows[0]["source_to_bridge_premise_derivation_candidate_request"][
+            "target_ids"
+        ] == ["split_conformal_finite_sample_coverage"]
         assert rows[0]["premise_derivation_candidate_lean_source"] == candidate_source
         assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
         bridge_out = Path(kwargs["out_dir"])

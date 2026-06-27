@@ -797,6 +797,24 @@ truth-table agenda for `split_conformal_finite_sample_coverage` and hands off
 theorem remains unproved, with exact semantic review/import repair still the
 active frontier.
 
+The next Formalizer continuation showed that target identity still needed to be
+first-class at the source-to-bridge and semantic-primitive queue boundary.
+Fresh work orders had theorem names and goal lists, but not top-level
+`target_ids`; nested premise-derivation candidate requests also lacked
+`target_ids`. The runtime now stamps and backfills those fields for
+source-to-bridge premise-derivation work orders, semantic primitive work orders,
+and generated next-action rows. Helmholtz reviewed the patch and found a
+multi-target smearing risk, so explicit `target_ids`, `target_id`, or
+`source_theorem_goal_id` now win over broad `target_theorem_goal_ids` fallback.
+The final live replay
+`runs/main_worker_formalizer_after_explicit_target_boundary_live` keeps target IDs
+complete across agenda rows, source-to-bridge work orders, semantic primitive
+work orders, exact-semantic work orders, adapter work orders, promotion work
+orders, the promotion handoff, and the blocked materialization seed. The score
+remains 44/49 and the source theorem is still unproved; the correct next
+frontier is reviewed exact semantic definitions plus the `C_n` Lean/import
+environment blocker, not promotion of helper or retrieval evidence.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

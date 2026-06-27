@@ -24485,6 +24485,33 @@ def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[s
     return provenance
 
 
+def _source_theorem_explicit_target_ids_from_row(row: Mapping[str, Any]) -> list[str]:
+    sources: list[Mapping[str, Any]] = [row]
+    for nested_key in (
+        "source_theorem_target_provenance",
+        "source_theorem_target_context",
+        "kernel_overlay_context",
+        "overlay_row",
+        "input_summary",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    for source in tuple(sources):
+        nested = source.get("source_theorem_target_provenance", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+
+    target_ids: list[str] = []
+    for source in sources:
+        for key in ("target_ids", "target_id", "source_theorem_goal_id"):
+            for value in _str_tuple(source.get(key, [])):
+                text = str(value or "").strip()
+                if text:
+                    target_ids.append(text)
+    return list(dict.fromkeys(target_ids))
+
+
 def _source_theorem_target_ids_from_row(
     row: Mapping[str, Any],
     *,
@@ -24507,15 +24534,10 @@ def _source_theorem_target_ids_from_row(
         if isinstance(nested, Mapping):
             sources.append(nested)
 
-    target_ids: list[str] = []
-    for source in sources:
-        for key in (
-            "target_ids",
-            "target_id",
-            "target_theorem_goal_ids",
-            "source_theorem_goal_id",
-        ):
-            for value in _str_tuple(source.get(key, [])):
+    target_ids: list[str] = _source_theorem_explicit_target_ids_from_row(row)
+    if not target_ids:
+        for source in sources:
+            for value in _str_tuple(source.get("target_theorem_goal_ids", [])):
                 text = str(value or "").strip()
                 if text:
                     target_ids.append(text)
@@ -30901,6 +30923,47 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                 or candidate.get("source_formal_target_id", "")
                 or ""
             ).strip()
+            explicit_target_ids = list(
+                dict.fromkeys(
+                    [
+                        *_source_theorem_explicit_target_ids_from_row(candidate),
+                        *_source_theorem_explicit_target_ids_from_row(diagnostic),
+                        *_source_theorem_explicit_target_ids_from_row(
+                            candidate_request
+                        ),
+                        *_source_theorem_explicit_target_ids_from_row(
+                            grouped_candidate_request
+                        ),
+                    ]
+                )
+            )
+            target_ids = explicit_target_ids or _source_theorem_target_ids_from_row(
+                {"target_theorem_goal_ids": target_goal_ids},
+                fallback_target_theorem_name=target_theorem_name,
+                fallback_source_formal_target_id=source_formal_target_id,
+            )
+            work_order_target_goal_ids = (
+                list(target_ids) if explicit_target_ids else list(target_goal_ids)
+            )
+            if not work_order_target_goal_ids:
+                work_order_target_goal_ids = list(target_ids)
+            for nested_request in (candidate_request, grouped_candidate_request):
+                if not nested_request:
+                    continue
+                if target_ids:
+                    nested_request.setdefault("target_ids", target_ids)
+                if work_order_target_goal_ids:
+                    nested_request.setdefault(
+                        "target_theorem_goal_ids",
+                        list(work_order_target_goal_ids),
+                    )
+                if target_theorem_name:
+                    nested_request.setdefault("target_theorem_name", target_theorem_name)
+                if target_lean_declaration:
+                    nested_request.setdefault(
+                        "target_lean_declaration",
+                        target_lean_declaration,
+                    )
             dedupe_key = (premise_name, target_lean_declaration, source)
             if dedupe_key in seen:
                 continue
@@ -30937,8 +31000,9 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                         grouped_candidate_request
                     ),
                     "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "target_lean_declaration": target_lean_declaration,
-                    "target_theorem_goal_ids": target_goal_ids,
+                    "target_theorem_goal_ids": work_order_target_goal_ids,
                     "premise_name": premise_name,
                     "required_derivation": str(
                         candidate.get("required_derivation", "")
@@ -33463,7 +33527,8 @@ def _append_runtime_generated_next_action_rows(
                 ),
                 "target_ids": list(
                     _str_tuple(
-                        row.get("target_theorem_goal_ids", [])
+                        row.get("target_ids", [])
+                        or row.get("target_theorem_goal_ids", [])
                         or row.get("target_theorem_name", "")
                         or row.get("semantic_primitive_id", "")
                     )
@@ -34169,6 +34234,58 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                     or question.get("title", "")
                     or ""
                 )
+                target_theorem_name = str(
+                    row.get("target_theorem_name", "")
+                    or row.get("target_lean_declaration", "")
+                    or ""
+                ).strip()
+                target_lean_declaration = str(
+                    row.get("target_lean_declaration", "")
+                    or target_theorem_name
+                    or ""
+                ).strip()
+                source_formal_target_id = str(
+                    row.get("source_formal_target_id", "") or ""
+                ).strip()
+                target_ids = _source_theorem_target_ids_from_row(
+                    row,
+                    fallback_target_theorem_name=target_theorem_name,
+                    fallback_source_formal_target_id=source_formal_target_id,
+                )
+                if target_ids:
+                    row["target_ids"] = target_ids
+                if not row.get("target_theorem_goal_ids") and target_ids:
+                    row["target_theorem_goal_ids"] = list(target_ids)
+                if target_theorem_name:
+                    row["target_theorem_name"] = target_theorem_name
+                if target_lean_declaration:
+                    row["target_lean_declaration"] = target_lean_declaration
+                for request_key in (
+                    "source_to_bridge_premise_derivation_candidate_request",
+                    "source_to_bridge_grouped_premise_derivation_candidate_request",
+                ):
+                    nested = row.get(request_key, {})
+                    if not isinstance(nested, Mapping) or not nested:
+                        continue
+                    nested_request = dict(nested)
+                    if target_ids:
+                        nested_request.setdefault("target_ids", target_ids)
+                    if row.get("target_theorem_goal_ids"):
+                        nested_request.setdefault(
+                            "target_theorem_goal_ids",
+                            list(row.get("target_theorem_goal_ids", []) or []),
+                        )
+                    if target_theorem_name:
+                        nested_request.setdefault(
+                            "target_theorem_name",
+                            target_theorem_name,
+                        )
+                    if target_lean_declaration:
+                        nested_request.setdefault(
+                            "target_lean_declaration",
+                            target_lean_declaration,
+                        )
+                    row[request_key] = nested_request
                 row["runtime_queue_status"] = (
                     "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
                 )
@@ -34208,6 +34325,8 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                         "premise_derivation_gap_summary",
                         "premise_semantic_dependency_status",
                         "premise_semantic_dependency_requirements",
+                        "target_ids",
+                        "target_theorem_goal_ids",
                     ):
                         value = row.get(key)
                         if isinstance(value, bool) or value not in (None, "", [], {}):
@@ -34469,6 +34588,48 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 if isinstance(candidate_request_raw, Mapping)
                 else {}
             )
+            raw_target_goal_ids = list(
+                _str_tuple(
+                    row.get("target_theorem_goal_ids", [])
+                    or input_summary.get("target_theorem_goal_ids", [])
+                    or candidate_request.get("target_theorem_goal_ids", [])
+                    or []
+                )
+            )
+            explicit_target_ids = list(
+                dict.fromkeys(
+                    [
+                        *_source_theorem_explicit_target_ids_from_row(row),
+                        *_source_theorem_explicit_target_ids_from_row(input_summary),
+                        *_source_theorem_explicit_target_ids_from_row(
+                            candidate_request
+                        ),
+                    ]
+                )
+            )
+            target_ids = list(explicit_target_ids)
+            if not target_ids:
+                target_ids = (
+                    list(raw_target_goal_ids)
+                    if raw_target_goal_ids
+                    else ([target_theorem_name] if target_theorem_name else [])
+                )
+            target_goal_ids = (
+                list(target_ids) if explicit_target_ids else list(raw_target_goal_ids)
+            )
+            if not target_goal_ids:
+                target_goal_ids = list(target_ids)
+            if target_ids:
+                source_target_provenance.setdefault("target_ids", target_ids)
+                if len(target_ids) == 1:
+                    source_target_provenance.setdefault(
+                        "source_theorem_goal_id",
+                        target_ids[0],
+                    )
+                if candidate_request:
+                    candidate_request.setdefault("target_ids", target_ids)
+            if target_goal_ids and candidate_request:
+                candidate_request.setdefault("target_theorem_goal_ids", target_goal_ids)
             exact_source_theorem_binders = list(
                 row.get("exact_source_theorem_binders", [])
                 or input_summary.get("exact_source_theorem_binders", [])
@@ -34627,6 +34788,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "source_learning_row_id": source_learning_row_id,
                     "source_premise_work_order_id": source_work_order_id,
                     "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "source_theorem_target_known": bool(
                         source_target_provenance.get(
                             "source_theorem_target_known", False
@@ -34698,13 +34860,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                         )
                         if str(value).strip()
                     ][:8],
-                    "target_theorem_goal_ids": list(
-                        _str_tuple(
-                            row.get("target_theorem_goal_ids", [])
-                            or input_summary.get("target_theorem_goal_ids", [])
-                            or ([target_theorem_name] if target_theorem_name else [])
-                        )
-                    ),
+                    "target_theorem_goal_ids": target_goal_ids,
                     "candidate_registered_obligation_ids": [],
                     "proof_mode": "source_to_bridge_premise_semantic_repair",
                     "runtime_queue_status": (
@@ -34862,6 +35018,34 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
         for key, value in input_summary_provenance.items():
             if key not in source_target_provenance:
                 source_target_provenance[key] = value
+        explicit_target_ids = _source_theorem_explicit_target_ids_from_row(row)
+        target_ids = explicit_target_ids or _source_theorem_target_ids_from_row(
+            row,
+            fallback_target_theorem_name=target_theorem_name,
+        )
+        raw_target_goal_ids = list(
+            _str_tuple(
+                row.get("target_theorem_goal_ids", [])
+                or input_summary.get("target_theorem_goal_ids", [])
+                or []
+            )
+        )
+        target_goal_ids = (
+            list(target_ids) if explicit_target_ids else list(raw_target_goal_ids)
+        )
+        if not target_goal_ids:
+            target_goal_ids = list(
+                _str_tuple(
+                    target_ids or ([target_theorem_name] if target_theorem_name else [])
+                )
+            )
+        if target_ids:
+            source_target_provenance.setdefault("target_ids", target_ids)
+            if len(target_ids) == 1:
+                source_target_provenance.setdefault(
+                    "source_theorem_goal_id",
+                    target_ids[0],
+                )
         question_id = str(
             row.get("question_id", "")
             or input_summary.get("question_id", "")
@@ -34934,6 +35118,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                         row.get("source_work_order_id", "") or ""
                     ),
                     "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "source_theorem_target_known": bool(
                         source_target_provenance.get("source_theorem_target_known", False)
                     ),
@@ -34955,9 +35140,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "proof_body_goal_excerpt": proof_body_goal_excerpt,
                     "exact_goal_shape_obligation_ids": exact_goal_shape_obligation_ids,
                     "exact_goal_shape_obligations": exact_goal_shape_obligations,
-                    "target_theorem_goal_ids": (
-                        [target_theorem_name] if target_theorem_name else []
-                    ),
+                    "target_theorem_goal_ids": target_goal_ids,
                     "candidate_registered_obligation_ids": (
                         list(_registered_support_for_placeholder_symbol(symbol))
                     ),
@@ -35029,6 +35212,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                         row.get("source_work_order_id", "") or ""
                     ),
                     "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
                     "source_theorem_target_known": bool(
                         source_target_provenance.get("source_theorem_target_known", False)
                     ),
@@ -35050,9 +35234,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "proof_body_goal_excerpt": proof_body_goal_excerpt,
                     "exact_goal_shape_obligation_ids": exact_goal_shape_obligation_ids,
                     "exact_goal_shape_obligations": exact_goal_shape_obligations,
-                    "target_theorem_goal_ids": (
-                        [target_theorem_name] if target_theorem_name else []
-                    ),
+                    "target_theorem_goal_ids": target_goal_ids,
                     "candidate_registered_obligation_ids": list(
                         _registered_support_for_exact_goal_shape_obligation(
                             obligation_id,

@@ -827,3 +827,26 @@ into generated agenda `target_ids`. The patched replay
 `runs/main_worker_critic_after_truth_target_repair_live` exports the truth-table
 proof-repair row for `split_conformal_finite_sample_coverage`; source theorem
 kernel evidence is still absent.
+
+The next Formalizer continuation exposed the same provenance smell in fresh
+source-to-bridge and semantic-primitive queue producers. The rows carried
+`target_theorem_name`, `target_lean_declaration`, and sometimes
+`target_theorem_goal_ids`, but downstream consumers had to infer the canonical
+target because top-level `target_ids` and nested premise-candidate
+`target_ids` were missing. The runtime now stamps `target_ids` at the
+source-to-bridge work-order boundary, backfills embedded manifest work orders,
+propagates target IDs into source-to-bridge semantic primitive work orders, and
+lets generated next-action rows prefer explicit `target_ids` over display
+names. A focused Helmholtz review then caught the multi-target risk: a specific
+candidate must not inherit every broad `remaining_theorem_goal_ids` entry.
+Explicit `target_ids`, `target_id`, or `source_theorem_goal_id` now win over
+`target_theorem_goal_ids`, which are used only as fallback. The patched live
+replay
+`runs/main_worker_formalizer_after_explicit_target_boundary_live` emits 17 agenda
+rows, four source-to-bridge premise-derivation work orders, three semantic
+primitive work orders, four exact-semantic work orders, seven adapter work
+orders, eight promotion work orders, one promotion handoff, and one
+materialization seed with zero missing `target_ids`; nested premise-derivation
+candidate requests also have zero missing `target_ids`. This is still routing
+and provenance repair only: the source theorem is unproved, and the promotion
+seed remains `BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS`.
