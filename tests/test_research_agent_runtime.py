@@ -21506,7 +21506,7 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     assert len(seed_queue["blocked_rows"]) == 1
     assert len(exact_semantic_work_orders) == 3
     assert all(
-        row["target_ids"] == ["split_conformal_coverage"]
+        row["target_ids"] == ["split_conformal_finite_sample_coverage"]
         for row in exact_semantic_work_orders
     )
     assert {
@@ -21527,7 +21527,7 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     )
     assert len(exact_semantic_learning_rows) == 3
     assert all(
-        row["target_ids"] == ["split_conformal_coverage"]
+        row["target_ids"] == ["split_conformal_finite_sample_coverage"]
         for row in exact_semantic_learning_rows
     )
     assert {
@@ -26903,6 +26903,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "split_conformal_finite_sample_coverage_lean"
     )
     assert rows[0]["source_theorem_target_known"] is True
+    assert rows[0]["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert rows[0]["source_theorem_target_provenance"][
         "source_theorem_route_id"
     ] == "route:split_conformal_source"
@@ -26929,6 +26930,8 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "work_order_id"
     ]
     assert handoff_rows[0]["target_lean_declaration"] == "split_conformal_coverage"
+    assert handoff_rows[0]["target_theorem_name"] == "split_conformal_coverage"
+    assert handoff_rows[0]["target_ids"] == rows[0]["target_ids"]
     assert handoff_rows[0]["target_resolution_status"] == (
         "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
     )
@@ -26938,6 +26941,9 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert handoff_rows[0]["source_theorem_target_provenance"][
         "target_lean_declaration"
     ] == "split_conformal_coverage"
+    assert handoff_rows[0]["source_theorem_target_provenance"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert handoff_rows[0]["handoff_status"] == (
         "NEEDS_KERNEL_VERIFIED_PROOF_ARTIFACT_BEFORE_PROMOTION"
     )
@@ -26954,12 +26960,19 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
     )
     assert materialization_seed_rows[0]["source_theorem_target_known"] is True
+    assert materialization_seed_rows[0]["target_ids"] == rows[0]["target_ids"]
     assert materialization_seed_rows[0]["source_theorem_target_provenance"][
         "source_theorem_route_id"
     ] == "route:split_conformal_source"
     assert materialization_seed_rows[0]["source_theorem_target_provenance"][
         "target_lean_declaration"
     ] == "split_conformal_coverage"
+    assert materialization_seed_rows[0]["source_theorem_target_provenance"][
+        "target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert materialization_seed_rows[0]["kernel_overlay_context"][
         "source_theorem_target_provenance"
     ]["source_theorem_route_id"] == "route:split_conformal_source"
@@ -26983,6 +26996,12 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
         "target_imports"
     ] == ["Mathlib", "StatInference.Conformal"]
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
+        "target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert materialization_seed_rows[0]["target_location_preflight"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert materialization_seed_rows[0]["proof_evidence_status"] == (
         "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE"
     )

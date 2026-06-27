@@ -24485,6 +24485,53 @@ def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[s
     return provenance
 
 
+def _source_theorem_target_ids_from_row(
+    row: Mapping[str, Any],
+    *,
+    fallback_target_theorem_name: str = "",
+    fallback_source_formal_target_id: str = "",
+) -> list[str]:
+    sources: list[Mapping[str, Any]] = [row]
+    for nested_key in (
+        "source_theorem_target_provenance",
+        "source_theorem_target_context",
+        "kernel_overlay_context",
+        "overlay_row",
+        "input_summary",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    for source in tuple(sources):
+        nested = source.get("source_theorem_target_provenance", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+
+    target_ids: list[str] = []
+    for source in sources:
+        for key in (
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "source_theorem_goal_id",
+        ):
+            for value in _str_tuple(source.get(key, [])):
+                text = str(value or "").strip()
+                if text:
+                    target_ids.append(text)
+
+    if not target_ids:
+        for fallback in (
+            fallback_target_theorem_name,
+            fallback_source_formal_target_id,
+        ):
+            text = str(fallback or "").strip()
+            if text:
+                target_ids.append(text)
+                break
+    return list(dict.fromkeys(target_ids))
+
+
 def _int_like(value: Any, default: int = 0) -> int:
     try:
         return int(value)
@@ -36599,6 +36646,23 @@ def _runtime_source_theorem_promotion_handoff_rows(
         lean_statement_sketch = str(item.get("lean_statement_sketch", "") or "").strip()
         target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
         source_target_provenance = _source_theorem_target_provenance_from_row(item)
+        target_theorem_name = str(
+            item.get("target_theorem_name", "")
+            or target_lean_declaration
+            or source_target_id
+        ).strip()
+        target_ids = _source_theorem_target_ids_from_row(
+            item,
+            fallback_target_theorem_name=target_theorem_name,
+            fallback_source_formal_target_id=source_target_id,
+        )
+        if target_ids:
+            source_target_provenance.setdefault("target_ids", target_ids)
+            if len(target_ids) == 1:
+                source_target_provenance.setdefault(
+                    "source_theorem_goal_id",
+                    target_ids[0],
+                )
         if source_target_id:
             source_target_provenance.setdefault(
                 "source_formal_target_id",
@@ -36647,6 +36711,8 @@ def _runtime_source_theorem_promotion_handoff_rows(
             "question_id": str(item.get("question_id", "") or ""),
             "question_title": str(item.get("question_title", "") or ""),
             "source_formal_target_id": source_target_id,
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "target_theorem_goal_ids": list(
                 item.get("target_theorem_goal_ids", []) or []
             ),
@@ -36774,8 +36840,25 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
         target_lean_declaration = str(
             item.get("target_lean_declaration", "") or ""
         ).strip()
+        target_theorem_name = str(
+            item.get("target_theorem_name", "")
+            or target_lean_declaration
+            or source_target_id
+        ).strip()
+        target_ids = _source_theorem_target_ids_from_row(
+            item,
+            fallback_target_theorem_name=target_theorem_name,
+            fallback_source_formal_target_id=source_target_id,
+        )
         target_status = str(item.get("target_resolution_status", "") or "")
         source_target_provenance = _source_theorem_target_provenance_from_row(item)
+        if target_ids:
+            source_target_provenance.setdefault("target_ids", target_ids)
+            if len(target_ids) == 1:
+                source_target_provenance.setdefault(
+                    "source_theorem_goal_id",
+                    target_ids[0],
+                )
         if work_order_id:
             source_target_provenance.setdefault(
                 "source_theorem_promotion_id",
@@ -36986,7 +37069,8 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "Materialize exact source-theorem candidate for "
                 + (target_lean_declaration or source_target_id or "source theorem")
             ),
-            "target_theorem_name": target_lean_declaration or source_target_id,
+            "target_theorem_name": target_theorem_name,
+            "target_ids": target_ids,
             "candidate_bridge_lemma_name": target_lean_declaration,
             "lean_statement_sketch": lean_statement_sketch,
             "source_theorem_target_provenance": source_target_provenance,
@@ -37058,10 +37142,12 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                     else {}
                 ),
                 "source_formal_target_id": source_target_id,
+                "target_ids": target_ids,
                 "source_theorem_target_known": target_known,
                 "source_theorem_target_provenance": source_target_provenance,
                 "target_location": {
                     "target_lean_declaration": target_lean_declaration,
+                    "target_ids": target_ids,
                     "target_imports": lean_imports,
                 },
                 "already_kernel_verified_subclaims": [
@@ -37121,6 +37207,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "live_goal_location_ready": False,
                 "execution_preflight_status": execution_preflight_status,
                 "target_lean_declaration": target_lean_declaration,
+                "target_ids": target_ids,
                 "candidate_artifact_path": str(candidate_artifact_path),
                 "next_step": next_step,
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
