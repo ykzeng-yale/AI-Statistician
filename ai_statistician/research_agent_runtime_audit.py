@@ -918,6 +918,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets",
@@ -995,6 +1009,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate",
                 0,
             )
             or 0
@@ -3098,6 +3126,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required')} "
                 "primary_review_required="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required')} "
+                "primary_llm_approved="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+                "primary_llm_approved_requiring_verifier_gate="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
+                "late_llm_approved="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+                "late_llm_approved_requiring_verifier_gate="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
                 "repair_required="
                 f"{payload.get('source_theorem_exact_semantic_definition_repair_required')} "
                 "repair_reason="
@@ -3127,6 +3163,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_ran')} "
                 "primary_approved="
                 f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_approved_packets')} "
+                "primary_llm_approved="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+                "primary_llm_approved_requiring_verifier_gate="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
                 "primary_execution_rows="
                 f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows')} "
                 "primary_executor_ran="
@@ -3135,6 +3175,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran')} "
                 "late_approved="
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets')} "
+                "late_llm_approved="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+                "late_llm_approved_requiring_verifier_gate="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
                 "late_execution_rows="
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')} "
                 "late_executor_ran="
@@ -3645,12 +3689,16 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- exact semantic-definition typechecked-review proof-body recheck: "
         f"primary_queue_ran={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_ran')} "
         f"primary_approved={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_approved_packets')} "
+        f"primary_llm_approved={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+        f"primary_llm_approved_requiring_verifier_gate={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
         f"primary_blocked={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets')} "
         f"primary_execution_rows={payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows')} "
         f"primary_executor_ran={payload.get('source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_ran')} "
         f"primary_source_kernel_verified={payload.get('source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified')} "
         f"late_queue_ran={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran')} "
         f"late_approved={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets')} "
+        f"late_llm_approved={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets')} "
+        f"late_llm_approved_requiring_verifier_gate={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate')} "
         f"late_blocked={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets')} "
         f"late_execution_rows={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')} "
         f"late_executor_ran={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')} "

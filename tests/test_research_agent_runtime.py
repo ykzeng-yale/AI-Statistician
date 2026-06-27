@@ -37664,6 +37664,78 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert Path(system_overlay["manifest_path"]).exists()
 
 
+def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 0,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_ran": True,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_approved_packets": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows": 0,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran": True,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets": 0,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows": 0,
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets"
+        ]
+        == 1
+    )
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "primary_llm_approved=2" in report
+    assert "primary_llm_approved_requiring_verifier_gate=2" in report
+    assert "late_llm_approved=1" in report
+    assert "late_llm_approved_requiring_verifier_gate=1" in report
+
+
 def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() -> None:
     payload = {
         "all_ok": True,
