@@ -33503,7 +33503,180 @@ def _dedupe_runtime_next_action_agenda_rows(
             compacted.append(normalized)
             continue
         _merge_runtime_next_action_agenda_row(existing, normalized)
+    compacted = _prune_superseded_source_to_bridge_metadata_authoring_agenda_rows(
+        compacted
+    )
     return _rank_runtime_next_action_agenda_rows(compacted)
+
+
+def _prune_superseded_source_to_bridge_metadata_authoring_agenda_rows(
+    agenda_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    downstream_target_keys: set[str] = set()
+    downstream_premise_names_by_target: dict[str, set[str]] = {}
+    normalized_rows = [dict(row) for row in agenda_rows if isinstance(row, Mapping)]
+    for row in normalized_rows:
+        if not _runtime_next_action_agenda_downstream_of_metadata_authoring(row):
+            continue
+        target_keys = _runtime_next_action_agenda_target_keys(row)
+        downstream_target_keys.update(target_keys)
+        premise_names = set(_runtime_next_action_agenda_premise_names(row))
+        if premise_names:
+            for target_key in target_keys:
+                downstream_premise_names_by_target.setdefault(
+                    target_key,
+                    set(),
+                ).update(premise_names)
+    if not downstream_target_keys:
+        return normalized_rows
+
+    pruned_rows: list[dict[str, Any]] = []
+    for row in normalized_rows:
+        if not _runtime_next_action_agenda_source_to_bridge_metadata_authoring(row):
+            pruned_rows.append(row)
+            continue
+        target_keys = _runtime_next_action_agenda_target_keys(row)
+        if not target_keys or target_keys.isdisjoint(downstream_target_keys):
+            pruned_rows.append(row)
+            continue
+        metadata_premise_names = set(_runtime_next_action_agenda_premise_names(row))
+        if metadata_premise_names:
+            covered_premise_names: set[str] = set()
+            for target_key in target_keys:
+                covered_premise_names.update(
+                    downstream_premise_names_by_target.get(target_key, set())
+                )
+            if not metadata_premise_names.issubset(covered_premise_names):
+                pruned_rows.append(row)
+                continue
+        if not target_keys.issubset(downstream_target_keys):
+            narrowed_row = _runtime_next_action_agenda_without_superseded_targets(
+                row,
+                downstream_target_keys,
+            )
+            if narrowed_row:
+                pruned_rows.append(narrowed_row)
+            continue
+    return pruned_rows
+
+
+def _runtime_next_action_agenda_source_to_bridge_metadata_authoring(
+    row: Mapping[str, Any],
+) -> bool:
+    row_id = str(row.get("id", "") or "").strip()
+    trigger = str(row.get("trigger", "") or "").strip()
+    runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+    blocker_kind = str(
+        row.get("source_to_bridge_metadata_blocker_kind", "") or ""
+    ).strip()
+    return bool(
+        row_id == "formal_gap:source_to_bridge_metadata_authoring"
+        or trigger == "SOURCE_TO_BRIDGE_METADATA_BLOCKER"
+        or runtime_queue_status == "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+        or blocker_kind == "source_to_bridge_metadata_blocker"
+    )
+
+
+def _runtime_next_action_agenda_downstream_of_metadata_authoring(
+    row: Mapping[str, Any],
+) -> bool:
+    if _runtime_next_action_agenda_source_to_bridge_metadata_authoring(row):
+        return False
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in (
+            "id",
+            "trigger",
+            "runtime_queue_status",
+            "owner_subsystem",
+        )
+    ).lower()
+    return bool(
+        "source_theorem_exact_semantic_definition" in combined
+        or "exact_semantic_definition" in combined
+        or "source_to_bridge_premise_derivation" in combined
+        or "source_to_bridge_adapter_object_semantic_definition" in combined
+    )
+
+
+def _runtime_next_action_agenda_target_keys(row: Mapping[str, Any]) -> set[str]:
+    raw_values = _runtime_row_string_values(
+        row,
+        "target_ids",
+        "target_id",
+        "target_theorem_goal_ids",
+        "formal_gap_target_ids",
+        "target_theorem_name",
+        "target_lean_declaration",
+    )
+    target_keys: set[str] = set()
+    for value in raw_values:
+        target_keys.update(_runtime_next_action_agenda_normalized_target_keys(value))
+    return target_keys
+
+
+def _runtime_next_action_agenda_normalized_target_keys(value: Any) -> set[str]:
+    text = str(value or "").strip()
+    if not text:
+        return set()
+    target_keys = {text}
+    if text.startswith("target:"):
+        target_keys.add(text.removeprefix("target:"))
+    prefix, separator, suffix = text.partition(":")
+    if separator and prefix in {"conformal", "theorem_goal", "target"} and suffix:
+        target_keys.add(suffix)
+    return target_keys
+
+
+def _runtime_next_action_agenda_premise_names(row: Mapping[str, Any]) -> tuple[str, ...]:
+    return _runtime_row_string_values(
+        row,
+        "premise_names",
+        "premise_name",
+        "source_to_bridge_premise_names",
+        "source_to_bridge_premise_derivation_pending_premise_names",
+    )
+
+
+def _runtime_next_action_agenda_without_superseded_targets(
+    row: Mapping[str, Any],
+    downstream_target_keys: set[str],
+) -> dict[str, Any] | None:
+    narrowed = dict(row)
+    found_target_field = False
+    for key in (
+        "target_ids",
+        "target_theorem_goal_ids",
+        "formal_gap_target_ids",
+    ):
+        if key not in narrowed:
+            continue
+        found_target_field = True
+        remaining_values = [
+            value
+            for value in _agenda_string_values(narrowed.get(key, []))
+            if _runtime_next_action_agenda_normalized_target_keys(value).isdisjoint(
+                downstream_target_keys
+            )
+        ]
+        narrowed[key] = remaining_values
+    for key in ("target_id", "target_theorem_name", "target_lean_declaration"):
+        if key not in narrowed:
+            continue
+        found_target_field = True
+        value = str(narrowed.get(key, "") or "").strip()
+        if (
+            value
+            and not _runtime_next_action_agenda_normalized_target_keys(
+                value
+            ).isdisjoint(downstream_target_keys)
+        ):
+            narrowed.pop(key, None)
+    if not found_target_field:
+        return dict(row)
+    if not _runtime_next_action_agenda_target_keys(narrowed):
+        return None
+    return narrowed
 
 
 def _rank_runtime_next_action_agenda_rows(

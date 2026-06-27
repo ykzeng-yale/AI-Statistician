@@ -23640,7 +23640,6 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
     )
 
     assert [row["id"] for row in compacted] == [
-        "formal_gap:source_to_bridge_metadata_authoring",
         "formal_gap:source_theorem_exact_semantic_definition_repair",
         "proof_feedback:source_theorem_exact_semantic_definitions:one",
         "proof_feedback:source_theorem_exact_semantic_definitions:two",
@@ -23662,6 +23661,163 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
     assert planner_row["failure_classifications"] == [
         "formal_environment_placeholder_primitives",
         "source_theorem_semantic_alignment_unreviewed",
+    ]
+
+
+def test_runtime_next_action_agenda_prunes_superseded_metadata_authoring_by_target() -> None:
+    stale_metadata_row = {
+        "id": "formal_gap:source_to_bridge_metadata_authoring",
+        "owner_subsystem": "TheoryDeveloper/SourceBindingMetadata/Formalizer",
+        "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+        "action": "author source-to-bridge metadata",
+        "acceptance_gate": "metadata request is explicit",
+        "target_ids": ["split_conformal_coverage"],
+        "source_to_bridge_metadata_blocker_status": (
+            "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+        ),
+        "source_to_bridge_metadata_blocker_kind": (
+            "source_to_bridge_metadata_blocker"
+        ),
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING",
+        "priority": "high",
+    }
+    exact_semantic_repair_row = {
+        "id": "formal_gap:source_theorem_exact_semantic_definition_repair",
+        "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+        "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+        "action": "review exact semantic definitions",
+        "acceptance_gate": "reviewed definitions pass local Lean",
+        "target_ids": ["split_conformal_coverage"],
+        "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "priority": "high",
+    }
+    unrelated_metadata_row = {
+        **stale_metadata_row,
+        "target_ids": ["other_theorem"],
+    }
+    multi_target_metadata_row = {
+        **stale_metadata_row,
+        "target_ids": ["split_conformal_coverage", "other_theorem"],
+    }
+    premise_scoped_metadata_row = {
+        **stale_metadata_row,
+        "premise_names": ["hMissingCovered"],
+    }
+    unrelated_premise_downstream_row = {
+        "id": (
+            "proof_feedback:source_to_bridge_premise_derivation_from_formalizer_feedback:old"
+        ),
+        "owner_subsystem": "Formalizer/ProofEngineer",
+        "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "action": "consume source-to-bridge premise derivation",
+        "acceptance_gate": "local Lean verifies premise derivation",
+        "target_ids": ["split_conformal_coverage"],
+        "premise_name": "hGoodCovered",
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION",
+        "priority": "high",
+    }
+    covered_premise_metadata_row = {
+        **premise_scoped_metadata_row,
+        "premise_names": ["hGoodCovered"],
+    }
+
+    compacted = _dedupe_runtime_next_action_agenda_rows(
+        [stale_metadata_row, exact_semantic_repair_row]
+    )
+
+    assert [row["id"] for row in compacted] == [
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
+    ]
+
+    unrelated_compacted = _dedupe_runtime_next_action_agenda_rows(
+        [unrelated_metadata_row, exact_semantic_repair_row]
+    )
+    assert [row["id"] for row in unrelated_compacted] == [
+        "formal_gap:source_to_bridge_metadata_authoring",
+        "formal_gap:source_theorem_exact_semantic_definition_repair",
+    ]
+
+    multi_target_compacted = _dedupe_runtime_next_action_agenda_rows(
+        [multi_target_metadata_row, exact_semantic_repair_row]
+    )
+    narrowed_metadata_row = next(
+        row
+        for row in multi_target_compacted
+        if row["id"] == "formal_gap:source_to_bridge_metadata_authoring"
+    )
+    assert narrowed_metadata_row["target_ids"] == ["other_theorem"]
+
+    premise_scoped_compacted = _dedupe_runtime_next_action_agenda_rows(
+        [premise_scoped_metadata_row, unrelated_premise_downstream_row]
+    )
+    assert [
+        row["id"]
+        for row in premise_scoped_compacted
+        if row["id"] == "formal_gap:source_to_bridge_metadata_authoring"
+    ] == ["formal_gap:source_to_bridge_metadata_authoring"]
+
+    covered_premise_compacted = _dedupe_runtime_next_action_agenda_rows(
+        [covered_premise_metadata_row, unrelated_premise_downstream_row]
+    )
+    assert "formal_gap:source_to_bridge_metadata_authoring" not in {
+        row["id"] for row in covered_premise_compacted
+    }
+
+
+def test_runtime_agenda_rows_prunes_historical_metadata_blocker_after_downstream_repair() -> None:
+    stale_metadata_row = {
+        "id": "formal_gap:source_to_bridge_metadata_authoring",
+        "owner_subsystem": "TheoryDeveloper/SourceBindingMetadata/Formalizer",
+        "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+        "action": "author source-to-bridge metadata",
+        "acceptance_gate": "metadata request is explicit",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "source_to_bridge_metadata_blocker_status": (
+            "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+        ),
+        "source_to_bridge_metadata_blocker_kind": (
+            "source_to_bridge_metadata_blocker"
+        ),
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING",
+        "priority": "high",
+    }
+    exact_semantic_repair_row = {
+        "id": "formal_gap:source_theorem_exact_semantic_definition_repair",
+        "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
+        "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+        "action": "review exact semantic definitions",
+        "acceptance_gate": "reviewed definitions pass local Lean",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "priority": "high",
+    }
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "critic:old": {
+                        "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                        "next_action_agenda": [stale_metadata_row],
+                    }
+                }
+            }
+        },
+        {
+            "blackboard": {
+                "artifacts": {
+                    "critic:new": {
+                        "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                        "next_action_agenda": [exact_semantic_repair_row],
+                    }
+                }
+            }
+        },
+    ]
+
+    compacted = runtime_module._runtime_agenda_rows(results)
+
+    assert [row["id"] for row in compacted] == [
+        "formal_gap:source_theorem_exact_semantic_definition_repair"
     ]
 
 
