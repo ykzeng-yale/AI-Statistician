@@ -18257,6 +18257,92 @@ def test_runtime_learning_memory_loader_preserves_authoring_retry_request(
     ]
 
 
+def test_exact_semantic_environment_import_blocker_becomes_authoring_task() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairResult"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_environment_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "C_n",
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+            },
+            "candidate_lean_project_hint": "legacy_sources/emperical_process_lean",
+            "candidate_source_file": (
+                "legacy_sources/ai_statistician/StatInference/Asymptotics/"
+                "AsymptoticNormal.lean"
+            ),
+            "environment_repair_status": "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT",
+            "unavailable_module_prefix": "StatInference",
+            "ready_to_rerun_lean_repair": False,
+            "recommended_next_action": (
+                "rerun the Lean repair executor with a Lake project/source root "
+                "that exposes the candidate module prefix, or port the reviewed "
+                "declaration into the exact source-theorem project before "
+                "proof-body search"
+            ),
+            "recommended_commands": [
+                "lake env lean legacy_sources/ai_statistician/StatInference/"
+                "Asymptotics/AsymptoticNormal.lean"
+            ],
+            "local_lean_diagnostics": [
+                "error: unknown module prefix 'StatInference'",
+            ],
+            "input_summary": {
+                "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+            },
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_"
+                "NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            rows
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["artifact_kind"] == "SourceTheoremExactSemanticDefinitionAuthoringTask"
+    assert task["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    assert task["authoring_mode"] == (
+        "port_or_synthesize_exact_definition_for_active_lean_project"
+    )
+    assert task["placeholder_symbol"] == "C_n"
+    assert task["candidate_lean_project_hint"] == (
+        "legacy_sources/emperical_process_lean"
+    )
+    assert task["candidate_source_file"].endswith(
+        "StatInference/Asymptotics/AsymptoticNormal.lean"
+    )
+    assert task["unavailable_module_prefix"] == "StatInference"
+    assert task["retry_failure_classification"] == (
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    )
+    assert "port the reviewed declaration" in task["retry_recommended_next_action"]
+    assert task["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+    assert task["source_theorem_kernel_verified"] is False
+
+
 def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

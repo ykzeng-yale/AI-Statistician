@@ -40201,12 +40201,37 @@ _EXACT_SEMANTIC_ENVIRONMENT_REPAIR_STATUS_PRIORITY = {
     "LAKE_PROJECT_MISSING": 30,
 }
 
+_EXACT_SEMANTIC_ENVIRONMENT_REPAIR_AUTHORING_REQUIRED_STATUSES = frozenset(
+    {
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT",
+    }
+)
+
 
 def _exact_semantic_environment_repair_status_priority(status: Any) -> int:
     value = str(status or "").strip()
     if not value:
         return 0
     return _EXACT_SEMANTIC_ENVIRONMENT_REPAIR_STATUS_PRIORITY.get(value, 50)
+
+
+def _exact_semantic_environment_repair_requires_authoring(
+    *,
+    exact_environment_repair_row: bool,
+    environment_repair_status: str,
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> bool:
+    if (
+        not exact_environment_repair_row
+        or environment_repair_status
+        not in _EXACT_SEMANTIC_ENVIRONMENT_REPAIR_AUTHORING_REQUIRED_STATUSES
+    ):
+        return False
+    return not bool(
+        row.get("ready_to_rerun_lean_repair", False)
+        or input_summary.get("ready_to_rerun_lean_repair", False)
+    )
 
 
 def _exact_semantic_environment_repair_evidence_score(
@@ -40887,6 +40912,29 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or input_summary.get("failure_classification", "")
             or ""
         ).strip()
+        environment_repair_status = str(
+            row.get("environment_repair_status", "")
+            or input_summary.get("environment_repair_status", "")
+            or ""
+        ).strip()
+        exact_environment_repair_row = bool(
+            environment_repair_status
+            and (
+                str(row.get("learning_task", "") or "").startswith(
+                    "source_theorem_exact_semantic_definition_"
+                )
+                or str(input_summary.get("trigger", "") or "")
+                == "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT"
+            )
+        )
+        environment_port_authoring_required = (
+            _exact_semantic_environment_repair_requires_authoring(
+                exact_environment_repair_row=exact_environment_repair_row,
+                environment_repair_status=environment_repair_status,
+                row=row,
+                input_summary=input_summary,
+            )
+        )
         authoring_retry_required = (
             runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
             or failure_classification
@@ -40894,6 +40942,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         )
         authoring_repair_required = (
             runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+            or environment_port_authoring_required
             or str(row.get("authoring_trigger", "") or "").strip()
             == "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
             or str(input_summary.get("authoring_trigger", "") or "").strip()
@@ -40960,10 +41009,14 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     else "EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY_REQUIRED"
                 ),
                 "authoring_mode": (
-                    str(
-                        row.get("authoring_mode", "")
-                        or input_summary.get("authoring_mode", "")
-                        or ""
+                    (
+                        "port_or_synthesize_exact_definition_for_active_lean_project"
+                        if environment_port_authoring_required
+                        else str(
+                            row.get("authoring_mode", "")
+                            or input_summary.get("authoring_mode", "")
+                            or ""
+                        )
                     )
                     if authoring_repair_required
                     else "retry_exact_semantic_definition_authoring"
@@ -41021,12 +41074,31 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             "premise_semantic_anchor_binder_names",
             "required_bridge_premise_names_for_shared_instantiation",
             "source_to_bridge_adapter_object_names_requiring_source_instantiation",
+            "environment_repair_status",
+            "candidate_lean_project_hint",
+            "candidate_source_file",
+            "unavailable_module_prefix",
+            "dependency_fetch_required",
+            "ready_to_rerun_lean_repair",
+            "recommended_commands",
+            "recommended_next_action",
+            "local_lean_diagnostics",
         ):
             if task.get(key_name) not in (None, "", [], {}):
                 continue
             value = input_summary.get(key_name)
             if value not in (None, "", [], {}):
                 task[key_name] = value
+        if environment_port_authoring_required:
+            task["retry_failure_classification"] = environment_repair_status
+            task["retry_recommended_next_action"] = str(
+                row.get("recommended_next_action", "")
+                or input_summary.get("recommended_next_action", "")
+                or (
+                    "port or synthesize the exact semantic definition inside the "
+                    "configured Lean project before proof-body search resumes"
+                )
+            )
         if not str(task.get("lean_repair_action", "") or "").strip():
             task["lean_repair_action"] = "synthesize_exact_definition"
         rows.append(task)
