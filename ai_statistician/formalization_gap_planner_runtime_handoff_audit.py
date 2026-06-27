@@ -252,6 +252,27 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_awaiting_response", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_report_only_prompt_budget_caps": sum(
+            1
+            for summary in smoke_summaries
+            if int(
+                summary.get(
+                    "llm_prompt_max_estimated_prompt_input_tokens",
+                    -1,
+                )
+            )
+            == 0
+        ),
+        "n_llm_prompt_prompt_budget_preflight_blocked": sum(
+            int(
+                summary.get(
+                    "llm_prompt_prompt_budget_preflight_blocked",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
         "n_llm_prompt_requests_with_minimal_delta_cost_hints": sum(
             int(
                 summary.get(
@@ -664,6 +685,7 @@ def _audit_handoff_row(
     seed_path_text = str(handoff.get("standalone_seed_path", "")).strip()
     target_intake_path_text = str(handoff.get("target_intake_path", "")).strip()
     target_intake_dir_text = str(handoff.get("target_intake_dir", "")).strip()
+    standalone_plan_dir_text = str(handoff.get("standalone_plan_dir", "")).strip()
     seed_path = Path(seed_path_text)
     target_intake_path = Path(target_intake_path_text)
     target_intake_dir = Path(target_intake_dir_text)
@@ -719,6 +741,7 @@ def _audit_handoff_row(
         "handoff_id": handoff_id,
         "bridge_id": bridge_id,
         "standalone_seed_path": seed_path_text,
+        "standalone_plan_dir": standalone_plan_dir_text,
         "target_intake_path": target_intake_path_text,
         "target_intake_dir": target_intake_dir_text,
         "target_prover_family": handoff_target,
@@ -761,6 +784,15 @@ def _audit_handoff_row(
         "llm_prompt_model_tier_haiku": 0,
         "llm_prompt_model_tier_sonnet": 0,
         "llm_prompt_model_tier_opus": 0,
+        "llm_prompt_requests_with_model_tier_decision_evidence": 0,
+        "llm_prompt_model_tier_decision_auto_haiku_bounded": 0,
+        "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
+        "llm_prompt_model_tier_decision_operator_override": 0,
+        "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+        "llm_prompt_model_tier_decision_evidence_invalid": 0,
+        "llm_prompt_by_model_tier_decision_basis": {},
+        "llm_prompt_max_estimated_prompt_input_tokens": 0,
+        "llm_prompt_prompt_budget_preflight_blocked": 0,
         "seed_routes": 0,
         "seed_primitives": 0,
         "seed_residual_goals": 0,
@@ -786,11 +818,13 @@ def _audit_handoff_row(
     seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(
         prompt_cli,
+        standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
     live_explicit_ok = _live_cli_explicit_ok(
         live_cli,
+        standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
@@ -810,6 +844,7 @@ def _audit_handoff_row(
         and "auto" in prompt_stage_argv
         and _prompt_cli_cost_control_ok(
             str(prompt_stage.get("cli", "")),
+            standalone_plan_dir_text=standalone_plan_dir_text,
             target_intake_dir_text=target_intake_dir_text,
             component_resource_registry_dir_text=component_resource_registry_dir_text,
         )
@@ -824,6 +859,7 @@ def _audit_handoff_row(
         and "auto" in live_stage_argv
         and _live_cli_explicit_ok(
             str(live_stage.get("cli", "")),
+            standalone_plan_dir_text=standalone_plan_dir_text,
             target_intake_dir_text=target_intake_dir_text,
             component_resource_registry_dir_text=component_resource_registry_dir_text,
         )
@@ -1064,6 +1100,15 @@ def _audit_handoff_row(
             cost_control_ok,
         ),
         _row_check(
+            "row_prompt_cli_has_prompt_budget_cap",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--max-estimated-prompt-input-tokens 0",
+            prompt_cli,
+            "--max-estimated-prompt-input-tokens 0" in prompt_cli,
+        ),
+        _row_check(
             "row_reuse_smoke_cli_cost_control",
             "cost_control",
             handoff_id,
@@ -1073,6 +1118,18 @@ def _audit_handoff_row(
             reuse_smoke_cost_control_ok,
         ),
         _row_check(
+            "row_reuse_smoke_cli_has_prompt_budget_caps",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "reuse-smoke route-planner prompt budget caps",
+            reuse_smoke_cli,
+            "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+            in reuse_smoke_cli
+            and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+            in reuse_smoke_cli,
+        ),
+        _row_check(
             "row_live_cli_explicit",
             "cost_control",
             handoff_id,
@@ -1080,6 +1137,15 @@ def _audit_handoff_row(
             "Anthropic auto command with explicit --invoke-provider",
             live_cli,
             live_explicit_ok,
+        ),
+        _row_check(
+            "row_live_cli_has_prompt_budget_cap",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--max-estimated-prompt-input-tokens 0",
+            live_cli,
+            "--max-estimated-prompt-input-tokens 0" in live_cli,
         ),
         _row_check(
             "row_execution_plan_present",
@@ -1660,6 +1726,7 @@ def _run_llm_prompt_smoke(
             else None,
             provider_name="anthropic",
             model_tier="auto",
+            max_estimated_prompt_input_tokens=0,
             max_repair_attempts=1,
             invoke_provider=False,
             formalization_gap_planner_target_intake_dir=target_intake_dir,
@@ -1683,6 +1750,15 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_model_tier_haiku": 0,
                 "llm_prompt_model_tier_sonnet": 0,
                 "llm_prompt_model_tier_opus": 0,
+                "llm_prompt_requests_with_model_tier_decision_evidence": 0,
+                "llm_prompt_model_tier_decision_auto_haiku_bounded": 0,
+                "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
+                "llm_prompt_model_tier_decision_operator_override": 0,
+                "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+                "llm_prompt_model_tier_decision_evidence_invalid": 0,
+                "llm_prompt_by_model_tier_decision_basis": {},
+                "llm_prompt_max_estimated_prompt_input_tokens": 0,
+                "llm_prompt_prompt_budget_preflight_blocked": 0,
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1719,6 +1795,38 @@ def _run_llm_prompt_smoke(
     n_tier_sonnet = int(payload.get("n_request_model_tier_sonnet", 0) or 0)
     n_tier_opus = int(payload.get("n_request_model_tier_opus", 0) or 0)
     n_tier_accounted = n_tier_haiku + n_tier_sonnet + n_tier_opus
+    n_tier_decision_evidence = int(
+        payload.get("n_requests_with_model_tier_decision_evidence", 0) or 0
+    )
+    n_tier_decision_haiku = int(
+        payload.get("n_request_model_tier_decision_auto_haiku_bounded", 0) or 0
+    )
+    n_tier_decision_sonnet = int(
+        payload.get("n_request_model_tier_decision_auto_sonnet_triggered", 0) or 0
+    )
+    n_tier_decision_operator_override = int(
+        payload.get("n_request_model_tier_decision_operator_override", 0) or 0
+    )
+    n_tier_decision_sonnet_triggers = int(
+        payload.get("n_request_model_tier_decision_sonnet_triggers", 0) or 0
+    )
+    n_tier_decision_invalid = int(
+        payload.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
+    )
+    max_estimated_prompt_input_tokens = int(
+        payload.get("max_estimated_prompt_input_tokens", 0) or 0
+    )
+    n_prompt_budget_preflight_blocked = int(
+        payload.get("n_prompt_token_budget_preflight_blocked", 0) or 0
+    )
+    by_tier_decision_basis = _int_counter_payload(
+        payload.get("by_request_model_tier_decision_basis", {})
+    )
+    n_tier_decision_accounted = (
+        n_tier_decision_haiku
+        + n_tier_decision_sonnet
+        + n_tier_decision_operator_override
+    )
     ok = (
         bool(payload.get("all_ok", False))
         and n_packets > 0
@@ -1738,6 +1846,11 @@ def _run_llm_prompt_smoke(
         )
         and n_model_tier_mismatches == 0
         and n_tier_accounted == n_packets
+        and n_tier_decision_evidence == n_packets
+        and n_tier_decision_invalid == 0
+        and n_tier_decision_accounted == n_packets
+        and max_estimated_prompt_input_tokens == 0
+        and n_prompt_budget_preflight_blocked == 0
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -1751,6 +1864,12 @@ def _run_llm_prompt_smoke(
         f"target_intake_rows={n_target_intake_rows} "
         f"model_tier_mismatches={n_model_tier_mismatches} "
         f"model_tiers=haiku:{n_tier_haiku},sonnet:{n_tier_sonnet},opus:{n_tier_opus} "
+        f"model_tier_decision_evidence={n_tier_decision_evidence} "
+        f"model_tier_decision_basis={by_tier_decision_basis} "
+        f"model_tier_decision_sonnet_triggers={n_tier_decision_sonnet_triggers} "
+        f"model_tier_decision_invalid={n_tier_decision_invalid} "
+        f"prompt_budget_cap={max_estimated_prompt_input_tokens} "
+        f"prompt_budget_blocks={n_prompt_budget_preflight_blocked} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1767,6 +1886,27 @@ def _run_llm_prompt_smoke(
         "llm_prompt_model_tier_haiku": n_tier_haiku,
         "llm_prompt_model_tier_sonnet": n_tier_sonnet,
         "llm_prompt_model_tier_opus": n_tier_opus,
+        "llm_prompt_requests_with_model_tier_decision_evidence": (
+            n_tier_decision_evidence
+        ),
+        "llm_prompt_model_tier_decision_auto_haiku_bounded": n_tier_decision_haiku,
+        "llm_prompt_model_tier_decision_auto_sonnet_triggered": (
+            n_tier_decision_sonnet
+        ),
+        "llm_prompt_model_tier_decision_operator_override": (
+            n_tier_decision_operator_override
+        ),
+        "llm_prompt_model_tier_decision_sonnet_triggers": (
+            n_tier_decision_sonnet_triggers
+        ),
+        "llm_prompt_model_tier_decision_evidence_invalid": n_tier_decision_invalid,
+        "llm_prompt_by_model_tier_decision_basis": by_tier_decision_basis,
+        "llm_prompt_max_estimated_prompt_input_tokens": (
+            max_estimated_prompt_input_tokens
+        ),
+        "llm_prompt_prompt_budget_preflight_blocked": (
+            n_prompt_budget_preflight_blocked
+        ),
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
         "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
@@ -1821,6 +1961,7 @@ def _run_target_intake_smoke(
 def _prompt_cli_cost_control_ok(
     prompt_cli: str,
     *,
+    standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
 ) -> bool:
@@ -1829,6 +1970,10 @@ def _prompt_cli_cost_control_ok(
         and "--provider anthropic" in prompt_cli
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
+        and "--max-estimated-prompt-input-tokens 0" in prompt_cli
+        and "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
+        and bool(standalone_plan_dir_text)
+        and standalone_plan_dir_text in prompt_cli
         and "--formalization-gap-planner-target-intake-dir" in prompt_cli
         and (
             not target_intake_dir_text
@@ -1858,9 +2003,13 @@ def _reuse_smoke_cli_cost_control_ok(
         and "--llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in reuse_smoke_cli
         and "--feedback-llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--feedback-llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--feedback-llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in reuse_smoke_cli
         and "--llm-route-planner-invoke-provider" not in reuse_smoke_cli
         and "--feedback-llm-route-planner-invoke-provider" not in reuse_smoke_cli
     )
@@ -1869,6 +2018,7 @@ def _reuse_smoke_cli_cost_control_ok(
 def _live_cli_explicit_ok(
     live_cli: str,
     *,
+    standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
 ) -> bool:
@@ -1877,6 +2027,10 @@ def _live_cli_explicit_ok(
         and "--provider anthropic" in live_cli
         and "--model-tier auto" in live_cli
         and "--max-repair-attempts 1" in live_cli
+        and "--max-estimated-prompt-input-tokens 0" in live_cli
+        and "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
+        and bool(standalone_plan_dir_text)
+        and standalone_plan_dir_text in live_cli
         and "--formalization-gap-planner-target-intake-dir" in live_cli
         and (not target_intake_dir_text or target_intake_dir_text in live_cli)
         and "--formalization-gap-planner-component-resource-registry-dir" in live_cli
@@ -1950,6 +2104,15 @@ def _str_tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple, set)):
         return tuple(str(item) for item in value if str(item))
     return (str(value),) if str(value) else tuple()
+
+
+def _int_counter_payload(value: object) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): max(0, int(raw_value or 0))
+        for key, raw_value in sorted(value.items(), key=lambda item: str(item[0]))
+    }
 
 
 def _check(
@@ -2157,6 +2320,11 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         ),
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",
+        (
+            f"- LLM prompt budget caps report-only/blocks: "
+            f"{payload.get('n_llm_prompt_report_only_prompt_budget_caps')}/"
+            f"{payload.get('n_llm_prompt_prompt_budget_preflight_blocked')}"
+        ),
         (
             f"- Minimal-delta cost hints in prompts: "
             f"requests={payload.get('n_llm_prompt_requests_with_minimal_delta_cost_hints')} "

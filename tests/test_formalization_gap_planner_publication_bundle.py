@@ -145,7 +145,6 @@ from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
 )
 
-
 def _write_llm_route_planner_fixture_input(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     input_json = root / "standalone_input.json"
@@ -985,6 +984,29 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         == 0
     )
     assert (
+        manifest["llm_route_planner_summary"]["n_prompt_token_budget_rows"]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["estimated_prompt_input_tokens"]
+        > 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_max_output_tokens"
+        ]
+        == 9000
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_total_token_budget"
+        ]
+        == manifest["llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        + 9000
+    )
+    assert (
         manifest["llm_route_planner_summary"][
             "n_model_tier_decision_ledger_rows"
         ]
@@ -1247,6 +1269,33 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "row_count"
         ]
         == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_prompt_token_budget_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        > 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_max_output_tokens"
+        ]
+        == 9000
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_total_token_budget"
+        ]
+        == manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        + 9000
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][

@@ -4861,6 +4861,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         model_tier=args.model_tier,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
+        max_estimated_prompt_input_tokens=args.max_estimated_prompt_input_tokens,
         max_repair_attempts=args.max_repair_attempts,
         invoke_provider=args.invoke_provider,
         response_json=Path(args.response_json) if args.response_json else None,
@@ -4954,6 +4955,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         f"awaiting={payload['n_awaiting_llm_response']} "
         f"search_requests={payload['n_search_requests']} "
         f"preflight_blocks={payload['n_generation_preflight_blocked']} "
+        f"prompt_budget_blocks={payload['n_prompt_token_budget_preflight_blocked']} "
         f"rejected={payload['n_rejected']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -6151,6 +6153,9 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
         llm_route_planner_model=args.llm_route_planner_model,
         llm_route_planner_model_tier=args.llm_route_planner_model_tier,
         llm_route_planner_max_tokens=args.llm_route_planner_max_tokens,
+        llm_route_planner_max_estimated_prompt_input_tokens=(
+            args.llm_route_planner_max_estimated_prompt_input_tokens
+        ),
         llm_route_planner_max_repair_attempts=(
             args.llm_route_planner_max_repair_attempts
         ),
@@ -6172,6 +6177,9 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
             args.feedback_llm_route_planner_model_tier
         ),
         feedback_llm_route_planner_max_tokens=args.feedback_llm_route_planner_max_tokens,
+        feedback_llm_route_planner_max_estimated_prompt_input_tokens=(
+            args.feedback_llm_route_planner_max_estimated_prompt_input_tokens
+        ),
         feedback_llm_route_planner_max_repair_attempts=(
             args.feedback_llm_route_planner_max_repair_attempts
         ),
@@ -6197,8 +6205,10 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
         f"target={payload['target_prover_family']} "
         f"llm_accepted={payload['n_llm_route_planner_accepted_route_plans']} "
         f"llm_awaiting={payload['n_llm_route_planner_awaiting']} "
+        f"llm_prompt_budget_blocks={payload['n_llm_route_planner_prompt_token_budget_preflight_blocked']} "
         f"feedback_llm_accepted={payload['n_feedback_llm_route_planner_accepted_route_plans']} "
         f"feedback_llm_awaiting={payload['n_feedback_llm_route_planner_awaiting']} "
+        f"feedback_prompt_budget_blocks={payload['n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked']} "
         f"packets={payload['n_portable_work_packets']} "
         f"awaiting_adapter={payload['n_awaiting_adapter_mapping']} "
         f"registry_audit_failed={payload['n_adapter_registry_audit_failed']} "
@@ -12338,6 +12348,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum output tokens for live LLM route-planner providers",
     )
     formalization_gap_planner_reuse_smoke.add_argument(
+        "--llm-route-planner-max-estimated-prompt-input-tokens",
+        type=int,
+        default=0,
+        help=(
+            "optional primary route-planner preflight cap on deterministic "
+            "prompt input-token estimates before generation; 0 disables blocking"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
         "--llm-route-planner-max-repair-attempts",
         type=int,
         default=1,
@@ -12399,6 +12418,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=9000,
         help="maximum output tokens for feedback LLM route-planner providers",
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--feedback-llm-route-planner-max-estimated-prompt-input-tokens",
+        type=int,
+        default=0,
+        help=(
+            "optional feedback route-planner preflight cap on deterministic "
+            "prompt input-token estimates before generation; 0 disables blocking"
+        ),
     )
     formalization_gap_planner_reuse_smoke.add_argument(
         "--feedback-llm-route-planner-max-repair-attempts",
@@ -12510,6 +12538,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=9000,
         help="maximum generator output tokens when --invoke-provider is set",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-estimated-prompt-input-tokens",
+        type=int,
+        default=0,
+        help=(
+            "optional preflight cap on deterministic prompt input-token "
+            "estimates before generation; 0 disables blocking"
+        ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--temperature",

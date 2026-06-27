@@ -1036,6 +1036,7 @@ def export_formalization_gap_planner_llm_route_planner(
     model_tier: str = "auto",
     max_tokens: int = 9000,
     temperature: float = 0.1,
+    max_estimated_prompt_input_tokens: int = 0,
     max_repair_attempts: int = 1,
     invoke_provider: bool = False,
     response_json: Path | None = None,
@@ -1127,6 +1128,21 @@ def export_formalization_gap_planner_llm_route_planner(
         )
         for index, route in enumerate(routes)
     )
+    prompt_token_budget_rows = tuple(
+        _prompt_token_budget_row(packet, max_tokens=max_tokens)
+        for packet in request_packets
+    )
+    prompt_token_budget_summary = _prompt_token_budget_summary(
+        prompt_token_budget_rows
+    )
+    prompt_token_budget_preflight_errors = _prompt_token_budget_preflight_errors(
+        prompt_token_budget_rows,
+        max_estimated_prompt_input_tokens=max_estimated_prompt_input_tokens,
+    )
+    prompt_token_budget_errors_by_request_id = {
+        str(error.get("request_id", "")): _str_tuple(error.get("errors", []))
+        for error in prompt_token_budget_preflight_errors
+    }
     by_model_tier = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
     )
@@ -1190,6 +1206,20 @@ def export_formalization_gap_planner_llm_route_planner(
         validate_llm_route_planner_request(packet, request_schema)
         for packet in request_packets
     ]
+    request_contract_errors = [
+        sorted(
+            set(
+                [
+                    *schema_errors,
+                    *prompt_token_budget_errors_by_request_id.get(
+                        str(packet.get("request_id", "")),
+                        (),
+                    ),
+                ]
+            )
+        )
+        for packet, schema_errors in zip(request_packets, request_schema_errors)
+    ]
     raw_responses: list[dict[str, Any]] = []
     if response_json is not None:
         raw_responses.extend(_read_response_json(response_json, errors))
@@ -1204,11 +1234,11 @@ def export_formalization_gap_planner_llm_route_planner(
         generator_backend = _provider_backend(provider)
     generation_preflight_errors = _generation_preflight_errors(
         request_packets,
-        request_schema_errors,
+        request_contract_errors,
     )
     generation_request_packets = tuple(
         packet
-        for packet, packet_errors in zip(request_packets, request_schema_errors)
+        for packet, packet_errors in zip(request_packets, request_contract_errors)
         if not packet_errors
     )
     if invoke_provider and generator_backend is not None:
@@ -1231,7 +1261,7 @@ def export_formalization_gap_planner_llm_route_planner(
             request_errors=request_errors,
             response=responses_by_request.get(str(request.get("request_id", ""))),
         )
-        for request, request_errors in zip(request_packets, request_schema_errors)
+        for request, request_errors in zip(request_packets, request_contract_errors)
     )
     row_dicts = [asdict(row) for row in rows]
     provider_usage_rows = _provider_usage_rows(row_dicts)
@@ -1280,6 +1310,11 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "max_repair_attempts": max(0, int(max_repair_attempts)),
         "invoke_provider": invoke_provider,
+        "max_tokens": max(0, int(max_tokens)),
+        "temperature": float(temperature),
+        "max_estimated_prompt_input_tokens": _nonnegative_int(
+            max_estimated_prompt_input_tokens
+        ),
         "n_routes": len(routes),
         "n_request_packets": len(request_packets),
         "n_requests_with_context_packet_inventory": sum(
@@ -1504,6 +1539,25 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),
         "by_request_model_tier": dict(sorted(by_model_tier.items())),
+        "prompt_token_budget_rows": prompt_token_budget_rows,
+        "prompt_token_budget_summary": prompt_token_budget_summary,
+        "n_prompt_token_budget_rows": len(prompt_token_budget_rows),
+        "prompt_token_budget_preflight_errors": (
+            prompt_token_budget_preflight_errors
+        ),
+        "n_prompt_token_budget_preflight_blocked": len(
+            prompt_token_budget_preflight_errors
+        ),
+        "estimated_prompt_input_tokens": int(
+            prompt_token_budget_summary.get("estimated_input_tokens", 0) or 0
+        ),
+        "estimated_prompt_max_output_tokens": int(
+            prompt_token_budget_summary.get("max_output_tokens", 0) or 0
+        ),
+        "estimated_prompt_total_token_budget": int(
+            prompt_token_budget_summary.get("estimated_total_token_budget", 0)
+            or 0
+        ),
         "n_requests_with_model_tier_decision_evidence": sum(
             1
             for packet in request_packets
@@ -3668,6 +3722,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "legacy_context_field_aliases",
             "invoke_provider",
+            "max_tokens",
+            "temperature",
+            "max_estimated_prompt_input_tokens",
             "n_routes",
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
@@ -3704,6 +3761,14 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
             "by_request_model_tier",
+            "prompt_token_budget_rows",
+            "prompt_token_budget_summary",
+            "n_prompt_token_budget_rows",
+            "prompt_token_budget_preflight_errors",
+            "n_prompt_token_budget_preflight_blocked",
+            "estimated_prompt_input_tokens",
+            "estimated_prompt_max_output_tokens",
+            "estimated_prompt_total_token_budget",
             "n_requests_with_model_tier_decision_evidence",
             "n_request_model_tier_decision_auto_haiku_bounded",
             "n_request_model_tier_decision_auto_sonnet_triggered",
@@ -3883,6 +3948,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             },
             "max_repair_attempts": nonnegative_integer,
             "invoke_provider": {"type": "boolean"},
+            "max_tokens": nonnegative_integer,
+            "temperature": nonnegative_number,
+            "max_estimated_prompt_input_tokens": nonnegative_integer,
             "n_routes": nonnegative_integer,
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
@@ -3947,6 +4015,14 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
             "by_request_model_tier": {"type": "object"},
+            "prompt_token_budget_rows": object_array,
+            "prompt_token_budget_summary": {"type": "object"},
+            "n_prompt_token_budget_rows": nonnegative_integer,
+            "prompt_token_budget_preflight_errors": object_array,
+            "n_prompt_token_budget_preflight_blocked": nonnegative_integer,
+            "estimated_prompt_input_tokens": nonnegative_integer,
+            "estimated_prompt_max_output_tokens": nonnegative_integer,
+            "estimated_prompt_total_token_budget": nonnegative_integer,
             "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
             "n_request_model_tier_decision_auto_haiku_bounded": nonnegative_integer,
             "n_request_model_tier_decision_auto_sonnet_triggered": nonnegative_integer,
@@ -4799,10 +4875,80 @@ def validate_llm_route_planner_manifest(
         schema or llm_route_planner_manifest_json_schema(),
     )
     manifest_rows = _dict_tuple(manifest.get("rows", []))
+    request_packets = _dict_tuple(manifest.get("request_packets", []))
     if int(manifest.get("n_request_packets", 0) or 0) != len(
-        _dict_tuple(manifest.get("request_packets", []))
+        request_packets
     ):
         errors.append("n_request_packets must match request_packets length")
+    prompt_token_budget_rows = _dict_tuple(
+        manifest.get("prompt_token_budget_rows", [])
+    )
+    expected_prompt_token_budget_rows = tuple(
+        _prompt_token_budget_row(
+            packet,
+            max_tokens=int(manifest.get("max_tokens", 0) or 0),
+        )
+        for packet in request_packets
+    )
+    if tuple(prompt_token_budget_rows) != expected_prompt_token_budget_rows:
+        errors.append("prompt_token_budget_rows must match request_packets")
+    expected_prompt_token_budget_summary = _prompt_token_budget_summary(
+        prompt_token_budget_rows
+    )
+    if (
+        _dict_value(manifest, "prompt_token_budget_summary")
+        != expected_prompt_token_budget_summary
+    ):
+        errors.append(
+            "prompt_token_budget_summary must match prompt_token_budget_rows"
+        )
+    expected_prompt_token_budget_preflight_errors = (
+        _prompt_token_budget_preflight_errors(
+            prompt_token_budget_rows,
+            max_estimated_prompt_input_tokens=int(
+                manifest.get("max_estimated_prompt_input_tokens", 0) or 0
+            ),
+        )
+    )
+    prompt_token_budget_preflight_errors = _dict_tuple(
+        manifest.get("prompt_token_budget_preflight_errors", [])
+    )
+    if (
+        tuple(prompt_token_budget_preflight_errors)
+        != expected_prompt_token_budget_preflight_errors
+    ):
+        errors.append(
+            "prompt_token_budget_preflight_errors must match "
+            "prompt_token_budget_rows and max_estimated_prompt_input_tokens"
+        )
+    prompt_token_budget_count_checks = (
+        ("n_prompt_token_budget_rows", len(prompt_token_budget_rows)),
+        (
+            "estimated_prompt_input_tokens",
+            expected_prompt_token_budget_summary.get("estimated_input_tokens", 0),
+        ),
+        (
+            "estimated_prompt_max_output_tokens",
+            expected_prompt_token_budget_summary.get("max_output_tokens", 0),
+        ),
+        (
+            "estimated_prompt_total_token_budget",
+            expected_prompt_token_budget_summary.get(
+                "estimated_total_token_budget",
+                0,
+            ),
+        ),
+    )
+    for field_name, expected_value in prompt_token_budget_count_checks:
+        if int(manifest.get(field_name, 0) or 0) != int(expected_value or 0):
+            errors.append(f"{field_name} must match prompt_token_budget_summary")
+    if int(manifest.get("n_prompt_token_budget_preflight_blocked", 0) or 0) != len(
+        prompt_token_budget_preflight_errors
+    ):
+        errors.append(
+            "n_prompt_token_budget_preflight_blocked must match "
+            "prompt_token_budget_preflight_errors"
+        )
     if int(manifest.get("n_rows", 0) or 0) != len(manifest_rows):
         errors.append("n_rows must match rows length")
     n_rows_with_route_adoption_preconditions = sum(
@@ -12091,6 +12237,196 @@ def _nonnegative_int(value: object, *, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
     return max(0, parsed)
+
+
+def _prompt_token_budget_row(
+    packet: Mapping[str, Any],
+    *,
+    max_tokens: int,
+) -> dict[str, object]:
+    prompt = _dict_value(packet, "prompt_messages")
+    system_prompt = str(prompt.get("system", "") or "")
+    user_prompt = str(prompt.get("user", "") or "")
+    system_chars = len(system_prompt)
+    user_chars = len(user_prompt)
+    estimated_input_tokens = _estimated_text_tokens(
+        system_prompt
+    ) + _estimated_text_tokens(
+        user_prompt
+    )
+    max_output_tokens = _nonnegative_int(max_tokens)
+    request_id = str(packet.get("request_id", "") or "")
+    route_id = str(packet.get("route_id", "") or "")
+    provider_name = str(packet.get("provider_name", "") or "")
+    model = str(packet.get("model", "") or "")
+    model_tier = str(packet.get("model_tier", "") or "")
+    return {
+        "budget_row_id": (
+            "formalization_gap_planner_llm_route_planner_prompt_token_budget:"
+            + stable_hash(
+                [
+                    request_id,
+                    route_id,
+                    provider_name,
+                    model,
+                    model_tier,
+                    system_chars,
+                    user_chars,
+                    max_output_tokens,
+                ]
+            )[:20]
+        ),
+        "request_id": request_id,
+        "route_id": route_id,
+        "display_name": str(packet.get("display_name", "") or ""),
+        "provider_name": provider_name,
+        "model": model,
+        "model_tier": model_tier,
+        "target_prover_family": str(packet.get("target_prover_family", "") or ""),
+        "system_prompt_chars": system_chars,
+        "user_prompt_chars": user_chars,
+        "estimated_input_tokens": estimated_input_tokens,
+        "max_output_tokens": max_output_tokens,
+        "estimated_total_token_budget": estimated_input_tokens + max_output_tokens,
+        "estimation_method": "ceil(prompt_chars/4)+max_output_tokens",
+        "budget_boundary": (
+            "Prompt token budget rows are pre-invocation cost-control estimates. "
+            "They are not provider billing records, provider usage metadata, "
+            "mathematical evidence, or theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _estimated_text_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, (len(text) + 3) // 4)
+
+
+def _prompt_token_budget_summary(
+    rows: Iterable[Mapping[str, object]],
+) -> dict[str, object]:
+    row_tuple = tuple(dict(row) for row in rows)
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model_tier: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
+    totals = _empty_prompt_token_budget_bucket()
+    for row in row_tuple:
+        _add_prompt_token_budget_to_bucket(totals, row)
+        _add_prompt_token_budget_to_bucket(
+            by_provider.setdefault(
+                str(row.get("provider_name", "") or "unknown"),
+                _empty_prompt_token_budget_bucket(),
+            ),
+            row,
+        )
+        _add_prompt_token_budget_to_bucket(
+            by_model_tier.setdefault(
+                str(row.get("model_tier", "") or "unknown"),
+                _empty_prompt_token_budget_bucket(),
+            ),
+            row,
+        )
+        _add_prompt_token_budget_to_bucket(
+            by_model.setdefault(
+                str(row.get("model", "") or "unknown"),
+                _empty_prompt_token_budget_bucket(),
+            ),
+            row,
+        )
+    return {
+        "summary_kind": "formalization_gap_planner_llm_route_planner_prompt_token_budget_summary",
+        "row_count": len(row_tuple),
+        **totals,
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_model_tier": dict(sorted(by_model_tier.items())),
+        "by_model": dict(sorted(by_model.items())),
+        "estimation_method": "ceil(prompt_chars/4)+max_output_tokens",
+        "budget_boundary": (
+            "Prompt token budget rows are deterministic pre-invocation "
+            "cost-control estimates. They are not provider billing records, "
+            "provider usage metadata, mathematical evidence, or theorem proof "
+            "evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _prompt_token_budget_preflight_errors(
+    rows: Iterable[Mapping[str, object]],
+    *,
+    max_estimated_prompt_input_tokens: int,
+) -> tuple[dict[str, object], ...]:
+    cap = _nonnegative_int(max_estimated_prompt_input_tokens)
+    if cap <= 0:
+        return ()
+    errors: list[dict[str, object]] = []
+    for row in rows:
+        estimated_input_tokens = _nonnegative_int(
+            row.get("estimated_input_tokens", 0)
+        )
+        if estimated_input_tokens <= cap:
+            continue
+        max_output_tokens = _nonnegative_int(row.get("max_output_tokens", 0))
+        estimated_total_token_budget = _nonnegative_int(
+            row.get("estimated_total_token_budget", 0)
+        )
+        errors.append(
+            {
+                "request_id": str(row.get("request_id", "") or ""),
+                "route_id": str(row.get("route_id", "") or ""),
+                "provider_name": str(row.get("provider_name", "") or ""),
+                "model": str(row.get("model", "") or ""),
+                "model_tier": str(row.get("model_tier", "") or ""),
+                "estimated_input_tokens": estimated_input_tokens,
+                "max_output_tokens": max_output_tokens,
+                "estimated_total_token_budget": estimated_total_token_budget,
+                "max_estimated_prompt_input_tokens": cap,
+                "errors": [
+                    "estimated prompt input tokens "
+                    f"{estimated_input_tokens} exceed "
+                    f"max_estimated_prompt_input_tokens {cap}",
+                ],
+                "budget_boundary": (
+                    "This is an operator policy preflight over deterministic "
+                    "prompt estimates. It is not a provider context-limit "
+                    "claim, provider billing record, mathematical evidence, "
+                    "or theorem proof evidence."
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(errors)
+
+
+def _empty_prompt_token_budget_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "system_prompt_chars": 0,
+        "user_prompt_chars": 0,
+        "estimated_input_tokens": 0,
+        "max_output_tokens": 0,
+        "estimated_total_token_budget": 0,
+    }
+
+
+def _add_prompt_token_budget_to_bucket(
+    bucket: dict[str, int],
+    row: Mapping[str, object],
+) -> None:
+    bucket["n_rows"] = int(bucket.get("n_rows", 0) or 0) + 1
+    for key in (
+        "system_prompt_chars",
+        "user_prompt_chars",
+        "estimated_input_tokens",
+        "max_output_tokens",
+        "estimated_total_token_budget",
+    ):
+        bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 
 
 def _provider_usage_rows(
@@ -28129,6 +28465,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("request_packets") else ""),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("prompt_token_budget_rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("prompt_token_budget_rows") else ""),
+        encoding="utf-8",
+    )
     library_alignment_summaries = []
     for row in payload.get("request_packets", []):
         if not isinstance(row, Mapping):
@@ -28306,6 +28654,9 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",
         f"- Invalid tier-decision evidence: {payload.get('n_request_model_tier_decision_evidence_invalid')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
+        f"- Prompt token budget rows: {payload.get('n_prompt_token_budget_rows')}",
+        f"- Estimated prompt tokens input/max-output/total: {payload.get('estimated_prompt_input_tokens')}/{payload.get('estimated_prompt_max_output_tokens')}/{payload.get('estimated_prompt_total_token_budget')}",
+        f"- Prompt token budget preflight blocks: {payload.get('n_prompt_token_budget_preflight_blocked')} cap={payload.get('max_estimated_prompt_input_tokens')}",
         f"- Generation preflight blocks: {payload.get('n_generation_preflight_blocked')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",

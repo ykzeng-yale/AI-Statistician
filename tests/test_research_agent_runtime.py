@@ -37473,6 +37473,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert "--model-tier auto" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    assert (
+        "--max-estimated-prompt-input-tokens 0"
+        in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    )
     assert "--provider anthropic" in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert (
         "--formalization-gap-planner-target-intake-dir"
@@ -37485,6 +37489,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--invoke-provider" not in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in gap_planner_bridge["next_llm_route_planner_live_cli"]
     assert (
+        "--max-estimated-prompt-input-tokens 0"
+        in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    )
+    assert (
         "--formalization-gap-planner-target-intake-dir"
         in gap_planner_bridge["next_llm_route_planner_live_cli"]
     )
@@ -37495,6 +37503,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "formalization-gap-planner-reuse-smoke" in gap_planner_bridge["next_reuse_smoke_cli"]
     assert "--llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-provider anthropic" in gap_planner_bridge["next_reuse_smoke_cli"]
+    assert (
+        "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in gap_planner_bridge["next_reuse_smoke_cli"]
+    )
+    assert (
+        "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in gap_planner_bridge["next_reuse_smoke_cli"]
+    )
     assert "--llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-invoke-provider" not in gap_planner_bridge["next_reuse_smoke_cli"]
     assert gap_planner_bridge["proof_evidence_status"] == (
@@ -37534,6 +37550,18 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert (
+        "--max-estimated-prompt-input-tokens 0"
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert (
+        "--goal-conditioned-minimal-formalization-plan-dir"
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert (
+        persisted_bridge_rows[0]["standalone_plan_dir"]
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert (
         persisted_bridge_rows[0]["target_intake_dir"]
         in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     )
@@ -37545,7 +37573,19 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         "--formalization-gap-planner-component-resource-registry-dir"
         in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     )
+    assert (
+        "--max-estimated-prompt-input-tokens 0"
+        in persisted_bridge_rows[0]["llm_route_planner_live_cli"]
+    )
     assert "formalization-gap-planner-reuse-smoke" in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    assert (
+        "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    )
+    assert (
+        "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    )
     assert "--llm-route-planner-invoke-provider" not in persisted_bridge_rows[0]["reuse_smoke_cli"]
     persisted_execution_plan = persisted_bridge_rows[0]["execution_plan"]
     assert persisted_bridge_rows[0]["execution_plan_stage_count"] == 6
@@ -37591,6 +37631,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert "--model-tier auto" in handoff["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in handoff["llm_route_planner_prompt_cli"]
+    assert "--max-estimated-prompt-input-tokens 0" in handoff[
+        "llm_route_planner_prompt_cli"
+    ]
     assert "--provider anthropic" in handoff["llm_route_planner_prompt_cli"]
     assert "--formalization-gap-planner-target-intake-dir" in handoff[
         "llm_route_planner_prompt_cli"
@@ -37602,6 +37645,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert "--invoke-provider" not in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in handoff["llm_route_planner_live_cli"]
+    assert "--max-estimated-prompt-input-tokens 0" in handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert "--goal-conditioned-minimal-formalization-plan-dir" in handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert handoff["standalone_plan_dir"] in handoff["llm_route_planner_live_cli"]
     assert "--formalization-gap-planner-target-intake-dir" in handoff[
         "llm_route_planner_live_cli"
     ]
@@ -37613,6 +37663,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "formalization-gap-planner-reuse-smoke" in handoff["reuse_smoke_cli"]
     assert "--llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-provider anthropic" in handoff["reuse_smoke_cli"]
+    assert (
+        "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in handoff["reuse_smoke_cli"]
+    )
+    assert (
+        "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in handoff["reuse_smoke_cli"]
+    )
     assert "--llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
     assert "--feedback-llm-route-planner-invoke-provider" not in handoff["reuse_smoke_cli"]
     execution_plan = handoff["execution_plan"]
@@ -37691,6 +37749,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_standalone_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
+    assert runtime_handoff_audit["n_llm_prompt_report_only_prompt_budget_caps"] == 2
+    assert runtime_handoff_audit["n_llm_prompt_prompt_budget_preflight_blocked"] == 0
     assert (
         runtime_handoff_audit["n_llm_prompt_requests_with_target_intake_rows"]
         == runtime_handoff_audit["n_llm_prompt_packets"]
@@ -37717,6 +37777,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert all(
         summary["seed_candidate_declaration_rows"] > 0
+        for summary in runtime_handoff_audit["smoke_summaries"]
+    )
+    assert all(
+        summary["llm_prompt_max_estimated_prompt_input_tokens"] == 0
+        for summary in runtime_handoff_audit["smoke_summaries"]
+    )
+    assert all(
+        summary["llm_prompt_prompt_budget_preflight_blocked"] == 0
         for summary in runtime_handoff_audit["smoke_summaries"]
     )
     assert all(
@@ -37772,6 +37840,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "Target-intake context in prompts:" in runtime_handoff_report
     assert "Component-resource registry smoke OK:" in runtime_handoff_report
     assert "Registry context in prompts:" in runtime_handoff_report
+    assert "LLM prompt budget caps report-only/blocks:" in runtime_handoff_report
     assert "Minimal-delta cost hints in prompts:" in runtime_handoff_report
     assert "LLM prompt model-tier mismatches:" in runtime_handoff_report
     assert "LLM prompt model tiers:" in runtime_handoff_report

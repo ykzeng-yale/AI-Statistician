@@ -65,6 +65,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-component-resource-regi
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --input runs/current/formalization_gap_planner_target_intake/formalization_gap_planner_target_intake_standalone_seed.json \
   --provider prompt_only \
+  --max-estimated-prompt-input-tokens 0 \
   --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --out runs/current/formalization_gap_planner_llm_route_planner
@@ -669,10 +670,25 @@ can tell whether a packaged route was blocked by source-backed obligations
 already known before any model response. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
-prompts still require prover/resource evidence before adoption. They also
-expose Haiku-to-Sonnet repair-escalation counts and structured tier-decision
-evidence counts from the primary and feedback LLM route-planner manifests, so
-cost-aware routing remains auditable in public supplements. They also expose
+prompts still require prover/resource evidence before adoption. They also lift
+request-side available source-snippet counts, target-intake row counts,
+residual-goal/context counts, response-side search requests, planner next
+actions, residual interpretations, uncertainty flags, and row source-snippet
+counts, so public bundles show whether route synthesis was evidence-bounded
+and feedback-aware without requiring consumers to inspect the raw planner
+manifest. They also expose Haiku-to-Sonnet repair-escalation counts and
+structured tier-decision evidence counts from the primary and feedback LLM
+route-planner manifests, so cost-aware routing remains auditable in public
+supplements. They also expose a
+pre-invocation prompt-token budget ledger for each primary and feedback
+route-planner request, using deterministic prompt-length estimates plus the
+configured maximum output-token cap. These rows are cost-control hints for
+Claude API planning runs, not provider billing records, usage metadata, or proof
+evidence. The planner can also enforce an operator policy cap with
+`--max-estimated-prompt-input-tokens`; `0` is report-only, while a positive
+cap blocks live generation for any request whose deterministic estimated input
+tokens exceed the cap. This is a cost/context-risk guard, not a claim about a
+provider's current context limit. They also expose
 minimal-delta action-witness counts, so a bundle shows whether selected
 positive-delta primitives have concrete wrapper, bridge, source-port,
 definition, or new-theory work-list entries. They also
@@ -688,7 +704,13 @@ route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.
 The reuse-smoke manifest forwards the same primary and feedback
 quality-control inventory counters, so one smoke output can compare raw
-route-planner requests with the packaged publication-bundle summaries.
+route-planner requests with the packaged publication-bundle summaries. It also
+forwards primary, feedback, combined, and packaged prompt-token budget
+summaries from the LLM route-planner manifests, so a public smoke artifact can
+audit Claude cost-control estimates even when no live provider call was made.
+Those smoke-level counters inherit the same boundary as the planner manifest:
+they are deterministic pre-invocation estimates, not provider billing records,
+usage metadata, mathematical evidence, or proof evidence.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
@@ -1011,6 +1033,8 @@ be run as one command:
 python3 -m ai_statistician.cli formalization-gap-planner-reuse-smoke \
   --input data/formalization_gap_planner_target_intake_example.json \
   --target-prover-family rocq \
+  --llm-route-planner-max-estimated-prompt-input-tokens 0 \
+  --feedback-llm-route-planner-max-estimated-prompt-input-tokens 0 \
   --out runs/current/formalization_gap_planner_reuse_smoke
 ```
 
@@ -1022,7 +1046,8 @@ default to Anthropic/Claude staging with `--*-model-tier auto`, but they do not
 call the API unless the matching `--*-invoke-provider` flag is set. The
 reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 `live_provider_invoked`, plus the number of requested live provider calls and
-the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
+prompt-budget preflight cap/block/error counters and the Haiku/Sonnet/Opus
+request-tier distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
 larger theorem context to Sonnet. It also upgrades source-theorem/proof-body
@@ -1846,7 +1871,16 @@ aggregation, route-revision overlay, route-stability audit, interactive
 session export, and feedback LLM route-planner rerun with both target-intake
 and interactive-session context. The reuse-smoke commands are prompt-only by default: they stage
 Anthropic/Claude request packets with `--*-model-tier auto` and do not call the
-API unless an operator adds the matching live-provider invoke flags.
+API unless an operator adds the matching live-provider invoke flags. Operators
+can keep the reusable smoke path in report-only mode with
+`--llm-route-planner-max-estimated-prompt-input-tokens 0` and
+`--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0`, or set a
+positive cap to block oversized primary or feedback route-planner prompts
+before any live provider request. AI Statistician runtime handoff rows emit the
+same report-only prompt-budget caps on the next prompt-only route-planner
+command, the explicit live route-planner command, and the reusable smoke
+command; the runtime handoff audit checks those flags and records whether any
+prompt-budget preflight blocked a request.
 It also includes
 `examples/formalization_gap_planner_standalone_example.json` and
 `examples/formalization_gap_planner_target_intake_example.json` so downstream

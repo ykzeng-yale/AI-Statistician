@@ -17,6 +17,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     target_intake_path = root / "target_intake.json"
     handoffs_path = root / "handoffs.jsonl"
     out_dir = root / "audit"
+    standalone_plan_dir = root / "standalone_plan"
     target_intake_dir = root / "target_intake_dir"
     registry_dir = root / "component_resource_registry"
     shutil.rmtree(root, ignore_errors=True)
@@ -114,8 +115,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         "standalone_plan_cli": (
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-standalone-plan --input {seed_path} "
-            f"--out {root / 'standalone_plan'}"
+            f"--out {standalone_plan_dir}"
         ),
+        "standalone_plan_dir": str(standalone_plan_dir),
         "target_intake_cli": (
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-target-intake --input {target_intake_path} "
@@ -125,6 +127,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens 0 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --out {root / 'llm_prompt'}"
@@ -133,6 +138,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens 0 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --invoke-provider --out {root / 'llm_live'}"
@@ -145,9 +153,11 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "--llm-route-planner-provider anthropic "
             "--llm-route-planner-model-tier auto "
             "--llm-route-planner-max-repair-attempts 1 "
+            "--llm-route-planner-max-estimated-prompt-input-tokens 0 "
             "--feedback-llm-route-planner-provider anthropic "
             "--feedback-llm-route-planner-model-tier auto "
             "--feedback-llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0 "
             f"--out {root / 'reuse_smoke'}"
         ),
         "cost_control": (
@@ -271,6 +281,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_execution_plan_live_stage_explicit_ok"] == 1
     assert payload["n_execution_plan_reuse_smoke_stage_cost_control_ok"] == 1
     assert payload["n_llm_prompt_packets"] == 2
+    assert payload["n_llm_prompt_report_only_prompt_budget_caps"] == 1
+    assert payload["n_llm_prompt_prompt_budget_preflight_blocked"] == 0
     assert payload["n_llm_prompt_model_tier_mismatches"] == 0
     assert payload["n_llm_prompt_model_tier_haiku"] == 0
     assert payload["n_llm_prompt_model_tier_sonnet"] == 2
@@ -281,6 +293,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert summary["seed_n_target_prover_families"] == 2
     assert summary["seed_by_target_prover_family"] == {"lean4": 1, "rocq": 1}
     assert summary["llm_prompt_model_tier_haiku"] == 0
+    assert summary["llm_prompt_max_estimated_prompt_input_tokens"] == 0
+    assert summary["llm_prompt_prompt_budget_preflight_blocked"] == 0
+    assert summary["standalone_plan_dir"] == str(standalone_plan_dir)
     assert summary["llm_prompt_model_tier_sonnet"] == 2
     assert summary["llm_prompt_model_tier_opus"] == 0
     report = (
@@ -299,6 +314,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     ]
     assert execution_plan_rows[0]["handoff_id"] == handoff_row["handoff_id"]
     assert execution_plan_rows[0]["stage_count"] == 6
+    assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
+    assert "- LLM prompt budget caps report-only/blocks: 1/0" in report
     assert (
         out_dir
         / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
