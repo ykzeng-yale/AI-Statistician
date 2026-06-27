@@ -37001,10 +37001,30 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             for value in item.get("semantic_alignment_constraints", []) or []
             if str(value).strip()
         ]
+        semantic_review_blockers = list(
+            dict.fromkeys(
+                [
+                    *missing_semantic_support_ids,
+                    *unresolved_semantic_placeholder_symbols,
+                    *(
+                        [placeholder_definition_status]
+                        if placeholder_definition_status
+                        in {
+                            "OPEN_REQUIRES_REVIEWED_FORMAL_DEFINITION",
+                            "PENDING_REGISTERED_SUPPORT_OR_PLACEHOLDER_DISCOVERY",
+                        }
+                        else []
+                    ),
+                ]
+            )
+        )
         semantic_definition_blocked = bool(
             target_known
-            and source_theorem_semantic_support_only
             and not source_theorem_ready_for_exact_proof_body
+            and (
+                source_theorem_semantic_support_only
+                or bool(semantic_review_blockers)
+            )
         )
         materialization_status = (
             "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
@@ -37190,7 +37210,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                     "artifact_kernel_verified_before_source_theorem_promotion",
                     *(
                         ["reviewed_exact_semantic_definitions_required"]
-                        if source_theorem_semantic_support_only
+                        if semantic_definition_blocked
                         else []
                     ),
                 ],
@@ -37228,6 +37248,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "verified_sketch_gate_plan": [
                 "candidate artifact declaration matches the source theorem target",
                 "artifact verifier must report artifact_kernel_verified=true before source theorem promotion",
+                "unresolved semantic placeholders block proof-execution materialization until reviewed exact definitions are available",
                 "source theorem integrator must reject route probes or target-as-assumption shortcuts",
             ],
             "blueprint_export_plan": [
@@ -37270,7 +37291,10 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "ok": materialization_status
             == "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER",
             "errors": (
-                ["reviewed exact semantic definitions missing"]
+                [
+                    "reviewed exact semantic definitions missing",
+                    *semantic_review_blockers,
+                ]
                 if semantic_definition_blocked
                 else [] if target_known else ["target Lean declaration missing"]
             ),

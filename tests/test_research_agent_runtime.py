@@ -21493,7 +21493,8 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     )
     assert seed_rows[0]["ok"] is False
     assert seed_rows[0]["errors"] == [
-        "reviewed exact semantic definitions missing"
+        "reviewed exact semantic definitions missing",
+        "OPEN_REQUIRES_REVIEWED_FORMAL_DEFINITION",
     ]
     assert seed_rows[0]["target_location_preflight"]["next_step"].startswith(
         "formalize reviewed exact semantic definitions"
@@ -21709,6 +21710,65 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
         "source_theorem_semantic_primitive_closure"
     )
     assert unknown_placeholder_summary["source_theorem_ready_for_exact_proof_body"] is False
+
+
+def test_source_theorem_promotion_seed_blocks_unresolved_semantic_placeholders(
+    tmp_path: Path,
+) -> None:
+    work_order_rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "SourceTheoremPromotionWorkOrder",
+            "work_order_id": "source_theorem_promotion_work_order:semantic_gate",
+            "question_id": "conformal_prediction_coverage",
+            "source_formalizer_packet_id": "formalizer_proposal:semantic_gate",
+            "source_formal_target_id": "target:split_conformal_finite_sample_coverage",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            "lean_statement_sketch": "theorem split_conformal_finite_sample_coverage",
+            "source_theorem_target_known": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+            "source_theorem_semantic_support_only": False,
+            "semantic_closure_status": "NO_SOURCE_THEOREM_SEMANTIC_SUPPORT_MEMORY",
+            "placeholder_definition_status": (
+                "PENDING_REGISTERED_SUPPORT_OR_PLACEHOLDER_DISCOVERY"
+            ),
+            "unresolved_source_theorem_semantic_primitive_placeholder_symbols": [
+                "good_rank_event",
+                "C_n",
+                "coverage_event",
+                "covered",
+            ],
+            "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+        }
+    ]
+
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(work_order_rows)
+    seed_rows = _runtime_source_theorem_promotion_materialization_seed_rows(
+        handoff_rows,
+        runtime_out_dir=tmp_path / "runtime",
+    )
+    seed_queue = _write_runtime_source_theorem_promotion_materialization_seed_queue(
+        seed_rows,
+        queue_dir=tmp_path / "seed_queue",
+    )
+
+    assert len(seed_rows) == 1
+    assert seed_rows[0]["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert seed_rows[0]["materialization_seed_status"] == (
+        "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+    )
+    assert seed_rows[0]["execution_preflight_status"] == (
+        "NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+    )
+    assert seed_rows[0]["ok"] is False
+    assert "good_rank_event" in seed_rows[0]["errors"]
+    assert seed_rows[0]["kernel_overlay_context"]["target_blockers"][-1] == (
+        "reviewed_exact_semantic_definitions_required"
+    )
+    assert seed_queue["n_execution_queue_items"] == 0
+    assert seed_queue["n_blocked"] == 1
 
 
 def test_source_theorem_semantic_support_reports_missing_closure_blocker() -> None:
