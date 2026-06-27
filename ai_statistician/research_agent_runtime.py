@@ -33840,6 +33840,212 @@ def _merge_runtime_next_action_agenda_row(
             existing[key] = value
 
 
+def _strengthen_runtime_next_action_agenda_row(
+    existing: dict[str, Any],
+    incoming: Mapping[str, Any],
+) -> None:
+    for key in (
+        "runtime_queue_status",
+        "environment_repair_status",
+        "candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "recommended_next_action",
+    ):
+        incoming_value = str(incoming.get(key, "") or "").strip()
+        existing_value = str(existing.get(key, "") or "").strip()
+        if incoming_value and not existing_value:
+            existing[key] = incoming_value
+
+    incoming_semantic_status = str(
+        incoming.get("semantic_definition_typecheck_evidence_status", "") or ""
+    ).strip()
+    existing_semantic_status = str(
+        existing.get("semantic_definition_typecheck_evidence_status", "") or ""
+    ).strip()
+    if incoming_semantic_status and (
+        not existing_semantic_status
+        or _runtime_exact_semantic_definition_status_rank(incoming_semantic_status)
+        > _runtime_exact_semantic_definition_status_rank(existing_semantic_status)
+    ):
+        existing["semantic_definition_typecheck_evidence_status"] = (
+            incoming_semantic_status
+        )
+
+    for key in (
+        "local_lean_compiled",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
+        "semantic_definition_import_candidate_ready",
+        "premise_derivation_kernel_verified",
+    ):
+        if incoming.get(key) is True:
+            existing[key] = True
+
+    incoming_commands = _runtime_recommended_commands(incoming)
+    if incoming_commands:
+        commands = _runtime_recommended_commands(existing)
+        commands.extend(incoming_commands)
+        existing["recommended_commands"] = list(dict.fromkeys(commands))
+
+
+def _runtime_exact_semantic_definition_status_rank(status: str) -> int:
+    normalized = str(status or "").strip()
+    if not normalized:
+        return 0
+    return {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED": 10,
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF": 20,
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED": 30,
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED": 30,
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW": 30,
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED": 35,
+    }.get(normalized, 15)
+
+
+def _runtime_generated_next_action_semantic_match(
+    agenda_rows: Sequence[Mapping[str, Any]],
+    incoming: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    incoming_placeholder = str(incoming.get("placeholder_symbol", "") or "").strip()
+    if not incoming_placeholder:
+        return None
+    incoming_artifacts = {
+        str(value).strip()
+        for value in (
+            incoming.get("definition_only_candidate_artifact_path", ""),
+            incoming.get("candidate_artifact_path", ""),
+        )
+        if str(value).strip()
+    }
+    incoming_exact_semantic = _runtime_next_action_agenda_downstream_of_metadata_authoring(
+        incoming
+    ) and "exact_semantic_definition" in "\n".join(
+        str(incoming.get(key, "") or "")
+        for key in ("id", "trigger", "runtime_queue_status", "owner_subsystem")
+    ).lower()
+    if not incoming_artifacts and not incoming_exact_semantic:
+        return None
+    incoming_no_artifact_merge_family = (
+        _runtime_generated_next_action_no_artifact_semantic_merge_family(incoming)
+        if not incoming_artifacts
+        else ""
+    )
+    if not incoming_artifacts and not incoming_no_artifact_merge_family:
+        return None
+    incoming_artifact_merge_family = (
+        _runtime_generated_next_action_artifact_semantic_merge_family(incoming)
+        if incoming_artifacts
+        else ""
+    )
+    incoming_targets = _runtime_next_action_agenda_target_keys(incoming)
+    for row in agenda_rows:
+        if not isinstance(row, dict):
+            continue
+        row_placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+        if row_placeholder != incoming_placeholder:
+            continue
+        row_artifacts = {
+            str(value).strip()
+            for value in (
+                row.get("definition_only_candidate_artifact_path", ""),
+                row.get("candidate_artifact_path", ""),
+            )
+            if str(value).strip()
+        }
+        row_exact_semantic = _runtime_next_action_agenda_downstream_of_metadata_authoring(
+            row
+        ) and "exact_semantic_definition" in "\n".join(
+            str(row.get(key, "") or "")
+            for key in ("id", "trigger", "runtime_queue_status", "owner_subsystem")
+        ).lower()
+        if incoming_artifacts and incoming_artifacts.isdisjoint(row_artifacts):
+            continue
+        if incoming_artifacts and incoming_artifact_merge_family:
+            row_artifact_merge_family = (
+                _runtime_generated_next_action_artifact_semantic_merge_family(row)
+            )
+            if (
+                row_artifact_merge_family
+                and row_artifact_merge_family != incoming_artifact_merge_family
+            ):
+                continue
+        if not incoming_artifacts and not row_exact_semantic:
+            continue
+        if (
+            not incoming_artifacts
+            and _runtime_generated_next_action_no_artifact_semantic_merge_family(row)
+            != incoming_no_artifact_merge_family
+        ):
+            continue
+        row_targets = _runtime_next_action_agenda_target_keys(row)
+        if incoming_targets and row_targets and incoming_targets.isdisjoint(row_targets):
+            continue
+        return row
+    return None
+
+
+def _runtime_generated_next_action_queue_name(row: Mapping[str, Any]) -> str:
+    explicit = str(
+        row.get("runtime_generated_queue_name", "")
+        or row.get("queue_name", "")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+    row_id = str(row.get("id", "") or "").strip()
+    prefix = "proof_feedback:"
+    if not row_id.startswith(prefix):
+        return ""
+    queue_name, separator, _suffix = row_id[len(prefix) :].rpartition(":")
+    return queue_name if separator else ""
+
+
+def _runtime_generated_next_action_no_artifact_semantic_merge_family(
+    row: Mapping[str, Any],
+) -> str:
+    queue_name = _runtime_generated_next_action_queue_name(row)
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in ("id", "trigger", "runtime_queue_status", "owner_subsystem")
+    ).lower()
+    combined = f"{combined}\n{queue_name.lower()}"
+    if "exact_semantic_definition" not in combined:
+        return ""
+    if "candidate_review" in queue_name.lower() or "candidate_reviews" in queue_name.lower():
+        return ""
+    if "lean_environment" in combined:
+        return "source_theorem_exact_semantic_definition_lean_environment"
+    if queue_name == "source_theorem_exact_semantic_definitions":
+        return "source_theorem_exact_semantic_definitions"
+    if "source_theorem_exact_semantic_definition_repair_queue" in combined:
+        return "source_theorem_exact_semantic_definition_repair_queue"
+    return ""
+
+
+def _runtime_generated_next_action_artifact_semantic_merge_family(
+    row: Mapping[str, Any],
+) -> str:
+    queue_name = _runtime_generated_next_action_queue_name(row)
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in ("id", "trigger", "runtime_queue_status", "owner_subsystem")
+    ).lower()
+    combined = f"{combined}\n{queue_name.lower()}"
+    if "exact_semantic_definition" not in combined:
+        return ""
+    if "late_materialized_candidate_review" in combined:
+        return "source_theorem_exact_semantic_definition_late_materialized_candidate_review"
+    if "materialized_candidate_review" in combined:
+        return "source_theorem_exact_semantic_definition_materialized_candidate_review"
+    if "lean_environment" in combined:
+        return "source_theorem_exact_semantic_definition_lean_environment"
+    if queue_name == "source_theorem_exact_semantic_definitions":
+        return "source_theorem_exact_semantic_definitions"
+    if "source_theorem_exact_semantic_definition_repair_queue" in combined:
+        return "source_theorem_exact_semantic_definition_repair_queue"
+    return queue_name
+
+
 def _agenda_string_values(value: Any) -> list[str]:
     if value is None:
         return []
@@ -33860,8 +34066,14 @@ def _append_runtime_generated_next_action_rows(
     queue_name: str,
 ) -> list[dict[str, Any]]:
     """Expose post-runtime proof queues to the next Architect/Critic pass."""
-    existing_ids = {str(row.get("id", "") or "") for row in agenda_rows}
+    existing_by_id = {
+        str(row.get("id", "") or ""): row
+        for row in agenda_rows
+        if isinstance(row, Mapping) and str(row.get("id", "") or "")
+    }
+    existing_ids = set(existing_by_id)
     appended: list[dict[str, Any]] = []
+    new_agenda_rows: list[dict[str, Any]] = []
     verified_source_to_bridge_premise_names = (
         _runtime_verified_source_to_bridge_premise_names(generated_rows)
     )
@@ -33871,16 +34083,17 @@ def _append_runtime_generated_next_action_rows(
         work_order_id = str(
             row.get("work_order_id", "")
             or row.get("repair_queue_id", "")
+            or row.get("source_lean_repair_task_id", "")
+            or row.get("lean_repair_task_id", "")
             or row.get("environment_repair_task_id", "")
             or row.get("source_environment_repair_task_id", "")
             or row.get("environment_repair_result_id", "")
+            or row.get("source_definition_closure_work_order_id", "")
             or ""
         ).strip()
         if not work_order_id:
             continue
         agenda_id = f"proof_feedback:{queue_name}:{stable_hash(work_order_id)[:12]}"
-        if agenda_id in existing_ids:
-            continue
         learning_task = str(row.get("learning_task", "") or "")
         premise_gap_kind = str(row.get("premise_derivation_gap_kind", "") or "")
         premise_name = str(row.get("premise_name", "") or "")
@@ -33944,129 +34157,155 @@ def _append_runtime_generated_next_action_rows(
             )
         if recommended_commands:
             action = action + "; commands: " + "; ".join(recommended_commands)
-        existing_ids.add(agenda_id)
-        appended.append(
-            {
-                "id": agenda_id,
-                "question_id": str(
-                    row.get("question_id", "")
-                    or source_target_provenance.get("question_id", "")
-                    or source_target_provenance.get("source_theorem_question_id", "")
-                    or ""
-                ),
-                "owner_subsystem": (
-                    "TheoryDeveloper/Formalizer/ProofEngineer"
+        agenda_item = {
+            "id": agenda_id,
+            "question_id": str(
+                row.get("question_id", "")
+                or source_target_provenance.get("question_id", "")
+                or source_target_provenance.get("source_theorem_question_id", "")
+                or ""
+            ),
+            "owner_subsystem": (
+                "TheoryDeveloper/Formalizer/ProofEngineer"
+                if source_to_bridge_premise_gap
+                else "Formalizer/ProofEngineer/LeanProver"
+                if source_to_bridge_premise_verified
+                else "Formalizer/ProofEngineer/LeanProver"
+            ),
+            "trigger": (
+                "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
+                if source_to_bridge_premise_gap
+                else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
+                if source_to_bridge_premise_verified
+                else "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
+            ),
+            "action": action,
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or (
+                    (
+                        "TheoryDeveloper/Formalizer supplies a non-vacuous Lean "
+                        "premise derivation candidate and AXLE/local Lean verifies "
+                        "that concrete premise; full source theorem proof still "
+                        "requires a later exact theorem kernel check."
+                    )
                     if source_to_bridge_premise_gap
-                    else "Formalizer/ProofEngineer/LeanProver"
+                    else (
+                        "A downstream local Lean/AXLE run consumes the "
+                        "kernel-verified premise derivation while preserving "
+                        "the boundary that full source theorem proof still "
+                        "requires exact theorem kernel verification."
+                    )
                     if source_to_bridge_premise_verified
-                    else "Formalizer/ProofEngineer/LeanProver"
-                ),
-                "trigger": (
-                    "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
-                    if source_to_bridge_premise_gap
-                    else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
-                    if source_to_bridge_premise_verified
-                    else "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
-                ),
-                "action": action,
-                "acceptance_gate": str(
-                    row.get("acceptance_gate", "")
-                    or (
-                        (
-                            "TheoryDeveloper/Formalizer supplies a non-vacuous Lean "
-                            "premise derivation candidate and AXLE/local Lean verifies "
-                            "that concrete premise; full source theorem proof still "
-                            "requires a later exact theorem kernel check."
-                        )
-                        if source_to_bridge_premise_gap
-                        else (
-                            "A downstream local Lean/AXLE run consumes the "
-                            "kernel-verified premise derivation while preserving "
-                            "the boundary that full source theorem proof still "
-                            "requires exact theorem kernel verification."
-                        )
-                        if source_to_bridge_premise_verified
-                        else (
-                            "AXLE/local Lean kernel verifies the queued target, and the "
-                            "manifest keeps queued repair work separate from source theorem proof."
-                        )
+                    else (
+                        "AXLE/local Lean kernel verifies the queued target, and the "
+                        "manifest keeps queued repair work separate from source theorem proof."
                     )
-                ),
-                "target_ids": list(
-                    _str_tuple(
-                        row.get("target_ids", [])
-                        or row.get("target_theorem_goal_ids", [])
-                        or row.get("target_theorem_name", "")
-                        or row.get("semantic_primitive_id", "")
-                    )
-                ),
-                "work_order_id": work_order_id,
-                "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
-                "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
-                "premise_name": premise_name,
-                "premise_target_status": str(row.get("premise_target_status", "") or ""),
-                "premise_target_type": premise_target_type,
-                "premise_derivation_gap_kind": premise_gap_kind,
-                "premise_derivation_gap_summary": str(
-                    row.get("premise_derivation_gap_summary", "") or ""
-                ),
-                "premise_derivation_kernel_verified": (
-                    premise_derivation_kernel_verified
-                ),
-                "kernel_verified_source_to_bridge_premise_derivation_ids": list(
-                    _runtime_row_string_values(
-                        row,
-                        "kernel_verified_source_to_bridge_premise_derivation_ids",
-                        "source_to_bridge_premise_derivation_check_id",
-                        "premise_derivation_check_id",
-                    )
-                ),
-                "premise_semantic_dependency_status": str(
-                    row.get("premise_semantic_dependency_status", "") or ""
-                ),
-                "premise_semantic_dependency_requirements": list(
-                    _runtime_row_string_values(
-                        row,
-                        "premise_semantic_dependency_requirements",
-                    )
-                ),
-                "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
-                "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
-                "definition_only_candidate_artifact_path": str(
-                    row.get("definition_only_candidate_artifact_path", "") or ""
-                ),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-                "local_definition_lean_compiled": bool(
-                    row.get("local_definition_lean_compiled", False)
-                    or row.get("execution_status", "")
-                    == "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED"
-                ),
-                "semantic_definition_typecheck_evidence_status": str(
-                    row.get("semantic_definition_typecheck_evidence_status", "") or ""
-                ),
-                "semantic_definition_import_candidate_ready": bool(
-                    row.get("semantic_definition_import_candidate_ready", False)
-                ),
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "")
-                    or row.get("environment_repair_status", "")
-                    or ""
-                ),
-                "environment_repair_status": str(
-                    row.get("environment_repair_status", "") or ""
-                ),
-                "recommended_next_action": recommended_next_action,
-                "recommended_commands": recommended_commands,
-                "priority": "high",
-                "proof_boundary": KERNEL_PROOF_BOUNDARY,
-                "boundary": (
-                    "This agenda row was derived from a generated ProofEngineer queue. "
-                    "It routes the next bounded Lean repair attempt and is not theorem proof evidence."
-                ),
-            }
+                )
+            ),
+            "target_ids": list(
+                _str_tuple(
+                    row.get("target_ids", [])
+                    or row.get("target_theorem_goal_ids", [])
+                    or row.get("target_theorem_name", "")
+                    or row.get("semantic_primitive_id", "")
+                )
+            ),
+            "work_order_id": work_order_id,
+            "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
+            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+            "premise_name": premise_name,
+            "premise_target_status": str(row.get("premise_target_status", "") or ""),
+            "premise_target_type": premise_target_type,
+            "premise_derivation_gap_kind": premise_gap_kind,
+            "premise_derivation_gap_summary": str(
+                row.get("premise_derivation_gap_summary", "") or ""
+            ),
+            "premise_derivation_kernel_verified": (
+                premise_derivation_kernel_verified
+            ),
+            "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+                _runtime_row_string_values(
+                    row,
+                    "kernel_verified_source_to_bridge_premise_derivation_ids",
+                    "source_to_bridge_premise_derivation_check_id",
+                    "premise_derivation_check_id",
+                )
+            ),
+            "premise_semantic_dependency_status": str(
+                row.get("premise_semantic_dependency_status", "") or ""
+            ),
+            "premise_semantic_dependency_requirements": list(
+                _runtime_row_string_values(
+                    row,
+                    "premise_semantic_dependency_requirements",
+                )
+            ),
+            "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
+            "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+            "definition_only_candidate_artifact_path": str(
+                row.get("definition_only_candidate_artifact_path", "") or ""
+            ),
+            "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+            "local_definition_lean_checked": bool(
+                row.get("local_definition_lean_checked", False)
+            ),
+            "local_definition_lean_compiled": bool(
+                row.get("local_definition_lean_compiled", False)
+                or row.get("execution_status", "")
+                == "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED"
+            ),
+            "semantic_definition_typecheck_evidence_status": str(
+                row.get("semantic_definition_typecheck_evidence_status", "") or ""
+            ),
+            "semantic_definition_import_candidate_ready": bool(
+                row.get("semantic_definition_import_candidate_ready", False)
+            ),
+            "runtime_queue_status": str(
+                row.get("runtime_queue_status", "")
+                or row.get("environment_repair_status", "")
+                or ""
+            ),
+            "runtime_generated_queue_name": queue_name,
+            "environment_repair_status": str(
+                row.get("environment_repair_status", "") or ""
+            ),
+            "recommended_next_action": recommended_next_action,
+            "recommended_commands": recommended_commands,
+            "priority": "high",
+            "proof_boundary": KERNEL_PROOF_BOUNDARY,
+            "boundary": (
+                "This agenda row was derived from a generated ProofEngineer queue. "
+                "It routes the next bounded Lean repair attempt and is not theorem proof evidence."
+            ),
+        }
+        existing_row = existing_by_id.get(agenda_id)
+        if existing_row is not None:
+            before = dict(existing_row)
+            _strengthen_runtime_next_action_agenda_row(existing_row, agenda_item)
+            if existing_row != before:
+                appended.append(dict(existing_row))
+            continue
+        semantic_existing_row = _runtime_generated_next_action_semantic_match(
+            agenda_rows,
+            agenda_item,
         )
-    if appended:
-        agenda_rows.extend(appended)
+        if semantic_existing_row is not None:
+            before = dict(semantic_existing_row)
+            _merge_runtime_next_action_agenda_row(semantic_existing_row, agenda_item)
+            _strengthen_runtime_next_action_agenda_row(
+                semantic_existing_row,
+                agenda_item,
+            )
+            if semantic_existing_row != before:
+                appended.append(dict(semantic_existing_row))
+            continue
+        existing_ids.add(agenda_id)
+        existing_by_id[agenda_id] = agenda_item
+        new_agenda_rows.append(agenda_item)
+        appended.append(agenda_item)
+    if new_agenda_rows:
+        agenda_rows.extend(new_agenda_rows)
     return appended
 
 
@@ -34134,6 +34373,9 @@ def _runtime_generated_next_action_learning_rows(
                         row.get("definition_only_candidate_artifact_path", "") or ""
                     ),
                     "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                    "local_definition_lean_checked": bool(
+                        row.get("local_definition_lean_checked", False)
+                    ),
                     "local_definition_lean_compiled": bool(
                         row.get("local_definition_lean_compiled", False)
                     ),

@@ -15149,6 +15149,82 @@ def test_exact_semantic_definition_work_order_generates_next_action() -> None:
     )
 
 
+def test_generated_exact_semantic_next_action_merges_stronger_executor_status() -> None:
+    work_order_id = "source_theorem_exact_semantic_definition_work_order:covered"
+    stale_work_order = {
+        "learning_task": "source_theorem_exact_semantic_definition_work_order",
+        "work_order_id": work_order_id,
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "covered",
+        "definition_only_candidate_artifact_path": (
+            "runs/current/covered_definition_only.lean"
+        ),
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+        ),
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    executor_result = {
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_lean_repair_execution"
+        ),
+        "source_lean_repair_task_id": (
+            "source_theorem_exact_semantic_definition_lean_repair_task:covered"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "covered",
+        "definition_only_candidate_artifact_path": (
+            "runs/current/covered_definition_only.lean"
+        ),
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+        "runtime_queue_status": (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    agenda_rows: list[dict[str, object]] = []
+
+    initial_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        [stale_work_order],
+        queue_name="source_theorem_exact_semantic_definitions",
+    )
+    stronger_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        [executor_result],
+        queue_name="source_theorem_exact_semantic_definitions",
+    )
+
+    assert len(initial_rows) == 1
+    assert len(stronger_rows) == 1
+    assert len(agenda_rows) == 1
+    assert agenda_rows[0]["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert agenda_rows[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert agenda_rows[0]["local_definition_lean_checked"] is True
+    learning_rows = _runtime_generated_next_action_learning_rows(stronger_rows)
+    assert learning_rows[0]["input_summary"][
+        "semantic_definition_typecheck_evidence_status"
+    ] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert learning_rows[0]["input_summary"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+
+
 def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
     premise_row = {
         "schema_version": 1,
