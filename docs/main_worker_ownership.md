@@ -815,6 +815,18 @@ remains 44/49 and the source theorem is still unproved; the correct next
 frontier is reviewed exact semantic definitions plus the `C_n` Lean/import
 environment blocker, not promotion of helper or retrieval evidence.
 
+The follow-up Critic replay exposed one remaining target mismatch: the generic
+local-Lean unavailable-import blocker from
+`critic_local_lean_formalization_feedback` still targeted the question id
+instead of the theorem goal. Unavailable-import blocker construction now
+receives the full formalization manifest and prefers explicit target IDs plus
+deterministic theorem goals before falling back to question id. The fresh live
+replay `runs/main_worker_critic_after_import_blocker_target_fix_live` keeps four
+high-priority agenda rows and 11 blocker requests with zero missing
+`target_ids`; the local-Lean `Mathlib` unavailable-import request now targets
+`split_conformal_finite_sample_coverage`. The handoff remains
+FormalizationEvaluator work, and no source-theorem proof evidence is claimed.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

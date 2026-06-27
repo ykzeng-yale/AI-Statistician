@@ -21354,19 +21354,16 @@ def _critic_repair_feedback(
             formal_blocker_resource_requests,
         )
     if formalizer_local_lean_contract:
+        local_lean_manifest_context = dict(formalization_manifest)
+        local_lean_manifest_context["question"] = {
+            "id": question.id,
+            "title": question.title,
+        }
         formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
             formal_blocker_resource_requests,
             _formal_blocker_resource_requests_from_unavailable_imports(
                 local_lean_repair_contract=formalizer_local_lean_contract,
-                manifest={
-                    "manifest_id": str(
-                        formalization_manifest.get("manifest_id", "") or ""
-                    ),
-                    "question": {
-                        "id": question.id,
-                        "title": question.title,
-                    },
-                },
+                manifest=local_lean_manifest_context,
                 diagnostics=formalizer_candidate_diagnostics,
                 source="critic_local_lean_formalization_feedback",
             ),
@@ -22186,6 +22183,47 @@ def _formal_blocker_resource_requests_from_feedback(
     )
 
 
+def _formal_blocker_target_ids_from_manifest_and_diagnostics(
+    manifest: Mapping[str, Any],
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question", {}), Mapping)
+        else {}
+    )
+    explicit_target_ids = list(
+        dict.fromkeys(
+            target_id
+            for source_row in (manifest, *diagnostics)
+            if isinstance(source_row, Mapping)
+            for target_id in _source_theorem_explicit_target_ids_from_row(source_row)
+        )
+    )
+    deterministic_goal_ids = [
+        str(row.get("id", "") or "").strip()
+        for row in manifest.get("deterministic_theorem_goals", []) or []
+        if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
+    ]
+    diagnostic_target_names = [
+        str(row.get("target_lean_declaration", "") or "").strip()
+        for row in diagnostics
+        if isinstance(row, Mapping)
+        and str(row.get("target_lean_declaration", "") or "").strip()
+    ]
+    question_target_ids = [
+        str(question.get("id", "") or "").strip()
+    ] if str(question.get("id", "") or "").strip() else []
+    return list(
+        dict.fromkeys(
+            explicit_target_ids
+            or deterministic_goal_ids
+            or diagnostic_target_names
+            or question_target_ids
+        )
+    )
+
+
 def _formal_blocker_resource_requests_from_unknown_identifiers(
     *,
     local_lean_repair_contract: Mapping[str, Any],
@@ -22196,23 +22234,10 @@ def _formal_blocker_resource_requests_from_unknown_identifiers(
 
     if not isinstance(local_lean_repair_contract, Mapping):
         return []
-    question = (
-        manifest.get("question", {})
-        if isinstance(manifest.get("question", {}), Mapping)
-        else {}
+    target_ids = _formal_blocker_target_ids_from_manifest_and_diagnostics(
+        manifest,
+        diagnostics,
     )
-    target_ids = [
-        str(value).strip()
-        for value in (
-            question.get("id", ""),
-            *[
-                row.get("target_lean_declaration", "")
-                for row in diagnostics
-                if isinstance(row, Mapping)
-            ],
-        )
-        if str(value).strip()
-    ]
     rows: list[dict[str, Any]] = []
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     for unknown in local_lean_repair_contract.get("unknown_identifiers", []) or []:
@@ -22285,23 +22310,10 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
     }
     if "lean_import_environment_missing" not in diagnostic_classes:
         return []
-    question = (
-        manifest.get("question", {})
-        if isinstance(manifest.get("question", {}), Mapping)
-        else {}
+    target_ids = _formal_blocker_target_ids_from_manifest_and_diagnostics(
+        manifest,
+        diagnostics,
     )
-    target_ids = [
-        str(value).strip()
-        for value in (
-            question.get("id", ""),
-            *[
-                row.get("target_lean_declaration", "")
-                for row in diagnostics
-                if isinstance(row, Mapping)
-            ],
-        )
-        if str(value).strip()
-    ]
     replacements = [
         row
         for row in local_lean_repair_contract.get(

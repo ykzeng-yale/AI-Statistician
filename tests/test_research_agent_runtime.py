@@ -636,6 +636,9 @@ def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> Non
         formalization_manifest={
             "manifest_id": "formalization_manifest:mathlib_olean_missing",
             "counts": {"formal_gap": 1},
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
             "formal_subclaims": [
                 {
                     "id": "conformal_prediction_coverage:event_probability_mono",
@@ -663,7 +666,7 @@ def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> Non
     )
     assert import_request["source"] == "critic_local_lean_formalization_feedback"
     assert import_request["unavailable_import"] == "Mathlib"
-    assert import_request["target_ids"] == ["conformal_prediction_coverage"]
+    assert import_request["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert "Mathlib Lean import" in import_request["formal_source_queries"]
     assert import_request["proof_evidence_status"] == (
         "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"

@@ -850,3 +850,20 @@ materialization seed with zero missing `target_ids`; nested premise-derivation
 candidate requests also have zero missing `target_ids`. This is still routing
 and provenance repair only: the source theorem is unproved, and the promotion
 seed remains `BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS`.
+
+The next Critic handoff preserved the exact-semantic agenda and did not claim
+source-theorem proof, but exposed one remaining target mismatch in local-Lean
+formalization feedback. The generic unavailable-import blocker from
+`critic_local_lean_formalization_feedback` still used the question id
+`conformal_prediction_coverage` as `target_ids`, while the exact semantic
+definition blockers targeted `split_conformal_finite_sample_coverage`. The
+Critic repair path now passes the full formalization manifest into unavailable
+import blocker construction, and the blocker builder prefers explicit
+`target_ids`/`source_theorem_goal_id` and deterministic theorem goals before
+falling back to the question id. The patched live replay
+`runs/main_worker_critic_after_import_blocker_target_fix_live` hands off
+`formalize-critic-repair:conformal_prediction_coverage:62dd977f` with four
+high-priority agenda rows, 11 blocker requests, zero missing `target_ids`, and
+the local-Lean `Mathlib` unavailable-import blocker targeting
+`split_conformal_finite_sample_coverage`. No source-theorem proof flags were
+set.
