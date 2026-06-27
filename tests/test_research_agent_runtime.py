@@ -21819,13 +21819,92 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             out_dir
             / "source_theorem_exact_semantic_definition_typechecked_review_recheck_blocked_packets.jsonl"
         )
+        verifier_gate_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
         manifest_path = out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        verifier_gate_row = {
+            "schema_version": 1,
+            "artifact_kind": (
+                "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+            ),
+            "work_order_id": "verifier-gate:covered",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_ids": ["split_conformal_coverage"],
+            "placeholder_symbol": "covered",
+            "candidate_artifact_path": str(tmp_path / "typechecked_candidate.lean"),
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+            ),
+            "semantic_review_decision": "approved_definition_candidate",
+            "semantic_review_status": (
+                "llm_semantic_review_approved_definition_candidate_not_proof"
+            ),
+            "proof_body_recheck_blockers": [
+                "source_theorem_ready_for_exact_proof_body_false",
+                "semantic_review_required_before_proof_body",
+                "llm_semantic_review_approved_requires_verifier_recheck_gate",
+            ],
+            "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+            ),
+            "failure_classification": (
+                "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+            ),
+            "definition_candidate_review_mode": (
+                "llm_semantic_review_requires_verifier_gate"
+            ),
+            "source_theorem_ready_for_exact_proof_body": False,
+            "source_theorem_kernel_evidence_eligible": False,
+            "recommended_next_action": (
+                "run the formal verifier/Lean semantic-faithfulness gate for this "
+                "typechecked exact semantic-definition candidate"
+            ),
+            "required_next_checks": [
+                "run a local Lean/AXLE semantic-faithfulness verifier on the typechecked exact definition candidate",
+                "record verifier-approved semantic review evidence before proof-body retry",
+            ],
+            "input_summary": {
+                "trigger": (
+                    "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
+                ),
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_coverage"],
+                "placeholder_symbol": "covered",
+                "candidate_artifact_path": str(tmp_path / "typechecked_candidate.lean"),
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+                ),
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+                ),
+                "failure_classification": (
+                    "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+                ),
+            },
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+            ),
+        }
         blocked_path.write_text(
             json.dumps(
                 {
                     "placeholder_symbol": "covered",
                     "proof_body_recheck_blockers": [
-                        "semantic_review_required_before_proof_body"
+                        "source_theorem_ready_for_exact_proof_body_false",
+                        "semantic_review_required_before_proof_body",
+                        "llm_semantic_review_approved_requires_verifier_recheck_gate",
                     ],
                     "proof_evidence_status": (
                         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
@@ -21835,6 +21914,14 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             + "\n",
             encoding="utf-8",
         )
+        verifier_gate_path.write_text(
+            json.dumps(verifier_gate_row) + "\n",
+            encoding="utf-8",
+        )
+        learning_path.write_text(
+            json.dumps(verifier_gate_row) + "\n",
+            encoding="utf-8",
+        )
         queue_path.write_text("", encoding="utf-8")
         manifest = {
             "schema_version": 1,
@@ -21842,11 +21929,15 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             "source_review_packets_jsonl": str(review_packets_jsonl),
             "proof_body_execution_queue_jsonl": str(queue_path),
             "blocked_review_packets_jsonl": str(blocked_path),
+            "verifier_gate_work_orders_jsonl": str(verifier_gate_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
             "n_review_packets": 1,
             "n_semantically_approved_review_packets": 0,
             "n_llm_semantic_review_approved_packets": 1,
             "n_llm_semantic_review_packets_requiring_verifier_gate": 1,
             "n_blocked_review_packets": 1,
+            "n_verifier_gate_work_orders": 1,
+            "n_runtime_learning_rows": 1,
             "n_execution_queue_rows": 0,
             "proof_evidence_status": (
                 "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
@@ -21975,6 +22066,12 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows"
         ]
         == 0
@@ -22004,6 +22101,51 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             "runtime_source_theorem_exact_semantic_definition_typechecked_review_recheck_blocked_packets_jsonl"
         ]
     ).exists()
+    verifier_gate_path = Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders_jsonl"
+        ]
+    )
+    assert verifier_gate_path.exists()
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+        and row.get("runtime_queue_status")
+        == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+        for row in learning_rows
+    )
+    generated_routing_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task") == "generated_next_action_routing"
+    ]
+    assert any(
+        row.get("input_summary", {}).get("work_order_id") == "verifier-gate:covered"
+        and row.get("input_summary", {}).get("runtime_queue_status")
+        == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+        for row in generated_routing_rows
+    )
+    agenda_rows = [
+        json.loads(line)
+        for line in Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("work_order_id") == "verifier-gate:covered"
+        and row.get("runtime_queue_status")
+        == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+        and row.get("proof_boundary")
+        for row in agenda_rows
+    )
 
 
 def test_formalizer_prompt_compacts_large_theory_context() -> None:
@@ -37694,12 +37836,14 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows": 0,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran": True,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets": 0,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows": 0,
     }
     (runtime_dir / "research_agent_runtime_manifest.json").write_text(
@@ -37727,13 +37871,27 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
         ]
         == 1
     )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+        ]
+        == 1
+    )
     report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
         encoding="utf-8"
     )
     assert "primary_llm_approved=2" in report
     assert "primary_llm_approved_requiring_verifier_gate=2" in report
+    assert "primary_verifier_gate_work_orders=2" in report
     assert "late_llm_approved=1" in report
     assert "late_llm_approved_requiring_verifier_gate=1" in report
+    assert "late_verifier_gate_work_orders=1" in report
 
 
 def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() -> None:

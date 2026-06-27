@@ -10667,6 +10667,9 @@ def run_research_agent_runtime(
     late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests: list[
         dict[str, Any]
     ] = []
+    late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows: list[
+        dict[str, Any]
+    ] = []
     late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests: list[
         dict[str, Any]
     ] = []
@@ -11781,6 +11784,46 @@ def run_research_agent_runtime(
                                                                 late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests.append(
                                                                     late_materialized_review_recheck_queue_manifest
                                                                 )
+                                                                late_materialized_review_verifier_gate_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
+                                                                    late_materialized_review_recheck_queue_manifest
+                                                                )
+                                                                if (
+                                                                    late_materialized_review_verifier_gate_rows
+                                                                ):
+                                                                    late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows.extend(
+                                                                        late_materialized_review_verifier_gate_rows
+                                                                    )
+                                                                    learning_rows.extend(
+                                                                        late_materialized_review_verifier_gate_rows
+                                                                    )
+                                                                    late_materialized_review_verifier_gate_next_action_rows = _append_runtime_generated_next_action_rows(
+                                                                        agenda_rows,
+                                                                        late_materialized_review_verifier_gate_rows,
+                                                                        queue_name=(
+                                                                            "source_theorem_exact_semantic_definition_"
+                                                                            "typechecked_review_verifier_gate_from_"
+                                                                            f"late_materialized_candidate_reviews_{safe_queue_name}"
+                                                                        ),
+                                                                    )
+                                                                    if (
+                                                                        late_materialized_review_verifier_gate_next_action_rows
+                                                                    ):
+                                                                        generated_next_action_rows.extend(
+                                                                            late_materialized_review_verifier_gate_next_action_rows
+                                                                        )
+                                                                        learning_rows.extend(
+                                                                            _runtime_generated_next_action_learning_rows(
+                                                                                late_materialized_review_verifier_gate_next_action_rows
+                                                                            )
+                                                                        )
+                                                                        _write_jsonl(
+                                                                            agenda_path,
+                                                                            agenda_rows,
+                                                                        )
+                                                                    _write_jsonl(
+                                                                        learning_path,
+                                                                        learning_rows,
+                                                                    )
                                                                 late_materialized_review_recheck_queue_manifest_path = Path(
                                                                     str(
                                                                         late_materialized_review_recheck_queue_manifest.get(
@@ -11915,6 +11958,9 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest: (
         dict[str, Any] | None
     ) = None
+    source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows: list[
+        dict[str, Any]
+    ] = []
     source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest: (
         dict[str, Any] | None
     ) = None
@@ -12238,6 +12284,37 @@ def run_research_agent_runtime(
                                 review_packets_jsonl=reviewed_candidate_packets_path,
                                 proof_body_queue_manifest=exact_definition_proof_body_queue_manifest_path,
                             )
+                            source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
+                                source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+                            )
+                            if (
+                                source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows
+                            ):
+                                learning_rows.extend(
+                                    source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows
+                                )
+                                verifier_gate_next_action_rows = (
+                                    _append_runtime_generated_next_action_rows(
+                                        agenda_rows,
+                                        source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows,
+                                        queue_name=(
+                                            "source_theorem_exact_semantic_definition_"
+                                            "typechecked_review_verifier_gate_from_"
+                                            "typechecked_candidate_reviews"
+                                        ),
+                                    )
+                                )
+                                if verifier_gate_next_action_rows:
+                                    generated_next_action_rows.extend(
+                                        verifier_gate_next_action_rows
+                                    )
+                                    learning_rows.extend(
+                                        _runtime_generated_next_action_learning_rows(
+                                            verifier_gate_next_action_rows
+                                        )
+                                    )
+                                    _write_jsonl(agenda_path, agenda_rows)
+                                _write_jsonl(learning_path, learning_rows)
                             typechecked_review_recheck_queue_manifest_path = Path(
                                 str(
                                     source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest.get(
@@ -14287,6 +14364,12 @@ def run_research_agent_runtime(
             str(row.get("blocked_review_packets_jsonl", "") or "")
             for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
         ]
+        manifest["artifacts"][
+            "runtime_late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders_jsonl"
+        ] = [
+            str(row.get("verifier_gate_work_orders_jsonl", "") or "")
+            for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+        ]
     if late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests:
         manifest["artifacts"][
             "runtime_late_source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_manifests"
@@ -14736,6 +14819,15 @@ def run_research_agent_runtime(
         ] = str(
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest.get(
                 "blocked_review_packets_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest.get(
+                "verifier_gate_work_orders_jsonl",
                 "",
             )
             or ""
@@ -16909,6 +17001,10 @@ def run_research_agent_runtime(
         int(row.get("n_blocked_review_packets", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
+    late_typechecked_review_recheck_queue_n_verifier_gate_work_orders = sum(
+        int(row.get("n_verifier_gate_work_orders", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
     late_typechecked_review_recheck_queue_n_execution_rows = sum(
         int(row.get("n_execution_queue_rows", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
@@ -16983,6 +17079,9 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets"
     ] = late_typechecked_review_recheck_queue_n_blocked_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+    ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows"
     ] = late_typechecked_review_recheck_queue_n_execution_rows
@@ -17900,6 +17999,13 @@ def run_research_agent_runtime(
         ).get("n_blocked_review_packets", 0)
         or 0
     )
+    primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders", 0)
+        or 0
+    )
     primary_typechecked_review_recheck_queue_n_execution_rows = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
@@ -17974,6 +18080,9 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
     ] = primary_typechecked_review_recheck_queue_n_blocked_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+    ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows"
     ] = primary_typechecked_review_recheck_queue_n_execution_rows
@@ -22055,6 +22164,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES = frozenset(
         "proof_body_reached_semantic_alignment_unreviewed",
         "semantic_definition_review_blocked",
         "typechecked_exact_semantic_definition_candidate_review_required",
+        "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate",
         "exact_semantic_definition_authoring_required",
     }
 )
@@ -22063,6 +22173,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
         "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY",
     }
 )
@@ -22084,6 +22195,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES = frozenset(
 _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES = frozenset(
     {
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
     }
@@ -25447,6 +25559,7 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_REVIEW_RESULT",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
         "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
         "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
@@ -26317,6 +26430,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or str(row.get("learning_task", "") or "")
             == "source_theorem_exact_semantic_definition_repair_queue"
         )
+        is_exact_semantic_definition_typechecked_review_verifier_gate = (
+            str(row.get("artifact_kind", "") or "")
+            == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
+            or str(row.get("action_type", "") or "")
+            == "verify_typechecked_exact_semantic_definition_candidate"
+            or str(row.get("learning_task", "") or "")
+            == "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+        )
         is_exact_semantic_definition_lean_environment_repair = (
             str(row.get("artifact_kind", "") or "")
             == "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairTask"
@@ -26529,6 +26650,13 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS"
         if is_exact_semantic_definition_repair_queue and not trigger:
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+        if (
+            is_exact_semantic_definition_typechecked_review_verifier_gate
+            and not trigger
+        ):
+            trigger = (
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
+            )
         if is_exact_semantic_definition_lean_environment_repair and not trigger:
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR"
         if is_exact_semantic_definition_lean_repair_execution and not trigger:
@@ -26546,6 +26674,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and not is_exact_semantic_definition_closure_review_result
             and not is_exact_semantic_definition_candidate_synthesis
             and not is_exact_semantic_definition_repair_queue
+            and not is_exact_semantic_definition_typechecked_review_verifier_gate
             and not is_exact_semantic_definition_lean_environment_repair
             and not is_exact_semantic_definition_lean_repair_execution
             and not is_exact_semantic_definition_authoring_retry
@@ -26610,6 +26739,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or is_exact_semantic_definition_closure_review_result
             or is_exact_semantic_definition_candidate_synthesis
             or is_exact_semantic_definition_repair_queue
+            or is_exact_semantic_definition_typechecked_review_verifier_gate
             or is_exact_semantic_definition_lean_environment_repair
             or is_exact_semantic_definition_lean_repair_execution
             or is_exact_semantic_definition_authoring_retry
@@ -26799,6 +26929,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ).strip()
             if semantic_import_candidate_ready:
                 failure_classification = "reviewed_semantic_definition_import_pending"
+            elif is_exact_semantic_definition_typechecked_review_verifier_gate:
+                failure_classification = (
+                    "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+                )
             elif execution_status == "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN":
                 failure_classification = "exact_semantic_definition_authoring_required"
             elif (
@@ -26899,11 +27033,19 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 )
             if (
                 trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+                or trigger
+                == "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
                 or definition_candidate_review_mode
                 == "semantic_review_blocked_existing_candidate"
+                or definition_candidate_review_mode
+                == "llm_semantic_review_requires_verifier_gate"
                 or semantic_definition_risk_detected
             ):
-                failure_classification = "semantic_definition_review_blocked"
+                failure_classification = (
+                    "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+                    if is_exact_semantic_definition_typechecked_review_verifier_gate
+                    else "semantic_definition_review_blocked"
+                )
             semantic_risk = str(row.get("semantic_risk", "") or "").strip()
             if not semantic_risk and isinstance(input_summary, Mapping):
                 semantic_risk = str(input_summary.get("semantic_risk", "") or "").strip()
@@ -26968,12 +27110,20 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
             if (
                 trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+                or trigger
+                == "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
                 or definition_candidate_review_mode
                 == "semantic_review_blocked_existing_candidate"
+                or definition_candidate_review_mode
+                == "llm_semantic_review_requires_verifier_gate"
                 or semantic_definition_risk_detected
                 or bool(semantic_risk)
             ):
-                failure_classification = "semantic_definition_review_blocked"
+                failure_classification = (
+                    "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+                    if is_exact_semantic_definition_typechecked_review_verifier_gate
+                    else "semantic_definition_review_blocked"
+                )
             elif not failure_classification:
                 failure_classification = "formal_environment_placeholder_primitives"
             missing_symbols = [
@@ -27027,6 +27177,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 )
                 if str(value).strip()
             ][:6]
+            if is_exact_semantic_definition_typechecked_review_verifier_gate:
+                recommended_repair_tasks = required_next_checks or [
+                    "run the formal verifier/Lean semantic-faithfulness gate for the typechecked exact semantic-definition candidate",
+                    "only rerun exact source theorem proof-body search after verifier-approved semantic evidence clears the gate",
+                ]
             if is_exact_semantic_definition_closure_review_result:
                 review_tasks = [
                     str(value)
@@ -27103,6 +27258,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED",
                         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
                         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+                        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
                         "PENDING_REVIEWED_SEMANTIC_DEFINITION_IMPORT",
                     }
                     or "source_theorem_exact_semantic_definition_materialized_candidate_reviews"
@@ -35690,6 +35846,17 @@ def _runtime_recommended_commands(row: Mapping[str, Any]) -> list[str]:
     else:
         raw_iterable = raw_commands or []
     return [str(command) for command in raw_iterable if str(command).strip()]
+
+
+def _typechecked_review_verifier_gate_rows_from_recheck_manifest(
+    manifest: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(manifest, Mapping):
+        return []
+    rows_path = Path(str(manifest.get("verifier_gate_work_orders_jsonl", "") or ""))
+    if not rows_path.exists():
+        return []
+    return [dict(row) for row in _read_jsonl(rows_path) if isinstance(row, Mapping)]
 
 
 def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

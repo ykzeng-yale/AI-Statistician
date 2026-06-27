@@ -2252,6 +2252,8 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
         manifest["n_llm_semantic_review_packets_requiring_verifier_gate"] == 1
     )
     assert manifest["n_blocked_review_packets"] == 1
+    assert manifest["n_verifier_gate_work_orders"] == 1
+    assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
     blocked = [
         json.loads(line)
@@ -2267,6 +2269,98 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
     assert blocked[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
     )
+    verifier_gate_rows = [
+        json.loads(line)
+        for line in Path(manifest["verifier_gate_work_orders_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert verifier_gate_rows[0]["learning_task"] == (
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+    )
+    assert verifier_gate_rows[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+    )
+    assert verifier_gate_rows[0]["failure_classification"] == (
+        "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+    )
+    assert verifier_gate_rows[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert verifier_gate_rows[0]["source_theorem_kernel_evidence_eligible"] is False
+    assert verifier_gate_rows[0]["proof_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert learning_rows == verifier_gate_rows
+
+
+def test_typechecked_review_verifier_gate_memory_remains_specific() -> None:
+    repairs = _runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "artifact_kind": (
+                            "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
+                        ),
+                        "learning_task": (
+                            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+                        ),
+                        "work_order_id": "verifier-gate:covered",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "placeholder_symbol": "covered",
+                        "candidate_artifact_path": "runs/candidates/covered.lean",
+                        "local_definition_lean_compiled": True,
+                        "semantic_definition_typecheck_evidence_status": (
+                            "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+                        ),
+                        "proof_body_gate_status": (
+                            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                        ),
+                        "runtime_queue_status": (
+                            "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+                        ),
+                        "failure_classification": (
+                            "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+                        ),
+                        "definition_candidate_review_mode": (
+                            "llm_semantic_review_requires_verifier_gate"
+                        ),
+                        "source_theorem_kernel_evidence_eligible": False,
+                        "required_next_checks": [
+                            "run a local Lean/AXLE semantic-faithfulness verifier"
+                        ],
+                        "proof_evidence_status": (
+                            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            }
+        }
+    )
+
+    assert len(repairs) == 1
+    assert repairs[0]["failure_classification"] == (
+        "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
+    )
+    assert repairs[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+    )
+    assert repairs[0]["definition_candidate_review_mode"] == (
+        "llm_semantic_review_requires_verifier_gate"
+    )
+    assert repairs[0]["source_theorem_kernel_evidence_eligible"] is False
+    assert repairs[0]["recommended_repair_tasks"] == [
+        "run a local Lean/AXLE semantic-faithfulness verifier"
+    ]
 
 
 def test_typechecked_review_recheck_queue_exports_approved_candidate(
