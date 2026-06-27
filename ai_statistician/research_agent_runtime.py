@@ -1457,6 +1457,7 @@ class ResearchAgentRuntimeConfig:
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
+    resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
     recommended_research_path: str = ""
     proof_obligation_ids: tuple[str, ...] = ()
@@ -2023,6 +2024,28 @@ class ArchitectCoordinatorRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        resume_pending_task_payload = (
+            task.inputs.get("resume_pending_task", {})
+            if isinstance(task.inputs.get("resume_pending_task", {}), Mapping)
+            else {}
+        )
+        if resume_pending_task_payload:
+            context["runtime_resume_review"] = {
+                "artifact_kind": "RuntimeArchitectResumeReviewContext",
+                "pending_task_id": str(
+                    resume_pending_task_payload.get("task_id", "") or ""
+                ),
+                "pending_owner_subsystem": str(
+                    resume_pending_task_payload.get("owner_subsystem", "") or ""
+                ),
+                "pending_acceptance_gate": str(
+                    resume_pending_task_payload.get("acceptance_gate", "") or ""
+                ),
+                "boundary": (
+                    "This is Architect resume-routing context. It is not proof "
+                    "evidence and does not imply that any theorem gap is closed."
+                ),
+            }
         packet = self.coordinator.propose(
             question=question,
             architect_context=context,
@@ -2055,39 +2078,58 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
             },
         )
+        next_task = AgentTask(
+            task_id=f"retrieve:{question.id}:{stable_hash(packet_id)[:8]}",
+            owner_subsystem="RetrievalMemory",
+            objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
+            inputs={
+                "question": _question_to_payload(question),
+                "architect_context": context,
+            },
+            allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
+            expected_artifacts=("retrieval_memory_manifest",),
+            acceptance_gate="retrieval context recorded with explicit non-proof boundary",
+            stop_condition="retrieval context routed to TheoryDeveloper",
+        )
+        rationale = (
+            "ArchitectCoordinator recorded a top-level execution plan and "
+            "is routing to RetrievalMemory for source and formal context."
+        )
+        if resume_pending_task_payload:
+            next_task = _merge_resume_task_architect_context(
+                _agent_task_from_runtime_payload(resume_pending_task_payload),
+                context,
+            )
+            rationale = (
+                "ArchitectCoordinator reviewed the resumed pending task, refreshed "
+                "the evidence contract, and is routing back to the pending subsystem."
+            )
         return AgentStepResult(
             status="REROUTE",
-            rationale=(
-                "ArchitectCoordinator recorded a top-level execution plan and "
-                "is routing to RetrievalMemory for source and formal context."
-            ),
+            rationale=rationale,
             produced_artifacts={packet_id: packet},
             observations=(
                 EnvironmentObservation(
                     observation_type="llm_architect_coordinator_proposal",
-                    summary="validated ArchitectCoordinator execution plan recorded",
+                    summary=(
+                        "validated ArchitectCoordinator resume review recorded"
+                        if resume_pending_task_payload
+                        else "validated ArchitectCoordinator execution plan recorded"
+                    ),
                     payload={
                         "packet_id": packet_id,
                         "n_subsystem_steps": len(packet.get("subsystem_execution_plan", []) or []),
                         "evidence_contract": packet.get("evidence_contract", {}),
+                        "resume_review": bool(resume_pending_task_payload),
+                        "resume_pending_task_id": str(
+                            resume_pending_task_payload.get("task_id", "") or ""
+                        ),
                         "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
                     },
                 ),
             ),
             evidence_entries=(evidence,),
-            next_task=AgentTask(
-                task_id=f"retrieve:{question.id}:{stable_hash(packet_id)[:8]}",
-                owner_subsystem="RetrievalMemory",
-                objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
-                inputs={
-                    "question": _question_to_payload(question),
-                    "architect_context": context,
-                },
-                allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
-                expected_artifacts=("retrieval_memory_manifest",),
-                acceptance_gate="retrieval context recorded with explicit non-proof boundary",
-                stop_condition="retrieval context routed to TheoryDeveloper",
-            ),
+            next_task=next_task,
         )
 
 
@@ -9269,39 +9311,89 @@ def run_research_agent_runtime(
                 },
             )
 
-        initial_task = initial_task_overrides.get(question.id) or (
-            AgentTask(
-                task_id=f"architect:{question.id}",
+        resume_pending_task = initial_task_overrides.get(question.id)
+        if (
+            resume_pending_task is not None
+            and config.resume_through_architect
+            and architect_coordinator is not None
+        ):
+            initial_task = AgentTask(
+                task_id=f"architect-resume:{question.id}:{stable_hash(asdict(resume_pending_task))[:8]}",
                 owner_subsystem="ArchitectCoordinator",
                 objective=(
-                    "Create the top-level AI Statistician execution plan, evidence gates, "
-                    "retrieval priorities, and iteration policy before runtime execution."
+                    "Review the resumed pending AgentRuntime task, refresh the "
+                    "Architect evidence contract, and route back to the pending "
+                    "subsystem without claiming proof evidence."
                 ),
                 inputs={
                     "question": _question_to_payload(question),
                     "architect_context": dict(runtime_architect_context),
+                    "resume_pending_task": asdict(resume_pending_task),
+                    "resume_review_contract": {
+                        "artifact_kind": "RuntimeArchitectResumeReviewContract",
+                        "pending_task_id": resume_pending_task.task_id,
+                        "pending_owner_subsystem": resume_pending_task.owner_subsystem,
+                        "proof_evidence_status": (
+                            "ARCHITECT_RESUME_REVIEW_NOT_PROOF_EVIDENCE"
+                        ),
+                        "boundary": (
+                            "Architect resume review is orchestration evidence only. "
+                            "It may refresh routing context but cannot prove a theorem, "
+                            "validate generated code, or close a formal gap."
+                        ),
+                    },
                 },
                 allowed_tools=("model_backend", "blackboard"),
-                expected_artifacts=("architect_coordinator_proposal",),
-                acceptance_gate="validated coordinator packet with explicit non-proof boundary",
-                stop_condition="coordinator routes to RetrievalMemory",
+                expected_artifacts=(
+                    "architect_coordinator_proposal",
+                    "architect_resume_review_handoff",
+                ),
+                acceptance_gate=(
+                    "validated coordinator packet refreshes evidence contract "
+                    "and returns to the pending task"
+                ),
+                stop_condition="coordinator routes back to the pending subsystem",
             )
-            if architect_coordinator is not None
-            else AgentTask(
-                task_id=f"retrieve:{question.id}",
-                owner_subsystem="RetrievalMemory",
-                objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
-                inputs={
-                    "question": _question_to_payload(question),
-                    "architect_context": dict(runtime_architect_context),
-                },
-                allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
-                expected_artifacts=("retrieval_memory_manifest",),
-                acceptance_gate="retrieval context recorded with explicit non-proof boundary",
-                stop_condition="retrieval context routed to TheoryDeveloper",
+        else:
+            initial_task = resume_pending_task or (
+                AgentTask(
+                    task_id=f"architect:{question.id}",
+                    owner_subsystem="ArchitectCoordinator",
+                    objective=(
+                        "Create the top-level AI Statistician execution plan, evidence gates, "
+                        "retrieval priorities, and iteration policy before runtime execution."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "architect_context": dict(runtime_architect_context),
+                    },
+                    allowed_tools=("model_backend", "blackboard"),
+                    expected_artifacts=("architect_coordinator_proposal",),
+                    acceptance_gate="validated coordinator packet with explicit non-proof boundary",
+                    stop_condition="coordinator routes to RetrievalMemory",
+                )
+                if architect_coordinator is not None
+                else AgentTask(
+                    task_id=f"retrieve:{question.id}",
+                    owner_subsystem="RetrievalMemory",
+                    objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "architect_context": dict(runtime_architect_context),
+                    },
+                    allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
+                    expected_artifacts=("retrieval_memory_manifest",),
+                    acceptance_gate="retrieval context recorded with explicit non-proof boundary",
+                    stop_condition="retrieval context routed to TheoryDeveloper",
+                )
             )
-        )
-        if initial_task_overrides.get(question.id) is not None and runtime_architect_context:
+        if (
+            resume_pending_task is not None
+            and not (
+                config.resume_through_architect and architect_coordinator is not None
+            )
+            and runtime_architect_context
+        ):
             initial_task = _merge_resume_task_architect_context(
                 initial_task,
                 runtime_architect_context,
@@ -20620,6 +20712,48 @@ def _merge_resume_task_architect_context(
             merged_context[key] = value
     inputs["architect_context"] = merged_context
     return replace(task, inputs=inputs)
+
+
+def _agent_task_from_runtime_payload(payload: Mapping[str, Any]) -> AgentTask:
+    task_id = str(payload.get("task_id", "") or "")
+    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
+    if not task_id or not owner_subsystem:
+        raise ValueError(
+            "runtime task payload must include task_id and owner_subsystem"
+        )
+    return AgentTask(
+        task_id=task_id,
+        owner_subsystem=owner_subsystem,
+        objective=str(payload.get("objective", "") or ""),
+        inputs=(
+            dict(payload.get("inputs", {}))
+            if isinstance(payload.get("inputs", {}), Mapping)
+            else {}
+        ),
+        allowed_tools=tuple(
+            str(item)
+            for item in (
+                payload.get("allowed_tools", [])
+                if isinstance(payload.get("allowed_tools", []), (list, tuple))
+                else []
+            )
+        ),
+        budget=(
+            dict(payload.get("budget", {}))
+            if isinstance(payload.get("budget", {}), Mapping)
+            else {}
+        ),
+        expected_artifacts=tuple(
+            str(item)
+            for item in (
+                payload.get("expected_artifacts", [])
+                if isinstance(payload.get("expected_artifacts", []), (list, tuple))
+                else []
+            )
+        ),
+        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
+        stop_condition=str(payload.get("stop_condition", "") or ""),
+    )
 
 
 def _merge_runtime_learning_memory_context(

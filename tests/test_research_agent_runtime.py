@@ -40857,9 +40857,14 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     response_file = root / "response.json"
+    architect_response_file = root / "architect_response.json"
     resume_manifest = root / "prior_manifest.json"
     out_dir = root / "out"
     response_file.write_text(json.dumps(_runtime_sample_response()), encoding="utf-8")
+    architect_response_file.write_text(
+        json.dumps(_architect_sample_response()),
+        encoding="utf-8",
+    )
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     question_payload = {
         "id": question.id,
@@ -40954,6 +40959,80 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     assert not result["traces"][0]["task"]["task_id"].startswith("architect:")
     assert manifest["runtime_completion_summary"]["boundary"].startswith(
         "Runtime completion status describes orchestration progress"
+    )
+
+    architect_resume_out_dir = root / "out_architect_resume"
+    code = main(
+        [
+            "research-agent-runtime",
+            "--provider",
+            "static",
+            "--static-response-file",
+            str(response_file),
+            "--architect-coordinator-provider",
+            "static",
+            "--architect-static-response-file",
+            str(architect_response_file),
+            "--question-file",
+            "examples/research_questions.json",
+            "--resume-runtime-manifest",
+            str(resume_manifest),
+            "--resume-through-architect",
+            "--max-iterations",
+            "2",
+            "--out",
+            str(architect_resume_out_dir),
+        ]
+    )
+
+    assert code == 0
+    architect_manifest = json.loads(
+        (architect_resume_out_dir / "research_agent_runtime_manifest.json").read_text()
+    )
+    assert architect_manifest["runtime_resumed_from_pending_task"] is True
+    assert architect_manifest["runtime_architect_coordinator_registered"] is True
+    assert architect_manifest["runtime_architect_coordinator_executed"] is True
+    assert architect_manifest["n_runtime_architect_coordinator_traces"] == 1
+    architect_truth_rows = {
+        row["evidence_id"]: row
+        for row in architect_manifest["runtime_evidence_truth_table"]["rows"]
+    }
+    assert architect_truth_rows["architect_control"]["status"] == "PRESENT"
+    architect_result = json.loads(
+        (
+            architect_resume_out_dir / "causal_ate_aipw_runtime_result.json"
+        ).read_text()
+    )
+    assert architect_result["traces"][0]["subsystem"] == "ArchitectCoordinator"
+    assert architect_result["traces"][0]["task"]["task_id"].startswith(
+        "architect-resume:causal_ate_aipw:"
+    )
+    assert architect_result["traces"][0]["next_task"]["task_id"] == resume_task[
+        "task_id"
+    ]
+    assert architect_result["traces"][1]["subsystem"] == "TheoryDeveloper"
+    assert architect_result["traces"][1]["task"]["task_id"] == resume_task["task_id"]
+    resume_review = architect_result["traces"][1]["task"]["inputs"][
+        "architect_context"
+    ]["runtime_resume_review"]
+    assert resume_review["pending_task_id"] == resume_task["task_id"]
+    assert resume_review["pending_owner_subsystem"] == "TheoryDeveloper"
+    architect_audit = audit_research_agent_runtime(
+        architect_resume_out_dir,
+        architect_resume_out_dir / "runtime_audit",
+    )
+    architect_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in architect_audit["capability_scorecard"]["rows"]
+    }
+    assert architect_scorecard_rows["architect_orchestrated"]["passed"] is True
+    assert architect_audit["runtime_architect_coordinator_registered"] is True
+    assert architect_audit["runtime_architect_coordinator_executed"] is True
+    assert architect_audit["n_runtime_architect_coordinator_traces"] == 1
+    assert not any(
+        "runtime trace subsystem order is incomplete or misordered" in error
+        for row in architect_audit["result_errors"]
+        for error in row["errors"]
     )
 
     learning_file = root / "resume_learning_rows.jsonl"

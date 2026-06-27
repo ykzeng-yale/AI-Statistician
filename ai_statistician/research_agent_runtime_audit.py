@@ -225,6 +225,17 @@ def audit_research_agent_runtime(
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
         "runtime_stage": manifest.get("runtime_stage", ""),
+        "runtime_architect_coordinator_registered": bool(
+            manifest.get("runtime_architect_coordinator_registered", False)
+        ),
+        "runtime_architect_coordinator_executed": any(
+            row.architect_coordinator_enabled for row in rows
+        ),
+        "n_runtime_architect_coordinator_traces": sum(
+            1
+            for row in trace_rows
+            if str(row.get("subsystem", "") or "") == "ArchitectCoordinator"
+        ),
         "runtime_evaluation_mode": str(manifest.get("runtime_evaluation_mode", "")),
         "effective_formal_verification_policy": str(
             manifest.get("effective_formal_verification_policy", "")
@@ -1530,9 +1541,22 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     traces = data.get("traces", []) if isinstance(data.get("traces"), list) else []
     subsystem_sequence = [str(row.get("subsystem", "")) for row in traces if isinstance(row, Mapping)]
     architect_enabled = bool(subsystem_sequence and subsystem_sequence[0] == "ArchitectCoordinator")
-    expected_sequence = REQUIRED_ARCHITECT_SUBSYSTEMS if architect_enabled else REQUIRED_SUBSYSTEMS
+    architect_resume = architect_enabled and _trace_is_architect_resume(traces)
+    expected_sequence = (
+        ("ArchitectCoordinator",)
+        if architect_resume
+        else REQUIRED_ARCHITECT_SUBSYSTEMS
+        if architect_enabled
+        else REQUIRED_SUBSYSTEMS
+    )
     if tuple(subsystem_sequence[: len(expected_sequence)]) != expected_sequence:
         errors.append("runtime trace subsystem order is incomplete or misordered")
+    if architect_resume and len(subsystem_sequence) > 1:
+        pending_owner = _architect_resume_pending_owner(traces)
+        if pending_owner and subsystem_sequence[1] != pending_owner:
+            errors.append(
+                "architect resume review did not route to the original pending subsystem"
+            )
     if data.get("status") != "ACCEPTED":
         errors.append("runtime result status is not ACCEPTED")
 
@@ -1892,6 +1916,42 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
                 f"but is configured with {configured_tier or 'missing'}"
             )
     return sorted(set(errors))
+
+
+def _trace_is_architect_resume(traces: list[Any]) -> bool:
+    if not traces:
+        return False
+    first = traces[0]
+    if not isinstance(first, Mapping):
+        return False
+    if str(first.get("subsystem", "") or "") != "ArchitectCoordinator":
+        return False
+    task = first.get("task", {})
+    if not isinstance(task, Mapping):
+        return False
+    if str(task.get("task_id", "") or "").startswith("architect-resume:"):
+        return True
+    inputs = task.get("inputs", {})
+    return (
+        isinstance(inputs, Mapping)
+        and isinstance(inputs.get("resume_pending_task", {}), Mapping)
+        and bool(inputs.get("resume_pending_task", {}))
+    )
+
+
+def _architect_resume_pending_owner(traces: list[Any]) -> str:
+    if not traces or not isinstance(traces[0], Mapping):
+        return ""
+    task = traces[0].get("task", {})
+    if not isinstance(task, Mapping):
+        return ""
+    inputs = task.get("inputs", {})
+    if not isinstance(inputs, Mapping):
+        return ""
+    pending = inputs.get("resume_pending_task", {})
+    if not isinstance(pending, Mapping):
+        return ""
+    return str(pending.get("owner_subsystem", "") or "")
 
 
 def _topology_unsupported_count(manifest: Mapping[str, Any]) -> int:

@@ -879,6 +879,18 @@ preserving the propagated research-path contract as continuity context. This
 avoids overstating subsystem resume runs as live Architect-controlled
 capability evidence.
 
+The follow-up runtime/eval patch makes that boundary actionable instead of only
+auditable. `research-agent-runtime --resume-runtime-manifest` keeps the old
+exact-pending-task behavior by default, but a new `--resume-through-architect`
+mode runs an `ArchitectCoordinator` resume-review turn first, then reroutes to
+the original pending subsystem task with refreshed `architect_context` and a
+typed `runtime_resume_review` object. The runtime manifest records the
+Architect trace counters, and `research-agent-runtime-audit` accepts the
+resume-specific sequence `ArchitectCoordinator -> original pending owner`
+without pretending that a full cold-start subsystem chain was replayed. This is
+the path future capability resumes should use when the claim is
+Architect-controlled runtime continuation.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

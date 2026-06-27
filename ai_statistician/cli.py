@@ -8782,6 +8782,9 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
+            resume_through_architect=bool(
+                getattr(args, "resume_through_architect", False)
+            ),
             formal_verification_policy=str(
                 getattr(args, "formal_verification_policy", "optional") or "optional"
             ),
@@ -15704,6 +15707,14 @@ def build_parser() -> argparse.ArgumentParser:
             "resume from a prior research-agent-runtime manifest that ended with "
             "incomplete_pending_next_task; the run starts from that exact AgentTask "
             "payload instead of restarting at Architect/Retrieval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--resume-through-architect",
+        action="store_true",
+        help=(
+            "when --resume-runtime-manifest and ArchitectCoordinator are configured, "
+            "run an Architect resume-review turn before returning to the pending task"
         ),
     )
     research_agent_runtime.add_argument(
