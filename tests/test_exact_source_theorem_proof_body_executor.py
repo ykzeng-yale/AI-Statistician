@@ -858,6 +858,187 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     assert learning_row["artifact_kernel_verified"] is False
 
 
+def test_exact_source_executor_does_not_treat_static_safety_constraints_as_blockers(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    signature = tmp_path / "signature.lean"
+    signature.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate.lean"
+    transcript = tmp_path / "transcript.jsonl"
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact_source_queue:static_safety",
+                "source_work_order_id": "exact_source_work_order:static_safety",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "expected_target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+                "source_theorem_target_provenance": {
+                    "source_theorem_question_id": "conformal_prediction_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "semantic_alignment_constraints": [
+                    (
+                        "Adapter must not claim coverage probability; it reduces "
+                        "to rank-order arithmetic only"
+                    ),
+                    "No sorry, admit, placeholder, or unsafe in sketch",
+                    "Proof body is a proposal; kernel verification required before promotion",
+                ],
+                "semantic_alignment_blockers": [],
+                "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                "target_identity_errors": [],
+                "signature_probe_artifact_path": str(signature),
+                "candidate_artifact_path": str(candidate),
+                "execution_transcript_path": str(transcript),
+                "live_goal_location_ready": True,
+                "live_proof_state_request": {
+                    "request_id": "live_goal:static_safety",
+                    "mcp_tool_calls": [],
+                    "proof_body_attempts": ["simp"],
+                },
+                "already_repaired_environment": {
+                    "missing_formal_symbols": [],
+                    "typeclass_blockers": [],
+                    "signature_typecheck_reached_proof_body": True,
+                },
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+            }
+        ],
+    }
+    (queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json").write_text(
+        json.dumps(queue_manifest),
+        encoding="utf-8",
+    )
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=True,
+        lean_command=(
+            "python3",
+            "-c",
+            "import sys; print('error: unsolved goals\\n⊢ target_goal'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_semantic_alignment_blocker_rows"] == 0
+    assert manifest["n_proof_body_attempted"] == 1
+    assert manifest["dominant_failure_classification"] == "proof_body_incomplete"
+    row = manifest["rows"][0]
+    assert row["semantic_alignment_blockers"] == ()
+    assert row["proof_body_attempted"] is True
+    assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    assert row["failure_classification"] == "proof_body_incomplete"
+
+
+def test_exact_source_executor_honors_explicit_semantic_alignment_blockers(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    signature = tmp_path / "signature.lean"
+    signature.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate.lean"
+    transcript = tmp_path / "transcript.jsonl"
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact_source_queue:explicit_blocker",
+                "source_work_order_id": "exact_source_work_order:explicit_blocker",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "expected_target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+                "source_theorem_target_provenance": {
+                    "source_theorem_question_id": "conformal_prediction_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "semantic_alignment_constraints": [
+                    "No sorry, admit, placeholder, or unsafe in sketch",
+                ],
+                "semantic_alignment_blockers": [
+                    "review exact coverage_event definition before proof body",
+                ],
+                "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                "target_identity_errors": [],
+                "signature_probe_artifact_path": str(signature),
+                "candidate_artifact_path": str(candidate),
+                "execution_transcript_path": str(transcript),
+                "live_goal_location_ready": True,
+                "live_proof_state_request": {
+                    "request_id": "live_goal:explicit_blocker",
+                    "mcp_tool_calls": [
+                        {
+                            "tool": "lean_multi_attempt",
+                            "arguments": {"file": str(signature)},
+                        }
+                    ],
+                    "proof_body_attempts": ["simp"],
+                },
+                "already_repaired_environment": {
+                    "missing_formal_symbols": [],
+                    "typeclass_blockers": [],
+                    "signature_typecheck_reached_proof_body": True,
+                },
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+            }
+        ],
+    }
+    (queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json").write_text(
+        json.dumps(queue_manifest),
+        encoding="utf-8",
+    )
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=True,
+        lean_command=(
+            "python3",
+            "-c",
+            "import sys; print('error: unsolved goals\\n⊢ target_goal'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_semantic_alignment_blocker_rows"] == 1
+    assert manifest["n_proof_body_attempted"] == 0
+    row = manifest["rows"][0]
+    assert row["semantic_alignment_blockers"] == (
+        "review exact coverage_event definition before proof body",
+    )
+    assert row["proof_body_attempted"] is False
+    assert row["proof_body_attempt_source"] == (
+        "semantic_alignment_open_skip_tactic_attempts"
+    )
+    assert row["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert row["failure_classification"] == (
+        "proof_body_reached_semantic_alignment_unreviewed"
+    )
+    assert row["candidate_live_proof_state_request"]["mcp_tool_calls"] == []
+
+
 def test_exact_source_executor_classifies_missing_proof_dependency_context(
     tmp_path: Path,
 ) -> None:

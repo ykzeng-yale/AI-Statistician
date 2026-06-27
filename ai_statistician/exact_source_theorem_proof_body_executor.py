@@ -353,8 +353,12 @@ def _execution_result_row(
     semantic_alignment_constraints = _str_tuple(
         row.get("semantic_alignment_constraints", [])
     )
+    explicit_semantic_alignment_blockers = _str_tuple(
+        row.get("semantic_alignment_blockers", [])
+    )
     semantic_alignment_blockers = _semantic_alignment_constraints_block_source_kernel(
-        semantic_alignment_constraints
+        semantic_alignment_constraints,
+        explicit_blockers=explicit_semantic_alignment_blockers,
     )
     kernel_verified_source_theorem_proof_body_adapter_ids = _str_tuple(
         row.get("kernel_verified_source_theorem_proof_body_adapter_ids", [])
@@ -2279,8 +2283,28 @@ def _source_theorem_target_identity_status(
     return "SOURCE_THEOREM_TARGET_UNKNOWN"
 
 
+def _semantic_alignment_constraint_is_nonblocking_review_context(text: str) -> bool:
+    lowered = text.lower()
+    if lowered.startswith("unreviewed synthesized definition review note:"):
+        return True
+    if (
+        ("no sorry" in lowered or "do not add sorry" in lowered)
+        and "admit" in lowered
+        and "unsafe" in lowered
+    ):
+        return True
+    if (
+        "proof body is a proposal" in lowered
+        and "kernel verification required" in lowered
+    ):
+        return True
+    return False
+
+
 def _semantic_alignment_constraints_block_source_kernel(
     constraints: tuple[str, ...],
+    *,
+    explicit_blockers: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     blocking_markers = (
         "draft",
@@ -2297,14 +2321,18 @@ def _semantic_alignment_constraints_block_source_kernel(
         "ignores rank",
     )
     blockers: list[str] = []
+    for blocker in explicit_blockers:
+        text = str(blocker).strip()
+        if text and not _semantic_alignment_constraint_is_nonblocking_review_context(text):
+            blockers.append(text)
     for constraint in constraints:
         text = str(constraint).strip()
         lowered = text.lower()
-        if lowered.startswith("unreviewed synthesized definition review note:"):
+        if _semantic_alignment_constraint_is_nonblocking_review_context(text):
             continue
         if any(marker in lowered for marker in blocking_markers):
             blockers.append(text)
-    return tuple(blockers)
+    return tuple(dict.fromkeys(blockers))
 
 
 def _has_exact_declaration(source: str, declaration_name: str) -> bool:
