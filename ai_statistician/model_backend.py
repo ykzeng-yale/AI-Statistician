@@ -36,6 +36,18 @@ DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER = {
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
+AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
+    "ArchitectCoordinator": "sonnet",
+    "TheoryDeveloper": "sonnet",
+    "FormalizerProofEngineer": "sonnet",
+    "formalization_gap_planner_route_synthesis": "auto",
+    "TheoryIntake": "haiku",
+    "SimulationEngineer": "haiku",
+    "SimulatorEngineer": "haiku",
+    "AlgorithmEngineer": "haiku",
+    "CriticEvaluator": "haiku",
+    "bounded_route_triage": "haiku",
+}
 CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
     "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
     "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
@@ -100,6 +112,7 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+    "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
         "AI Statistician resolves runtime calls to the Claude API IDs in "
         "models_by_tier. API aliases are recorded for operator reference only "
@@ -139,6 +152,15 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
         "opus": ["operator_explicit_only"],
     },
 }
+
+
+def llm_subsystem_expected_model_tier(subsystem: str) -> str:
+    """Return the expected Claude cost tier for a named LLM subsystem."""
+
+    return AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY.get(
+        str(subsystem or "").strip(),
+        "",
+    )
 
 
 def default_generator_provider(env: Mapping[str, str] | None = None) -> str:
@@ -380,6 +402,98 @@ def claude_model_freshness_warnings(
             f"API ID is {current_model} as of {ANTHROPIC_MODEL_SOURCE_CHECKED_DATE}"
         )
     return sorted(set(warnings))
+
+
+def resolved_claude_models_by_tier(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return the concrete Anthropic model ID resolved for each Claude tier."""
+
+    return {
+        tier: resolve_generator_model(
+            provider_name="anthropic",
+            requested_model="",
+            model_tier=tier,
+            env=env,
+        )
+        for tier in CLAUDE_MODEL_TIERS
+    }
+
+
+def claude_tier_routing_contract(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, object]:
+    """Machine-readable contract for Claude Haiku/Sonnet/Opus routing.
+
+    This is configuration metadata only; it does not create a provider client
+    or make a live API request.
+    """
+
+    env = env or os.environ
+    provider = default_generator_provider(env)
+    models_by_tier = resolved_claude_models_by_tier(env)
+    tier_violations = claude_model_tier_policy_violations(models_by_tier)
+    freshness_warnings = claude_model_freshness_warnings(models_by_tier)
+    provider_warnings = generator_provider_override_warnings(env)
+    global_override_keys = tuple(
+        key
+        for key in (
+            "AI_STATISTICIAN_LLM_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_MODEL",
+            "AI_STATISTICIAN_THEORY_MODEL",
+        )
+        if str(env.get(key, "") or "").strip()
+    )
+    tier_override_keys = tuple(
+        key
+        for keys in ANTHROPIC_CLAUDE_TIER_ENV_VARS.values()
+        for key in keys
+        if str(env.get(key, "") or "").strip()
+    )
+    return {
+        "contract_name": "anthropic_claude_tier_routing_contract",
+        "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        "source_evidence": ANTHROPIC_MODEL_SOURCE_EVIDENCE,
+        "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
+        "effective_live_generator_provider": provider,
+        "supported_live_generator_providers": tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+        "prohibited_agent_generator_providers": tuple(
+            PROHIBITED_AGENT_GENERATOR_PROVIDERS
+        ),
+        "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+        "latest_claude_models_by_tier": dict(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER),
+        "latest_claude_api_aliases_by_tier": dict(
+            DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+        ),
+        "latest_claude_family_models_outside_cost_tiers": dict(
+            CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
+        ),
+        "resolved_claude_models_by_tier": models_by_tier,
+        "resolved_claude_model_tier_policy_status": (
+            "OK" if not tier_violations else "POLICY_VIOLATION"
+        ),
+        "resolved_claude_model_tier_policy_violations": tuple(tier_violations),
+        "resolved_claude_model_freshness_status": (
+            "CURRENT" if not freshness_warnings else "NON_CURRENT"
+        ),
+        "resolved_claude_model_freshness_warnings": tuple(freshness_warnings),
+        "environment_override_status": "OK" if not provider_warnings else "WARN",
+        "provider_override_warnings": tuple(provider_warnings),
+        "global_model_override_keys_present": global_override_keys,
+        "tier_specific_model_override_keys_present": tier_override_keys,
+        "global_model_override_policy": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+            "global_model_override_policy"
+        ],
+        "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
+        "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+        "all_ok": (
+            DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
+            and not set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).intersection(
+                SUPPORTED_LIVE_GENERATOR_PROVIDERS
+            )
+            and not tier_violations
+        ),
+    }
 
 
 @dataclass(frozen=True)

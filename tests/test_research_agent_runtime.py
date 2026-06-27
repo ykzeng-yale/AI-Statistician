@@ -192,6 +192,9 @@ from ai_statistician.research_agent_runtime_audit import (
     _resolve_manifest_paths,
     audit_research_agent_runtime,
 )
+from ai_statistician.model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+)
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
 from ai_statistician.agent_runtime import (
     AgentRuntime,
@@ -37221,11 +37224,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert topology["critic_evaluator_model_tier"] == "haiku"
     assert topology["counts"]["unsupported_generator_backends_enabled"] == 0
     assert topology["counts"]["anthropic_model_tier_mismatches"] == 0
+    assert topology["counts"]["subsystem_model_tier_policy_mismatches"] == 0
     assert topology["counts"]["resolved_claude_model_tier_policy_violations"] == 0
     assert topology["policy_status"] == "OK"
     assert topology["policy_violations"] == []
     theory_row = next(row for row in topology["llm_agents"] if row["subsystem"] == "TheoryDeveloper")
     assert theory_row["max_tokens"] == 4500
+    assert theory_row["expected_model_tier"] == "sonnet"
     assert topology["policy"]["supported_generator_providers"] == ["anthropic", "openai", "static"]
     assert topology["policy"]["default_live_provider"] == "anthropic"
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {
@@ -37242,6 +37247,20 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert topology["policy"]["resolved_claude_model_tier_policy_violations"] == []
     assert topology["policy"]["resolved_claude_model_freshness_status"] == "CURRENT"
     assert topology["policy"]["resolved_claude_model_freshness_warnings"] == []
+    assert (
+        topology["policy"]["expected_subsystem_model_tiers"]
+        == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
+    assert (
+        topology["policy"]["claude_tier_routing_contract"]["contract_name"]
+        == "anthropic_claude_tier_routing_contract"
+    )
+    assert topology["policy"]["claude_tier_routing_contract"][
+        "resolved_claude_models_by_tier"
+    ] == topology["policy"]["resolved_claude_models_by_tier"]
+    assert topology["policy"]["claude_tier_routing_contract"][
+        "environment_override_status"
+    ] == "OK"
     assert "not evergreen aliases" in topology["policy"]["claude_model_selection"]["model_id_versioning"]
     assert "LLM backends generate structured proposals only" in topology["policy"]["backend_boundary"]
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()
@@ -39455,6 +39474,7 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
     assert row["configured_model"] == ""
     assert row["model"] == "claude-sonnet-topology-test"
     assert row["model_tier"] == "sonnet"
+    assert row["expected_model_tier"] == "sonnet"
 
 
 def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() -> None:
@@ -39486,6 +39506,54 @@ def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() 
         for error in errors
     )
     assert any("collapsed to one resolved model" in error for error in errors)
+
+
+def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "unsupported_generator_backends_enabled": 0,
+            "generator_only_enabled_agents": 1,
+            "environment_acting_enabled_agents": 0,
+            "subsystem_model_tier_policy_mismatches": 1,
+        },
+        "policy": {
+            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "resolved_claude_models_by_tier": {
+                "haiku": "claude-haiku-4-5-20251001",
+                "sonnet": "claude-sonnet-4-6",
+                "opus": "claude-opus-4-8",
+            },
+            "resolved_claude_model_tier_policy_status": "OK",
+            "resolved_claude_model_tier_policy_violations": [],
+            "expected_subsystem_model_tiers": (
+                AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+            ),
+        },
+        "llm_agents": [
+            {
+                "subsystem": "SimulationEngineer",
+                "enabled": True,
+                "provider_name": "static",
+                "backend_provider_name": "static",
+                "model_tier": "sonnet",
+                "expected_model_tier": "haiku",
+                "generator_only": True,
+                "acts_in_environment": False,
+            }
+        ],
+    }
+
+    errors = _audit_topology({"llm_runtime_topology": topology})
+
+    assert any(
+        "SimulationEngineer expected model_tier haiku" in error
+        for error in errors
+    )
+    assert any(
+        "subsystem model tier policy mismatches: 1" in error
+        for error in errors
+    )
 
 
 def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> None:

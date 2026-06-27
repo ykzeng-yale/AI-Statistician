@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from ai_statistician.model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
@@ -27,8 +28,11 @@ from ai_statistician.model_backend import (
     claude_model_tier_for_model,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
+    claude_tier_routing_contract,
     default_generator_model,
     default_generator_provider,
+    llm_subsystem_expected_model_tier,
+    resolved_claude_models_by_tier,
 )
 
 
@@ -410,6 +414,16 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert "runtime calls" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
         "runtime_model_id_policy"
     ]
+    assert (
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["subsystem_model_tier_policy"]
+        == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
+    assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
+    assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
+    assert llm_subsystem_expected_model_tier("SimulationEngineer") == "haiku"
+    assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "haiku"
+    assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"
+    assert llm_subsystem_expected_model_tier("unknown") == ""
     assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-17"
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["source_evidence"]
@@ -483,6 +497,41 @@ def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
     }
     assert claude_model_tier_policy_violations(models) == []
     assert claude_model_freshness_warnings(models) == []
+
+
+def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clean_env = {"AI_STATISTICIAN_LLM_PROVIDER": "anthropic"}
+
+    assert resolved_claude_models_by_tier(clean_env) == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    clean_contract = claude_tier_routing_contract(clean_env)
+    assert clean_contract["contract_name"] == "anthropic_claude_tier_routing_contract"
+    assert clean_contract["effective_live_generator_provider"] == "anthropic"
+    assert clean_contract["resolved_claude_models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert clean_contract["resolved_claude_model_tier_policy_status"] == "OK"
+    assert clean_contract["environment_override_status"] == "OK"
+    assert clean_contract["subsystem_model_tier_policy"] == (
+        AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
+    assert clean_contract["all_ok"] is True
+
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
+    warning_contract = claude_tier_routing_contract()
+    assert warning_contract["effective_live_generator_provider"] == "anthropic"
+    assert warning_contract["environment_override_status"] == "WARN"
+    assert any(
+        "agent-style provider" in warning
+        for warning in warning_contract["provider_override_warnings"]
+    )
 
 
 def test_claude_model_tier_policy_violations_detect_configured_model_collapse() -> None:

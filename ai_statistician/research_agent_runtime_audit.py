@@ -1825,6 +1825,14 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
     unsupported = int(counts.get("unsupported_generator_backends_enabled", 0) or 0)
     if unsupported:
         errors.append(f"unsupported generator backends enabled: {unsupported}")
+    subsystem_tier_mismatches = int(
+        counts.get("subsystem_model_tier_policy_mismatches", 0) or 0
+    )
+    if subsystem_tier_mismatches:
+        errors.append(
+            "subsystem model tier policy mismatches: "
+            + str(subsystem_tier_mismatches)
+        )
     policy = topology.get("policy", {}) if isinstance(topology.get("policy"), Mapping) else {}
     supported = set(str(item) for item in policy.get("supported_generator_providers", []) or [])
     if supported and supported != SUPPORTED_GENERATOR_PROVIDERS:
@@ -1875,6 +1883,13 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
             errors.append(
                 f"{agent.get('subsystem')} uses unsupported provider(s): "
                 + ",".join(unsupported_names)
+            )
+        expected_tier = str(agent.get("expected_model_tier", "") or "").strip().lower()
+        configured_tier = str(agent.get("model_tier", "") or "").strip().lower()
+        if expected_tier and expected_tier != "auto" and configured_tier != expected_tier:
+            errors.append(
+                f"{agent.get('subsystem')} expected model_tier {expected_tier} "
+                f"but is configured with {configured_tier or 'missing'}"
             )
     return sorted(set(errors))
 
