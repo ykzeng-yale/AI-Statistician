@@ -287,6 +287,15 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
         "semantic_definition_typecheck_evidence_status": (
             "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
         ),
+        "semantic_review_decision": "approved_definition_candidate",
+        "semantic_review_status": (
+            "llm_semantic_review_approved_definition_candidate_not_proof"
+        ),
+        "semantic_review_evidence": [
+            "checked Exchangeable against source theorem binders"
+        ],
+        "semantic_review_required_before_proof_body": True,
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": True,
         "source_theorem_exact_semantic_definition_typechecked_candidate": {
             "definition_only_candidate_artifact_path": str(definition_only_candidate),
             "local_definition_lean_compiled": True,
@@ -379,6 +388,17 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert results[0]["semantic_definition_typecheck_evidence_status"] == (
         typechecked_status
     )
+    assert results[0]["semantic_review_decision"] == "approved_definition_candidate"
+    assert results[0]["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+    assert results[0]["semantic_review_evidence"] == [
+        "checked Exchangeable against source theorem binders"
+    ]
+    assert results[0]["semantic_review_required_before_proof_body"] is True
+    assert (
+        results[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"] is True
+    )
     assert results[0]["source_theorem_kernel_verified"] is False
     assert results[0]["semantic_definition_kernel_verified"] is False
     review_packets = [
@@ -423,6 +443,19 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     ]
     assert review_packets[0]["semantic_definition_typecheck_evidence_status"] == (
         typechecked_status
+    )
+    assert review_packets[0]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
+    assert review_packets[0]["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+    assert review_packets[0]["semantic_review_evidence"] == [
+        "checked Exchangeable against source theorem binders"
+    ]
+    assert (
+        review_packets[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"]
+        is True
     )
     assert review_packets[0]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
@@ -514,6 +547,12 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[0]["candidate_repair_feedback"][
         "recommended_next_action"
     ] == "repair semantic blockers"
+    assert learning_rows[0]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
+    assert learning_rows[0]["input_summary"]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
     assert learning_rows[0]["input_summary"][
         "semantic_definition_typecheck_evidence_status"
     ] == typechecked_status

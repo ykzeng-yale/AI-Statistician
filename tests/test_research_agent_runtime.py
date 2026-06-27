@@ -21844,6 +21844,8 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             "blocked_review_packets_jsonl": str(blocked_path),
             "n_review_packets": 1,
             "n_semantically_approved_review_packets": 0,
+            "n_llm_semantic_review_approved_packets": 1,
+            "n_llm_semantic_review_packets_requiring_verifier_gate": 1,
             "n_blocked_review_packets": 1,
             "n_execution_queue_rows": 0,
             "proof_evidence_status": (
@@ -21956,6 +21958,18 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate"
         ]
         == 1
     )

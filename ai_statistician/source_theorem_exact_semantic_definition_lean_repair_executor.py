@@ -524,6 +524,28 @@ def _execution_result(
         if str(value).strip()
     ]
     semantic_alignment_blockers = list(dict.fromkeys(semantic_alignment_blockers))
+    definition_contract = dict(task.get("definition_contract", {}) or {})
+    semantic_review_decision = str(
+        task.get("semantic_review_decision", "")
+        or definition_contract.get("semantic_review_decision", "")
+        or ""
+    )
+    semantic_review_status = str(
+        task.get("semantic_review_status", "")
+        or definition_contract.get("semantic_review_status", "")
+        or ""
+    )
+    semantic_review_evidence = list(
+        task.get("semantic_review_evidence", [])
+        or definition_contract.get("semantic_review_evidence", [])
+        or []
+    )
+    semantic_review_required_before_proof_body = bool(
+        task.get("semantic_review_required_before_proof_body", False)
+    )
+    llm_claimed_source_theorem_ready_for_exact_proof_body = bool(
+        task.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
+    )
     task_lean_project_hint_raw = str(
         task.get("candidate_lean_project_hint", "")
         or typechecked_definition_candidate.get("candidate_lean_project_hint", "")
@@ -779,7 +801,16 @@ def _execution_result(
         "candidate_repair_feedback": dict(
             task.get("candidate_repair_feedback", {}) or {}
         ),
-        "definition_contract": dict(task.get("definition_contract", {}) or {}),
+        "definition_contract": definition_contract,
+        "semantic_review_decision": semantic_review_decision,
+        "semantic_review_status": semantic_review_status,
+        "semantic_review_evidence": semantic_review_evidence,
+        "semantic_review_required_before_proof_body": (
+            semantic_review_required_before_proof_body
+        ),
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": (
+            llm_claimed_source_theorem_ready_for_exact_proof_body
+        ),
         "execution_status": status,
         "local_lean_requested": bool(local_lean),
         "local_lean_checked": checked,
@@ -1330,6 +1361,16 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         ),
         "semantic_alignment_blockers": list(
             row.get("semantic_alignment_blockers", []) or []
+        ),
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or ""
+        ),
+        "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
+        "semantic_review_evidence": list(
+            row.get("semantic_review_evidence", []) or []
+        ),
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
         ),
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
@@ -2004,6 +2045,19 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("semantic_definition_typecheck_evidence_status", "") or ""
         ),
         "semantic_alignment_blockers": semantic_alignment_blockers,
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or ""
+        ),
+        "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
+        "semantic_review_evidence": list(
+            row.get("semantic_review_evidence", []) or []
+        ),
+        "semantic_review_required_before_proof_body": bool(
+            row.get("semantic_review_required_before_proof_body", False)
+        ),
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
+        ),
         "semantic_import_blocker": str(row.get("semantic_import_blocker", "") or ""),
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "local_lean_compiled": local_lean_compiled,
@@ -2061,6 +2115,21 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("semantic_definition_typecheck_evidence_status", "") or ""
             ),
             "semantic_alignment_blockers": semantic_alignment_blockers,
+            "semantic_review_decision": str(
+                row.get("semantic_review_decision", "") or ""
+            ),
+            "semantic_review_status": str(
+                row.get("semantic_review_status", "") or ""
+            ),
+            "semantic_review_required_before_proof_body": bool(
+                row.get("semantic_review_required_before_proof_body", False)
+            ),
+            "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+                row.get(
+                    "llm_claimed_source_theorem_ready_for_exact_proof_body",
+                    False,
+                )
+            ),
             "semantic_import_blocker": str(
                 row.get("semantic_import_blocker", "") or ""
             ),

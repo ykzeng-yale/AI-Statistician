@@ -639,6 +639,18 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         "execution_transcripts_dir": str(out_dir / "execution_transcripts"),
         "n_review_packets": len(review_packets),
         "n_semantically_approved_review_packets": len(approved_packets),
+        "n_llm_semantic_review_approved_packets": sum(
+            1
+            for row in review_packets
+            if str(row.get("semantic_review_decision", "") or "")
+            == "approved_definition_candidate"
+        ),
+        "n_llm_semantic_review_packets_requiring_verifier_gate": sum(
+            1
+            for row in blocked_packets
+            if "llm_semantic_review_approved_requires_verifier_recheck_gate"
+            in list(row.get("proof_body_recheck_blockers", []) or [])
+        ),
         "n_blocked_review_packets": len(blocked_packets),
         "n_source_proof_body_rows": len(source_rows),
         "n_execution_queue_rows": len(rows),
@@ -1086,10 +1098,19 @@ def _typechecked_review_packet_ready_for_recheck(
     row: Mapping[str, Any],
 ) -> tuple[bool, list[str]]:
     blockers: list[str] = []
+    semantic_review_decision = str(
+        row.get("semantic_review_decision", "") or ""
+    ).strip()
     if not bool(row.get("source_theorem_ready_for_exact_proof_body", False)):
         blockers.append("source_theorem_ready_for_exact_proof_body_false")
     if bool(row.get("semantic_review_required_before_proof_body", False)):
         blockers.append("semantic_review_required_before_proof_body")
+        if semantic_review_decision == "approved_definition_candidate":
+            blockers.append(
+                "llm_semantic_review_approved_requires_verifier_recheck_gate"
+            )
+        elif semantic_review_decision:
+            blockers.append("llm_semantic_review_not_approved_for_recheck")
     semantic_blockers = [
         str(value)
         for value in row.get("semantic_alignment_blockers", []) or []

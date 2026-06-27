@@ -16891,6 +16891,20 @@ def run_research_agent_runtime(
         int(row.get("n_semantically_approved_review_packets", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
+    late_typechecked_review_recheck_queue_n_llm_approved_packets = sum(
+        int(row.get("n_llm_semantic_review_approved_packets", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
+    late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate = sum(
+        int(
+            row.get(
+                "n_llm_semantic_review_packets_requiring_verifier_gate",
+                0,
+            )
+            or 0
+        )
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
     late_typechecked_review_recheck_queue_n_blocked_packets = sum(
         int(row.get("n_blocked_review_packets", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
@@ -16960,6 +16974,12 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_approved_packets"
     ] = late_typechecked_review_recheck_queue_n_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets"
+    ] = late_typechecked_review_recheck_queue_n_llm_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate"
+    ] = late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets"
     ] = late_typechecked_review_recheck_queue_n_blocked_packets
@@ -17859,6 +17879,20 @@ def run_research_agent_runtime(
         ).get("n_semantically_approved_review_packets", 0)
         or 0
     )
+    primary_typechecked_review_recheck_queue_n_llm_approved_packets = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_llm_semantic_review_approved_packets", 0)
+        or 0
+    )
+    primary_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_llm_semantic_review_packets_requiring_verifier_gate", 0)
+        or 0
+    )
     primary_typechecked_review_recheck_queue_n_blocked_packets = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
@@ -17931,6 +17965,12 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_approved_packets"
     ] = primary_typechecked_review_recheck_queue_n_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets"
+    ] = primary_typechecked_review_recheck_queue_n_llm_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate"
+    ] = primary_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
     ] = primary_typechecked_review_recheck_queue_n_blocked_packets
