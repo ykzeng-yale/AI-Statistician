@@ -38854,6 +38854,9 @@ def test_runtime_evidence_truth_table_separates_support_from_source_theorem() ->
 def test_runtime_manifest_truth_table_separates_support_from_source_theorem() -> None:
     payload = {
         "runtime_stage": "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop",
+        "runtime_architect_coordinator_registered": True,
+        "runtime_architect_coordinator_executed": True,
+        "n_runtime_architect_coordinator_traces": 1,
         "n_live_generator_agents_enabled": 6,
         "n_algorithm_sandbox_executed": 1,
         "n_kernel_verified_subclaims": 2,
@@ -38901,6 +38904,38 @@ def test_runtime_manifest_truth_table_separates_support_from_source_theorem() ->
         "ENNReal.ofReal" in line
         for line in rows["full_source_theorem_kernel_evidence"]["goal_excerpt"]
     )
+
+
+def test_runtime_manifest_truth_table_marks_resume_architect_context_as_propagated() -> None:
+    payload = {
+        "runtime_stage": "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop",
+        "runtime_resumed_from_pending_task": True,
+        "runtime_architect_coordinator_registered": True,
+        "runtime_architect_coordinator_executed": False,
+        "n_runtime_architect_coordinator_traces": 0,
+        "runtime_research_path_control_propagated": True,
+        "n_live_generator_agents_enabled": 6,
+        "n_algorithm_sandbox_executed": 1,
+        "n_kernel_verified_subclaims": 2,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "n_formal_gaps": 1,
+    }
+
+    table = _runtime_evidence_truth_table_from_manifest(payload)
+    rows = {row["evidence_id"]: row for row in table["rows"]}
+
+    assert rows["architect_control"]["status"] == "PROPAGATED_FROM_RESUME"
+    assert rows["architect_control"]["count"] == 0
+    assert "no ArchitectCoordinator trace executed" in rows["architect_control"][
+        "blocker"
+    ]
+    assert rows["architect_control"]["proof_evidence"] is False
+    assert rows["exact_source_proof_body_attempt"]["status"] == "PROOF_BODY_REACHED_OPEN"
+    assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
 
 
 def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(

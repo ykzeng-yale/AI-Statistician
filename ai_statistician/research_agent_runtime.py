@@ -317,6 +317,49 @@ def _runtime_manifest_truth_row(
     }
 
 
+def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, Any]:
+    n_architect_traces = _runtime_manifest_int(
+        payload,
+        "n_runtime_architect_coordinator_traces",
+    )
+    architect_executed = (
+        payload.get("architect_coordinator_enabled") is True
+        or payload.get("runtime_architect_coordinator_executed") is True
+        or n_architect_traces > 0
+    )
+    architect_context_propagated = (
+        payload.get("runtime_research_path_control_propagated") is True
+        or payload.get("runtime_architect_coordinator_registered") is True
+        or str(payload.get("runtime_stage", "") or "").startswith("architect_")
+    )
+    if architect_executed:
+        return {
+            "status": "PRESENT",
+            "count": max(1, n_architect_traces),
+            "blocker": "",
+            "boundary": "Architect control is orchestration evidence, not theorem proof.",
+        }
+    if architect_context_propagated:
+        return {
+            "status": "PROPAGATED_FROM_RESUME",
+            "count": 0,
+            "blocker": (
+                "Architect-derived context or runtime stage metadata was present, "
+                "but no ArchitectCoordinator trace executed in this runtime budget."
+            ),
+            "boundary": (
+                "Propagated Architect context is continuity evidence only. It is not "
+                "live ArchitectCoordinator orchestration evidence and not theorem proof."
+            ),
+        }
+    return {
+        "status": "MISSING",
+        "count": 0,
+        "blocker": "no ArchitectCoordinator trace or propagated Architect context",
+        "boundary": "Architect control is orchestration evidence, not theorem proof.",
+    }
+
+
 def _runtime_evidence_truth_table_from_manifest(
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -406,6 +449,7 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims",
     )
+    architect_truth = _runtime_architect_control_truth(payload)
     rows = [
         _runtime_manifest_truth_row(
             "live_generator_proposals",
@@ -418,20 +462,11 @@ def _runtime_evidence_truth_table_from_manifest(
         ),
         _runtime_manifest_truth_row(
             "architect_control",
-            "PRESENT"
-            if (
-                str(payload.get("runtime_stage", "") or "").startswith("architect_")
-                or payload.get("architect_coordinator_enabled") is True
-            )
-            else "MISSING",
-            1
-            if (
-                str(payload.get("runtime_stage", "") or "").startswith("architect_")
-                or payload.get("architect_coordinator_enabled") is True
-            )
-            else 0,
-            "Architect control is orchestration evidence, not theorem proof.",
+            str(architect_truth["status"]),
+            int(architect_truth["count"]),
+            str(architect_truth["boundary"]),
             proof_evidence=False,
+            blocker=str(architect_truth["blocker"]),
         ),
         _runtime_manifest_truth_row(
             "environment_algorithm_execution",
@@ -9299,6 +9334,11 @@ def run_research_agent_runtime(
     llm_topology_path = out_dir / "runtime_llm_topology.json"
     llm_topology_path.write_text(json.dumps(llm_topology, indent=2, default=str), encoding="utf-8")
     manifest_path = out_dir / "research_agent_runtime_manifest.json"
+    n_architect_coordinator_traces = sum(
+        1
+        for row in trace_rows
+        if str(row.get("subsystem", "") or "") == "ArchitectCoordinator"
+    )
     status_counts: dict[str, int] = {}
     for row in results:
         status = str(row["status"])
@@ -9326,6 +9366,9 @@ def run_research_agent_runtime(
         ),
         "runtime_resume_context": resume_context,
         "runtime_resumed_from_pending_task": bool(initial_task_overrides),
+        "runtime_architect_coordinator_registered": architect_coordinator is not None,
+        "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
+        "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
         "status_counts": dict(sorted(status_counts.items())),
         "runtime_completion_summary": completion_summary,
         "runtime_failure_summary": failure_summary,

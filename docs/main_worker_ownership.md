@@ -864,6 +864,21 @@ scoped to their local Lean declaration but leave theorem-goal identity empty.
 This is memory/routing repair only; helper compilation remains non-proof
 evidence for the source theorem.
 
+The next audit-alignment patch fixes a related Architect evidence-boundary
+smell. Long resume chains can keep the architect-prefixed `runtime_stage` while
+the current iteration budget executes only a pending Formalizer/ProofEngineer
+or Critic task. The runtime manifest now records
+`runtime_architect_coordinator_registered`,
+`runtime_architect_coordinator_executed`, and
+`n_runtime_architect_coordinator_traces`; the evidence truth table reports
+`architect_control=PROPAGATED_FROM_RESUME` when Architect-derived context is
+carried but no `ArchitectCoordinator` trace ran. Recomputing the audit over
+`runs/main_worker_formalizer_after_primary_typechecked_review_routing_live`
+keeps the strict scorecard blocker `architect_orchestrated=false` while still
+preserving the propagated research-path contract as continuity context. This
+avoids overstating subsystem resume runs as live Architect-controlled
+capability evidence.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
