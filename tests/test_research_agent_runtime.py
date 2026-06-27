@@ -1281,9 +1281,15 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
         "good_rank_event",
         "C_n",
     }
-    assert {
-        row["runtime_queue_status"] for row in exact_requests
-    } == {"PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"}
+    exact_requests_by_symbol = {
+        row["placeholder_symbol"]: row for row in exact_requests
+    }
+    assert exact_requests_by_symbol["good_rank_event"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert exact_requests_by_symbol["C_n"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+    )
     assert {
         row["proof_body_gate_status"] for row in exact_requests
     } == {"SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"}
@@ -1328,7 +1334,8 @@ def test_pending_task_memory_enriches_exact_semantic_work_order_feedback() -> No
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     ]
     assert queue_only_feedback["runtime_queue_statuses"] == [
-        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
     ]
     assert queue_only_feedback["target_ids"] == [
         "split_conformal_finite_sample_coverage"
@@ -15420,6 +15427,9 @@ def test_runtime_agenda_dedupe_keeps_compiled_exact_semantic_status() -> None:
     assert compacted[0]["semantic_definition_typecheck_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
     )
+    assert compacted[0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
     assert compacted[0]["proof_boundary"] == runtime_module.KERNEL_PROOF_BOUNDARY
 
 
@@ -15482,12 +15492,30 @@ def test_exact_semantic_executor_results_strengthen_work_order_feedback() -> Non
     assert work_orders[0]["semantic_definition_typecheck_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
     )
+    assert work_orders[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert work_orders[0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
     assert feedback["work_orders"][0][
         "semantic_definition_typecheck_evidence_status"
     ] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
     )
+    assert feedback["work_orders"][0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert feedback["work_orders"][0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert feedback["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
+    assert feedback["runtime_queue_statuses"] == [
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    ]
     assert feedback["proof_evidence_status"] == (
         "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER_FEEDBACK_NOT_PROOF_EVIDENCE"
     )
@@ -22251,7 +22279,7 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     )
 
     assert seed_replayed_row["runtime_queue_status"] == (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
     assert seed_replayed_row["proof_body_gate_status"] == (
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
@@ -22263,7 +22291,9 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     )
     assert seed_replayed_row[
         "source_theorem_exact_semantic_definition_typechecked_candidate"
-    ]["runtime_queue_status"] == "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+    ]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
     assert seed_replayed_row["proof_evidence_status"] == (
         "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE"
     )

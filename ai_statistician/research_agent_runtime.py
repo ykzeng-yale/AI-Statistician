@@ -34295,23 +34295,9 @@ def _strengthen_runtime_next_action_agenda_row(
         existing["recommended_commands"] = list(dict.fromkeys(commands))
 
 
-def _normalize_exact_semantic_agenda_status_from_local_definition(
+def _normalize_exact_semantic_compiled_candidate_review_status(
     row: dict[str, Any],
 ) -> None:
-    if not _runtime_next_action_agenda_downstream_of_metadata_authoring(row):
-        return
-    combined = "\n".join(
-        str(row.get(key, "") or "")
-        for key in (
-            "id",
-            "trigger",
-            "runtime_queue_status",
-            "owner_subsystem",
-            "runtime_generated_queue_name",
-        )
-    ).lower()
-    if "exact_semantic_definition" not in combined:
-        return
     if not (
         row.get("local_definition_lean_compiled") is True
         or row.get("local_lean_compiled") is True
@@ -34342,6 +34328,26 @@ def _normalize_exact_semantic_agenda_status_from_local_definition(
         row["runtime_queue_status"] = candidate_review_status
     if not str(row.get("proof_body_gate_status", "") or "").strip():
         row["proof_body_gate_status"] = "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+
+
+def _normalize_exact_semantic_agenda_status_from_local_definition(
+    row: dict[str, Any],
+) -> None:
+    if not _runtime_next_action_agenda_downstream_of_metadata_authoring(row):
+        return
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in (
+            "id",
+            "trigger",
+            "runtime_queue_status",
+            "owner_subsystem",
+            "runtime_generated_queue_name",
+        )
+    ).lower()
+    if "exact_semantic_definition" not in combined:
+        return
+    _normalize_exact_semantic_compiled_candidate_review_status(row)
 
 
 def _runtime_exact_semantic_definition_status_rank(status: str) -> int:
@@ -37126,10 +37132,19 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
 ) -> dict[str, Any]:
     if not work_orders:
         return {}
-    compact_rows: list[dict[str, Any]] = []
-    for row in work_orders[:8]:
+    normalized_work_orders: list[dict[str, Any]] = []
+    for row in work_orders:
         if not isinstance(row, Mapping):
             continue
+        normalized_row = dict(row)
+        _normalize_exact_semantic_work_order_status_from_local_definition(
+            normalized_row
+        )
+        normalized_work_orders.append(normalized_row)
+    if not normalized_work_orders:
+        return {}
+    compact_rows: list[dict[str, Any]] = []
+    for row in normalized_work_orders[:8]:
         compact: dict[str, Any] = {}
         for key in (
             "work_order_id",
@@ -37154,6 +37169,7 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
             "recommended_next_action",
             "local_lean_diagnostics",
             "source_environment_repair_task_id",
+            "proof_body_gate_status",
             "proof_evidence_status",
         ):
             value = row.get(key)
@@ -37166,18 +37182,18 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
     return {
         "feedback_kind": "runtime_exact_semantic_definition_work_order_feedback",
         "source": source,
-        "n_work_orders": len(work_orders),
+        "n_work_orders": len(normalized_work_orders),
         "target_names": list(
             dict.fromkeys(
                 str(row.get("target_theorem_name", "") or "").strip()
-                for row in work_orders
+                for row in normalized_work_orders
                 if str(row.get("target_theorem_name", "") or "").strip()
             )
         ),
         "target_ids": list(
             dict.fromkeys(
                 target_id
-                for row in work_orders
+                for row in normalized_work_orders
                 for target_id in _runtime_exact_semantic_definition_target_ids(
                     row,
                     target_theorem_name=str(row.get("target_theorem_name", "") or ""),
@@ -37187,8 +37203,22 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
         "placeholder_symbols": list(
             dict.fromkeys(
                 str(row.get("placeholder_symbol", "") or "").strip()
-                for row in work_orders
+                for row in normalized_work_orders
                 if str(row.get("placeholder_symbol", "") or "").strip()
+            )
+        ),
+        "proof_body_gate_statuses": list(
+            dict.fromkeys(
+                str(row.get("proof_body_gate_status", "") or "").strip()
+                for row in normalized_work_orders
+                if str(row.get("proof_body_gate_status", "") or "").strip()
+            )
+        ),
+        "runtime_queue_statuses": list(
+            dict.fromkeys(
+                str(row.get("runtime_queue_status", "") or "").strip()
+                for row in normalized_work_orders
+                if str(row.get("runtime_queue_status", "") or "").strip()
             )
         ),
         "work_orders": compact_rows,
@@ -37216,7 +37246,13 @@ def _merge_runtime_exact_semantic_definition_work_order_feedback(
     merged = dict(primary) if isinstance(primary, Mapping) else {}
     if not isinstance(secondary, Mapping) or not secondary:
         return merged
-    for key in ("target_names", "target_ids", "placeholder_symbols"):
+    for key in (
+        "target_names",
+        "target_ids",
+        "placeholder_symbols",
+        "proof_body_gate_statuses",
+        "runtime_queue_statuses",
+    ):
         merged[key] = list(
             dict.fromkeys(
                 [
@@ -39248,23 +39284,7 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
 def _normalize_exact_semantic_work_order_status_from_local_definition(
     row: dict[str, Any],
 ) -> None:
-    if not (
-        row.get("local_definition_lean_compiled") is True
-        or row.get("local_lean_compiled") is True
-    ):
-        return
-    compiled_status = (
-        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
-    )
-    current_status = str(
-        row.get("semantic_definition_typecheck_evidence_status", "") or ""
-    ).strip()
-    if (
-        not current_status
-        or _runtime_exact_semantic_definition_status_rank(compiled_status)
-        > _runtime_exact_semantic_definition_status_rank(current_status)
-    ):
-        row["semantic_definition_typecheck_evidence_status"] = compiled_status
+    _normalize_exact_semantic_compiled_candidate_review_status(row)
 
 
 def _merge_exact_semantic_definition_executor_results_into_work_orders(
