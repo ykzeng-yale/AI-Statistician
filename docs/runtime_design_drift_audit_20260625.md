@@ -867,3 +867,18 @@ high-priority agenda rows, 11 blocker requests, zero missing `target_ids`, and
 the local-Lean `Mathlib` unavailable-import blocker targeting
 `split_conformal_finite_sample_coverage`. No source-theorem proof flags were
 set.
+
+The next target-provenance audit found that the formal-environment repair lane
+still had one loose boundary. Runtime emitted 74 formal-environment work orders
+for `split_conformal_finite_sample_coverage` without first-class `target_ids`,
+and the downstream formal-environment ProofEngineer bridge propagated that
+looseness into repair packets, signature probes, and learning rows. This was a
+design mistake, not a theorem-proving failure: queue consumers should never
+rediscover theorem identity from names or broad goal lists. Runtime
+formal-environment producers and the bridge now share the same precedence:
+explicit `target_ids`, `target_id`, or `source_theorem_goal_id` win; broad
+`target_theorem_goal_ids` are fallback only; theorem names are last resort.
+Focused tests and deterministic replays over the saved 74-row live artifacts
+now show zero missing target IDs through work orders, repair packets, signature
+probe rows, learning rows, proof-body work orders, and execution/live-goal
+requests. No proof-evidence boundary changed.

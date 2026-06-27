@@ -369,6 +369,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
                 "source_theorem_target_known": True,
                 "source_theorem_route_id": "route:split_conformal_source",
                 "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage",
+                    "unrelated_broad_runtime_goal",
+                ],
                 "source_theorem_statement": (
                     "split conformal finite-sample marginal coverage under exchangeability"
                 ),
@@ -448,6 +452,12 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert repair_packet["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
     assert repair_packet["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
     assert repair_packet["source_theorem_target_known"] is True
+    assert repair_packet["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert repair_packet["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert repair_packet["target_lean_declaration"] == "split_conformal_coverage"
     assert repair_packet["source_theorem_target_provenance"][
         "source_theorem_route_id"
@@ -481,6 +491,15 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     )
     probe_row = probe_manifest["rows"][0]
     assert probe_row["signature_typecheck_reached_proof_body"] is True
+    assert probe_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert probe_row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert probe_row["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == "split_conformal_finite_sample_coverage"
     assert probe_row["signature_probe_status"] == (
         "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
     )
@@ -503,6 +522,12 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert proof_body_work_order["artifact_kind"] == "ExactSourceTheoremProofBodyWorkOrder"
     assert proof_body_work_order["question_id"] == "split_conformal"
     assert proof_body_work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert proof_body_work_order["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert proof_body_work_order["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert proof_body_work_order["target_lean_declaration"] == "split_conformal_coverage"
     assert proof_body_work_order["source_theorem_target_known"] is True
     assert proof_body_work_order["source_theorem_target_provenance"][
@@ -547,7 +572,12 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
     assert execution_row["owner_agent"] == "FormalizerProofEngineer"
     assert execution_row["target_theorem_name"] == "split_conformal_coverage"
-    assert execution_row["target_ids"] == ["split_conformal_coverage"]
+    assert execution_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert execution_row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert execution_row["expected_target_lean_declaration"] == (
         "split_conformal_coverage"
     )
@@ -582,7 +612,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "expected_target_lean_declaration"
     ] == "split_conformal_coverage"
     assert execution_row["live_proof_state_request"]["target_ids"] == [
-        "split_conformal_coverage"
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert execution_row["live_proof_state_request"]["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
     ]
     assert execution_row["live_proof_state_request"]["question_id"] == (
         "split_conformal"
@@ -612,9 +645,18 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "source_theorem_formal_environment_repair_feedback"
     )
     assert learning_row["question_id"] == "split_conformal"
+    assert learning_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert learning_row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert learning_row["input_summary"]["trigger"] == (
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_REQUIRED"
     )
+    assert learning_row["input_summary"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert learning_row["input_summary"]["missing_formal_symbols"] == [
         "Exchangeable",
         "orderStat",
@@ -648,6 +690,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
     assert export_manifest["n_proof_body_execution_queue_rows"] == 1
+    assert export_manifest["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert export_manifest["proof_body_execution_queue_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
     )

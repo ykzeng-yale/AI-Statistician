@@ -22746,6 +22746,8 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
         "repair_exact_source_theorem_formal_environment"
     )
     assert work_orders[0]["target_theorem_name"] == "exact_source_claim"
+    assert work_orders[0]["target_ids"] == ["exact_source_claim"]
+    assert work_orders[0]["target_theorem_goal_ids"] == ["exact_source_claim"]
     assert work_orders[0]["failure_classification"] == (
         "lean_import_environment_missing"
     )
@@ -22869,6 +22871,10 @@ def test_formal_environment_work_order_names_missing_symbols_and_typeclass_block
                 "source_theorem_target_resolution_id": "target_resolution:split",
                 "source_theorem_route_id": "route:split_conformal_source",
                 "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage",
+                    "unrelated_broad_runtime_goal",
+                ],
                 "source_theorem_statement": (
                     "split conformal source coverage theorem"
                 ),
@@ -22898,6 +22904,10 @@ def test_formal_environment_work_order_names_missing_symbols_and_typeclass_block
     assert len(work_orders) == 1
     work_order = work_orders[0]
     assert work_order["target_lean_declaration"] == "split_conformal_source_theorem"
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert work_order["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert work_order["source_theorem_target_known"] is True
     assert work_order["source_theorem_target_provenance"][
         "source_theorem_target_resolution_id"
@@ -22973,6 +22983,10 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
         "target_lean_declaration": "split_conformal_source_theorem",
         "expected_target_lean_declaration": "split_conformal_source_theorem",
         "source_theorem_target_known": True,
+        "target_theorem_goal_ids": [
+            "split_conformal_finite_sample_coverage",
+            "unrelated_broad_runtime_goal",
+        ],
         "source_theorem_target_provenance": {
             "source_theorem_route_id": "route:split_conformal_source",
             "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
@@ -23016,6 +23030,10 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
     assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
     assert work_order["target_theorem_name"] == "split_conformal_source_theorem"
     assert work_order["target_lean_declaration"] == "split_conformal_source_theorem"
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert work_order["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert work_order["source_theorem_target_known"] is True
     assert work_order["source_theorem_target_provenance"][
         "source_theorem_route_id"
@@ -26776,6 +26794,8 @@ def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
         "repair_exact_source_theorem_formal_environment"
     )
     assert work_orders[0]["target_theorem_name"] == "exact_source_claim"
+    assert work_orders[0]["target_ids"] == ["exact_source_claim"]
+    assert work_orders[0]["target_theorem_goal_ids"] == ["exact_source_claim"]
     assert work_orders[0]["candidate_artifact_path"] == str(candidate_path)
     assert work_orders[0]["failure_classification"] in {
         "lean_import_environment_missing",

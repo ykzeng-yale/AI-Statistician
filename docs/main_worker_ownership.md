@@ -827,6 +827,21 @@ high-priority agenda rows and 11 blocker requests with zero missing
 `split_conformal_finite_sample_coverage`. The handoff remains
 FormalizationEvaluator work, and no source-theorem proof evidence is claimed.
 
+The next Formalizer continuation exposed the same target-provenance bug at the
+formal-environment repair boundary. The live artifact
+`runs/main_worker_formalizer_after_import_blocker_target_fix_live/runtime_source_theorem_formal_environment_work_orders.jsonl`
+had 74 `SourceTheoremFormalEnvironmentWorkOrder` rows with theorem names but no
+top-level `target_ids`; Helmholtz then found the downstream
+formal-environment ProofEngineer bridge dropped the same identity in repair
+packets, signature probes, runtime learning rows, and possible proof-body work
+orders. Runtime formal-environment producers and the bridge now derive target
+identity from explicit `target_ids`/`target_id`/`source_theorem_goal_id` before
+falling back to broad `target_theorem_goal_ids` or theorem names. Deterministic
+replay over the saved 74-row result and targetless live queue now yields zero
+missing `target_ids` in work orders, repair packets, signature probes, and
+learning rows. This is still routing/provenance repair only; the exact source
+theorem remains unproved.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

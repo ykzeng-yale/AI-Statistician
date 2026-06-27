@@ -105,6 +105,12 @@ class SourceTheoremFormalEnvironmentSignatureProbeRow:
     repair_packet_id: str
     source_work_order_id: str
     target_theorem_name: str
+    target_ids: tuple[str, ...]
+    target_theorem_goal_ids: tuple[str, ...]
+    target_lean_declaration: str
+    source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, Any]
+    semantic_alignment_constraints: tuple[str, ...]
     source_candidate_artifact_path: str
     signature_probe_artifact_path: str
     local_lean_checked: bool
@@ -372,6 +378,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         source_target_provenance.get("target_lean_declaration", "")
         or target_theorem_name
     ).strip()
+    target_ids = _target_ids_from_work_order(row, fallback_target=target_theorem_name)
     semantic_alignment_constraints = _str_list(
         source_target_provenance.get("semantic_alignment_constraints", []) or []
     )
@@ -386,6 +393,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         [
             work_order_id,
             target_theorem_name,
+            target_ids,
             candidate_artifact_path,
             missing_symbols,
             typeclass_blockers,
@@ -399,6 +407,8 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "question_id": question_id,
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
+        "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
         "candidate_artifact_path": candidate_artifact_path,
         "source_theorem_target_known": bool(
@@ -805,10 +815,27 @@ def _signature_probe_row(
     repair_packet_id = str(packet.get("repair_packet_id", "") or "")
     source_work_order_id = str(packet.get("source_work_order_id", "") or "")
     target_theorem_name = str(packet.get("target_theorem_name", "") or "")
+    source_target_provenance = dict(
+        packet.get("source_theorem_target_provenance", {}) or {}
+    )
+    target_ids = _target_ids_from_work_order(
+        packet,
+        fallback_target=target_theorem_name,
+    )
+    target_lean_declaration = str(
+        packet.get("target_lean_declaration", "")
+        or source_target_provenance.get("target_lean_declaration", "")
+        or target_theorem_name
+    )
+    semantic_alignment_constraints = _str_list(
+        packet.get("semantic_alignment_constraints", [])
+        or source_target_provenance.get("semantic_alignment_constraints", [])
+        or []
+    )
     candidate_raw = str(packet.get("candidate_artifact_path", "") or "")
     candidate_path = Path(candidate_raw) if candidate_raw else Path()
     probe_id = "source_theorem_formal_environment_signature_probe:" + stable_hash(
-        [repair_packet_id, candidate_raw, target_theorem_name]
+        [repair_packet_id, candidate_raw, target_theorem_name, target_ids]
     )[:20]
     probe_artifact_path = artifacts_dir / f"{_safe_file_stem(target_theorem_name or probe_id)}_signature_probe.lean"
     source = ""
@@ -897,6 +924,15 @@ def _signature_probe_row(
         repair_packet_id=repair_packet_id,
         source_work_order_id=source_work_order_id,
         target_theorem_name=target_theorem_name,
+        target_ids=tuple(target_ids),
+        target_theorem_goal_ids=tuple(target_ids),
+        target_lean_declaration=target_lean_declaration,
+        source_theorem_target_known=bool(
+            packet.get("source_theorem_target_known", False)
+            or source_target_provenance.get("source_theorem_target_known", False)
+        ),
+        source_theorem_target_provenance=source_target_provenance,
+        semantic_alignment_constraints=tuple(semantic_alignment_constraints),
         source_candidate_artifact_path=candidate_raw,
         signature_probe_artifact_path=str(probe_artifact_path),
         local_lean_checked=checked,
@@ -1264,11 +1300,16 @@ def _proof_body_work_order(
         if open_environment_symbols or open_environment_typeclass_blockers
         else "signature_probe_goal_excerpt_static_heuristics"
     )
+    target_ids = _target_ids_from_work_order(
+        repair_packet or probe_row,
+        fallback_target=target_theorem_name,
+    )
     work_order_id = "exact_source_theorem_proof_body_work_order:" + stable_hash(
         [
             probe_row.get("signature_probe_id", ""),
             repair_packet.get("source_work_order_id", ""),
             target_theorem_name,
+            target_ids,
             probe_row.get("signature_probe_artifact_path", ""),
         ]
     )[:20]
@@ -1285,6 +1326,8 @@ def _proof_body_work_order(
         "question_id": question_id,
         "question_title": question_title,
         "target_theorem_name": target_theorem_name,
+        "target_ids": target_ids,
+        "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
         "source_theorem_target_known": bool(
             repair_packet.get("source_theorem_target_known", False)
@@ -1575,12 +1618,15 @@ def _proof_body_repair_execution_work_order(
     )
     source_target_provenance.setdefault("target_lean_declaration", target_declaration)
     source_target_provenance.setdefault("source_theorem_target_known", True)
+    target_ids = _target_ids_from_work_order(row, fallback_target=target)
     return {
         "schema_version": 1,
         "artifact_kind": PROOF_BODY_WORK_ORDER_ARTIFACT_KIND,
         "work_order_id": str(row.get("work_order_id", "") or ""),
         "source_formal_target_id": str(row.get("source_formal_target_id", "") or ""),
         "target_theorem_name": target,
+        "target_ids": target_ids,
+        "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_declaration,
         "source_theorem_target_known": bool(
             row.get("source_theorem_target_known", True)
@@ -1862,6 +1908,7 @@ def _proof_body_execution_queue_row(
         "question_title": question_title,
         "target_theorem_name": target,
         "target_ids": target_ids,
+        "target_theorem_goal_ids": list(target_ids),
         "expected_target_lean_declaration": expected_target_declaration,
         "source_theorem_target_known": source_theorem_target_known,
         "source_theorem_target_identity_status": source_theorem_target_identity_status,
@@ -2124,6 +2171,7 @@ def _proof_body_live_proof_state_request(
         "target_lean_column": int(location.get("target_lean_column", 0) or 0),
         "target_lean_declaration": str(location.get("target_lean_declaration", "")),
         "target_ids": target_ids,
+        "target_theorem_goal_ids": target_ids,
         "expected_target_lean_declaration": str(
             work_order.get("target_lean_declaration", "")
             or work_order.get("target_theorem_name", "")
@@ -2242,6 +2290,10 @@ def _export_runtime_learning_rows(
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     for packet in repair_packets:
+        packet_target_ids = _target_ids_from_work_order(
+            packet,
+            fallback_target=str(packet.get("target_theorem_name", "") or ""),
+        )
         signature_probe_rows = _matching_signature_probe_rows(
             signature_probe_result,
             repair_packet_id=str(packet.get("repair_packet_id", "") or ""),
@@ -2289,11 +2341,15 @@ def _export_runtime_learning_rows(
                 "schema_version": 1,
                 "question_id": str(question_id or packet.get("question_id", "") or ""),
                 "learning_task": "source_theorem_formal_environment_repair_feedback",
+                "target_ids": packet_target_ids,
+                "target_theorem_goal_ids": list(packet_target_ids),
                 "input_summary": {
                     "trigger": "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_REQUIRED",
                     "source_work_order_id": str(packet.get("source_work_order_id", "") or ""),
                     "repair_packet_id": str(packet.get("repair_packet_id", "") or ""),
                     "target_theorem_name": str(packet.get("target_theorem_name", "") or ""),
+                    "target_ids": packet_target_ids,
+                    "target_theorem_goal_ids": list(packet_target_ids),
                     "target_lean_declaration": str(
                         packet.get("target_lean_declaration", "") or ""
                     ),
@@ -2420,6 +2476,14 @@ def _export_runtime_learning_rows(
                 if str(row.get("target_theorem_name", "") or "")
             )
         ),
+        "target_ids": list(
+            dict.fromkeys(
+                target_id
+                for row in rows
+                for target_id in row.get("target_ids", []) or []
+                if str(target_id).strip()
+            )
+        ),
         "missing_formal_symbols": list(
             dict.fromkeys(
                 symbol
@@ -2537,29 +2601,41 @@ def _target_ids_from_work_order(
     *,
     fallback_target: str = "",
 ) -> list[str]:
+    sources: list[Mapping[str, Any]] = [work_order]
     input_summary = (
         work_order.get("input_summary", {})
         if isinstance(work_order.get("input_summary", {}), Mapping)
         else {}
     )
-    raw_values = (
-        work_order.get("target_ids", [])
-        or work_order.get("target_id", "")
-        or work_order.get("target_theorem_goal_ids", [])
-        or input_summary.get("target_ids", [])
-        or input_summary.get("target_id", "")
-        or input_summary.get("target_theorem_goal_ids", [])
-        or []
-    )
-    if isinstance(raw_values, Mapping):
-        values = [str(key).strip() for key in raw_values.keys()]
-    elif isinstance(raw_values, str):
-        values = [raw_values.strip()]
-    elif isinstance(raw_values, (list, tuple, set)):
-        values = [str(value).strip() for value in raw_values]
-    else:
-        values = [str(raw_values).strip()]
-    target_ids = [value for value in values if value]
+    if input_summary:
+        sources.append(input_summary)
+    for source in tuple(sources):
+        nested = source.get("source_theorem_target_provenance", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+        context = source.get("source_theorem_target_context", {})
+        if isinstance(context, Mapping):
+            sources.append(context)
+
+    def _values(raw: Any) -> list[str]:
+        if isinstance(raw, Mapping):
+            return [str(key).strip() for key in raw.keys() if str(key).strip()]
+        if isinstance(raw, str):
+            return [raw.strip()] if raw.strip() else []
+        if isinstance(raw, (list, tuple, set)):
+            return [str(value).strip() for value in raw if str(value).strip()]
+        text = str(raw or "").strip()
+        return [text] if text else []
+
+    target_ids: list[str] = []
+    for source in sources:
+        for key in ("target_ids", "target_id", "source_theorem_goal_id"):
+            target_ids.extend(_values(source.get(key, [])))
+
+    if not target_ids:
+        for source in sources:
+            target_ids.extend(_values(source.get("target_theorem_goal_ids", [])))
+
     fallback = str(fallback_target or "").strip()
     if not target_ids and fallback:
         target_ids = [fallback]

@@ -24566,6 +24566,22 @@ def _source_theorem_target_ids_from_row(
     return list(dict.fromkeys(target_ids))
 
 
+def _source_theorem_work_order_target_ids(
+    row: Mapping[str, Any],
+    *,
+    source_target_provenance: Mapping[str, Any],
+    fallback_target_theorem_name: str = "",
+    fallback_source_formal_target_id: str = "",
+) -> list[str]:
+    target_row = dict(row)
+    target_row["source_theorem_target_provenance"] = dict(source_target_provenance)
+    return _source_theorem_target_ids_from_row(
+        target_row,
+        fallback_target_theorem_name=fallback_target_theorem_name,
+        fallback_source_formal_target_id=fallback_source_formal_target_id,
+    )
+
+
 def _int_like(value: Any, default: int = 0) -> int:
     try:
         return int(value)
@@ -31695,10 +31711,16 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                     source_target_provenance.get("semantic_alignment_constraints", [])
                     or []
                 )
+                target_ids = _source_theorem_work_order_target_ids(
+                    repair,
+                    source_target_provenance=source_target_provenance,
+                    fallback_target_theorem_name=target_theorem_name,
+                )
                 work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
                     [
                         artifact.get("manifest_id", ""),
                         target_theorem_name,
+                        target_ids,
                         candidate_artifact_path,
                         failure_classification,
                         diagnostics,
@@ -31719,10 +31741,12 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         "question_id": str(question.get("id", "") or ""),
                         "question_title": str(question.get("title", "") or ""),
                         "target_theorem_name": target_theorem_name,
+                        "target_ids": target_ids,
                         "target_lean_declaration": str(
                             source_target_provenance.get("target_lean_declaration", "")
                             or target_theorem_name
                         ),
+                        "target_theorem_goal_ids": list(target_ids),
                         "candidate_artifact_path": candidate_artifact_path,
                         "source_theorem_target_known": bool(
                             source_target_provenance.get(
@@ -31863,6 +31887,11 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
         semantic_alignment_constraints = list(
             source_target_provenance.get("semantic_alignment_constraints", []) or []
         )
+        target_ids = _source_theorem_work_order_target_ids(
+            row,
+            source_target_provenance=source_target_provenance,
+            fallback_target_theorem_name=target_theorem_name,
+        )
         if not candidate_artifact_path:
             candidate_artifact_path = str(
                 row.get("candidate_artifact_path", "") or ""
@@ -31907,6 +31936,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 execution_result_id,
                 execution_queue_id,
                 target_theorem_name,
+                target_ids,
                 candidate_artifact_path,
                 failure_classification,
                 diagnostics,
@@ -31927,8 +31957,10 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 "source_execution_queue_id": execution_queue_id,
                 "source_work_order_id": str(row.get("source_work_order_id", "") or ""),
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "target_lean_declaration": target_lean_declaration
                 or target_theorem_name,
+                "target_theorem_goal_ids": list(target_ids),
                 "candidate_artifact_path": candidate_artifact_path,
                 "source_theorem_target_known": bool(
                     source_target_provenance.get("source_theorem_target_known", False)
@@ -32019,10 +32051,16 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
         semantic_alignment_constraints = list(
             source_target_provenance.get("semantic_alignment_constraints", []) or []
         )
+        target_ids = _source_theorem_work_order_target_ids(
+            row,
+            source_target_provenance=source_target_provenance,
+            fallback_target_theorem_name=target_theorem_name,
+        )
         work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
             [
                 artifact_verification_id,
                 target_theorem_name,
+                target_ids,
                 candidate_artifact_path,
                 failure_classification,
                 diagnostics[:8],
@@ -32041,10 +32079,12 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
                 "artifact_verification_id": artifact_verification_id,
                 "artifact_verifier_manifest": artifact_verifier_manifest,
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
                 "target_lean_declaration": str(
                     source_target_provenance.get("target_lean_declaration", "")
                     or target_theorem_name
                 ),
+                "target_theorem_goal_ids": list(target_ids),
                 "candidate_artifact_path": candidate_artifact_path,
                 "source_theorem_target_known": True,
                 "source_theorem_target_provenance": source_target_provenance,
