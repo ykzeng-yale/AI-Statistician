@@ -5336,6 +5336,75 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     )
 
 
+def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_source_to_bridge_support_candidate",
+        owner_subsystem="FormalizationEvaluator",
+        objective="check premise derivation candidate without source-theorem promotion",
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:source_to_bridge_support",
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                    "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                    "premise_derivation_candidate_lean_source": (
+                        "theorem split_conformal_finite_sample_coverage_"
+                        "hGoodRankImpliesCovered_source_to_bridge_derivation "
+                        "(good_rank_event coverage_event : Prop) "
+                        "(hC : good_rank_event -> coverage_event) "
+                        "(hGoodRank : good_rank_event) : coverage_event := by\n"
+                        "  exact hC hGoodRank\n"
+                    ),
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["candidate_kind"] == "source_to_bridge_premise_derivation_candidate"
+    assert row["local_lean_compiled"] is True
+    assert row["kernel_verified"] is True
+    assert row["support_candidate_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert row["proof_evidence_status"] == (
+        "FORMALIZER_SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_"
+        "LOCAL_LEAN_KERNEL_VERIFIED_SUPPORT_ONLY"
+    )
+    assert row["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["n_local_lean_compiled_support_candidates"] == 1
+    assert manifest["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert manifest["source_theorem_kernel_verified"] is False
+    assert manifest["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {manifest["manifest_id"]: manifest}}}]
+    )
+
+    assert learning_rows[0]["support_candidate_not_source_theorem"] is True
+    assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is False
+    assert learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert learning_rows[0]["memory_status"] == (
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_KERNEL_VERIFIED_SUPPORT_ONLY"
+    )
+
+
 def test_formalizer_candidate_materialization_preserves_source_theorem_target_scope(
     tmp_path: Path,
 ) -> None:

@@ -5105,7 +5105,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
             live_proof_state_request["target_theorem_name"] = str(
                 target_context.get("target_theorem_name", "") or ""
             )
+        candidate_kind = str(candidate.get("candidate_kind", "") or "")
+        support_candidate_not_source_theorem = (
+            _formalizer_candidate_support_not_source_theorem(candidate_kind)
+        )
         diagnostic_helper_not_source_theorem = source_theorem_target_known is False
+        source_theorem_candidate_evidence_eligible = (
+            not diagnostic_helper_not_source_theorem
+            and not support_candidate_not_source_theorem
+        )
         local_lean_compiled = bool(
             local_lean_result.get("local_lean_compiled", False)
         )
@@ -5114,12 +5122,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
             diagnostic_helper_not_source_theorem=(
                 diagnostic_helper_not_source_theorem
             ),
+            support_candidate_not_source_theorem=(
+                support_candidate_not_source_theorem
+            ),
         )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "candidate_id": candidate_id,
-                "candidate_kind": str(candidate.get("candidate_kind", "") or ""),
+                "candidate_kind": candidate_kind,
                 "source_packet_id": str(proposal_packet.get("packet_id", "") or ""),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": source_hash,
@@ -5187,21 +5198,29 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "diagnostic_helper_not_source_theorem": (
                     diagnostic_helper_not_source_theorem
                 ),
+                "support_candidate_not_source_theorem": (
+                    support_candidate_not_source_theorem
+                ),
+                "source_theorem_candidate_evidence_eligible": (
+                    source_theorem_candidate_evidence_eligible
+                ),
                 "proof_evidence_status": proof_evidence_status,
                 "source_theorem_proof_evidence_status": (
-                    "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
-                    if diagnostic_helper_not_source_theorem
-                    else (
-                        "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
-                        if local_lean_compiled
-                        else "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    _formalizer_candidate_source_theorem_proof_evidence_status(
+                        local_lean_compiled=local_lean_compiled,
+                        source_theorem_candidate_evidence_eligible=(
+                            source_theorem_candidate_evidence_eligible
+                        ),
                     )
                 ),
                 "boundary": (
                     _formalizer_candidate_proof_boundary(
                         diagnostic_helper_not_source_theorem=(
                             diagnostic_helper_not_source_theorem
-                        )
+                        ),
+                        support_candidate_not_source_theorem=(
+                            support_candidate_not_source_theorem
+                        ),
                     )
                 ),
                 "candidate_metadata": candidate_metadata,
@@ -5218,7 +5237,17 @@ def _materialize_formalizer_lean_candidate_artifacts(
     compiled_source_candidate_rows = [
         row
         for row in local_compiled_rows
-        if not bool(row.get("diagnostic_helper_not_source_theorem", False))
+        if bool(row.get("source_theorem_candidate_evidence_eligible", False))
+    ]
+    compiled_support_candidate_rows = [
+        row
+        for row in local_compiled_rows
+        if bool(row.get("support_candidate_not_source_theorem", False))
+    ]
+    compiled_diagnostic_helper_rows = [
+        row
+        for row in local_compiled_rows
+        if bool(row.get("diagnostic_helper_not_source_theorem", False))
     ]
     live_proof_state_request_rows = [
         row for row in rows if row.get("live_proof_state_request")
@@ -5265,8 +5294,11 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "local_lean_attempted": bool(local_checked_rows),
         "n_local_lean_checked": len(local_checked_rows),
         "n_local_lean_compiled": len(local_compiled_rows),
-        "n_local_lean_compiled_diagnostic_helpers": (
-            len(local_compiled_rows) - len(compiled_source_candidate_rows)
+        "n_local_lean_compiled_diagnostic_helpers": len(
+            compiled_diagnostic_helper_rows
+        ),
+        "n_local_lean_compiled_support_candidates": len(
+            compiled_support_candidate_rows
         ),
         "n_local_lean_compiled_source_theorem_candidates": len(
             compiled_source_candidate_rows
@@ -5283,9 +5315,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
             "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
             if compiled_source_candidate_rows
             else (
-                "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
-                if local_compiled_rows
-                else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                "FORMALIZER_SUPPORT_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED_"
+                "NOT_SOURCE_THEOREM_PROOF"
+                if compiled_support_candidate_rows
+                else (
+                    "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+                    "NOT_SOURCE_THEOREM_PROOF"
+                    if local_compiled_rows
+                    else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                )
             )
         ),
         "source_theorem_proof_evidence_status": (
@@ -5301,7 +5339,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
             "Formalizer Lean candidate materialization creates concrete files for "
             "ProofEngineer consumption. It is only kernel proof evidence for the "
             "exact candidate artifact. Rows with source_theorem_target_known=false "
-            "are diagnostic/helper evidence only and do not prove the source theorem."
+            "are diagnostic/helper evidence only; source-to-bridge premise "
+            "derivation candidates are support evidence only. Neither category "
+            "proves the source theorem."
         ),
     }
     if manifest_path is not None:
@@ -5356,9 +5396,15 @@ def _formalizer_candidate_proof_evidence_status(
     *,
     local_lean_compiled: bool,
     diagnostic_helper_not_source_theorem: bool,
+    support_candidate_not_source_theorem: bool = False,
 ) -> str:
     if not local_lean_compiled:
         return "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+    if support_candidate_not_source_theorem:
+        return (
+            "FORMALIZER_SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_"
+            "LOCAL_LEAN_KERNEL_VERIFIED_SUPPORT_ONLY"
+        )
     if diagnostic_helper_not_source_theorem:
         return (
             "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
@@ -5367,13 +5413,31 @@ def _formalizer_candidate_proof_evidence_status(
     return "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
 
 
+def _formalizer_candidate_source_theorem_proof_evidence_status(
+    *,
+    local_lean_compiled: bool,
+    source_theorem_candidate_evidence_eligible: bool,
+) -> str:
+    if not source_theorem_candidate_evidence_eligible:
+        return "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    if local_lean_compiled:
+        return "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+    return "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+
+
 def _formalizer_candidate_memory_status(
     *,
     local_lean_compiled: bool,
     diagnostic_helper_not_source_theorem: bool,
+    support_candidate_not_source_theorem: bool = False,
 ) -> str:
     if not local_lean_compiled:
         return "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"
+    if support_candidate_not_source_theorem:
+        return (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_KERNEL_VERIFIED_"
+            "SUPPORT_ONLY"
+        )
     if diagnostic_helper_not_source_theorem:
         return (
             "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
@@ -5384,7 +5448,16 @@ def _formalizer_candidate_memory_status(
 def _formalizer_candidate_proof_boundary(
     *,
     diagnostic_helper_not_source_theorem: bool,
+    support_candidate_not_source_theorem: bool = False,
 ) -> str:
+    if support_candidate_not_source_theorem:
+        return (
+            "This row materializes an LLM-generated source-to-bridge premise "
+            "derivation candidate. A local Lean compile verifies only that "
+            "support lemma artifact; it is not proof evidence for the exact "
+            "source theorem, the probability/measure coverage claim, or any "
+            "full frontier theorem."
+        )
     if diagnostic_helper_not_source_theorem:
         return (
             "This row materializes an LLM-generated diagnostic/helper Lean "
@@ -5399,6 +5472,12 @@ def _formalizer_candidate_proof_boundary(
         "artifact and still requires semantic/source-theorem faithfulness auditing "
         "before any source theorem proof claim."
     )
+
+
+def _formalizer_candidate_support_not_source_theorem(candidate_kind: str) -> bool:
+    return candidate_kind in {
+        "source_to_bridge_premise_derivation_candidate",
+    }
 
 
 def _formalizer_lean_candidate_target_context(
@@ -5497,6 +5576,19 @@ def _formalizer_lean_candidate_materialization_learning_rows(
         diagnostic_helper_not_source_theorem = bool(
             candidate.get("diagnostic_helper_not_source_theorem", False)
         )
+        candidate_kind = str(candidate.get("candidate_kind", "") or "")
+        support_candidate_not_source_theorem = bool(
+            candidate.get("support_candidate_not_source_theorem", False)
+        ) or _formalizer_candidate_support_not_source_theorem(candidate_kind)
+        source_theorem_candidate_evidence_eligible = bool(
+            candidate.get(
+                "source_theorem_candidate_evidence_eligible",
+                (
+                    not diagnostic_helper_not_source_theorem
+                    and not support_candidate_not_source_theorem
+                ),
+            )
+        )
         source_theorem_target_known = candidate.get(
             "source_theorem_target_known",
             None,
@@ -5555,7 +5647,7 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "question_title": str(question.get("title", "") or ""),
                 "task_id": str(manifest.get("task_id", "") or ""),
                 "candidate_id": candidate_id,
-                "candidate_kind": str(candidate.get("candidate_kind", "") or ""),
+                "candidate_kind": candidate_kind,
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": str(candidate.get("source_hash", "") or ""),
                 "target_ids": list(target_context.get("target_ids", []) or []),
@@ -5616,6 +5708,12 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "diagnostic_helper_not_source_theorem": (
                     diagnostic_helper_not_source_theorem
                 ),
+                "support_candidate_not_source_theorem": (
+                    support_candidate_not_source_theorem
+                ),
+                "source_theorem_candidate_evidence_eligible": (
+                    source_theorem_candidate_evidence_eligible
+                ),
                 "candidate_live_proof_state_request": live_request,
                 "n_candidate_live_proof_state_requests": 1 if live_request else 0,
                 "candidate_lean_lsp_mcp_ready_request": lean_lsp_mcp_ready,
@@ -5643,15 +5741,17 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         diagnostic_helper_not_source_theorem=(
                             diagnostic_helper_not_source_theorem
                         ),
+                        support_candidate_not_source_theorem=(
+                            support_candidate_not_source_theorem
+                        ),
                     )
                 ),
                 "source_theorem_proof_evidence_status": (
-                    "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
-                    if diagnostic_helper_not_source_theorem
-                    else (
-                        "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
-                        if local_lean_compiled
-                        else "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    _formalizer_candidate_source_theorem_proof_evidence_status(
+                        local_lean_compiled=local_lean_compiled,
+                        source_theorem_candidate_evidence_eligible=(
+                            source_theorem_candidate_evidence_eligible
+                        ),
                     )
                 ),
                 "source_theorem_kernel_verified": False,
@@ -5661,6 +5761,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         local_lean_compiled=local_lean_compiled,
                         diagnostic_helper_not_source_theorem=(
                             diagnostic_helper_not_source_theorem
+                        ),
+                        support_candidate_not_source_theorem=(
+                            support_candidate_not_source_theorem
                         ),
                     )
                 ),
@@ -5681,7 +5784,10 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     _formalizer_candidate_proof_boundary(
                         diagnostic_helper_not_source_theorem=(
                             diagnostic_helper_not_source_theorem
-                        )
+                        ),
+                        support_candidate_not_source_theorem=(
+                            support_candidate_not_source_theorem
+                        ),
                     )
                 ),
             }
