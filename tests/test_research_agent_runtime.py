@@ -24058,6 +24058,55 @@ def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance()
     ]
 
 
+def test_generated_exact_semantic_agenda_routes_compiled_candidate_to_review() -> None:
+    generated_rows = _append_runtime_generated_next_action_rows(
+        [],
+        [
+            {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_lean_repair_execution"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "placeholder_symbol": "coverage_event",
+                "work_order_id": "exact-semantic:coverage-event",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+                "definition_only_candidate_artifact_path": (
+                    "runs/coverage_event.definition_only.lean"
+                ),
+                "local_definition_lean_checked": True,
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                    "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                ),
+                "recommended_next_action": (
+                    "review the typechecked definition-only candidate for source "
+                    "semantic faithfulness before importing it into the exact "
+                    "source-theorem candidate"
+                ),
+            }
+        ],
+        queue_name="source_theorem_exact_semantic_definitions",
+    )
+
+    assert len(generated_rows) == 1
+    generated_row = generated_rows[0]
+    assert generated_row["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert generated_row["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+        "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert generated_row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert generated_row["proof_boundary"] == runtime_module.KERNEL_PROOF_BOUNDARY
+
+
 def test_runtime_next_action_agenda_prunes_superseded_metadata_authoring_by_target() -> None:
     stale_metadata_row = {
         "id": "formal_gap:source_to_bridge_metadata_authoring",

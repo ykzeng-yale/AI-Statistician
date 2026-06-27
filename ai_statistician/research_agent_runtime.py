@@ -34109,6 +34109,39 @@ def _runtime_next_action_agenda_priority_rank(row: Mapping[str, Any]) -> int:
     )
 
 
+def _runtime_next_action_agenda_dedupe_scalar(
+    row: Mapping[str, Any],
+    key: str,
+) -> str:
+    value = str(row.get(key, "") or "")
+    if key != "runtime_queue_status":
+        return value
+    if not _runtime_next_action_agenda_downstream_of_metadata_authoring(row):
+        return value
+    combined = "\n".join(
+        str(row.get(field, "") or "")
+        for field in (
+            "id",
+            "runtime_generated_queue_name",
+            "trigger",
+            "owner_subsystem",
+        )
+    ).lower()
+    if "exact_semantic_definition" not in combined:
+        return value
+    if not str(row.get("placeholder_symbol", "") or "").strip():
+        return value
+    if value in {
+        "",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+    }:
+        return "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_OR_REPAIR"
+    return value
+
+
 def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
     target_ids = _runtime_row_string_values(
         row,
@@ -34147,7 +34180,7 @@ def _runtime_next_action_agenda_dedupe_key(row: Mapping[str, Any]) -> tuple[Any,
         "definition_only_candidate_artifact_path",
     )
     return (
-        *(str(row.get(key, "") or "") for key in scalar_keys),
+        *(_runtime_next_action_agenda_dedupe_scalar(row, key) for key in scalar_keys),
         tuple(target_ids),
         tuple(_runtime_recommended_commands(row)),
     )
@@ -34290,12 +34323,25 @@ def _normalize_exact_semantic_agenda_status_from_local_definition(
     compiled_status = (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
     )
+    candidate_review_status = (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
     if (
         not current_status
         or _runtime_exact_semantic_definition_status_rank(compiled_status)
         > _runtime_exact_semantic_definition_status_rank(current_status)
     ):
         row["semantic_definition_typecheck_evidence_status"] = compiled_status
+    current_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+    if current_queue_status in {
+        "",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+    }:
+        row["runtime_queue_status"] = candidate_review_status
+    if not str(row.get("proof_body_gate_status", "") or "").strip():
+        row["proof_body_gate_status"] = "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
 
 
 def _runtime_exact_semantic_definition_status_rank(status: str) -> int:
@@ -34689,6 +34735,7 @@ def _append_runtime_generated_next_action_rows(
                 "It routes the next bounded Lean repair attempt and is not theorem proof evidence."
             ),
         }
+        _normalize_exact_semantic_agenda_status_from_local_definition(agenda_item)
         existing_row = existing_by_id.get(agenda_id)
         if existing_row is not None:
             before = dict(existing_row)
