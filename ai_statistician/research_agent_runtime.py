@@ -1269,6 +1269,7 @@ def _runtime_evidence_truth_learning_rows(
                 }
             )[:16],
             "target_theorem_name": target_theorem_name,
+            "target_ids": target_theorem_names,
             "target_theorem_goal_ids": target_theorem_names,
             "premise_name": premise_name,
             "premise_derivation_gap_kind": premise_gap_kind,
@@ -1277,6 +1278,7 @@ def _runtime_evidence_truth_learning_rows(
             "input_summary": {
                 "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
                 "target_theorem_name": target_theorem_name,
+                "target_ids": target_theorem_names,
                 "target_theorem_goal_ids": target_theorem_names,
                 "source_theorem_kernel_verified": source_verified,
                 "source_theorem_ready_for_exact_proof_body": proof_body_status
@@ -5065,6 +5067,29 @@ def _materialize_formalizer_lean_candidate_artifacts(
         source_theorem_target_known = _source_theorem_target_known_value(
             candidate_metadata.get("source_theorem_target_provenance", {})
         )
+        candidate_target_source = dict(candidate)
+        candidate_target_source["candidate_metadata"] = candidate_metadata
+        for key in (
+            "target_lean_line",
+            "target_lean_column",
+            "target_lean_declaration",
+        ):
+            if target_location.get(key) not in ("", [], {}, None):
+                candidate_target_source[key] = target_location.get(key)
+        target_context = _formalizer_lean_candidate_target_context(
+            candidate_target_source
+        )
+        if live_proof_state_request:
+            live_proof_state_request = dict(live_proof_state_request)
+            live_proof_state_request["target_ids"] = list(
+                target_context.get("target_ids", []) or []
+            )
+            live_proof_state_request["target_theorem_goal_ids"] = list(
+                target_context.get("target_theorem_goal_ids", []) or []
+            )
+            live_proof_state_request["target_theorem_name"] = str(
+                target_context.get("target_theorem_name", "") or ""
+            )
         diagnostic_helper_not_source_theorem = source_theorem_target_known is False
         local_lean_compiled = bool(
             local_lean_result.get("local_lean_compiled", False)
@@ -5094,6 +5119,17 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 ),
                 "target_lean_declaration": str(
                     target_location.get("target_lean_declaration", "") or ""
+                ),
+                "target_ids": list(target_context.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    target_context.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    target_context.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    target_context.get("source_theorem_target_provenance", {})
+                    or {}
                 ),
                 "live_proof_state_request": live_proof_state_request,
                 "precheck_status": (
@@ -5350,6 +5386,83 @@ def _formalizer_candidate_proof_boundary(
     )
 
 
+def _formalizer_lean_candidate_target_context(
+    candidate: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return canonical source-theorem target context for Lean-candidate memory."""
+
+    metadata = (
+        candidate.get("candidate_metadata", {})
+        if isinstance(candidate.get("candidate_metadata", {}), Mapping)
+        else {}
+    )
+    target_row: dict[str, Any] = {}
+    source_target_provenance: dict[str, Any] = {}
+    for source in (metadata, candidate):
+        if not isinstance(source, Mapping):
+            continue
+        nested = source.get("source_theorem_target_provenance", {})
+        if isinstance(nested, Mapping):
+            source_target_provenance.update(
+                {
+                    str(key): value
+                    for key, value in nested.items()
+                    if value not in ("", [], {}, None)
+                }
+            )
+        for key in (
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "source_theorem_goal_id",
+            "target_theorem_name",
+            "target_lean_declaration",
+            "question_id",
+            "source_theorem_question_id",
+            "semantic_alignment_constraints",
+            "source_theorem_target_known",
+        ):
+            if key in source and source.get(key) not in ("", [], {}, None):
+                target_row.setdefault(key, source.get(key))
+    if source_target_provenance:
+        target_row["source_theorem_target_provenance"] = source_target_provenance
+    target_ids = _source_theorem_target_ids_from_row(
+        target_row,
+        fallback_target_theorem_name=str(
+            target_row.get("target_theorem_name", "") or ""
+        ),
+        fallback_source_formal_target_id=str(
+            target_row.get("target_lean_declaration", "") or ""
+        ),
+    )
+    source_target_provenance = _source_theorem_target_provenance_from_row(target_row)
+    theorem_goal_ids = _source_theorem_explicit_target_ids_from_row(target_row)
+    if not theorem_goal_ids:
+        theorem_goal_ids = [
+            str(value).strip()
+            for value in _str_tuple(target_row.get("target_theorem_goal_ids", []))
+            if str(value).strip()
+        ]
+    if not theorem_goal_ids and str(
+        target_row.get("target_theorem_name", "") or ""
+    ).strip():
+        theorem_goal_ids = [str(target_row.get("target_theorem_name", "") or "")]
+    theorem_goal_ids = list(dict.fromkeys(theorem_goal_ids))
+    target_theorem_name = str(target_row.get("target_theorem_name", "") or "")
+    if not target_theorem_name:
+        target_theorem_name = str(
+            source_target_provenance.get("source_theorem_goal_id", "")
+            or (theorem_goal_ids[0] if theorem_goal_ids else "")
+            or ""
+        )
+    return {
+        "target_ids": target_ids,
+        "target_theorem_goal_ids": list(theorem_goal_ids),
+        "target_theorem_name": target_theorem_name,
+        "source_theorem_target_provenance": source_target_provenance,
+    }
+
+
 def _formalizer_lean_candidate_materialization_learning_rows(
     manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -5373,6 +5486,7 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             "source_theorem_target_known",
             None,
         )
+        target_context = _formalizer_lean_candidate_target_context(candidate)
         diagnostic_row = {
             "lean_source_excerpt": str(
                 candidate.get("lean_source_excerpt", "") or ""
@@ -5429,6 +5543,17 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "candidate_kind": str(candidate.get("candidate_kind", "") or ""),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": str(candidate.get("source_hash", "") or ""),
+                "target_ids": list(target_context.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    target_context.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    target_context.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    target_context.get("source_theorem_target_provenance", {})
+                    or {}
+                ),
                 "lean_source_excerpt": str(
                     candidate.get("lean_source_excerpt", "") or ""
                 )[:500],
@@ -19511,6 +19636,18 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         or input_summary.get("target_theorem_name", "")
         or ""
     )
+    target_ids = _source_theorem_target_ids_from_row(
+        row,
+        fallback_target_theorem_name=target,
+        fallback_source_formal_target_id=str(
+            row.get("target_lean_declaration", "")
+            or input_summary.get("target_lean_declaration", "")
+            or ""
+        ),
+    )
+    target_scope = ",".join(_sorted_str_tuple(target_ids)) or target
+    if not target:
+        target = target_scope
     placeholder = str(
         row.get("placeholder_symbol", "")
         or input_summary.get("placeholder_symbol", "")
@@ -19683,6 +19820,34 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
                 + ":"
                 + ",".join(premise_names)
             )
+    if learning_task == "formalizer_lean_candidate_kernel_feedback":
+        candidate_id = str(
+            row.get("candidate_id", "") or input_summary.get("candidate_id", "") or ""
+        ).strip()
+        artifact_path = str(
+            row.get("artifact_path", "")
+            or input_summary.get("artifact_path", "")
+            or row.get("kernel_check_artifact_path", "")
+            or input_summary.get("kernel_check_artifact_path", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_lean_candidate_kernel_feedback:"
+            + target_scope
+            + ":"
+            + candidate_id
+            + ":"
+            + artifact_path
+        )
+    if learning_task == "formalizer_lean_candidate_proof_state_feedback":
+        return (
+            "formalizer_lean_candidate_proof_state_feedback:"
+            + target_scope
+            + ":"
+            + str(row.get("source_manifest_id", "") or "")
+            + ":"
+            + str(row.get("source_materialization_manifest_id", "") or "")
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -27425,6 +27590,19 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
         seen.add(key)
         local_lean_attempted = bool(row.get("local_lean_attempted", False))
         local_lean_compiled = bool(row.get("local_lean_compiled", False))
+        target_ids = _source_theorem_target_ids_from_row(
+            row,
+            fallback_target_theorem_name=str(
+                row.get("target_theorem_name", "") or ""
+            ),
+            fallback_source_formal_target_id=str(
+                row.get("target_lean_declaration", "") or ""
+            ),
+        )
+        target_theorem_goal_ids = list(
+            _runtime_row_string_values(row, "target_theorem_goal_ids")
+        ) or list(target_ids)
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
         diagnostics = {
             "candidate_id": candidate_id,
             "candidate_kind": str(row.get("candidate_kind", "") or ""),
@@ -27444,6 +27622,10 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
             "target_lean_declaration": str(
                 row.get("target_lean_declaration", "") or ""
             ),
+            "target_ids": list(target_ids),
+            "target_theorem_goal_ids": list(target_theorem_goal_ids),
+            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+            "source_theorem_target_provenance": source_target_provenance,
             "precheck_status": str(row.get("precheck_status", "") or ""),
             "precheck_errors": list(row.get("precheck_errors", []) or []),
             "local_lean_attempted": local_lean_attempted,
@@ -27530,6 +27712,28 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
         if key in seen:
             continue
         seen.add(key)
+        target_row = dict(input_summary)
+        target_row.update(dict(row))
+        target_row["input_summary"] = input_summary
+        target_ids = _source_theorem_target_ids_from_row(
+            target_row,
+            fallback_target_theorem_name=str(
+                row.get("target_theorem_name", "")
+                or input_summary.get("target_theorem_name", "")
+                or ""
+            ),
+            fallback_source_formal_target_id=str(
+                row.get("target_lean_declaration", "")
+                or input_summary.get("target_lean_declaration", "")
+                or ""
+            ),
+        )
+        target_theorem_goal_ids = list(
+            _runtime_row_string_values(target_row, "target_theorem_goal_ids")
+        ) or list(target_ids)
+        source_target_provenance = _source_theorem_target_provenance_from_row(
+            target_row
+        )
         feedback_rows.append(
             {
                 "learning_task": "formalizer_lean_candidate_proof_state_feedback",
@@ -27537,6 +27741,14 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
                 "source_materialization_manifest_id": (
                     source_materialization_manifest_id
                 ),
+                "target_ids": list(target_ids),
+                "target_theorem_goal_ids": list(target_theorem_goal_ids),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                    or input_summary.get("target_theorem_name", "")
+                    or ""
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
                 "provider_name": str(input_summary.get("provider_name", "") or ""),
                 "n_feedback_rows": _int_like(input_summary.get("n_feedback_rows", 0)),
                 "attempt_status": str(input_summary.get("attempt_status", "") or ""),
@@ -30099,6 +30311,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "source_materialization_manifest_id": str(
                     row.get("source_materialization_manifest_id", "") or ""
                 ),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                ),
                 "provider_name": str(row.get("provider_name", "") or ""),
                 "n_feedback_rows": _int_like(row.get("n_feedback_rows", 0)),
                 "attempt_status": str(row.get("attempt_status", "") or ""),
@@ -30139,6 +30361,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "target_lean_declaration": str(
                     row.get("target_lean_declaration", "") or ""
                 ),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
                 "precheck_errors": list(row.get("precheck_errors", []) or [])[:4],
                 "local_lean_attempted": bool(
@@ -30177,6 +30409,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("source_manifest_path", "") or ""
                 ),
                 "artifact_path": str(row.get("artifact_path", "") or ""),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                ),
                 "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
                 "source_theorem_target_known": row.get(
                     "source_theorem_target_known",
@@ -33760,6 +34002,7 @@ def _runtime_generated_next_action_learning_rows(
 
 def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
+    learning_task = str(normalized.get("learning_task", "") or "")
     target_theorem_name = str(normalized.get("target_theorem_name", "") or "")
     input_summary = normalized.get("input_summary", {})
     if not target_theorem_name and isinstance(input_summary, Mapping):
@@ -33769,7 +34012,18 @@ def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[s
     )
     if not target_ids and target_theorem_name:
         target_ids = [target_theorem_name]
-    if not target_theorem_name and len(target_ids) == 1:
+    target_theorem_goal_ids = list(
+        _runtime_row_string_values(normalized, "target_theorem_goal_ids")
+    )
+    local_formalizer_candidate_scope_only = (
+        learning_task == "formalizer_lean_candidate_kernel_feedback"
+        and not target_theorem_goal_ids
+    )
+    if (
+        not target_theorem_name
+        and len(target_ids) == 1
+        and not local_formalizer_candidate_scope_only
+    ):
         target_theorem_name = target_ids[0]
     if target_theorem_name and not str(
         normalized.get("target_theorem_name", "") or ""
@@ -33816,6 +34070,14 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 continue
             if artifact_kind == "RuntimeSimulationManifest":
                 rows.extend(_generated_simulation_feedback_learning_rows(artifact))
+                continue
+            if artifact_kind == "RuntimeFormalizerLeanCandidateMaterialization":
+                rows.extend(
+                    _runtime_learning_row_with_surface_targets(item)
+                    for item in _formalizer_lean_candidate_materialization_learning_rows(
+                        artifact
+                    )
+                )
                 continue
             for item in artifact.get("learning_rows", []) or []:
                 if isinstance(item, Mapping):

@@ -5336,6 +5336,186 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     )
 
 
+def test_formalizer_candidate_materialization_preserves_source_theorem_target_scope(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_candidate_target_scope",
+        owner_subsystem="FormalizationEvaluator",
+        objective="materialize target-scoped helper candidate",
+    )
+    target_id = "split_conformal_finite_sample_coverage"
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:target_scoped_helper",
+            "formal_targets": [
+                {
+                    "id": "split_conformal_core_prop_coverage_bridge_helper",
+                    "lean_statement_sketch": (
+                        "theorem split_conformal_core_prop_coverage_bridge_helper "
+                        "(covered_event no_bad_rank : Prop) "
+                        "(h_impl : no_bad_rank -> covered_event) "
+                        "(h_no_bad : no_bad_rank) : covered_event :=\n"
+                        "  h_impl h_no_bad\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": target_id,
+                        "source_theorem_goal_id": target_id,
+                    },
+                }
+            ],
+        },
+        local_lean=False,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    learning_row = manifest["learning_rows"][0]
+
+    assert row["source_theorem_target_known"] is False
+    assert row["diagnostic_helper_not_source_theorem"] is True
+    assert row["target_ids"] == [target_id]
+    assert row["target_theorem_goal_ids"] == [target_id]
+    assert row["target_theorem_name"] == target_id
+    assert row["source_theorem_target_provenance"]["source_theorem_goal_id"] == (
+        target_id
+    )
+    assert row["live_proof_state_request"]["target_ids"] == [target_id]
+    assert learning_row["target_ids"] == [target_id]
+    assert learning_row["target_theorem_goal_ids"] == [target_id]
+    assert learning_row["target_theorem_name"] == target_id
+    assert learning_row["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == target_id
+    assert learning_row["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+
+
+def test_runtime_learning_rows_recomputes_stale_materialization_target_scope() -> None:
+    target_id = "split_conformal_finite_sample_coverage"
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:stale_targetless",
+        "manifest_path": "runs/stale_targetless/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": "task:stale_targetless",
+        "source_formalizer_packet_id": "formalizer_proposal:stale_targetless",
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "abc123",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_helper (p : Prop) (hp : p) : p := hp"
+                ),
+                "artifact_path": "runs/stale_targetless/001.lean",
+                "kernel_check_artifact_path": "runs/stale_targetless/001.lean",
+                "target_lean_declaration": "split_conformal_helper",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "local_lean_exit_status": "0",
+                "source_theorem_target_known": False,
+                "diagnostic_helper_not_source_theorem": True,
+                "candidate_metadata": {
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": target_id,
+                        "source_theorem_goal_id": target_id,
+                    },
+                },
+            }
+        ],
+        "learning_rows": [
+            {
+                "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                "candidate_id": "split_conformal_helper",
+                "source_theorem_target_known": False,
+            }
+        ],
+    }
+
+    rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {manifest["manifest_id"]: manifest}}}]
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["learning_task"] == "formalizer_lean_candidate_kernel_feedback"
+    assert rows[0]["target_ids"] == [target_id]
+    assert rows[0]["target_theorem_goal_ids"] == [target_id]
+    assert rows[0]["target_theorem_name"] == target_id
+    assert rows[0]["diagnostic_helper_not_source_theorem"] is True
+    assert rows[0]["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+
+
+def test_runtime_learning_rows_keeps_unproven_helper_scope_out_of_theorem_name() -> None:
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:helper_scope_only",
+        "manifest_path": "runs/helper_scope_only/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {"id": "conformal_prediction_coverage"},
+        "task_id": "task:helper_scope_only",
+        "source_formalizer_packet_id": "formalizer_proposal:helper_scope_only",
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_local_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "helper-only",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_local_helper "
+                    "(p : Prop) (hp : p) : p := hp"
+                ),
+                "artifact_path": "runs/helper_scope_only/001.lean",
+                "target_lean_declaration": "split_conformal_local_helper",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "source_theorem_target_known": False,
+                "diagnostic_helper_not_source_theorem": True,
+                "candidate_metadata": {
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
+                },
+            }
+        ],
+    }
+
+    rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {manifest["manifest_id"]: manifest}}}]
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["target_ids"] == ["split_conformal_local_helper"]
+    assert rows[0]["target_theorem_goal_ids"] == []
+    assert rows[0]["target_theorem_name"] == ""
+    assert rows[0]["source_theorem_target_known"] is False
+    assert rows[0]["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+
+
 def test_formalizer_candidate_learning_rows_do_not_repair_success_warnings() -> None:
     manifest = {
         "schema_version": 1,
@@ -7942,6 +8122,11 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
                 "target_lean_declaration": (
                     "split_conformal_finite_sample_coverage"
                 ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
                 "precheck_errors": [],
                 "local_lean_attempted": True,
@@ -7980,6 +8165,7 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     assert row["target_lean_declaration"] == (
         "split_conformal_finite_sample_coverage"
     )
+    assert row["target_ids"] == ["split_conformal_finite_sample_coverage"]
     assert row["local_lean_attempted"] is True
     assert row["local_lean_compiled"] is False
     assert "MeasureTheory.MeasurableSet" in row["local_lean_stdout_excerpt"]
@@ -7999,6 +8185,15 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     repair_memory = summary["formalizer_lean_candidate_repair_memory"]
     assert repair_memory[0]["artifact_path"] == artifact_path
     assert repair_memory[0]["target_lean_declaration"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert repair_memory[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert repair_memory[0]["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert repair_memory[0]["target_theorem_name"] == (
         "split_conformal_finite_sample_coverage"
     )
     assert repair_memory[0]["target_lean_line"] == 1
@@ -8058,6 +8253,20 @@ def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_
                 "candidate_kind": "formal_target_lean_statement_sketch",
                 "source_field": "formal_targets",
                 "artifact_path": str(helper_path),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
                 "local_lean_attempted": True,
                 "local_lean_compiled": True,
                 "source_theorem_target_known": False,
@@ -8098,6 +8307,12 @@ def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_
     assert helper_memory[0]["candidate_id"] == "split_conformal_coverage_core_prop"
     assert helper_memory[0]["source_theorem_target_known"] is False
     assert helper_memory[0]["diagnostic_helper_not_source_theorem"] is True
+    assert helper_memory[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert helper_memory[0]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -9253,6 +9468,11 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
                 "source_materialization_manifest_id": (
                     "formalizer_lean_candidate_materialization:bad"
                 ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "next_owner_subsystem": "ProofEngineer",
                 "input_summary": {
                     "trigger": "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK",
@@ -9315,6 +9535,15 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     ]
     assert proof_state_memory[0]["source_materialization_manifest_id"] == (
         "formalizer_lean_candidate_materialization:bad"
+    )
+    assert proof_state_memory[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert proof_state_memory[0]["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert proof_state_memory[0]["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
     )
     assert proof_state_memory[0]["requested_tools"] == [
         "lean_diagnostic_messages",
@@ -37275,7 +37504,13 @@ def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> N
     assert row["target_theorem_name"] == (
         "split_conformal_finite_sample_coverage"
     )
+    assert row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert row["target_theorem_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert row["input_summary"]["target_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
     assert row["input_summary"]["target_theorem_goal_ids"] == [

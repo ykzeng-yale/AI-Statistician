@@ -882,3 +882,19 @@ Focused tests and deterministic replays over the saved 74-row live artifacts
 now show zero missing target IDs through work orders, repair packets, signature
 probe rows, learning rows, proof-body work orders, and execution/live-goal
 requests. No proof-evidence boundary changed.
+
+The same target-identity invariant now applies to Formalizer Lean-candidate
+memory. A live continuation showed route-critical
+`formalizer_lean_candidate_kernel_feedback` rows entering runtime memory without
+`target_ids`, which risks turning valid helper diagnostics into global prompt
+rules. Candidate materialization now derives target context from explicit
+candidate metadata and `source_theorem_target_provenance`, carries it through
+candidate rows, learning rows, proof-state requests, compact memory summaries,
+and memory retention keys, and exposes `target_ids` on truth-table feedback as
+the canonical alias. Runtime learning export also recomputes Formalizer
+candidate learning rows from materialization `candidate_rows`, so old resume
+manifests with stale embedded targetless learning rows migrate forward without
+another live model call. Fallback local Lean declaration scoping is allowed only
+as local artifact scope; without explicit theorem provenance it does not
+populate theorem-goal identity. This keeps Claude/ProofEngineer memory
+theorem-aware without adding another conformal proof heuristic.

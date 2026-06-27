@@ -822,7 +822,20 @@
       "covered",
       "PENDING_REGISTERED_SUPPORT_OR_PLACEHOLDER_DISCOVERY"
     ],
-    "promotion_seed_semantic_gate_patch": "Runtime source-theorem promotion materialization seeds now block proof-execution materialization when source_theorem_ready_for_exact_proof_body=false and unresolved semantic placeholders or pending placeholder-definition status remain, even when the older source_theorem_semantic_support_only flag is false."
+    "promotion_seed_semantic_gate_patch": "Runtime source-theorem promotion materialization seeds now block proof-execution materialization when source_theorem_ready_for_exact_proof_body=false and unresolved semantic placeholders or pending placeholder-definition status remain, even when the older source_theorem_semantic_support_only flag is false.",
+    "formalizer_after_formal_env_target_provenance_live_runtime_manifest": "runs/main_worker_formalizer_after_formal_env_target_provenance_live/research_agent_runtime_manifest.json",
+    "formalizer_after_formal_env_target_provenance_live_scorecard": "44/49",
+    "formalizer_after_formal_env_target_provenance_live_status": "MAX_ITERATIONS_REACHED",
+    "formalizer_after_formal_env_target_provenance_live_pending_next_task": "critic:conformal_prediction_coverage:927017e0",
+    "formalizer_after_formal_env_target_provenance_live_kernel_verified_subclaims": 110,
+    "formalizer_after_formal_env_target_provenance_live_formal_gaps": 73,
+    "formalizer_candidate_memory_target_ids_patch": "Formalizer Lean candidate materialization and runtime learning export now carry target_ids, target_theorem_goal_ids, source_theorem_target_provenance, and target-aware pin keys; old materialization manifests are migrated by recomputing learning rows from candidate_rows. Replay over the fresh live result regenerates 75 Formalizer candidate feedback rows with 0 missing target_ids, and helper rows without theorem provenance keep local declaration target scope but empty theorem-goal identity.",
+    "critic_after_formalizer_memory_target_ids_live_runtime_manifest": "runs/main_worker_critic_after_formalizer_memory_target_ids_live/research_agent_runtime_manifest.json",
+    "critic_after_formalizer_memory_target_ids_live_scorecard": "44/49",
+    "critic_after_formalizer_memory_target_ids_live_status": "MAX_ITERATIONS_REACHED",
+    "critic_after_formalizer_memory_target_ids_live_pending_next_task": "formalize-critic-repair:conformal_prediction_coverage:40160c3c",
+    "critic_after_formalizer_memory_target_ids_live_kernel_verified_subclaims": 110,
+    "critic_after_formalizer_memory_target_ids_live_formal_gaps": 73
   },
   "latest_runtime_eval_alignment": {
     "date": "2026-06-25",
@@ -1192,7 +1205,12 @@
     ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_formalizer_after_proof_body_queue_target_schema_live/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 1 --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-authoring-worker --source-theorem-exact-semantic-definition-authoring-worker-provider anthropic --source-theorem-exact-semantic-definition-authoring-worker-model-tier sonnet --source-theorem-exact-semantic-definition-authoring-worker-max-tasks 4 --out runs/main_worker_critic_after_proof_body_queue_target_schema_live # exit 1 only because scorecard 44/49 not ready; pending Formalizer task formalize-critic-repair:conformal_prediction_coverage:5c3ef49a; runtime_next_action_agenda=140 with 0 missing target_ids, gap-planner bridges/handoffs=62 each with 0 missing target_ids",
     ".venv/bin/python -m json.tool docs/main_worker_status.json",
     "git diff --check",
-    "strict secret-token scan over touched files found only existing prose key-loading notes and no secret token values"
+    "strict secret-token scan over touched files found only existing prose key-loading notes and no secret token values",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py # passed after Formalizer candidate memory target-id patch",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py # passed after Formalizer candidate memory target-id/export migration patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_candidate_materialization or stale_materialization_target_scope or helper_scope_out_of_theorem_name or formalizer_candidate_learning_rows or runtime_learning_memory_replays_formalizer or runtime_learning_memory_routes_compiled_diagnostic_helper or runtime_truth_table\" # 22 passed, 343 deselected after Formalizer candidate memory target-id/export migration patch",
+    ".venv/bin/python -m ai_statistician.cli research-agent-runtime --resume-runtime-manifest runs/main_worker_formalizer_after_formal_env_target_provenance_live/research_agent_runtime_manifest.json --provider anthropic --capability-eval --capability-eval-preset minimal-live --max-iterations 1 --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-authoring-worker --source-theorem-exact-semantic-definition-authoring-worker-provider anthropic --source-theorem-exact-semantic-definition-authoring-worker-model-tier sonnet --source-theorem-exact-semantic-definition-authoring-worker-max-tasks 4 --out runs/main_worker_critic_after_formalizer_memory_target_ids_live # exit 1 only because scorecard 44/49 not ready; pending Formalizer task formalize-critic-repair:conformal_prediction_coverage:40160c3c; kernel_verified_subclaims=110 formal_gaps=73",
+    "deterministic replay over runs/main_worker_critic_after_formalizer_memory_target_ids_live/conformal_prediction_coverage_runtime_result.json with patched _runtime_learning_rows # 75 Formalizer candidate feedback rows, 0 missing target_ids; 6 helper-only rows keep empty theorem-goal identity and empty target_theorem_name"
   ],
   "current_blockers": [
     "project .env is not present in the repo worktree",
@@ -1320,6 +1338,7 @@
     ".venv/bin/python -m pytest -q tests/test_source_theorem_formal_environment_bridge.py --tb=short # 15 passed after formal-environment bridge target-id propagation patch",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short # 362 passed in 150.06s before bridge follow-up, after runtime formal-environment work-order target-id propagation patch",
     "deterministic replay over runs/main_worker_formalizer_after_import_blocker_target_fix_live/conformal_prediction_coverage_runtime_result.json through patched _runtime_source_theorem_formal_environment_work_order_rows # 74 formal-environment work orders, 0 missing target_ids, target_ids=[split_conformal_finite_sample_coverage]",
-    "deterministic replay over targetless live queue runs/main_worker_formalizer_after_import_blocker_target_fix_live/runtime_source_theorem_formal_environment_work_orders.jsonl through patched source-theorem formal-environment ProofEngineer bridge # 74 repair packets, 74 signature probe rows, 74 learning rows, 0 missing target_ids; no proof-evidence boundary changed"
+    "deterministic replay over targetless live queue runs/main_worker_formalizer_after_import_blocker_target_fix_live/runtime_source_theorem_formal_environment_work_orders.jsonl through patched source-theorem formal-environment ProofEngineer bridge # 74 repair packets, 74 signature probe rows, 74 learning rows, 0 missing target_ids; no proof-evidence boundary changed",
+    "Formalizer candidate learning-memory target provenance/export migration: stale materialization learning_rows are recomputed from candidate_rows, replay over the fresh live result regenerated 75 candidate feedback rows with 0 missing target_ids, and helper-only rows no longer become target_theorem_name without explicit theorem provenance."
   ]
 }

@@ -842,6 +842,28 @@ missing `target_ids` in work orders, repair packets, signature probes, and
 learning rows. This is still routing/provenance repair only; the exact source
 theorem remains unproved.
 
+The next live continuation
+`runs/main_worker_formalizer_after_formal_env_target_provenance_live/research_agent_runtime_manifest.json`
+advanced the scorecard to 44/49 with 110 kernel-verified support subclaims and
+73 formal gaps, but exposed one more route-critical target leak:
+`formalizer_lean_candidate_kernel_feedback` learning rows were pinned into
+runtime memory without `target_ids`. Formalizer Lean candidate materialization
+now derives canonical target context from candidate metadata and
+`source_theorem_target_provenance`, copies it into candidate rows, learning
+rows, live proof-state requests, compact memory summaries, and memory retention
+pin keys, and normalizes truth-table feedback to the same `target_ids` alias.
+Because long resume chains can carry old materialization manifests with stale
+embedded learning rows, runtime learning export now recomputes Formalizer
+candidate learning rows from `candidate_rows` instead of trusting precomputed
+targetless rows. A fresh live continuation
+`runs/main_worker_critic_after_formalizer_memory_target_ids_live/research_agent_runtime_manifest.json`
+still ends at the expected 44/49 scorecard gate, then deterministic replay over
+its saved result regenerates 75 Formalizer candidate feedback rows with zero
+missing `target_ids`; six old helper rows without source-theorem provenance are
+scoped to their local Lean declaration but leave theorem-goal identity empty.
+This is memory/routing repair only; helper compilation remains non-proof
+evidence for the source theorem.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
