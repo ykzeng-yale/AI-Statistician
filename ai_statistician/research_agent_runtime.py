@@ -11748,6 +11748,23 @@ def run_research_agent_runtime(
             )
             if executor_results_path.exists():
                 executor_result_rows = _read_jsonl(executor_results_path)
+                strengthened_work_order_rows = (
+                    _merge_exact_semantic_definition_executor_results_into_work_orders(
+                        source_theorem_exact_semantic_definition_work_order_rows,
+                        executor_result_rows,
+                    )
+                )
+                if strengthened_work_order_rows:
+                    _write_jsonl(
+                        source_theorem_exact_semantic_definition_work_orders_path,
+                        source_theorem_exact_semantic_definition_work_order_rows,
+                    )
+                    learning_rows.extend(
+                        _runtime_source_theorem_exact_semantic_definition_learning_rows(
+                            strengthened_work_order_rows
+                        )
+                    )
+                    _write_jsonl(learning_path, learning_rows)
                 executor_result_next_action_rows = (
                     _append_runtime_generated_next_action_rows(
                         agenda_rows,
@@ -38689,6 +38706,9 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
 ) -> None:
     """Preserve reviewed-definition candidate evidence when deduping work orders."""
 
+    _normalize_exact_semantic_work_order_status_from_local_definition(existing)
+    candidate = dict(candidate)
+    _normalize_exact_semantic_work_order_status_from_local_definition(candidate)
     environment_scalar_keys = (
         "environment_repair_status",
         "candidate_lean_project_hint",
@@ -38732,6 +38752,12 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
             key in environment_scalar_keys
             and candidate_environment_is_stronger
             and candidate_value.strip()
+        ):
+            existing[key] = candidate_value
+        elif key == "semantic_definition_typecheck_evidence_status" and (
+            not existing_value.strip()
+            or _runtime_exact_semantic_definition_status_rank(candidate_value)
+            > _runtime_exact_semantic_definition_status_rank(existing_value)
         ):
             existing[key] = candidate_value
         elif not existing_value.strip():
@@ -38783,6 +38809,15 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
             and existing.get(key)
         ):
             merged_typechecked[key] = existing.get(key)
+        elif key == "semantic_definition_typecheck_evidence_status":
+            existing_status = str(existing.get(key, "") or "").strip()
+            merged_status = str(merged_typechecked.get(key, "") or "").strip()
+            if existing_status and (
+                not merged_status
+                or _runtime_exact_semantic_definition_status_rank(existing_status)
+                > _runtime_exact_semantic_definition_status_rank(merged_status)
+            ):
+                merged_typechecked[key] = existing_status
         elif not merged_typechecked.get(key) and existing.get(key):
             merged_typechecked[key] = existing.get(key)
     for key in bool_keys:
@@ -38810,6 +38845,7 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         existing[
             "source_theorem_exact_semantic_definition_typechecked_candidate"
         ] = merged_typechecked
+    _normalize_exact_semantic_work_order_status_from_local_definition(existing)
     existing_target_ids = _runtime_exact_semantic_definition_target_ids(
         existing,
         target_theorem_name=str(existing.get("target_theorem_name", "") or ""),
@@ -38831,6 +38867,65 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         existing.get("source_runtime_learning_task", "") or ""
     ).strip():
         existing["source_runtime_learning_task"] = candidate_source_task
+
+
+def _normalize_exact_semantic_work_order_status_from_local_definition(
+    row: dict[str, Any],
+) -> None:
+    if not (
+        row.get("local_definition_lean_compiled") is True
+        or row.get("local_lean_compiled") is True
+    ):
+        return
+    compiled_status = (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    current_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "") or ""
+    ).strip()
+    if (
+        not current_status
+        or _runtime_exact_semantic_definition_status_rank(compiled_status)
+        > _runtime_exact_semantic_definition_status_rank(current_status)
+    ):
+        row["semantic_definition_typecheck_evidence_status"] = compiled_status
+
+
+def _merge_exact_semantic_definition_executor_results_into_work_orders(
+    work_order_rows: list[dict[str, Any]],
+    executor_result_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    work_orders_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in work_order_rows:
+        if not isinstance(row, dict):
+            continue
+        key = (
+            str(row.get("target_theorem_name", "") or "").strip(),
+            str(row.get("placeholder_symbol", "") or "").strip(),
+        )
+        if key[0] and key[1]:
+            work_orders_by_key.setdefault(key, row)
+    strengthened_rows: list[dict[str, Any]] = []
+    for result in executor_result_rows:
+        if not isinstance(result, Mapping):
+            continue
+        key = (
+            str(result.get("target_theorem_name", "") or "").strip(),
+            str(result.get("placeholder_symbol", "") or "").strip(),
+        )
+        if not key[0] or not key[1]:
+            continue
+        existing = work_orders_by_key.get(key)
+        if existing is None:
+            continue
+        before = dict(existing)
+        _merge_exact_semantic_definition_work_order_candidate_metadata(
+            existing,
+            result,
+        )
+        if existing != before:
+            strengthened_rows.append(dict(existing))
+    return strengthened_rows
 
 
 def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(

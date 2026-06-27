@@ -15269,6 +15269,76 @@ def test_runtime_agenda_dedupe_keeps_compiled_exact_semantic_status() -> None:
     assert compacted[0]["proof_boundary"] == runtime_module.KERNEL_PROOF_BOUNDARY
 
 
+def test_exact_semantic_executor_results_strengthen_work_order_feedback() -> None:
+    work_orders = [
+        {
+            "learning_task": "source_theorem_exact_semantic_definition_work_order",
+            "work_order_id": (
+                "source_theorem_exact_semantic_definition_work_order:covered"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "placeholder_symbol": "covered",
+            "definition_only_candidate_artifact_path": "runs/current/covered.lean",
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+            ),
+            "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+        }
+    ]
+    executor_results = [
+        {
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "source_lean_repair_task_id": (
+                "source_theorem_exact_semantic_definition_lean_repair_task:covered"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "placeholder_symbol": "covered",
+            "definition_only_candidate_artifact_path": "runs/current/covered.lean",
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+    ]
+
+    strengthened_rows = (
+        runtime_module._merge_exact_semantic_definition_executor_results_into_work_orders(
+            work_orders,
+            executor_results,
+        )
+    )
+    feedback = (
+        runtime_module._runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+            work_orders,
+            source="unit-test",
+        )
+    )
+
+    assert len(strengthened_rows) == 1
+    assert work_orders[0]["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert feedback["work_orders"][0][
+        "semantic_definition_typecheck_evidence_status"
+    ] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert feedback["proof_evidence_status"] == (
+        "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
     premise_row = {
         "schema_version": 1,
