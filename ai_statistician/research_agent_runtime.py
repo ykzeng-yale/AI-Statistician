@@ -5344,6 +5344,14 @@ def _materialize_formalizer_lean_candidate_artifacts(
             "proves the source theorem."
         ),
     }
+    manifest_payload = _normalize_formalizer_lean_candidate_materialization_artifact(
+        manifest_payload
+    )
+    learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
+        manifest_payload
+    )
+    manifest_payload["learning_rows"] = learning_rows
+    manifest_payload["n_learning_rows"] = len(learning_rows)
     if manifest_path is not None:
         artifact_dir.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(
@@ -5480,6 +5488,192 @@ def _formalizer_candidate_support_not_source_theorem(candidate_kind: str) -> boo
     }
 
 
+def _normalize_formalizer_lean_candidate_materialization_artifact(
+    artifact: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(artifact)
+    candidate_rows = [
+        row
+        for row in normalized.get("candidate_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    rows: list[dict[str, Any]] = []
+    for row in candidate_rows:
+        candidate = dict(row)
+        candidate_kind = str(candidate.get("candidate_kind", "") or "")
+        support_candidate_not_source_theorem = bool(
+            candidate.get("support_candidate_not_source_theorem", False)
+        ) or _formalizer_candidate_support_not_source_theorem(candidate_kind)
+        source_theorem_target_known = candidate.get("source_theorem_target_known", None)
+        if source_theorem_target_known is None:
+            candidate_metadata = (
+                candidate.get("candidate_metadata", {})
+                if isinstance(candidate.get("candidate_metadata", {}), Mapping)
+                else {}
+            )
+            source_theorem_target_known = _source_theorem_target_known_value(
+                candidate_metadata.get("source_theorem_target_provenance", {})
+            )
+        diagnostic_helper_not_source_theorem = bool(
+            candidate.get("diagnostic_helper_not_source_theorem", False)
+        ) or source_theorem_target_known is False
+        source_theorem_candidate_evidence_eligible = (
+            not diagnostic_helper_not_source_theorem
+            and not support_candidate_not_source_theorem
+        )
+        local_lean_compiled = bool(candidate.get("local_lean_compiled", False))
+        candidate["source_theorem_target_known"] = source_theorem_target_known
+        candidate["diagnostic_helper_not_source_theorem"] = (
+            diagnostic_helper_not_source_theorem
+        )
+        candidate["support_candidate_not_source_theorem"] = (
+            support_candidate_not_source_theorem
+        )
+        candidate["source_theorem_candidate_evidence_eligible"] = (
+            source_theorem_candidate_evidence_eligible
+        )
+        candidate["kernel_verified"] = local_lean_compiled
+        candidate["proof_evidence_status"] = _formalizer_candidate_proof_evidence_status(
+            local_lean_compiled=local_lean_compiled,
+            diagnostic_helper_not_source_theorem=(
+                diagnostic_helper_not_source_theorem
+            ),
+            support_candidate_not_source_theorem=support_candidate_not_source_theorem,
+        )
+        candidate["source_theorem_proof_evidence_status"] = (
+            _formalizer_candidate_source_theorem_proof_evidence_status(
+                local_lean_compiled=local_lean_compiled,
+                source_theorem_candidate_evidence_eligible=(
+                    source_theorem_candidate_evidence_eligible
+                ),
+            )
+        )
+        candidate["boundary"] = _formalizer_candidate_proof_boundary(
+            diagnostic_helper_not_source_theorem=diagnostic_helper_not_source_theorem,
+            support_candidate_not_source_theorem=support_candidate_not_source_theorem,
+        )
+        rows.append(candidate)
+
+    local_checked_rows = [row for row in rows if row.get("local_lean_attempted")]
+    local_compiled_rows = [row for row in rows if row.get("local_lean_compiled")]
+    compiled_source_candidate_rows = [
+        row
+        for row in local_compiled_rows
+        if bool(row.get("source_theorem_candidate_evidence_eligible", False))
+    ]
+    compiled_support_candidate_rows = [
+        row
+        for row in local_compiled_rows
+        if bool(row.get("support_candidate_not_source_theorem", False))
+    ]
+    compiled_diagnostic_helper_rows = [
+        row
+        for row in local_compiled_rows
+        if bool(row.get("diagnostic_helper_not_source_theorem", False))
+    ]
+    live_proof_state_request_rows = [
+        row
+        for row in rows
+        if isinstance(row.get("live_proof_state_request", {}), Mapping)
+        and row.get("live_proof_state_request")
+    ]
+    lean_lsp_mcp_ready_rows = [
+        row
+        for row in live_proof_state_request_rows
+        if "lean_lsp_mcp"
+        in tuple(
+            row.get("live_proof_state_request", {}).get("provider_preferences", ())
+        )
+    ]
+    normalized["candidate_rows"] = rows
+    normalized["n_candidate_sources"] = len(rows)
+    normalized["n_candidate_artifacts_written"] = len(
+        [row for row in rows if row.get("artifact_path")]
+    )
+    normalized["n_precheck_rejected"] = len(
+        [
+            row
+            for row in rows
+            if row.get("precheck_status") == "REJECTED_BY_RUNTIME_PRECHECK"
+        ]
+    )
+    normalized["local_lean_attempted"] = bool(local_checked_rows)
+    normalized["n_local_lean_checked"] = len(local_checked_rows)
+    normalized["n_local_lean_compiled"] = len(local_compiled_rows)
+    normalized["n_local_lean_compiled_diagnostic_helpers"] = len(
+        compiled_diagnostic_helper_rows
+    )
+    normalized["n_local_lean_compiled_support_candidates"] = len(
+        compiled_support_candidate_rows
+    )
+    normalized["n_local_lean_compiled_source_theorem_candidates"] = len(
+        compiled_source_candidate_rows
+    )
+    normalized["n_live_proof_state_requests"] = max(
+        int(normalized.get("n_live_proof_state_requests", 0) or 0),
+        len(live_proof_state_request_rows),
+    )
+    normalized["n_lean_lsp_mcp_ready_requests"] = max(
+        int(normalized.get("n_lean_lsp_mcp_ready_requests", 0) or 0),
+        len(lean_lsp_mcp_ready_rows),
+    )
+    normalized["kernel_verified"] = bool(local_compiled_rows)
+    normalized["source_theorem_kernel_verified"] = False
+    normalized["proof_evidence_status"] = (
+        "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+        if compiled_source_candidate_rows
+        else (
+            "FORMALIZER_SUPPORT_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED_"
+            "NOT_SOURCE_THEOREM_PROOF"
+            if compiled_support_candidate_rows
+            else (
+                "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+                "NOT_SOURCE_THEOREM_PROOF"
+                if compiled_diagnostic_helper_rows
+                else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+            )
+        )
+    )
+    normalized["source_theorem_proof_evidence_status"] = (
+        "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+        if compiled_source_candidate_rows
+        else (
+            "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+            if local_compiled_rows
+            else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+        )
+    )
+    normalized["boundary"] = (
+        "Formalizer Lean candidate materialization creates concrete files for "
+        "ProofEngineer consumption. It is only kernel proof evidence for the "
+        "exact candidate artifact. Rows with source_theorem_target_known=false "
+        "are diagnostic/helper evidence only; source-to-bridge premise "
+        "derivation candidates are support evidence only. Neither category "
+        "proves the source theorem."
+    )
+    return normalized
+
+
+def _normalize_runtime_blackboard_artifacts(
+    artifacts: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized: dict[str, Any] = {}
+    for artifact_id, artifact in artifacts.items():
+        if (
+            isinstance(artifact, Mapping)
+            and str(artifact.get("artifact_kind", "") or "")
+            == "RuntimeFormalizerLeanCandidateMaterialization"
+        ):
+            normalized[str(artifact_id)] = (
+                _normalize_formalizer_lean_candidate_materialization_artifact(
+                    artifact
+                )
+            )
+        else:
+            normalized[str(artifact_id)] = artifact
+    return normalized
+
+
 def _formalizer_lean_candidate_target_context(
     candidate: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -5560,6 +5754,9 @@ def _formalizer_lean_candidate_target_context(
 def _formalizer_lean_candidate_materialization_learning_rows(
     manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
+    manifest = _normalize_formalizer_lean_candidate_materialization_artifact(
+        manifest
+    )
     question = (
         manifest.get("question", {})
         if isinstance(manifest.get("question"), Mapping)
@@ -8947,7 +9144,9 @@ def run_research_agent_runtime(
         blackboard = BlackboardState(project_id=f"ai_statistician:{question.id}")
         rehydrated_artifacts = initial_blackboard_artifacts.get(question.id, {})
         if isinstance(rehydrated_artifacts, Mapping):
-            blackboard.artifacts.update(dict(rehydrated_artifacts))
+            blackboard.artifacts.update(
+                _normalize_runtime_blackboard_artifacts(rehydrated_artifacts)
+            )
         blackboard.artifacts[llm_topology["manifest_id"]] = llm_topology
         formalization_subsystem = FormalizationEvaluatorRuntimeSubsystem(
             proposal_agent=formalizer,
@@ -9072,6 +9271,9 @@ def run_research_agent_runtime(
             max_iterations=config.max_iterations,
             max_transient_subsystem_retries=config.max_subsystem_retries,
             progress_callback=record_progress,
+        )
+        result.blackboard.artifacts = _normalize_runtime_blackboard_artifacts(
+            result.blackboard.artifacts
         )
         result_json = result.to_json()
         result_path = out_dir / f"{_safe_identifier(question.id)}_runtime_result.json"
@@ -34695,6 +34897,9 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 rows.extend(_generated_simulation_feedback_learning_rows(artifact))
                 continue
             if artifact_kind == "RuntimeFormalizerLeanCandidateMaterialization":
+                artifact = _normalize_formalizer_lean_candidate_materialization_artifact(
+                    artifact
+                )
                 rows.extend(
                     _runtime_learning_row_with_surface_targets(item)
                     for item in _formalizer_lean_candidate_materialization_learning_rows(
@@ -43028,6 +43233,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     counts.get("primitives", 0) or 0
                 )
             elif kind == "RuntimeFormalizerLeanCandidateMaterialization":
+                artifact = _normalize_formalizer_lean_candidate_materialization_artifact(
+                    artifact
+                )
                 proof["n_formalizer_lean_candidate_materialization_manifests"] = (
                     int(
                         proof.get(

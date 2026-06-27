@@ -427,6 +427,7 @@ from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
+    _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
     run_research_agent_runtime,
 )
@@ -612,7 +613,7 @@ def _runtime_resume_blackboard_artifacts(
         blackboard_artifacts = blackboard.get("artifacts", {})
         if not isinstance(blackboard_artifacts, Mapping):
             return {}
-        return dict(blackboard_artifacts)
+        return _normalize_runtime_blackboard_artifacts(blackboard_artifacts)
     return {}
 
 

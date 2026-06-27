@@ -5405,6 +5405,91 @@ def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
     )
 
 
+def test_runtime_normalizes_stale_source_to_bridge_materialization_artifact() -> None:
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:stale_support",
+        "manifest_path": "runs/stale_support/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {"id": "conformal_prediction_coverage"},
+        "task_id": "formalize-lean-repair:conformal_prediction_coverage:stale",
+        "source_formalizer_packet_id": "formalizer_proposal:stale_support",
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "hGoodRankImpliesCovered",
+                "candidate_kind": "source_to_bridge_premise_derivation_candidate",
+                "source_field": "source_to_bridge_premise_derivation_candidates",
+                "source_hash": "stale-support",
+                "lean_source_excerpt": (
+                    "theorem hGoodRankImpliesCovered "
+                    "(good_rank_event coverage_event : Prop) "
+                    "(h : good_rank_event -> coverage_event) "
+                    "(hg : good_rank_event) : coverage_event := h hg"
+                ),
+                "artifact_path": "runs/stale_support/001.lean",
+                "kernel_check_artifact_path": "runs/stale_support/001.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "local_lean_exit_status": "0",
+                "kernel_verified": True,
+                "source_theorem_candidate_evidence_eligible": True,
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+                ),
+                "source_theorem_proof_evidence_status": (
+                    "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+                ),
+            }
+        ],
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 1,
+        "n_local_lean_compiled_source_theorem_candidates": 1,
+        "source_theorem_proof_evidence_status": (
+            "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+        ),
+    }
+
+    normalized_artifacts = runtime_module._normalize_runtime_blackboard_artifacts(
+        {manifest["manifest_id"]: manifest}
+    )
+    normalized = normalized_artifacts[manifest["manifest_id"]]
+    row = normalized["candidate_rows"][0]
+
+    assert row["support_candidate_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert row["proof_evidence_status"] == (
+        "FORMALIZER_SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_"
+        "LOCAL_LEAN_KERNEL_VERIFIED_SUPPORT_ONLY"
+    )
+    assert row["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert normalized["n_local_lean_compiled_support_candidates"] == 1
+    assert normalized["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert normalized["source_theorem_kernel_verified"] is False
+    assert normalized["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": normalized_artifacts}}]
+    )
+
+    assert learning_rows[0]["support_candidate_not_source_theorem"] is True
+    assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is False
+    assert learning_rows[0]["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert learning_rows[0]["memory_status"] == (
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_KERNEL_VERIFIED_SUPPORT_ONLY"
+    )
+
+
 def test_formalizer_candidate_materialization_preserves_source_theorem_target_scope(
     tmp_path: Path,
 ) -> None:
