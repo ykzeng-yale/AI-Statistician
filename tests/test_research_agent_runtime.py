@@ -15225,6 +15225,50 @@ def test_generated_exact_semantic_next_action_merges_stronger_executor_status() 
     )
 
 
+def test_runtime_agenda_dedupe_keeps_compiled_exact_semantic_status() -> None:
+    stale_row = {
+        "id": "proof_feedback:source_theorem_exact_semantic_definitions:covered",
+        "question_id": "conformal_prediction_coverage",
+        "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+        "trigger": "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+        "action": "consume the exact-semantic work order",
+        "acceptance_gate": "review before proof-body search",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:covered",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "covered",
+        "definition_only_candidate_artifact_path": "runs/current/covered.lean",
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_typecheck_evidence_status": (
+            "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
+        ),
+        "runtime_generated_queue_name": "source_theorem_exact_semantic_definitions",
+        "priority": "high",
+        "proof_boundary": runtime_module.KERNEL_PROOF_BOUNDARY,
+    }
+    stronger_executor_row = {
+        **stale_row,
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+    }
+
+    compacted = _dedupe_runtime_next_action_agenda_rows(
+        [stale_row, stronger_executor_row]
+    )
+
+    assert len(compacted) == 1
+    assert compacted[0]["local_definition_lean_checked"] is True
+    assert compacted[0]["local_definition_lean_compiled"] is True
+    assert compacted[0]["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert compacted[0]["proof_boundary"] == runtime_module.KERNEL_PROOF_BOUNDARY
+
+
 def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
     premise_row = {
         "schema_version": 1,

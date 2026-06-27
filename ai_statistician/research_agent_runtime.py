@@ -11737,6 +11737,33 @@ def run_research_agent_runtime(
                 if executor_learning_rows:
                     learning_rows.extend(executor_learning_rows)
                     _write_jsonl(learning_path, learning_rows)
+            executor_results_path = Path(
+                str(
+                    source_theorem_exact_semantic_definition_lean_repair_executor_manifest.get(
+                        "execution_results_jsonl",
+                        "",
+                    )
+                    or ""
+                )
+            )
+            if executor_results_path.exists():
+                executor_result_rows = _read_jsonl(executor_results_path)
+                executor_result_next_action_rows = (
+                    _append_runtime_generated_next_action_rows(
+                        agenda_rows,
+                        executor_result_rows,
+                        queue_name="source_theorem_exact_semantic_definitions",
+                    )
+                )
+                if executor_result_next_action_rows:
+                    generated_next_action_rows.extend(executor_result_next_action_rows)
+                    learning_rows.extend(
+                        _runtime_generated_next_action_learning_rows(
+                            executor_result_next_action_rows
+                        )
+                    )
+                    _write_jsonl(agenda_path, agenda_rows)
+                    _write_jsonl(learning_path, learning_rows)
             environment_repair_tasks_path_value = str(
                 source_theorem_exact_semantic_definition_lean_repair_executor_manifest.get(
                     "lean_environment_repair_tasks_jsonl",
@@ -33511,6 +33538,7 @@ def _dedupe_runtime_next_action_agenda_rows(
         if not isinstance(row, Mapping):
             continue
         normalized = dict(row)
+        _normalize_exact_semantic_agenda_status_from_local_definition(normalized)
         key = _runtime_next_action_agenda_dedupe_key(normalized)
         existing = by_key.get(key)
         if existing is None:
@@ -33518,6 +33546,7 @@ def _dedupe_runtime_next_action_agenda_rows(
             compacted.append(normalized)
             continue
         _merge_runtime_next_action_agenda_row(existing, normalized)
+        _strengthen_runtime_next_action_agenda_row(existing, normalized)
     compacted = _prune_superseded_source_to_bridge_metadata_authoring_agenda_rows(
         compacted
     )
@@ -33859,6 +33888,9 @@ def _strengthen_runtime_next_action_agenda_row(
     existing: dict[str, Any],
     incoming: Mapping[str, Any],
 ) -> None:
+    _normalize_exact_semantic_agenda_status_from_local_definition(existing)
+    incoming_normalized = dict(incoming)
+    _normalize_exact_semantic_agenda_status_from_local_definition(incoming_normalized)
     for key in (
         "runtime_queue_status",
         "environment_repair_status",
@@ -33866,13 +33898,14 @@ def _strengthen_runtime_next_action_agenda_row(
         "definition_only_candidate_artifact_path",
         "recommended_next_action",
     ):
-        incoming_value = str(incoming.get(key, "") or "").strip()
+        incoming_value = str(incoming_normalized.get(key, "") or "").strip()
         existing_value = str(existing.get(key, "") or "").strip()
         if incoming_value and not existing_value:
             existing[key] = incoming_value
 
     incoming_semantic_status = str(
-        incoming.get("semantic_definition_typecheck_evidence_status", "") or ""
+        incoming_normalized.get("semantic_definition_typecheck_evidence_status", "")
+        or ""
     ).strip()
     existing_semantic_status = str(
         existing.get("semantic_definition_typecheck_evidence_status", "") or ""
@@ -33893,14 +33926,51 @@ def _strengthen_runtime_next_action_agenda_row(
         "semantic_definition_import_candidate_ready",
         "premise_derivation_kernel_verified",
     ):
-        if incoming.get(key) is True:
+        if incoming_normalized.get(key) is True:
             existing[key] = True
+    _normalize_exact_semantic_agenda_status_from_local_definition(existing)
 
-    incoming_commands = _runtime_recommended_commands(incoming)
+    incoming_commands = _runtime_recommended_commands(incoming_normalized)
     if incoming_commands:
         commands = _runtime_recommended_commands(existing)
         commands.extend(incoming_commands)
         existing["recommended_commands"] = list(dict.fromkeys(commands))
+
+
+def _normalize_exact_semantic_agenda_status_from_local_definition(
+    row: dict[str, Any],
+) -> None:
+    if not _runtime_next_action_agenda_downstream_of_metadata_authoring(row):
+        return
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in (
+            "id",
+            "trigger",
+            "runtime_queue_status",
+            "owner_subsystem",
+            "runtime_generated_queue_name",
+        )
+    ).lower()
+    if "exact_semantic_definition" not in combined:
+        return
+    if not (
+        row.get("local_definition_lean_compiled") is True
+        or row.get("local_lean_compiled") is True
+    ):
+        return
+    current_status = str(
+        row.get("semantic_definition_typecheck_evidence_status", "") or ""
+    ).strip()
+    compiled_status = (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    if (
+        not current_status
+        or _runtime_exact_semantic_definition_status_rank(compiled_status)
+        > _runtime_exact_semantic_definition_status_rank(current_status)
+    ):
+        row["semantic_definition_typecheck_evidence_status"] = compiled_status
 
 
 def _runtime_exact_semantic_definition_status_rank(status: str) -> int:
