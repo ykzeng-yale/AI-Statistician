@@ -183,6 +183,7 @@ from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator imp
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
 from ai_statistician.research_agent_runtime_audit import (
+    _audit_result_path,
     _audit_topology,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
     _manifest_or_proof_summary_count,
@@ -13253,6 +13254,44 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
     assert "integrated_formalizer_repair_sequences=1" in rows[
         "formalizer_lean_candidate_repair_component_gate"
     ]["evidence"]
+
+
+def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "project_id": "runtime:conformal_prediction_coverage",
+                    "artifacts": {
+                        "proof_state_feedback_manifest:legacy_static": {
+                            "lean_lsp_mcp_live_called": False,
+                        },
+                        "formalizer_lean_candidate_proof_state_feedback_manifest:live": {
+                            "artifact_kind": (
+                                "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+                            ),
+                            "provider_name": "lean_lsp_mcp_proof_state_feedback",
+                            "lean_lsp_mcp_live_called": True,
+                            "counts": {
+                                "lean_lsp_mcp_tool_calls": 3,
+                                "local_lean_tool_calls": 1,
+                            },
+                        },
+                    },
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit_row = _audit_result_path(result_path)
+
+    assert audit_row.n_lean_lsp_mcp_live_calls == 1
 
 
 def test_algorithm_engineer_generated_code_repair_eval_static_fixture(

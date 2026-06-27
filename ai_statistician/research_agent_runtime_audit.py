@@ -33,6 +33,10 @@ REQUIRED_SUBSYSTEMS = (
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
+PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
+    "proof_state_feedback_manifest:",
+    "formalizer_lean_candidate_proof_state_feedback_manifest:",
+)
 
 
 def _manifest_or_proof_summary_count(
@@ -1565,7 +1569,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     simulation = _artifacts_with_prefix(artifacts, "simulation_manifest:")
     algorithm = _artifacts_with_prefix(artifacts, "algorithm_sandbox_manifest:")
     formalization = _artifacts_with_prefix(artifacts, "formalization_manifest:")
-    proof_state_feedback = _artifacts_with_prefix(artifacts, "proof_state_feedback_manifest:")
+    proof_state_feedback = _proof_state_feedback_artifacts(artifacts)
     critic = _artifacts_with_prefix(artifacts, "critic_evaluator_manifest:")
     required_counts = {
         "retrieval manifest": retrieval,
@@ -3641,6 +3645,13 @@ def _artifacts_with_prefix(artifacts: Mapping[str, Any], prefix: str) -> list[di
     for key, value in artifacts.items():
         if str(key).startswith(prefix) and isinstance(value, Mapping):
             rows.append(dict(value))
+    return rows
+
+
+def _proof_state_feedback_artifacts(artifacts: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for prefix in PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES:
+        rows.extend(_artifacts_with_prefix(artifacts, prefix))
     return rows
 
 
