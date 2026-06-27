@@ -37767,6 +37767,62 @@ def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> N
     )
 
 
+def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready() -> None:
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["conformal_prediction_coverage"],
+        "source_theorem_exact_proof_body_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status": {
+            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY": 1,
+        },
+        "source_theorem_ready_for_exact_proof_body": False,
+        "n_formal_gaps": 76,
+    }
+    truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
+
+    rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["input_summary"]["source_theorem_ready_for_exact_proof_body"] is False
+    assert row["input_summary"]["proof_body_semantic_review_blocked"] is True
+    assert (
+        row["input_summary"]["failure_classification"]
+        == "source_theorem_semantic_alignment_unreviewed"
+    )
+    assert (
+        "review exact source-theorem semantic definitions"
+        in row["recommended_next_action"]
+    )
+
+    generated_agenda = _append_runtime_generated_next_action_rows(
+        [],
+        rows,
+        queue_name="runtime_evidence_truth_table",
+    )
+
+    assert len(generated_agenda) == 1
+    assert (
+        "review exact source-theorem semantic definitions"
+        in generated_agenda[0]["action"]
+    )
+    assert (
+        generated_agenda[0]["proof_boundary"]
+        == runtime_module.KERNEL_PROOF_BOUNDARY
+    )
+
+
 def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_handoffs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

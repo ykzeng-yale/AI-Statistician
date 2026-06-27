@@ -1214,6 +1214,14 @@ def _runtime_evidence_truth_learning_rows(
         if str(value).strip()
     ][:4]
     blocker = str(truth_table.get("current_exact_proof_body_blocker", "") or "")
+    proof_body_goal_reached = proof_body_status in {
+        "PROOF_BODY_REACHED_OPEN",
+        "SOURCE_KERNEL_VERIFIED",
+    }
+    semantic_review_blocked = blocker in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+    source_theorem_ready_for_exact_proof_body = bool(
+        proof_body_goal_reached and not semantic_review_blocked
+    )
     target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
         manifest
     )
@@ -1237,7 +1245,13 @@ def _runtime_evidence_truth_learning_rows(
         premise_name, premise_target_type = [
             value.strip() for value in goal_excerpt[0].split(":", 1)
         ]
-    if proof_body_status == "PROOF_BODY_REACHED_OPEN":
+    if semantic_review_blocked:
+        target_behavior = (
+            "review exact source-theorem semantic definitions before resuming "
+            "proof-body search; do not treat a semantic-review blocker as proof-body "
+            "readiness"
+        )
+    elif proof_body_status == "PROOF_BODY_REACHED_OPEN":
         target_behavior = (
             "route to ProofEngineer/LeanProver for exact source proof-body repair; "
             "if the blocker is missing bridge premises, route the premise derivation "
@@ -1281,10 +1295,11 @@ def _runtime_evidence_truth_learning_rows(
                 "target_ids": target_theorem_names,
                 "target_theorem_goal_ids": target_theorem_names,
                 "source_theorem_kernel_verified": source_verified,
-                "source_theorem_ready_for_exact_proof_body": proof_body_status
-                in {"PROOF_BODY_REACHED_OPEN", "SOURCE_KERNEL_VERIFIED"},
-                "proof_body_goal_reached": proof_body_status
-                in {"PROOF_BODY_REACHED_OPEN", "SOURCE_KERNEL_VERIFIED"},
+                "source_theorem_ready_for_exact_proof_body": (
+                    source_theorem_ready_for_exact_proof_body
+                ),
+                "proof_body_goal_reached": proof_body_goal_reached,
+                "proof_body_semantic_review_blocked": semantic_review_blocked,
                 "failure_classification": blocker,
                 "premise_name": premise_name,
                 "premise_derivation_gap_kind": premise_gap_kind,
