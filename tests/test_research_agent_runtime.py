@@ -13,6 +13,7 @@ import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.cli import (
     _load_runtime_learning_memory,
     _apply_research_agent_runtime_capability_eval_preset,
+    _effective_resume_through_architect,
     _research_agent_runtime_capability_config_errors,
     _proof_state_provider_from_args,
     main,
@@ -40578,6 +40579,48 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert _research_agent_runtime_capability_config_errors(args) == []
 
 
+def test_capability_eval_resume_defaults_through_configured_architect() -> None:
+    args = argparse.Namespace(
+        capability_eval=True,
+        resume_runtime_manifest="runs/previous/research_agent_runtime_manifest.json",
+        resume_through_architect=None,
+    )
+
+    assert (
+        _effective_resume_through_architect(
+            args,
+            architect_coordinator_configured=True,
+        )
+        is True
+    )
+    assert (
+        _effective_resume_through_architect(
+            args,
+            architect_coordinator_configured=False,
+        )
+        is False
+    )
+
+    args.resume_through_architect = False
+    assert (
+        _effective_resume_through_architect(
+            args,
+            architect_coordinator_configured=True,
+        )
+        is False
+    )
+
+    args.capability_eval = False
+    args.resume_through_architect = True
+    assert (
+        _effective_resume_through_architect(
+            args,
+            architect_coordinator_configured=True,
+        )
+        is True
+    )
+
+
 def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     root = Path("runs/test_research_agent_runtime_cli")
     shutil.rmtree(root, ignore_errors=True)
@@ -40966,6 +41009,7 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     manifest = json.loads((out_dir / "research_agent_runtime_manifest.json").read_text())
     assert manifest["question_ids"] == ["causal_ate_aipw"]
     assert manifest["runtime_resumed_from_pending_task"] is True
+    assert manifest["runtime_resume_policy"] == "direct_pending_task"
     assert manifest["runtime_resume_context"]["question_ids"] == ["causal_ate_aipw"]
     pending_task_path = Path(manifest["artifacts"]["runtime_pending_next_task_json"])
     assert pending_task_path.exists()
@@ -41029,6 +41073,7 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         (architect_resume_out_dir / "research_agent_runtime_manifest.json").read_text()
     )
     assert architect_manifest["runtime_resumed_from_pending_task"] is True
+    assert architect_manifest["runtime_resume_policy"] == "architect_resume_review"
     assert architect_manifest["runtime_architect_coordinator_registered"] is True
     assert architect_manifest["runtime_architect_coordinator_executed"] is True
     assert architect_manifest["n_runtime_architect_coordinator_traces"] == 1
@@ -41126,6 +41171,7 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         ]
         > 0
     )
+    assert second_manifest["runtime_resume_policy"] == "direct_pending_task"
     second_result = json.loads(
         (second_out_dir / "causal_ate_aipw_runtime_result.json").read_text()
     )
@@ -41177,6 +41223,7 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         third_manifest["runtime_input_context"]["runtime_learning_memory_supplied"]
         is True
     )
+    assert third_manifest["runtime_resume_policy"] == "direct_pending_task"
     assert (
         third_manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"]
         > 0

@@ -9440,6 +9440,14 @@ def run_research_agent_runtime(
     evidence_summary = _runtime_evidence_summary(results)
     proof_control_summary = evidence_summary["proof"]["proof_obligation_control"]
     llm_topology_summary = _runtime_llm_topology_summary(llm_topology)
+    if not initial_task_overrides:
+        runtime_resume_policy = "fresh_start"
+    elif config.resume_through_architect and architect_coordinator is not None:
+        runtime_resume_policy = "architect_resume_review"
+    elif config.resume_through_architect:
+        runtime_resume_policy = "direct_pending_task_no_architect_configured"
+    else:
+        runtime_resume_policy = "direct_pending_task"
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -9458,6 +9466,7 @@ def run_research_agent_runtime(
         ),
         "runtime_resume_context": resume_context,
         "runtime_resumed_from_pending_task": bool(initial_task_overrides),
+        "runtime_resume_policy": runtime_resume_policy,
         "runtime_architect_coordinator_registered": architect_coordinator is not None,
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,

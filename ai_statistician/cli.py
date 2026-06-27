@@ -8762,6 +8762,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)
     formalizer = _build_formalizer_agent_from_args(args, default_model=model)
     critic_evaluator = _build_critic_evaluator_agent_from_args(args, default_model=model)
+    resume_through_architect = _effective_resume_through_architect(
+        args,
+        architect_coordinator_configured=architect_coordinator is not None,
+    )
     manifest = run_research_agent_runtime(
         questions,
         Path(args.out),
@@ -8782,9 +8786,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
-            resume_through_architect=bool(
-                getattr(args, "resume_through_architect", False)
-            ),
+            resume_through_architect=resume_through_architect,
             formal_verification_policy=str(
                 getattr(args, "formal_verification_policy", "optional") or "optional"
             ),
@@ -9608,6 +9610,21 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if not roots and default_source_root.exists():
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
+
+
+def _effective_resume_through_architect(
+    args: argparse.Namespace,
+    *,
+    architect_coordinator_configured: bool,
+) -> bool:
+    explicit = getattr(args, "resume_through_architect", None)
+    if explicit is not None:
+        return bool(explicit)
+    return (
+        bool(getattr(args, "capability_eval", False))
+        and bool(str(getattr(args, "resume_runtime_manifest", "") or "").strip())
+        and bool(architect_coordinator_configured)
+    )
 
 
 def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
@@ -15709,12 +15726,25 @@ def build_parser() -> argparse.ArgumentParser:
             "payload instead of restarting at Architect/Retrieval"
         ),
     )
-    research_agent_runtime.add_argument(
+    resume_architect_group = research_agent_runtime.add_mutually_exclusive_group()
+    resume_architect_group.add_argument(
         "--resume-through-architect",
+        dest="resume_through_architect",
         action="store_true",
+        default=None,
         help=(
             "when --resume-runtime-manifest and ArchitectCoordinator are configured, "
             "run an Architect resume-review turn before returning to the pending task"
+        ),
+    )
+    resume_architect_group.add_argument(
+        "--no-resume-through-architect",
+        dest="resume_through_architect",
+        action="store_false",
+        help=(
+            "when --resume-runtime-manifest is set, resume the pending AgentTask "
+            "directly; intended for debug/replay runs because capability audits will "
+            "not count this as live ArchitectCoordinator orchestration"
         ),
     )
     research_agent_runtime.add_argument(
