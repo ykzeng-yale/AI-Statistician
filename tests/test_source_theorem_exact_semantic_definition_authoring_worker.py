@@ -331,6 +331,151 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     )
 
 
+def test_authoring_worker_preserves_review_decision_without_proof_body_readiness(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    task = json.loads(tasks_path.read_text(encoding="utf-8"))
+    task.update(
+        {
+            "source_execution_status": (
+                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+            ),
+            "authoring_trigger": (
+                "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+            ),
+            "authoring_mode": "review_typechecked_semantic_definition_candidate",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+            ),
+            "semantic_alignment_blockers": [],
+            "local_definition_lean_compiled": True,
+            "semantic_review_required_before_proof_body": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+            "semantic_review_contract": {
+                "review_decision_values": [
+                    "approved_definition_candidate",
+                    "repair_required",
+                    "blocked_or_insufficient_context",
+                ],
+                "source_theorem_ready_for_exact_proof_body": False,
+                "proof_body_promotion_gate": (
+                    "LLM semantic review evidence is not source theorem proof."
+                ),
+            },
+        }
+    )
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+    static_response = {
+        **_valid_authoring_response(),
+        "semantic_review_decision": "approved",
+        "semantic_review_evidence": [
+            "checked s and q_hat against the source theorem binders",
+            "checked required adapter dependencies",
+        ],
+        "semantic_review_required_before_proof_body": False,
+        "source_theorem_ready_for_exact_proof_body": True,
+    }
+
+    authoring_manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticJSONGeneratorBackend(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="static",
+            model="static",
+            dry_run=False,
+            max_repair_attempts=0,
+        ),
+    )
+
+    assert authoring_manifest["n_semantic_review_prompt_packets"] == 1
+    assert (
+        authoring_manifest["n_candidate_packets_with_semantic_review_decision"]
+        == 1
+    )
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(
+            authoring_manifest["authoring_prompt_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    assert prompt_payload["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert prompt_payload["semantic_review_required_before_proof_body"] is True
+    assert prompt_payload["source_theorem_ready_for_exact_proof_body"] is False
+    assert prompt_payload["semantic_review_contract"][
+        "source_theorem_ready_for_exact_proof_body"
+    ] is False
+    assert "semantic_review_decision" in prompt_packets[0]["response_schema"][
+        "properties"
+    ]
+    candidate_packets = [
+        json.loads(line)
+        for line in Path(
+            authoring_manifest["authoring_candidate_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert candidate_packets[0]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
+    assert candidate_packets[0]["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+    assert candidate_packets[0]["semantic_review_required_before_proof_body"] is True
+    assert candidate_packets[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert (
+        candidate_packets[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"]
+        is True
+    )
+    assert candidate_packets[0]["source_theorem_kernel_verified"] is False
+    assert candidate_packets[0]["semantic_definition_kernel_verified"] is False
+
+    materializer_manifest = (
+        run_source_theorem_exact_semantic_definition_authoring_candidate_materializer(
+            out_dir=tmp_path / "materializer",
+            authoring_worker_manifest=Path(authoring_manifest["manifest_path"]),
+            config=AuthoringCandidateMaterializerConfig(),
+        )
+    )
+
+    assert (
+        materializer_manifest[
+            "n_materialized_candidates_with_semantic_review_decision"
+        ]
+        == 1
+    )
+    rows = [
+        json.loads(line)
+        for line in Path(
+            materializer_manifest["materialization_rows_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert rows[0]["semantic_review_decision"] == "approved_definition_candidate"
+    assert rows[0]["semantic_review_required_before_proof_body"] is True
+    assert rows[0]["source_theorem_ready_for_exact_proof_body"] is False
+    repair_tasks = [
+        json.loads(line)
+        for line in Path(
+            materializer_manifest["materialized_lean_repair_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert repair_tasks[0]["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert repair_tasks[0]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
+    assert repair_tasks[0]["semantic_review_required_before_proof_body"] is True
+    assert repair_tasks[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert repair_tasks[0]["definition_contract"]["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+
+
 def test_authoring_worker_filters_by_placeholder_symbol(
     tmp_path: Path,
 ) -> None:

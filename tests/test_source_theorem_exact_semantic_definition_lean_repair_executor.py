@@ -452,6 +452,23 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert authoring_tasks[0]["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
     )
+    assert (
+        authoring_tasks[0]["semantic_review_required_before_proof_body"] is True
+    )
+    assert authoring_tasks[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert authoring_tasks[0]["semantic_review_contract"][
+        "review_decision_values"
+    ] == [
+        "approved_definition_candidate",
+        "repair_required",
+        "blocked_or_insufficient_context",
+    ]
+    assert authoring_tasks[0]["semantic_review_contract"][
+        "source_theorem_ready_for_exact_proof_body"
+    ] is False
+    assert "LLM semantic review evidence is not source theorem proof" in (
+        authoring_tasks[0]["semantic_review_contract"]["proof_body_promotion_gate"]
+    )
     assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
         definition_only_candidate
     )

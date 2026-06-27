@@ -72,8 +72,10 @@ SYSTEM_PROMPT = (
     "an explicit binder, and report uncertain imports as known gaps rather than "
     "depending on broad unavailable modules. You are a generator only: do not "
     "claim tool execution, file writes, local Lean checking, theorem proof, or "
-    "kernel verification. Return only one valid JSON object satisfying the "
-    "requested schema."
+    "kernel verification. If the task is a semantic review of a typechecked "
+    "definition-only candidate, report a semantic_review_decision as non-proof "
+    "evidence, but do not claim proof-body readiness. Return only one valid "
+    "JSON object satisfying the requested schema."
 )
 FORBIDDEN_SOURCE_FRAGMENTS = (
     "axiom ",
@@ -307,6 +309,11 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         "placeholder_symbol_filter": list(config.placeholder_symbols),
         "normalized_placeholder_symbol_filter": sorted(placeholder_filter),
         "n_prompt_packets": len(prompt_packets),
+        "n_semantic_review_prompt_packets": sum(
+            1
+            for row in prompt_packets
+            if row.get("semantic_review_required_before_proof_body")
+        ),
         "n_candidate_definition_requests_autofilled": sum(
             1
             for row in prompt_packets
@@ -318,6 +325,12 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         "n_llm_attempted": len(attempted_prompt_ids),
         "n_candidate_packets": len(candidate_packets),
         "n_candidate_packets_ok": sum(1 for row in candidate_packets if row.get("ok")),
+        "n_candidate_packets_with_semantic_review_decision": sum(
+            1
+            for row in candidate_packets
+            if str(row.get("semantic_review_decision", "") or "")
+            not in {"", "not_reported"}
+        ),
         "n_candidate_packets_failed": sum(
             1 for row in candidate_packets if not row.get("ok")
         ),
@@ -461,6 +474,12 @@ def run_source_theorem_exact_semantic_definition_authoring_candidate_materialize
         ),
         "n_materialized_definition_only_candidates": sum(
             1 for row in materialization_rows if row.get("definition_only_candidate_artifact_path")
+        ),
+        "n_materialized_candidates_with_semantic_review_decision": sum(
+            1
+            for row in materialization_rows
+            if str(row.get("semantic_review_decision", "") or "")
+            not in {"", "not_reported"}
         ),
         "n_materialized_lean_repair_tasks": len(lean_repair_tasks),
         "n_blocked_candidates": sum(
@@ -799,6 +818,11 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         "semantic_alignment_blockers": list(
             task.get("semantic_alignment_blockers", []) or []
         )[:8],
+        "semantic_review_required_before_proof_body": bool(
+            task.get("semantic_review_required_before_proof_body", True)
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "semantic_review_contract": _semantic_review_contract(task),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         **_exact_semantic_definition_context(task),
         "candidate_definition_request": request,
@@ -861,6 +885,11 @@ def _prompt_payload(
         "semantic_alignment_blockers": list(
             task.get("semantic_alignment_blockers", []) or []
         )[:8],
+        "semantic_review_required_before_proof_body": bool(
+            task.get("semantic_review_required_before_proof_body", True)
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "semantic_review_contract": _semantic_review_contract(task),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
         "lean_authoring_environment_contract": (
@@ -891,6 +920,15 @@ def _prompt_payload(
             "known_gaps": [
                 "remaining semantic/typeclass gaps before local Lean checking"
             ],
+            "semantic_review_decision": (
+                "one of approved_definition_candidate, repair_required, "
+                "blocked_or_insufficient_context"
+            ),
+            "semantic_review_evidence": [
+                "specific binders, anchors, references, or diagnostics checked"
+            ],
+            "semantic_review_required_before_proof_body": True,
+            "source_theorem_ready_for_exact_proof_body": False,
             "forbidden_shortcuts_absent": True,
             "requires_local_lean_check": True,
         },
@@ -930,6 +968,50 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
             task.get("recommended_next_action", "") or ""
         ),
     }
+
+
+def _semantic_review_contract(task: Mapping[str, Any]) -> dict[str, Any]:
+    raw_contract = task.get("semantic_review_contract")
+    contract = dict(raw_contract) if isinstance(raw_contract, Mapping) else {}
+    contract.setdefault(
+        "contract_kind",
+        "exact_semantic_definition_authoring_semantic_review",
+    )
+    contract.setdefault(
+        "review_decision_values",
+        [
+            "approved_definition_candidate",
+            "repair_required",
+            "blocked_or_insufficient_context",
+        ],
+    )
+    contract.setdefault(
+        "required_review_checks",
+        [
+            "compare the candidate against source theorem binders",
+            "check required semantic anchors and adapter dependencies",
+            "preserve local Lean typecheckability constraints",
+            "list known gaps instead of guessing missing source context",
+        ],
+    )
+    contract["semantic_review_required_before_proof_body"] = bool(
+        task.get("semantic_review_required_before_proof_body", True)
+    )
+    contract["source_theorem_ready_for_exact_proof_body"] = False
+    contract.setdefault(
+        "proof_body_promotion_gate",
+        (
+            "LLM semantic review evidence is not source theorem proof and must "
+            "not set source_theorem_ready_for_exact_proof_body. A later local "
+            "Lean/AXLE recheck queue must verify any reviewed candidate before "
+            "exact proof-body work resumes."
+        ),
+    )
+    contract.setdefault(
+        "proof_evidence_status",
+        AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    )
+    return contract
 
 
 def _lean_authoring_environment_contract(
@@ -1236,6 +1318,55 @@ def validate_authoring_candidate_packet(packet: Mapping[str, Any]) -> list[str]:
     return sorted(set(errors))
 
 
+def _normalized_semantic_review_decision(value: Any) -> str:
+    text = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if text in {
+        "approved",
+        "approve",
+        "accepted",
+        "faithful",
+        "semantically_faithful",
+        "approved_definition_candidate",
+    }:
+        return "approved_definition_candidate"
+    if text in {
+        "repair",
+        "repair_required",
+        "needs_repair",
+        "revise",
+        "revision_required",
+        "not_faithful",
+    }:
+        return "repair_required"
+    if text in {
+        "blocked",
+        "insufficient_context",
+        "unknown",
+        "uncertain",
+        "blocked_or_insufficient_context",
+    }:
+        return "blocked_or_insufficient_context"
+    return "not_reported"
+
+
+def _semantic_review_status_from_decision(decision: str) -> str:
+    if decision == "approved_definition_candidate":
+        return "llm_semantic_review_approved_definition_candidate_not_proof"
+    if decision == "repair_required":
+        return "llm_semantic_review_repair_required_not_proof"
+    if decision == "blocked_or_insufficient_context":
+        return "llm_semantic_review_blocked_or_insufficient_context_not_proof"
+    return "llm_semantic_review_not_reported"
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, list | tuple):
+        return [str(item) for item in value if str(item).strip()]
+    if str(value or "").strip():
+        return [str(value)]
+    return []
+
+
 def _normalize_candidate_packet(
     payload: Mapping[str, Any],
     *,
@@ -1249,6 +1380,20 @@ def _normalize_candidate_packet(
 ) -> dict[str, Any]:
     placeholder = str(task.get("placeholder_symbol", "") or payload.get("placeholder_symbol", "") or "")
     body = dict(payload)
+    llm_claimed_source_theorem_ready = bool(
+        body.get("source_theorem_ready_for_exact_proof_body", False)
+    )
+    semantic_review_decision = _normalized_semantic_review_decision(
+        body.get("semantic_review_decision", "")
+        or body.get("semantic_review_status", "")
+    )
+    semantic_review_evidence = _string_list(
+        body.get("semantic_review_evidence", [])
+    )
+    if not semantic_review_evidence:
+        semantic_review_evidence = _string_list(
+            body.get("semantic_alignment_notes", [])
+        )
     body["placeholder_symbol"] = placeholder
     body["forbidden_shortcuts_absent"] = bool(
         body.get("forbidden_shortcuts_absent", False)
@@ -1258,6 +1403,15 @@ def _normalize_candidate_packet(
     body["local_definition_lean_compiled"] = False
     body["semantic_definition_kernel_verified"] = False
     body["source_theorem_kernel_verified"] = False
+    body["semantic_review_decision"] = semantic_review_decision
+    body["semantic_review_status"] = _semantic_review_status_from_decision(
+        semantic_review_decision
+    )
+    body["semantic_review_evidence"] = semantic_review_evidence
+    body["semantic_review_required_before_proof_body"] = True
+    body["llm_claimed_source_theorem_ready_for_exact_proof_body"] = (
+        llm_claimed_source_theorem_ready
+    )
     body["source_theorem_ready_for_exact_proof_body"] = False
     body["semantic_definition_typecheck_evidence_status"] = (
         "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
@@ -1536,6 +1690,13 @@ def _learning_row_from_prompt_packet(
         "semantic_alignment_blockers": list(
             packet.get("semantic_alignment_blockers", []) or []
         ),
+        "semantic_review_required_before_proof_body": bool(
+            packet.get("semantic_review_required_before_proof_body", True)
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "semantic_review_contract": dict(
+            packet.get("semantic_review_contract", {}) or {}
+        ),
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
             "authoring_trigger": str(packet.get("authoring_trigger", "") or ""),
@@ -1543,6 +1704,10 @@ def _learning_row_from_prompt_packet(
             "source_execution_status": str(
                 packet.get("source_execution_status", "") or ""
             ),
+            "semantic_review_required_before_proof_body": bool(
+                packet.get("semantic_review_required_before_proof_body", True)
+            ),
+            "source_theorem_ready_for_exact_proof_body": False,
             "placeholder_symbol": str(packet.get("placeholder_symbol", "") or ""),
             "lean_repair_action": str(packet.get("lean_repair_action", "") or ""),
             "repair_strategy": str(packet.get("repair_strategy", "") or ""),
@@ -1934,6 +2099,19 @@ def _materialization_row(
         "semantic_alignment_notes": list(
             packet.get("semantic_alignment_notes", []) or []
         ),
+        "semantic_review_decision": str(
+            packet.get("semantic_review_decision", "") or "not_reported"
+        ),
+        "semantic_review_status": str(
+            packet.get("semantic_review_status", "") or "llm_semantic_review_not_reported"
+        ),
+        "semantic_review_evidence": list(
+            packet.get("semantic_review_evidence", []) or []
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            packet.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
+        ),
         "semantic_alignment_constraints": semantic_alignment_constraints,
         "semantic_alignment_blockers": semantic_alignment_blockers,
         "missing_required_anchor_references": missing_source_anchor_references,
@@ -2030,7 +2208,29 @@ def _lean_repair_task_from_materialization_row(row: Mapping[str, Any]) -> dict[s
             "definition_design": str(row.get("definition_design", "") or ""),
             "known_gaps": list(row.get("known_gaps", []) or []),
             "required_imports": list(row.get("required_imports", []) or []),
+            "semantic_review_decision": str(
+                row.get("semantic_review_decision", "") or "not_reported"
+            ),
+            "semantic_review_status": str(
+                row.get("semantic_review_status", "")
+                or "llm_semantic_review_not_reported"
+            ),
+            "semantic_review_evidence": list(
+                row.get("semantic_review_evidence", []) or []
+            ),
         },
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or "not_reported"
+        ),
+        "semantic_review_status": str(
+            row.get("semantic_review_status", "") or "llm_semantic_review_not_reported"
+        ),
+        "semantic_review_evidence": list(row.get("semantic_review_evidence", []) or []),
+        "semantic_review_required_before_proof_body": True,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
+        ),
         "semantic_alignment_constraints": list(
             row.get("semantic_alignment_constraints", []) or []
         ),
@@ -2123,6 +2323,14 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
         ),
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or "not_reported"
+        ),
+        "semantic_review_status": str(
+            row.get("semantic_review_status", "") or "llm_semantic_review_not_reported"
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "source_theorem_ready_for_exact_proof_body": False,
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZED",
             "materialization_status": str(row.get("materialization_status", "") or ""),
@@ -2130,6 +2338,14 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
             "source_execution_status": str(
                 row.get("source_execution_status", "") or ""
             ),
+            "semantic_review_decision": str(
+                row.get("semantic_review_decision", "") or "not_reported"
+            ),
+            "semantic_review_status": str(
+                row.get("semantic_review_status", "")
+                or "llm_semantic_review_not_reported"
+            ),
+            "semantic_review_required_before_proof_body": True,
             "definition_only_candidate_artifact_path": str(
                 row.get("definition_only_candidate_artifact_path", "") or ""
             ),
@@ -2137,6 +2353,7 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
             "local_definition_lean_compiled": False,
             "semantic_definition_kernel_verified": False,
             "source_theorem_kernel_verified": False,
+            "source_theorem_ready_for_exact_proof_body": False,
             "validation_errors": list(row.get("validation_errors", []) or []),
         },
         "target_behavior": (
@@ -2633,6 +2850,10 @@ AUTHORING_RESPONSE_JSON_SCHEMA = {
         "binder_usage": {"type": "array"},
         "semantic_alignment_notes": {"type": "array"},
         "known_gaps": {"type": "array"},
+        "semantic_review_decision": {"type": "string"},
+        "semantic_review_evidence": {"type": "array"},
+        "semantic_review_required_before_proof_body": {"type": "boolean"},
+        "source_theorem_ready_for_exact_proof_body": {"type": "boolean"},
         "forbidden_shortcuts_absent": {"type": "boolean"},
         "requires_local_lean_check": {"type": "boolean"},
     },

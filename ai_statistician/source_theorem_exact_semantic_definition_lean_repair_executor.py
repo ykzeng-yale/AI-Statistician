@@ -1470,6 +1470,9 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
     )
     authoring_trigger = _author_definition_trigger(row)
     authoring_mode = _author_definition_mode(execution_status)
+    semantic_review_required_before_proof_body = (
+        execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
+    )
     task_id = (
         "source_theorem_exact_semantic_definition_authoring_task:"
         + stable_hash(
@@ -1548,6 +1551,17 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "semantic_alignment_blockers": list(
             row.get("semantic_alignment_blockers", []) or []
         ),
+        "semantic_review_required_before_proof_body": (
+            semantic_review_required_before_proof_body
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "semantic_review_contract": _author_definition_semantic_review_contract(
+            row,
+            authoring_mode=authoring_mode,
+            semantic_review_required_before_proof_body=(
+                semantic_review_required_before_proof_body
+            ),
+        ),
         "local_lean_requested": bool(row.get("local_lean_requested", False)),
         "local_lean_checked": bool(row.get("local_lean_checked", False)),
         "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
@@ -1589,6 +1603,46 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
             "manifest checks the materialized candidate."
         ),
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _author_definition_semantic_review_contract(
+    row: Mapping[str, Any],
+    *,
+    authoring_mode: str,
+    semantic_review_required_before_proof_body: bool,
+) -> dict[str, Any]:
+    """Describe non-proof semantic review evidence expected from an authoring task."""
+
+    return {
+        "contract_kind": "exact_semantic_definition_authoring_semantic_review",
+        "authoring_mode": authoring_mode,
+        "semantic_review_required_before_proof_body": bool(
+            semantic_review_required_before_proof_body
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "review_decision_values": [
+            "approved_definition_candidate",
+            "repair_required",
+            "blocked_or_insufficient_context",
+        ],
+        "required_review_checks": [
+            "compare the candidate against source theorem binders",
+            "check required semantic anchors and adapter dependencies",
+            "list known gaps instead of guessing missing source context",
+            "preserve local Lean typecheckability constraints",
+        ],
+        "existing_definition_only_candidate_artifact_path": str(
+            row.get("definition_only_candidate_artifact_path", "") or ""
+        ),
+        "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+        "proof_body_promotion_gate": (
+            "LLM semantic review evidence is not source theorem proof and must "
+            "not set source_theorem_ready_for_exact_proof_body. A later local "
+            "Lean/AXLE recheck queue must verify any reviewed candidate before "
+            "exact proof-body work resumes."
+        ),
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
     }
 
 
