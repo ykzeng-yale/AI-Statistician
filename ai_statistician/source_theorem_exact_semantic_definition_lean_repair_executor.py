@@ -51,6 +51,18 @@ TYPECHECKED_CANDIDATE_LOCAL_LEAN_EVIDENCE_STATUS = (
     "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_"
     "REVIEW_REQUIRED"
 )
+TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS = (
+    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+)
+TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_QUEUE_STATUS = (
+    "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+)
+TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_TRIGGER = (
+    "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+)
+TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_MODE = (
+    "review_typechecked_semantic_definition_candidate"
+)
 BOUNDARY = (
     "Exact semantic-definition Lean repair execution rows are ProofEngineer "
     "environment feedback for reviewed definition/import repair tasks. A local "
@@ -131,8 +143,7 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
     typechecked_candidate_review_packets = [
         _typechecked_candidate_review_packet(row)
         for row in results
-        if row.get("execution_status")
-        == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+        if row.get("execution_status") == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
     ]
     learning_rows = [_learning_row(row) for row in results]
     learning_rows.extend(
@@ -221,8 +232,14 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
             if row.get("runtime_queue_status")
             == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
         ),
+        "n_exact_semantic_definition_candidate_review_authoring_tasks": sum(
+            1
+            for row in author_definition_tasks
+            if row.get("runtime_queue_status")
+            == TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_QUEUE_STATUS
+        ),
         "n_typechecked_candidate_review_ready": int(
-            status_counts.get("TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED", 0)
+            status_counts.get(TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS, 0)
         ),
         "n_typechecked_candidate_review_packets": len(
             typechecked_candidate_review_packets
@@ -303,7 +320,7 @@ def _proofengineer_state_from_status_counts(
             "SEMANTIC_REVIEW_BLOCKED",
             "a compiled or source-located candidate still has semantic review blockers",
         )
-    if status_counts.get("TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED", 0):
+    if status_counts.get(TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS, 0):
         return (
             "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED",
             "a definition-only candidate typechecked, but source semantic faithfulness is still unreviewed",
@@ -600,7 +617,7 @@ def _execution_result(
                 )
             elif not local_lean:
                 status = (
-                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                    TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
                     if prior_definition_compiled
                     else "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_NOT_REQUESTED"
                 )
@@ -613,7 +630,7 @@ def _execution_result(
                 and not lean_command_explicit
                 and effective_lean_project is None
             ):
-                status = "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                status = TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
             else:
                 checked = True
                 compiled, returncode, diagnostics = _run_local_lean(
@@ -624,7 +641,7 @@ def _execution_result(
                 )
                 failure_classification = _classify_local_lean_failure(diagnostics)
                 status = (
-                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                    TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
                     if compiled
                     else "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
                     if failure_classification == "lean_import_environment_missing"
@@ -637,7 +654,7 @@ def _execution_result(
                 if not compiled:
                     errors.append("definition-only candidate local Lean check failed")
             if (
-                status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
                 and semantic_alignment_blockers
             ):
                 status = (
@@ -660,7 +677,7 @@ def _execution_result(
             "IMPORT_CANDIDATE_RESOLVED_LOCAL_LEAN_NOT_REQUESTED",
             "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN",
             "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_NOT_REQUESTED",
-            "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+            TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS,
         }
         else "semantic_definition_review_blocked"
         if status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
@@ -838,7 +855,7 @@ def _recommended_next_action(status: str, action: str) -> str:
             "on the definition-only candidate before semantic review or proof-body "
             "search resumes"
         )
-    if status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED":
+    if status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS:
         return (
             "review the typechecked definition-only candidate for source semantic "
             "faithfulness before importing it into the exact source-theorem "
@@ -893,7 +910,7 @@ def _semantic_typecheck_status_from_execution(
     current_local_lean_compiled: bool,
 ) -> str:
     if (
-        execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+        execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
         and current_local_lean_checked
         and current_local_lean_compiled
     ):
@@ -912,7 +929,7 @@ def _runtime_queue_status_from_execution(
         and local_lean_compiled
     )
     typechecked_candidate_review_ready = (
-        execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+        execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
         and local_definition_lean_compiled
     )
     definition_candidate_local_lean_pending = (
@@ -1357,12 +1374,15 @@ def _needs_author_definition_task(row: Mapping[str, Any]) -> bool:
     execution_status = str(row.get("execution_status", "") or "")
     return (
         execution_status == AUTHOR_DEFINITION_MISSING_STATUS
+        or execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
         or execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES
     )
 
 
 def _author_definition_runtime_queue_status(row: Mapping[str, Any]) -> str:
     execution_status = str(row.get("execution_status", "") or "")
+    if execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS:
+        return TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_QUEUE_STATUS
     if execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES:
         return "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     return "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING"
@@ -1370,12 +1390,16 @@ def _author_definition_runtime_queue_status(row: Mapping[str, Any]) -> str:
 
 def _author_definition_trigger(row: Mapping[str, Any]) -> str:
     execution_status = str(row.get("execution_status", "") or "")
+    if execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS:
+        return TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_TRIGGER
     if execution_status in AUTHOR_DEFINITION_REPAIR_STATUSES:
         return "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
     return "EXACT_SEMANTIC_DEFINITION_AUTHORING_REQUIRED"
 
 
 def _author_definition_mode(execution_status: str) -> str:
+    if execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS:
+        return TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_MODE
     if (
         execution_status
         == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
@@ -1392,7 +1416,16 @@ def _author_definition_policy(
     authoring_mode: str,
     placeholder: str,
 ) -> str:
-    if authoring_mode == "repair_typechecked_semantic_definition_candidate":
+    if authoring_mode == TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_MODE:
+        lead = (
+            "Review the locally typechecked definition-only exact Lean candidate "
+            "against the source theorem binders, semantic anchors, source "
+            "references, and adapter dependencies. If it is faithful, return a "
+            "reviewed candidate that preserves local Lean typecheckability; if "
+            "it is not faithful, repair it or report explicit known_gaps. Do not "
+            "claim source theorem proof. "
+        )
+    elif authoring_mode == "repair_typechecked_semantic_definition_candidate":
         lead = (
             "Repair the typechecked exact Lean definition against the listed "
             "semantic alignment blockers and required anchors. The replacement "
@@ -1857,7 +1890,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         and local_lean_compiled
     )
     typechecked_candidate_review_ready = (
-        execution_status == "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+        execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
         and local_definition_lean_compiled
     )
     definition_candidate_local_lean_pending = (

@@ -326,6 +326,11 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert manifest["n_typechecked_candidate_review_ready"] == 1
     assert manifest["n_typechecked_candidate_review_packets"] == 1
     assert manifest["n_typechecked_candidate_semantic_review_blocked"] == 0
+    assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
+    assert manifest["n_exact_semantic_definition_authoring_repair_tasks"] == 0
+    assert (
+        manifest["n_exact_semantic_definition_candidate_review_authoring_tasks"] == 1
+    )
     assert manifest["proofengineer_state"] == (
         "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED"
     )
@@ -425,10 +430,48 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert review_packets[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_NOT_PROOF_EVIDENCE"
     )
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["exact_semantic_definition_authoring_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert len(authoring_tasks) == 1
+    assert authoring_tasks[0]["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    )
+    assert authoring_tasks[0]["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert authoring_tasks[0]["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    )
+    assert authoring_tasks[0]["prior_source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert authoring_tasks[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+    )
+    assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    assert authoring_tasks[0]["candidate_artifact_path"] == str(
+        tmp_path / "candidate_full.lean"
+    )
+    assert authoring_tasks[0]["local_definition_lean_compiled"] is True
+    assert authoring_tasks[0]["semantic_definition_kernel_verified"] is False
+    assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
+    assert "Review the locally typechecked definition-only" in authoring_tasks[0][
+        "authoring_policy"
+    ]
+    assert "Do not claim source theorem proof" in authoring_tasks[0][
+        "authoring_policy"
+    ]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
     ]
+    assert len(learning_rows) == 2
     assert learning_rows[0][
         "semantic_definition_typechecked_candidate_review_ready"
     ] is True
@@ -460,6 +503,19 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[0]["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
     )
+    assert learning_rows[1]["learning_task"] == (
+        "source_theorem_exact_semantic_definition_author_definition"
+    )
+    assert learning_rows[1]["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    )
+    assert learning_rows[1]["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert learning_rows[1]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+    )
+    assert learning_rows[1]["input_summary"]["source_theorem_kernel_verified"] is False
 
 
 def test_authoring_task_exports_structured_candidate_definition_request(
