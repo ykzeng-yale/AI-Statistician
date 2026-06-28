@@ -1039,6 +1039,108 @@ def test_exact_source_executor_honors_explicit_semantic_alignment_blockers(
     assert row["candidate_live_proof_state_request"]["mcp_tool_calls"] == []
 
 
+def test_exact_source_executor_routes_unready_queue_to_candidate_materialization(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    candidate = tmp_path / "candidate.lean"
+    transcript = tmp_path / "transcript.jsonl"
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact_source_queue:unready",
+                "source_work_order_id": "exact_source_work_order:unready",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_coverage"],
+                "expected_target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+                "source_theorem_target_provenance": {
+                    "source_theorem_question_id": "conformal_prediction_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "semantic_alignment_constraints": [
+                    "No sorry, admit, placeholder, or unsafe in sketch",
+                ],
+                "source_theorem_proof_body_adapter_kernel_verified": True,
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:hGoodCovered"
+                ],
+                "candidate_artifact_path": str(candidate),
+                "execution_transcript_path": str(transcript),
+                "live_goal_location_ready": False,
+                "live_proof_state_request": {},
+                "already_repaired_environment": {
+                    "missing_formal_symbols": [],
+                    "typeclass_blockers": [],
+                    "signature_typecheck_reached_proof_body": False,
+                },
+                "execution_status": "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_LOCATION",
+            }
+        ],
+    }
+    (queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json").write_text(
+        json.dumps(queue_manifest),
+        encoding="utf-8",
+    )
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=False,
+    )
+
+    assert manifest["by_failure_classification"] == {
+        "source_theorem_candidate_materialization_required": 1
+    }
+    row = manifest["rows"][0]
+    assert row["failure_classification"] == (
+        "source_theorem_candidate_materialization_required"
+    )
+    assert row["execution_status"] == "EXACT_SOURCE_PROOF_BODY_STATIC_CHECK_FAILED"
+    assert row["proof_body_gate_status"] == "PROOF_BODY_NOT_CHECKED"
+    assert "execution queue row is not ready" in row["errors"][0]
+    assert "target_lean_declaration missing" in row["errors"]
+    assert "signature_probe_artifact_path missing" in row["errors"]
+    learning_row = json.loads(
+        (
+            tmp_path
+            / "executor"
+            / "runtime_learning_export"
+            / "runtime_learning_rows.jsonl"
+        ).read_text(encoding="utf-8")
+    )
+    assert learning_row["runtime_queue_status"] == (
+        "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+    )
+    assert learning_row["trigger"] == (
+        "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    )
+    assert learning_row["candidate_materialization_required"] is True
+    assert learning_row["candidate_materialization_statuses"] == [
+        "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+        "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
+        "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+    ]
+    assert "exact source-theorem Lean candidate artifact" in learning_row[
+        "candidate_materialization_contract"
+    ]
+    assert "source-theorem candidate materialization feedback" in learning_row[
+        "target_behavior"
+    ]
+    assert learning_row["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_source_executor_classifies_missing_proof_dependency_context(
     tmp_path: Path,
 ) -> None:

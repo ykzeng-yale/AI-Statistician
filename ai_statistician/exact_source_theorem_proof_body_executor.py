@@ -23,6 +23,14 @@ ARTIFACT_KERNEL_NOT_SOURCE_STATUS = (
     "EXACT_SOURCE_THEOREM_PROOF_BODY_ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM"
 )
 SOURCE_KERNEL_STATUS = "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE = (
+    "source_theorem_candidate_materialization_required"
+)
+SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_CONTRACT = (
+    "Formalizer/ProofEngineer must materialize an exact source-theorem Lean "
+    "candidate artifact with a signature probe and live proof-body location "
+    "before exact proof-body execution can run."
+)
 PROOF_EVIDENCE_BOUNDARY = (
     "Exact source-theorem proof-body executor rows materialize ProofEngineer "
     "candidate artifacts and run optional local Lean/AXLE checks. A compiled "
@@ -443,7 +451,11 @@ def _execution_result_row(
         errors.append("execution queue row is not ready for exact source proof-body work")
     if target_identity_errors:
         errors.append("execution queue row has target identity errors")
-    if not source_path.exists():
+    if not target_lean_declaration:
+        errors.append("target_lean_declaration missing")
+    if not signature_probe_artifact_path:
+        errors.append("signature_probe_artifact_path missing")
+    elif not source_path.exists():
         errors.append(f"signature probe artifact missing: {source_path}")
     if not str(candidate_artifact_path):
         errors.append("candidate_artifact_path missing")
@@ -1743,6 +1755,20 @@ def _export_runtime_learning_rows(
                 "execution_status": row.execution_status,
                 "failure_classification": row.failure_classification,
                 "runtime_queue_status": _runtime_learning_queue_status(row),
+                "candidate_materialization_required": (
+                    _row_requires_source_candidate_materialization(row)
+                ),
+                "candidate_materialization_statuses": list(
+                    _source_candidate_materialization_statuses(row)
+                ),
+                "candidate_materialization_contract": (
+                    SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_CONTRACT
+                    if _row_requires_source_candidate_materialization(row)
+                    else ""
+                ),
+                "missing_formal_symbols": list(
+                    row.formal_environment_placeholder_symbols
+                ),
                 "source_theorem_kernel_evidence_eligible": (
                     row.source_theorem_kernel_evidence_eligible
                 ),
@@ -1904,6 +1930,8 @@ def _runtime_learning_queue_status(
 ) -> str:
     if row.source_theorem_kernel_verified:
         return "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    if _row_requires_source_candidate_materialization(row):
+        return "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
     if row.proof_body_goal_reached and row.semantic_alignment_blockers:
         return "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
     if row.semantic_alignment_blockers:
@@ -1933,6 +1961,12 @@ def _runtime_learning_recommended_next_action(
 ) -> str:
     if row.source_theorem_kernel_verified:
         return "Record source_theorem_kernel_verified=true and stop proof-body repair."
+    if _row_requires_source_candidate_materialization(row):
+        return (
+            "Route back to exact source-theorem candidate materialization: produce "
+            "a runnable Lean artifact, signature probe, and live proof-body location "
+            "before retrying exact proof-body execution."
+        )
     if row.proof_body_goal_reached and row.semantic_alignment_blockers:
         return (
             "Review or replace exact semantic definitions before retrying the exact "
@@ -1990,6 +2024,8 @@ def _runtime_learning_trigger(
 ) -> str:
     if row.source_theorem_kernel_verified:
         return "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    if _row_requires_source_candidate_materialization(row):
+        return "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
     if row.proof_body_goal_reached and (
         row.semantic_alignment_blockers
         or row.failure_classification
@@ -2019,6 +2055,13 @@ def _runtime_learning_trigger(
 def _runtime_learning_target_behavior(
     row: ExactSourceTheoremProofBodyExecutionResultRow,
 ) -> str:
+    if _row_requires_source_candidate_materialization(row):
+        return (
+            "Use this as source-theorem candidate materialization feedback. The "
+            "proof-body executor cannot run until a concrete exact-source Lean "
+            "candidate and signature probe have been materialized; this is not "
+            "proof evidence and should not trigger blind proof-body search."
+        )
     if row.semantic_alignment_blockers:
         if row.proof_body_goal_reached:
             return (
@@ -2067,6 +2110,8 @@ def _runtime_learning_target_behavior(
 def _runtime_learning_acceptance_gate(
     row: ExactSourceTheoremProofBodyExecutionResultRow,
 ) -> str:
+    if _row_requires_source_candidate_materialization(row):
+        return SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_CONTRACT
     if row.semantic_alignment_blockers:
         return (
             "Reviewed or Lean-verified exact semantic definitions replace the "
@@ -2096,6 +2141,8 @@ def _classify_failure(
         if proof_body_goal_reached:
             return "proof_body_reached_semantic_alignment_unreviewed"
         return "source_theorem_semantic_alignment_unreviewed"
+    if _source_candidate_materialization_required_errors(errors):
+        return SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE
     text = "\n".join(diagnostics or tuple(errors)).lower()
     if "timed out" in text or "timeout" in text:
         return "local_lean_timeout"
@@ -2128,6 +2175,47 @@ def _classify_failure(
     if errors:
         return "static_execution_contract_failed"
     return ""
+
+
+def _source_candidate_materialization_required_errors(
+    errors: tuple[str, ...] | list[str],
+) -> bool:
+    text = "\n".join(str(error).lower() for error in errors)
+    return bool(
+        "execution queue row is not ready for exact source proof-body work" in text
+        or "signature_probe_artifact_path missing" in text
+        or "signature probe artifact missing" in text
+        or "target_lean_declaration missing" in text
+    )
+
+
+def _source_candidate_materialization_statuses(
+    row: ExactSourceTheoremProofBodyExecutionResultRow,
+) -> tuple[str, ...]:
+    statuses: list[str] = []
+    error_text = "\n".join(str(error).lower() for error in row.errors)
+    if "execution queue row is not ready for exact source proof-body work" in error_text:
+        statuses.append("EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY")
+    if "target_lean_declaration missing" in error_text:
+        statuses.append("EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING")
+    if "signature_probe_artifact_path missing" in error_text:
+        statuses.append("SIGNATURE_PROBE_ARTIFACT_PATH_MISSING")
+    if "signature probe artifact missing" in error_text:
+        statuses.append("SIGNATURE_PROBE_ARTIFACT_NOT_FOUND")
+    return tuple(dict.fromkeys(statuses))
+
+
+def _row_requires_source_candidate_materialization(
+    row: ExactSourceTheoremProofBodyExecutionResultRow,
+) -> bool:
+    return bool(
+        row.failure_classification
+        in {
+            SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE,
+            "source_theorem_candidate_artifact_missing",
+        }
+        or _source_candidate_materialization_required_errors(row.errors)
+    )
 
 
 def _exact_goal_shape_obligation_ids(

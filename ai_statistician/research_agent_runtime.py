@@ -25759,6 +25759,7 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
         "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE",
         "EXACT_SOURCE_PROOF_BODY_DEPENDENCY_CONTEXT_MISSING",
+        "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED",
         "EXACT_SOURCE_PROOF_BODY_CANDIDATE_MATERIALIZED",
         "EXACT_SOURCE_PROOF_BODY_ARTIFACT_KERNEL_ENVIRONMENT_OPEN",
         "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
@@ -26829,6 +26830,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 trigger = "EXACT_SOURCE_PROOF_BODY_VERIFIED_ADAPTER_CONTEXT_INSUFFICIENT"
             elif feedback_failure == "proof_body_dependency_context_missing":
                 trigger = "EXACT_SOURCE_PROOF_BODY_DEPENDENCY_CONTEXT_MISSING"
+            elif feedback_failure in {
+                "source_theorem_candidate_materialization_required",
+                "source_theorem_candidate_artifact_missing",
+            }:
+                trigger = "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
             elif (
                 feedback_failure == "proof_body_incomplete"
                 or feedback_gate == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"

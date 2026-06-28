@@ -24315,6 +24315,110 @@ def test_critic_memory_routes_candidate_materialization_blocker_request() -> Non
     )
 
 
+def test_exact_proof_body_unready_queue_routes_candidate_materialization_request() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    materialization_row = {
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "failure_classification": "source_theorem_candidate_materialization_required",
+        "runtime_queue_status": (
+            "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+        ),
+        "trigger": "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED",
+        "candidate_materialization_required": True,
+        "candidate_materialization_statuses": [
+            "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+            "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
+            "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+        ],
+        "candidate_materialization_contract": (
+            "Formalizer/ProofEngineer must materialize an exact source-theorem "
+            "Lean candidate artifact with a signature probe and live proof-body "
+            "location before exact proof-body execution can run."
+        ),
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+        "input_summary": {
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "execution_status": "EXACT_SOURCE_PROOF_BODY_STATIC_CHECK_FAILED",
+            "source_candidate_artifact_path": "",
+            "signature_probe_artifact_path": "",
+            "target_lean_declaration": "",
+            "live_goal_location_ready": False,
+            "errors": [
+                "execution queue row is not ready for exact source proof-body work",
+                "target_lean_declaration missing",
+                "signature_probe_artifact_path missing",
+            ],
+        },
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {"kernel_verified_proof_obligation_ids": verified_ids},
+                    materialization_row,
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_candidate_materialization_required"] is True
+    assert summary["source_theorem_candidate_materialization_required_target_names"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["source_theorem_candidate_materialization_required_statuses"] == [
+        "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+        "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
+        "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+    ]
+    assert summary["source_theorem_exact_candidate_repair_triggers"] == [
+        "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    ]
+    assert "source_theorem_candidate_materialization_required" in summary[
+        "source_theorem_exact_candidate_failure_classifications"
+    ]
+
+    requests = _critic_formal_blocker_resource_requests(
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:exact_proof_body_materialization",
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": summary,
+        },
+        agenda=[],
+    )
+
+    materialization_request = next(
+        row
+        for row in requests
+        if row["blocker_kind"]
+        == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    )
+    assert materialization_request["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert "signature probe" in materialization_request["blocker"]
+    assert materialization_request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
     verifier_payload = {
         "rows": [
