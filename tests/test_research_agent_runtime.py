@@ -44339,6 +44339,9 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "artifacts": {
+            "runtime_learning_rows_jsonl": "runs/current/runtime_learning_rows.jsonl",
+        },
     }
 
     table = _runtime_coding_agent_capability_table(payload)
@@ -44397,6 +44400,9 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert "--capability-eval-preset full-live" in algorithm_learning_row[
         "recommended_capability_eval_command"
     ]
+    assert "--learning-memory-jsonl runs/current/runtime_learning_rows.jsonl" in (
+        algorithm_learning_row["recommended_capability_eval_command"]
+    )
     assert "n_generated_code_sandbox_failed_then_passed_repair_sequences>0" in algorithm_learning_row[
         "success_metric"
     ]

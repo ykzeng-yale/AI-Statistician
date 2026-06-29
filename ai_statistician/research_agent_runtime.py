@@ -1295,8 +1295,14 @@ def _runtime_coding_agent_capability_learning_rows(
         if str(value).strip()
     ]
     question_id = question_ids[0] if question_ids else ""
+    artifacts = (
+        manifest.get("artifacts", {})
+        if isinstance(manifest.get("artifacts", {}), Mapping)
+        else {}
+    )
     integrated_eval_command = _runtime_integrated_capability_eval_command(
-        question_id
+        question_id,
+        learning_memory_jsonl=str(artifacts.get("runtime_learning_rows_jsonl", "") or ""),
     )
     generated_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -1505,18 +1511,28 @@ def _runtime_coding_agent_capability_learning_rows(
     return generated_rows
 
 
-def _runtime_integrated_capability_eval_command(question_id: str = "") -> str:
+def _runtime_integrated_capability_eval_command(
+    question_id: str = "",
+    *,
+    learning_memory_jsonl: str = "",
+) -> str:
     question_arg = (
         f" --question-id {question_id}"
         if str(question_id or "").strip()
         else " --max-questions 1"
+    )
+    learning_arg = (
+        f" --learning-memory-jsonl {shlex.quote(str(learning_memory_jsonl).strip())}"
+        if str(learning_memory_jsonl or "").strip()
+        else ""
     )
     return (
         "python3 -m ai_statistician.cli research-agent-runtime "
         "--provider anthropic --capability-eval --capability-eval-preset full-live "
         "--formal-verification-policy required "
         "--formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp"
-        f"{question_arg} --out runs/integrated_agent_runtime_capability_eval"
+        f"{question_arg}{learning_arg} "
+        "--out runs/integrated_agent_runtime_capability_eval"
     )
 
 
