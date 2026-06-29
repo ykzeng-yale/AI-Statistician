@@ -9688,6 +9688,9 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
         ),
     )
+    prior_feedback_counts = dict(
+        eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
+    )
     attached = {
         "artifact_kind": "RuntimeAttachedFormalizerLeanCandidateRepairEval",
         "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
@@ -9713,7 +9716,16 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             eval_manifest.get("prior_feedback_proof_state_rows", 0) or 0
         ),
         "prior_feedback_proof_state_counts": dict(
-            eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
+            prior_feedback_counts
+        ),
+        "prior_feedback_local_lean_tool_calls": int(
+            prior_feedback_counts.get("local_lean_tool_calls", 0) or 0
+        ),
+        "prior_feedback_lean_lsp_mcp_tool_calls": int(
+            prior_feedback_counts.get("lean_lsp_mcp_tool_calls", 0) or 0
+        ),
+        "prior_feedback_executed_tool_calls": int(
+            prior_feedback_counts.get("executed_tool_calls", 0) or 0
         ),
         "source_theorem_kernel_verified": bool(
             eval_manifest.get("source_theorem_kernel_verified", False)
@@ -9765,6 +9777,15 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled"
     ] = int(attached["local_lean_compiled"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls"
+    ] = int(attached["prior_feedback_local_lean_tool_calls"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
+    ] = int(attached["prior_feedback_lean_lsp_mcp_tool_calls"])
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls"
+    ] = int(attached["prior_feedback_executed_tool_calls"])
     manifest.setdefault("artifacts", {})[
         "internal_formalizer_lean_candidate_repair_eval_manifest_json"
     ] = str(attached["manifest_path"])

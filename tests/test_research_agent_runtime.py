@@ -16905,6 +16905,69 @@ def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
     assert audit_row.n_lean_lsp_mcp_live_calls == 1
 
 
+def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "q_runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "blackboard": {
+                    "project_id": "runtime:q",
+                    "artifacts": {},
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 1,
+        "question_ids": ["q"],
+        "status_counts": {"MAX_ITERATIONS_REACHED": 1},
+        "artifacts": {"per_question_results": [str(result_path)]},
+        "internal_formalizer_lean_candidate_repair_eval": {
+            "artifact_kind": "RuntimeAttachedFormalizerLeanCandidateRepairEval",
+            "manifest_path": "runs/component/formalizer_lean_candidate_repair_eval_manifest.json",
+            "live_generator": True,
+            "static_or_fixture_only": False,
+            "capability_evidence_ok": True,
+            "repair_sequences": 1,
+            "local_lean_checked": 1,
+            "prior_feedback_proof_state_counts": {
+                "local_lean_tool_calls": 1,
+                "lean_lsp_mcp_tool_calls": 3,
+                "executed_tool_calls": 4,
+            },
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+
+    assert audit["n_lean_lsp_mcp_live_calls"] == 3
+    assert (
+        audit[
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
+        ]
+        == 3
+    )
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+    assert (
+        rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
+        is False
+    )
+
+
 def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
     tmp_path: Path,
 ) -> None:
@@ -44022,6 +44085,17 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
     assert table["coding_agent_capability_ready"] is True
 
+    payload["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] = 0
+    payload[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
+    ] = 3
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+    assert "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3" in (
+        rows["formalizer_live_prover_tool_call_observed"]["evidence"]
+    )
+
 
 def test_runtime_capability_scorecard_requires_architect_path_propagation() -> None:
     payload = {
@@ -45224,6 +45298,41 @@ def test_runtime_capability_scorecard_names_resume_architect_context_boundary() 
     assert "architect_control_status=PROPAGATED_FROM_RESUME" in ladder_rows[2][
         "evidence"
     ]
+
+
+def test_runtime_capability_scorecard_credits_attached_live_formalizer_lsp_tool_call() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "n_llm_formalizer_proof_engineer_proposals": 0,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_formalizer_lean_candidate_live_proof_state_requests": 0,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 0,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
+        "n_lean_lsp_mcp_live_calls": 3,
+        "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
+        "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
+        "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
+        "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 3,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    live_prover_row = rows["formalizer_live_prover_tool_call_observed"]
+    assert live_prover_row["passed"] is True
+    assert (
+        "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3"
+        in live_prover_row["evidence"]
+    )
+    assert rows["live_lean_lsp_mcp_called"]["passed"] is True
+    assert (
+        rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
+        is False
+    )
 
 
 def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(

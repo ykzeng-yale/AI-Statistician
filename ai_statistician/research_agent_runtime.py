@@ -877,6 +877,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
     )
+    attached_formalizer_lean_lsp_mcp_tool_calls = _runtime_manifest_int(
+        payload,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls",
+    )
     attached_formalizer_repair_sequences = _runtime_manifest_int(
         payload,
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
@@ -1074,19 +1078,30 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "formalizer_live_prover_tool_call_observed",
-            "passed": formalizer_lean_lsp_mcp_live_calls > 0,
-            "count": formalizer_lean_lsp_mcp_live_calls,
+            "passed": formalizer_lean_lsp_mcp_live_calls > 0
+            or (
+                attached_formalizer_live_gate
+                and attached_formalizer_lean_lsp_mcp_tool_calls > 0
+            ),
+            "count": formalizer_lean_lsp_mcp_live_calls
+            or attached_formalizer_lean_lsp_mcp_tool_calls,
             "evidence": (
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls="
-                f"{formalizer_lean_lsp_mcp_live_calls}"
+                f"{formalizer_lean_lsp_mcp_live_calls}; "
+                "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
+                f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
             ),
             "blocker": (
                 ""
                 if formalizer_lean_lsp_mcp_live_calls > 0
+                or (
+                    attached_formalizer_live_gate
+                    and attached_formalizer_lean_lsp_mcp_tool_calls > 0
+                )
                 else (
                     "LeanDojo/ReProver/Lean-LSP style tools are only requested "
-                    "or emulated by local Lean feedback; no live prover tool "
-                    "call was observed in this runtime"
+                    "or emulated by local Lean feedback; no integrated or "
+                    "attached live Formalizer repair prover tool call was observed"
                 )
             ),
         },
@@ -1326,7 +1341,9 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             success_metric = (
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0; "
-                "ready/request rows alone do not satisfy this capability"
+                "or attached live Formalizer repair eval "
+                "prior_feedback_lean_lsp_mcp_tool_calls>0; ready/request rows "
+                "alone do not satisfy this capability"
             )
         elif capability_id == "formalizer_lean_candidate_repair_loop_observed":
             next_owner = "FormalizationEvaluator"
@@ -1424,6 +1441,32 @@ def _runtime_formalizer_component_gate_learning_rows(
     prior_feedback_proof_state_rows = int(
         attached.get("prior_feedback_proof_state_rows", 0) or 0
     )
+    prior_feedback_counts = (
+        attached.get("prior_feedback_proof_state_counts", {})
+        if isinstance(attached.get("prior_feedback_proof_state_counts", {}), Mapping)
+        else {}
+    )
+    prior_feedback_local_lean_tool_calls = int(
+        attached.get(
+            "prior_feedback_local_lean_tool_calls",
+            prior_feedback_counts.get("local_lean_tool_calls", 0),
+        )
+        or 0
+    )
+    prior_feedback_lean_lsp_mcp_tool_calls = int(
+        attached.get(
+            "prior_feedback_lean_lsp_mcp_tool_calls",
+            prior_feedback_counts.get("lean_lsp_mcp_tool_calls", 0),
+        )
+        or 0
+    )
+    prior_feedback_executed_tool_calls = int(
+        attached.get(
+            "prior_feedback_executed_tool_calls",
+            prior_feedback_counts.get("executed_tool_calls", 0),
+        )
+        or 0
+    )
     candidate_kernel_verified = bool(
         attached.get("candidate_kernel_verified", False)
     )
@@ -1455,6 +1498,15 @@ def _runtime_formalizer_component_gate_learning_rows(
             "local_lean_compiled": local_lean_compiled,
             "proofengineer_repair_task_observed": proofengineer_repair_task_observed,
             "prior_feedback_proof_state_rows": prior_feedback_proof_state_rows,
+            "prior_feedback_local_lean_tool_calls": (
+                prior_feedback_local_lean_tool_calls
+            ),
+            "prior_feedback_lean_lsp_mcp_tool_calls": (
+                prior_feedback_lean_lsp_mcp_tool_calls
+            ),
+            "prior_feedback_executed_tool_calls": (
+                prior_feedback_executed_tool_calls
+            ),
             "candidate_kernel_verified": candidate_kernel_verified,
             "source_theorem_kernel_verified": bool(
                 attached.get("source_theorem_kernel_verified", False)
@@ -1489,6 +1541,15 @@ def _runtime_formalizer_component_gate_learning_rows(
                     proofengineer_repair_task_observed
                 ),
                 "prior_feedback_proof_state_rows": prior_feedback_proof_state_rows,
+                "prior_feedback_local_lean_tool_calls": (
+                    prior_feedback_local_lean_tool_calls
+                ),
+                "prior_feedback_lean_lsp_mcp_tool_calls": (
+                    prior_feedback_lean_lsp_mcp_tool_calls
+                ),
+                "prior_feedback_executed_tool_calls": (
+                    prior_feedback_executed_tool_calls
+                ),
                 "candidate_kernel_verified": candidate_kernel_verified,
                 "source_theorem_kernel_verified": bool(
                     attached.get("source_theorem_kernel_verified", False)
@@ -33285,6 +33346,30 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
                         input_summary.get("prior_feedback_proof_state_rows", 0),
                     )
                 ),
+                "prior_feedback_local_lean_tool_calls": _int_like(
+                    row.get(
+                        "prior_feedback_local_lean_tool_calls",
+                        input_summary.get(
+                            "prior_feedback_local_lean_tool_calls",
+                            0,
+                        ),
+                    )
+                ),
+                "prior_feedback_lean_lsp_mcp_tool_calls": _int_like(
+                    row.get(
+                        "prior_feedback_lean_lsp_mcp_tool_calls",
+                        input_summary.get(
+                            "prior_feedback_lean_lsp_mcp_tool_calls",
+                            0,
+                        ),
+                    )
+                ),
+                "prior_feedback_executed_tool_calls": _int_like(
+                    row.get(
+                        "prior_feedback_executed_tool_calls",
+                        input_summary.get("prior_feedback_executed_tool_calls", 0),
+                    )
+                ),
                 "candidate_kernel_verified": bool(
                     row.get("candidate_kernel_verified", False)
                     or input_summary.get("candidate_kernel_verified", False)
@@ -35868,6 +35953,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "prior_feedback_proof_state_rows": _int_like(
                     row.get("prior_feedback_proof_state_rows", 0)
+                ),
+                "prior_feedback_local_lean_tool_calls": _int_like(
+                    row.get("prior_feedback_local_lean_tool_calls", 0)
+                ),
+                "prior_feedback_lean_lsp_mcp_tool_calls": _int_like(
+                    row.get("prior_feedback_lean_lsp_mcp_tool_calls", 0)
+                ),
+                "prior_feedback_executed_tool_calls": _int_like(
+                    row.get("prior_feedback_executed_tool_calls", 0)
                 ),
                 "candidate_kernel_verified": bool(
                     row.get("candidate_kernel_verified", False)
