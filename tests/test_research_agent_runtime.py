@@ -1882,6 +1882,10 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
                                     "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
                                 ),
                                 "premise_name": "hGoodCovered",
+                                "target_theorem_name": None,
+                                "target_lean_declaration": None,
+                                "premise_candidate_declaration_name": None,
+                                "source_to_bridge_premise_candidate_declaration_name": None,
                                 "premise_target_type": "good_rank_event_subset",
                                 "required_semantic_anchor_reference_names": [
                                     "hGoodRank",
@@ -1958,6 +1962,35 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
         ]["candidate_request_id"]
         == "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
     )
+    expected_declaration = (
+        "split_conformal_finite_sample_coverage_hGoodCovered_source_to_bridge_derivation"
+    )
+    assert (
+        premise_feedback["diagnostics"][0]["premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    assert (
+        premise_feedback["diagnostics"][0]["target_lean_declaration"]
+        == "split_conformal_finite_sample_coverage"
+    )
+    assert (
+        premise_feedback["diagnostics"][0][
+            "source_to_bridge_premise_derivation_candidate_request"
+        ]["premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    assert (
+        premise_feedback["diagnostics"][0][
+            "source_to_bridge_premise_derivation_candidate_request"
+        ]["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    assert (
+        premise_feedback["diagnostics"][0][
+            "source_to_bridge_premise_derivation_candidate_request"
+        ]["target_lean_declaration"]
+        == "split_conformal_finite_sample_coverage"
+    )
     prompt = build_formalizer_prompt(
         question=question,
         theory_packet=_runtime_sample_response(),
@@ -1974,6 +2007,7 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
     assert "source_to_bridge_premise_derivation_feedback" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
+    assert expected_declaration in prompt
     assert "missing_semantic_anchor_references" in prompt
     assert "hC" in prompt
     critic_manifest = next(
@@ -11750,6 +11784,240 @@ def test_runtime_export_normalizes_persisted_source_to_bridge_work_order_declara
     assert row["question_id"] == "conformal_prediction_coverage"
     assert row["runtime_queue_status"] == "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
     assert row.get("proof_evidence_status") != "KERNEL_VERIFIED"
+
+
+def test_runtime_export_suppresses_redundant_wrong_declaration_replay() -> None:
+    expected_declaration = (
+        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+    )
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:stale-source-to-bridge": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization_manifest:stale-source-to-bridge",
+                    "question": {
+                        "id": "conformal_prediction_coverage",
+                        "title": "Split conformal prediction interval coverage",
+                    },
+                    "proof_bank_runtime_memory_summary": {
+                        "source_to_bridge_premise_derivation_diagnostics": [
+                            {
+                                "failure_classification": (
+                                    "premise_derivation_candidate_wrong_declaration"
+                                ),
+                                "work_order_id": (
+                                    "source_to_bridge_premise_derivation_work_order:hGoodCovered"
+                                ),
+                                "premise_name": "hGoodCovered",
+                                "premise_candidate_declaration_name": (
+                                    expected_declaration
+                                ),
+                                "source_to_bridge_premise_derivation_candidate_request_id": (
+                                    "request:hGoodCovered"
+                                ),
+                            }
+                        ],
+                    },
+                    "source_to_bridge_premise_derivation_work_orders": [
+                        {
+                            "work_order_id": (
+                                "source_to_bridge_premise_derivation_work_order:hGoodCovered"
+                            ),
+                            "premise_name": "hGoodCovered",
+                            "target_theorem_name": "split_conformal_coverage",
+                            "target_lean_declaration": "split_conformal_coverage",
+                            "premise_candidate_declaration_name": (
+                                expected_declaration
+                            ),
+                            "source_to_bridge_premise_derivation_candidate_request_id": (
+                                "request:hGoodCovered"
+                            ),
+                            "source_to_bridge_premise_derivation_candidate_request": {
+                                "candidate_request_id": "request:hGoodCovered",
+                                "premise_name": "hGoodCovered",
+                                "target_theorem_name": "split_conformal_coverage",
+                                "target_lean_declaration": "split_conformal_coverage",
+                                "premise_candidate_declaration_name": (
+                                    expected_declaration
+                                ),
+                            },
+                            "premise_derivation_candidate_lean_source": (
+                                "theorem invented_hGoodCovered_bridge "
+                                "(A B : Prop) (hC : A -> B) : A -> B := by\n"
+                                "  exact hC\n"
+                            ),
+                        }
+                    ],
+                }
+            }
+        }
+    }
+
+    rows = _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(
+        [result]
+    )
+
+    assert rows == []
+    del result["blackboard"]["artifacts"][
+        "formalization_manifest:stale-source-to-bridge"
+    ]["proof_bank_runtime_memory_summary"]
+
+    rows_from_runtime_memory = (
+        _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(
+            [result],
+            runtime_learning_rows=[
+                {
+                    "learning_task": "source_to_bridge_premise_derivation_feedback",
+                    "input_summary": {
+                        "failure_classification": (
+                            "premise_derivation_candidate_wrong_declaration"
+                        ),
+                        "work_order_id": (
+                            "source_to_bridge_premise_derivation_work_order:hGoodCovered"
+                        ),
+                        "premise_name": "hGoodCovered",
+                        "premise_candidate_declaration_name": (
+                            expected_declaration
+                        ),
+                        "source_to_bridge_premise_derivation_candidate_request_id": (
+                            "request:hGoodCovered"
+                        ),
+                    },
+                }
+            ],
+        )
+    )
+
+    assert rows_from_runtime_memory == []
+
+
+def test_proof_bank_summary_normalizes_metadata_authoring_request_declaration() -> None:
+    expected_declaration = (
+        "split_conformal_finite_sample_coverage_hRankUniform_source_to_bridge_derivation"
+    )
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "learning_task": "source_to_bridge_metadata_authoring_request",
+                        "candidate_request_id": "request:hRankUniform",
+                        "source_to_bridge_premise_derivation_candidate_request_id": (
+                            "request:hRankUniform"
+                        ),
+                        "request_complete": True,
+                        "metadata_authoring_status": (
+                            "COMPLETE_SOURCE_TO_BRIDGE_CANDIDATE_REQUEST_AUTHORED"
+                        ),
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "premise_name": "hRankUniform",
+                        "source_to_bridge_premise_derivation_candidate_request": {
+                            "candidate_request_id": "request:hRankUniform",
+                            "target_theorem_name": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "target_lean_declaration": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                            "premise_name": "hRankUniform",
+                            "premise_candidate_declaration_name": None,
+                            "source_to_bridge_premise_candidate_declaration_name": None,
+                            "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
+                        },
+                    }
+                ],
+            },
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    request_row = summary["source_to_bridge_metadata_authoring_candidate_requests"][0]
+    assert request_row["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        request_row["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    nested_request = request_row[
+        "source_to_bridge_premise_derivation_candidate_request"
+    ]
+    assert nested_request["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        nested_request["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+
+
+def test_pending_task_export_normalizes_source_to_bridge_feedback_declaration() -> None:
+    expected_declaration = (
+        "split_conformal_finite_sample_coverage_hRankUniform_source_to_bridge_derivation"
+    )
+    stale_feedback = {
+        "source_to_bridge_premise_derivation_feedback": {
+            "diagnostics": [
+                {
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "premise_name": "hRankUniform",
+                    "failure_classification": (
+                        "COMPLETE_SOURCE_TO_BRIDGE_CANDIDATE_REQUEST_AUTHORED"
+                    ),
+                    "source_to_bridge_premise_derivation_candidate_request": {
+                        "candidate_request_id": "request:hRankUniform",
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "premise_name": "hRankUniform",
+                        "premise_candidate_declaration_name": None,
+                    },
+                }
+            ]
+        }
+    }
+    pending = {
+        "task_id": "theory-critic-revise:conformal_prediction_coverage:test",
+        "owner_subsystem": "TheoryDeveloper",
+        "inputs": {
+            "environment_feedback": stale_feedback,
+            "architect_context": {"environment_feedback": stale_feedback},
+        },
+    }
+
+    normalized = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending,
+        {},
+    )
+
+    diagnostic = normalized["inputs"]["environment_feedback"][
+        "source_to_bridge_premise_derivation_feedback"
+    ]["diagnostics"][0]
+    assert diagnostic["premise_candidate_declaration_name"] == expected_declaration
+    assert diagnostic["target_lean_declaration"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    nested_request = diagnostic[
+        "source_to_bridge_premise_derivation_candidate_request"
+    ]
+    assert nested_request["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        normalized["inputs"]["architect_context"]["environment_feedback"][
+            "source_to_bridge_premise_derivation_feedback"
+        ]["diagnostics"][0]["premise_candidate_declaration_name"]
+        == expected_declaration
+    )
 
 
 def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_prompt(

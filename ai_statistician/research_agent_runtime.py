@@ -12230,7 +12230,11 @@ def run_research_agent_runtime(
         new_input_memory_source_theorem_semantic_primitive_work_order_rows = []
     source_to_bridge_premise_derivation_formalizer_work_order_rows = (
         _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(
-            results
+            results,
+            runtime_learning_rows=_runtime_learning_rows_with_input_memory(
+                architect_context,
+                learning_rows,
+            ),
         )
     )
     source_theorem_formal_environment_work_order_rows = (
@@ -25398,6 +25402,8 @@ def _critic_source_to_bridge_premise_derivation_feedback(
         "premise_derivation_gap_summary",
         "premise_candidate_evidence_eligible",
         "premise_candidate_references_semantic_anchor",
+        "premise_candidate_declaration_name",
+        "source_to_bridge_premise_candidate_declaration_name",
         "missing_premise_semantic_anchor_binder_names",
         "required_semantic_anchor_reference_names",
         "premise_semantic_anchor_binder_names",
@@ -25513,15 +25519,108 @@ def _critic_source_to_bridge_premise_derivation_feedback(
             row_for_strings["source_to_bridge_premise_derivation_candidate_request"] = (
                 dict(matched_request_payload)
             )
+        request_payload_raw = row_for_strings.get(
+            "source_to_bridge_premise_derivation_candidate_request",
+            {},
+        )
+        request_payload = (
+            dict(request_payload_raw)
+            if isinstance(request_payload_raw, Mapping)
+            else {}
+        )
+        premise_names = string_values(row_for_strings, "premise_name", "premise_names")
+        premise_name = premise_names[0] if premise_names else ""
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or request_payload.get("target_theorem_name", "")
+            or ""
+        ).strip()
+        target_lean_declaration = str(
+            row.get("target_lean_declaration", "")
+            or request_payload.get("target_lean_declaration", "")
+            or target_theorem_name
+            or ""
+        ).strip()
+        if request_payload:
+            _runtime_set_text_if_missing(request_payload, "premise_name", premise_name)
+            _runtime_set_text_if_missing(
+                request_payload,
+                "target_theorem_name",
+                target_theorem_name,
+            )
+            _runtime_set_text_if_missing(
+                request_payload,
+                "target_lean_declaration",
+                target_lean_declaration,
+            )
+        premise_candidate_declaration_name = str(
+            row.get("premise_candidate_declaration_name", "")
+            or row.get("source_to_bridge_premise_candidate_declaration_name", "")
+            or request_payload.get("premise_candidate_declaration_name", "")
+            or request_payload.get(
+                "source_to_bridge_premise_candidate_declaration_name",
+                "",
+            )
+            or ""
+        ).strip()
+        if not premise_candidate_declaration_name:
+            premise_candidate_declaration_name = (
+                stb_metadata.default_premise_candidate_declaration_name(
+                    {
+                        "target_lean_declaration": target_lean_declaration,
+                        "target_theorem_name": target_theorem_name,
+                        "premise_name": premise_name,
+                    }
+                )
+            )
+        if premise_candidate_declaration_name:
+            row_for_strings["premise_candidate_declaration_name"] = (
+                premise_candidate_declaration_name
+            )
+            row_for_strings[
+                "source_to_bridge_premise_candidate_declaration_name"
+            ] = premise_candidate_declaration_name
+            if request_payload:
+                _runtime_set_text_if_missing(
+                    request_payload,
+                    "premise_candidate_declaration_name",
+                    premise_candidate_declaration_name,
+                )
+                _runtime_set_text_if_missing(
+                    request_payload,
+                    "source_to_bridge_premise_candidate_declaration_name",
+                    premise_candidate_declaration_name,
+                )
+                row_for_strings[
+                    "source_to_bridge_premise_derivation_candidate_request"
+                ] = request_payload
         compact = {
             key: row[key]
             for key in compact_keys
             if key in row and row.get(key) not in (None, "", [], {})
         }
+        if premise_candidate_declaration_name:
+            compact["premise_candidate_declaration_name"] = (
+                premise_candidate_declaration_name
+            )
+            compact["source_to_bridge_premise_candidate_declaration_name"] = (
+                premise_candidate_declaration_name
+            )
+        _runtime_set_text_if_missing(compact, "premise_name", premise_name)
+        _runtime_set_text_if_missing(
+            compact,
+            "target_theorem_name",
+            target_theorem_name,
+        )
+        _runtime_set_text_if_missing(
+            compact,
+            "target_lean_declaration",
+            target_lean_declaration,
+        )
         if matched_request_payload:
             compact.setdefault(
                 "source_to_bridge_premise_derivation_candidate_request",
-                dict(matched_request_payload),
+                request_payload or dict(matched_request_payload),
             )
             request_id = str(
                 matched_request_row.get(
@@ -25537,6 +25636,10 @@ def _critic_source_to_bridge_premise_derivation_feedback(
                     "source_to_bridge_premise_derivation_candidate_request_id",
                     request_id,
                 )
+        elif request_payload:
+            compact["source_to_bridge_premise_derivation_candidate_request"] = (
+                request_payload
+            )
         required_anchors = string_values(row_for_strings, *required_anchor_keys)
         if required_anchors:
             compact["required_semantic_anchor_reference_names"] = required_anchors
@@ -29443,6 +29546,16 @@ def _runtime_row_string_values(
     return tuple(dict.fromkeys(values))
 
 
+def _runtime_set_text_if_missing(
+    payload: dict[str, Any],
+    key: str,
+    value: Any,
+) -> None:
+    text = str(value or "").strip()
+    if text and not str(payload.get(key, "") or "").strip():
+        payload[key] = text
+
+
 def _runtime_row_nested_string_values(
     row: Mapping[str, Any],
     *keys: str,
@@ -29799,6 +29912,66 @@ def _runtime_source_to_bridge_premise_names(row: Mapping[str, Any]) -> tuple[str
         "source_to_bridge_premise_names",
         "premise_names",
     )
+
+
+def _normalize_source_to_bridge_metadata_authoring_request_row(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(row)
+    request_raw = normalized.get(
+        "source_to_bridge_premise_derivation_candidate_request",
+        {},
+    )
+    request = dict(request_raw) if isinstance(request_raw, Mapping) else {}
+    premise_name = str(
+        normalized.get("premise_name", "")
+        or request.get("premise_name", "")
+        or ""
+    ).strip()
+    target_theorem_name = str(
+        normalized.get("target_theorem_name", "")
+        or request.get("target_theorem_name", "")
+        or ""
+    ).strip()
+    target_lean_declaration = str(
+        normalized.get("target_lean_declaration", "")
+        or request.get("target_lean_declaration", "")
+        or target_theorem_name
+        or ""
+    ).strip()
+    premise_candidate_declaration_name = str(
+        normalized.get("premise_candidate_declaration_name", "")
+        or normalized.get("source_to_bridge_premise_candidate_declaration_name", "")
+        or request.get("premise_candidate_declaration_name", "")
+        or request.get("source_to_bridge_premise_candidate_declaration_name", "")
+        or ""
+    ).strip()
+    if not premise_candidate_declaration_name:
+        premise_candidate_declaration_name = (
+            stb_metadata.default_premise_candidate_declaration_name(
+                {
+                    "target_lean_declaration": target_lean_declaration,
+                    "target_theorem_name": target_theorem_name,
+                    "premise_name": premise_name,
+                }
+            )
+        )
+    for key, value in (
+        ("premise_name", premise_name),
+        ("target_theorem_name", target_theorem_name),
+        ("target_lean_declaration", target_lean_declaration),
+        ("premise_candidate_declaration_name", premise_candidate_declaration_name),
+        (
+            "source_to_bridge_premise_candidate_declaration_name",
+            premise_candidate_declaration_name,
+        ),
+    ):
+        _runtime_set_text_if_missing(normalized, key, value)
+        if request:
+            _runtime_set_text_if_missing(request, key, value)
+    if request:
+        normalized["source_to_bridge_premise_derivation_candidate_request"] = request
+    return normalized
 
 
 def _runtime_source_to_bridge_premise_derivation_kernel_verified(
@@ -31940,8 +32113,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 )
             )
         if premise_candidate_declaration_name and premise_candidate_request:
-            premise_candidate_request.setdefault(
+            _runtime_set_text_if_missing(
+                premise_candidate_request,
                 "premise_candidate_declaration_name",
+                premise_candidate_declaration_name,
+            )
+            _runtime_set_text_if_missing(
+                premise_candidate_request,
+                "source_to_bridge_premise_candidate_declaration_name",
                 premise_candidate_declaration_name,
             )
         if is_source_to_bridge_premise_derivation_feedback:
@@ -33206,9 +33385,12 @@ def _runtime_learning_memory_source_to_bridge_metadata_authoring_requests(
     ):
         return ()
     rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
-    return stb_metadata.memory_metadata_authoring_request_rows(
-        rows,
-        row_trigger=_runtime_learning_row_trigger,
+    return tuple(
+        _normalize_source_to_bridge_metadata_authoring_request_row(row)
+        for row in stb_metadata.memory_metadata_authoring_request_rows(
+            rows,
+            row_trigger=_runtime_learning_row_trigger,
+        )
     )
 
 
@@ -36187,13 +36369,16 @@ def _formalizer_source_to_bridge_metadata_authoring_request_rows(
     theorem_goal_ids = [
         _theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row)
     ]
-    return stb_metadata.formalizer_metadata_authoring_request_rows(
-        proposal_packet=proposal_packet,
-        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-        theorem_goal_ids=theorem_goal_ids,
-        schema_version=RUNTIME_SCHEMA_VERSION,
-        proof_evidence_boundary=KERNEL_PROOF_BOUNDARY,
-    )
+    return [
+        _normalize_source_to_bridge_metadata_authoring_request_row(row)
+        for row in stb_metadata.formalizer_metadata_authoring_request_rows(
+            proposal_packet=proposal_packet,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            theorem_goal_ids=theorem_goal_ids,
+            schema_version=RUNTIME_SCHEMA_VERSION,
+            proof_evidence_boundary=KERNEL_PROOF_BOUNDARY,
+        )
+    ]
 
 
 def _formalizer_source_to_bridge_premise_derivation_work_orders(
@@ -36556,8 +36741,14 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                     )
                 )
             if premise_candidate_declaration_name:
-                candidate_request.setdefault(
+                _runtime_set_text_if_missing(
+                    candidate_request,
                     "premise_candidate_declaration_name",
+                    premise_candidate_declaration_name,
+                )
+                _runtime_set_text_if_missing(
+                    candidate_request,
+                    "source_to_bridge_premise_candidate_declaration_name",
                     premise_candidate_declaration_name,
                 )
             source_formal_target_id = str(
@@ -36600,9 +36791,14 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                         list(work_order_target_goal_ids),
                     )
                 if target_theorem_name:
-                    nested_request.setdefault("target_theorem_name", target_theorem_name)
+                    _runtime_set_text_if_missing(
+                        nested_request,
+                        "target_theorem_name",
+                        target_theorem_name,
+                    )
                 if target_lean_declaration:
-                    nested_request.setdefault(
+                    _runtime_set_text_if_missing(
+                        nested_request,
                         "target_lean_declaration",
                         target_lean_declaration,
                     )
@@ -40490,6 +40686,8 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
 
 def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(
     results: list[dict[str, Any]],
+    *,
+    runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_work_order_id: dict[str, int] = {}
@@ -40508,6 +40706,14 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                 if isinstance(artifact.get("question"), Mapping)
                 else {}
             )
+            proof_bank_summary = (
+                artifact.get("proof_bank_runtime_memory_summary", {})
+                if isinstance(
+                    artifact.get("proof_bank_runtime_memory_summary", {}),
+                    Mapping,
+                )
+                else {}
+            )
             work_order_items = list(
                 artifact.get("source_to_bridge_premise_derivation_work_orders", [])
                 or []
@@ -40520,14 +40726,6 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                 proposal_packet = artifacts.get(proposal_id, {})
                 if not isinstance(proposal_packet, Mapping):
                     continue
-                proof_bank_summary = (
-                    artifact.get("proof_bank_runtime_memory_summary", {})
-                    if isinstance(
-                        artifact.get("proof_bank_runtime_memory_summary"),
-                        Mapping,
-                    )
-                    else {}
-                )
                 theorem_goals = [
                     row
                     for row in artifact.get("deterministic_theorem_goals", []) or []
@@ -40614,12 +40812,14 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                             list(row.get("target_theorem_goal_ids", []) or []),
                         )
                     if target_theorem_name:
-                        nested_request.setdefault(
+                        _runtime_set_text_if_missing(
+                            nested_request,
                             "target_theorem_name",
                             target_theorem_name,
                         )
                     if target_lean_declaration:
-                        nested_request.setdefault(
+                        _runtime_set_text_if_missing(
+                            nested_request,
                             "target_lean_declaration",
                             target_lean_declaration,
                         )
@@ -40627,7 +40827,11 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                         request_key
                         == "source_to_bridge_premise_derivation_candidate_request"
                     ):
-                        nested_request.setdefault("premise_name", premise_name)
+                        _runtime_set_text_if_missing(
+                            nested_request,
+                            "premise_name",
+                            premise_name,
+                        )
                         if not premise_candidate_declaration_name:
                             premise_candidate_declaration_name = str(
                                 nested_request.get(
@@ -40662,8 +40866,14 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                                 )
                             )
                         if premise_candidate_declaration_name:
-                            nested_request.setdefault(
+                            _runtime_set_text_if_missing(
+                                nested_request,
                                 "premise_candidate_declaration_name",
+                                premise_candidate_declaration_name,
+                            )
+                            _runtime_set_text_if_missing(
+                                nested_request,
+                                "source_to_bridge_premise_candidate_declaration_name",
                                 premise_candidate_declaration_name,
                             )
                     row[request_key] = nested_request
@@ -40684,6 +40894,12 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                     row["source_to_bridge_premise_candidate_declaration_name"] = (
                         premise_candidate_declaration_name
                     )
+                if _source_to_bridge_work_order_redundant_wrong_declaration_retry(
+                    row=row,
+                    proof_bank_summary=proof_bank_summary,
+                    runtime_learning_rows=runtime_learning_rows,
+                ):
+                    continue
                 row["runtime_queue_status"] = (
                     "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
                 )
@@ -40744,6 +40960,185 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                     by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
     return rows
+
+
+def _source_to_bridge_work_order_redundant_wrong_declaration_retry(
+    *,
+    row: Mapping[str, Any],
+    proof_bank_summary: Mapping[str, Any],
+    runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
+) -> bool:
+    source = str(
+        row.get("premise_derivation_candidate_lean_source", "")
+        or row.get("candidate_lean_source", "")
+        or row.get("lean_statement_sketch", "")
+        or ""
+    ).strip()
+    if not source:
+        return False
+    expected_declaration = _source_to_bridge_work_order_expected_declaration(row)
+    if not expected_declaration:
+        return False
+    if re.search(rf"\btheorem\s+{re.escape(expected_declaration)}\b", source):
+        return False
+    return _proof_bank_summary_has_wrong_declaration_feedback_for_work_order(
+        row=row,
+        proof_bank_summary=proof_bank_summary,
+        runtime_learning_rows=runtime_learning_rows,
+        expected_declaration=expected_declaration,
+    )
+
+
+def _source_to_bridge_work_order_expected_declaration(
+    row: Mapping[str, Any],
+) -> str:
+    candidate_request = row.get(
+        "source_to_bridge_premise_derivation_candidate_request",
+        {},
+    )
+    if not isinstance(candidate_request, Mapping):
+        candidate_request = {}
+    declaration = str(
+        row.get("premise_candidate_declaration_name", "")
+        or row.get("source_to_bridge_premise_candidate_declaration_name", "")
+        or candidate_request.get("premise_candidate_declaration_name", "")
+        or candidate_request.get(
+            "source_to_bridge_premise_candidate_declaration_name",
+            "",
+        )
+        or ""
+    ).strip()
+    if declaration:
+        return declaration
+    return stb_metadata.default_premise_candidate_declaration_name(
+        {
+            "target_lean_declaration": str(
+                row.get("target_lean_declaration", "")
+                or candidate_request.get("target_lean_declaration", "")
+                or ""
+            ),
+            "target_theorem_name": str(
+                row.get("target_theorem_name", "")
+                or candidate_request.get("target_theorem_name", "")
+                or ""
+            ),
+            "premise_name": str(
+                row.get("premise_name", "")
+                or candidate_request.get("premise_name", "")
+                or ""
+            ),
+        }
+    )
+
+
+def _proof_bank_summary_has_wrong_declaration_feedback_for_work_order(
+    *,
+    row: Mapping[str, Any],
+    proof_bank_summary: Mapping[str, Any],
+    runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
+    expected_declaration: str,
+) -> bool:
+    diagnostics: list[Mapping[str, Any]] = []
+    summary_diagnostics = proof_bank_summary.get(
+        "source_to_bridge_premise_derivation_diagnostics",
+        [],
+    )
+    if isinstance(summary_diagnostics, list | tuple):
+        diagnostics.extend(
+            diagnostic
+            for diagnostic in summary_diagnostics
+            if isinstance(diagnostic, Mapping)
+        )
+    for learning_row in runtime_learning_rows:
+        if not isinstance(learning_row, Mapping):
+            continue
+        input_summary = learning_row.get("input_summary", {})
+        if not isinstance(input_summary, Mapping):
+            input_summary = {}
+        failure = str(
+            input_summary.get("failure_classification", "")
+            or learning_row.get("failure_classification", "")
+            or ""
+        )
+        if failure != "premise_derivation_candidate_wrong_declaration":
+            continue
+        merged = {**dict(input_summary), **dict(learning_row)}
+        nested_input_request = input_summary.get(
+            "source_to_bridge_premise_derivation_candidate_request",
+            {},
+        )
+        if (
+            "source_to_bridge_premise_derivation_candidate_request" not in merged
+            and isinstance(nested_input_request, Mapping)
+        ):
+            merged["source_to_bridge_premise_derivation_candidate_request"] = (
+                nested_input_request
+            )
+        diagnostics.append(merged)
+    if not diagnostics:
+        return False
+    work_order_id = str(row.get("work_order_id", "") or "").strip()
+    premise_name = str(row.get("premise_name", "") or "").strip()
+    candidate_request_id = str(
+        row.get("source_to_bridge_premise_derivation_candidate_request_id", "")
+        or row.get("candidate_request_id", "")
+        or ""
+    ).strip()
+    for diagnostic in diagnostics:
+        if not isinstance(diagnostic, Mapping):
+            continue
+        failure = str(diagnostic.get("failure_classification", "") or "")
+        if failure != "premise_derivation_candidate_wrong_declaration":
+            continue
+        diagnostic_request = diagnostic.get(
+            "source_to_bridge_premise_derivation_candidate_request",
+            {},
+        )
+        if not isinstance(diagnostic_request, Mapping):
+            diagnostic_request = {}
+        diagnostic_work_order_id = str(
+            diagnostic.get("work_order_id", "")
+            or diagnostic.get("source_premise_derivation_work_order_id", "")
+            or ""
+        ).strip()
+        diagnostic_premise_name = str(
+            diagnostic.get("premise_name", "")
+            or diagnostic_request.get("premise_name", "")
+            or ""
+        ).strip()
+        diagnostic_request_id = str(
+            diagnostic.get(
+                "source_to_bridge_premise_derivation_candidate_request_id",
+                "",
+            )
+            or diagnostic.get("candidate_request_id", "")
+            or diagnostic_request.get("candidate_request_id", "")
+            or ""
+        ).strip()
+        diagnostic_declaration = str(
+            diagnostic.get("premise_candidate_declaration_name", "")
+            or diagnostic.get("source_to_bridge_premise_candidate_declaration_name", "")
+            or diagnostic_request.get("premise_candidate_declaration_name", "")
+            or diagnostic_request.get(
+                "source_to_bridge_premise_candidate_declaration_name",
+                "",
+            )
+            or ""
+        ).strip()
+        if diagnostic_declaration and diagnostic_declaration != expected_declaration:
+            continue
+        if diagnostic_work_order_id and diagnostic_work_order_id == work_order_id:
+            return True
+        if (
+            candidate_request_id
+            and diagnostic_request_id
+            and diagnostic_request_id == candidate_request_id
+            and diagnostic_premise_name == premise_name
+        ):
+            return True
+        if premise_name and diagnostic_premise_name == premise_name:
+            return True
+    return False
 
 
 def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_repair_targets(
@@ -42017,6 +42412,45 @@ def _runtime_learning_memory_context_row_limit(
     return max(int(default or 0), 0)
 
 
+def _normalize_source_to_bridge_premise_derivation_feedback_contracts(
+    feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(feedback)
+    diagnostics = [
+        _normalize_source_to_bridge_metadata_authoring_request_row(row)
+        for row in normalized.get("diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if diagnostics:
+        normalized["diagnostics"] = diagnostics
+    return normalized
+
+
+def _normalize_environment_feedback_source_to_bridge_contracts(
+    environment_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(environment_feedback)
+    source_to_bridge_feedback = normalized.get(
+        "source_to_bridge_premise_derivation_feedback",
+        {},
+    )
+    if isinstance(source_to_bridge_feedback, Mapping):
+        normalized["source_to_bridge_premise_derivation_feedback"] = (
+            _normalize_source_to_bridge_premise_derivation_feedback_contracts(
+                source_to_bridge_feedback
+            )
+        )
+    diagnostics = [
+        _normalize_source_to_bridge_metadata_authoring_request_row(row)
+        for row in normalized.get("source_to_bridge_premise_derivation_diagnostics", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if diagnostics:
+        normalized["source_to_bridge_premise_derivation_diagnostics"] = diagnostics
+    return normalized
+
+
 def _runtime_pending_task_with_runtime_learning_memory(
     pending_next_task: Mapping[str, Any],
     memory_context: Mapping[str, Any],
@@ -42030,8 +42464,6 @@ def _runtime_pending_task_with_runtime_learning_memory(
     )
     if not isinstance(memory_context, Mapping):
         memory_context = {}
-    if not memory_context.get("rows") and not has_exact_semantic_feedback:
-        return pending
     inputs = (
         dict(pending.get("inputs", {}))
         if isinstance(pending.get("inputs", {}), Mapping)
@@ -42042,6 +42474,25 @@ def _runtime_pending_task_with_runtime_learning_memory(
         if isinstance(inputs.get("architect_context", {}), Mapping)
         else {}
     )
+    if not memory_context.get("rows") and not has_exact_semantic_feedback:
+        environment_feedback = (
+            inputs.get("environment_feedback", {})
+            if isinstance(inputs.get("environment_feedback", {}), Mapping)
+            else architect_context.get("environment_feedback", {})
+            if isinstance(architect_context.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        if environment_feedback:
+            environment_feedback = (
+                _normalize_environment_feedback_source_to_bridge_contracts(
+                    environment_feedback
+                )
+            )
+            inputs["environment_feedback"] = environment_feedback
+            architect_context["environment_feedback"] = environment_feedback
+            inputs["architect_context"] = architect_context
+            pending["inputs"] = inputs
+        return pending
     existing_memory = architect_context.get("runtime_learning_memory", {})
     if memory_context.get("rows"):
         architect_context["runtime_learning_memory"] = (
@@ -42151,8 +42602,29 @@ def _runtime_pending_task_with_runtime_learning_memory(
                     existing_resource_requests,
                 )
             )
+        environment_feedback = (
+            _normalize_environment_feedback_source_to_bridge_contracts(
+                environment_feedback
+            )
+        )
         inputs["environment_feedback"] = environment_feedback
         architect_context["environment_feedback"] = environment_feedback
+    else:
+        environment_feedback = (
+            inputs.get("environment_feedback", {})
+            if isinstance(inputs.get("environment_feedback", {}), Mapping)
+            else architect_context.get("environment_feedback", {})
+            if isinstance(architect_context.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        if environment_feedback:
+            environment_feedback = (
+                _normalize_environment_feedback_source_to_bridge_contracts(
+                    environment_feedback
+                )
+            )
+            inputs["environment_feedback"] = environment_feedback
+            architect_context["environment_feedback"] = environment_feedback
     inputs["architect_context"] = architect_context
     pending["inputs"] = inputs
     return pending
