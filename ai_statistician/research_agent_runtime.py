@@ -14112,8 +14112,15 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_proof_body_recheck_executor_learning_rows: list[
         dict[str, Any]
     ] = []
-    if (
+    source_theorem_exact_semantic_definition_source_lookup_effective = bool(
         config.source_theorem_exact_semantic_definition_source_lookup
+        or (
+            str(config.evaluation_mode or "").strip() == "capability_eval"
+            and bool(source_theorem_exact_semantic_definition_work_order_rows)
+        )
+    )
+    if (
+        source_theorem_exact_semantic_definition_source_lookup_effective
         and source_theorem_exact_semantic_definition_work_order_rows
     ):
         source_theorem_exact_semantic_definition_source_lookup_manifest = (
@@ -19375,6 +19382,9 @@ def run_research_agent_runtime(
     manifest["source_theorem_exact_semantic_definition_source_lookup_requested"] = bool(
         config.source_theorem_exact_semantic_definition_source_lookup
     )
+    manifest["source_theorem_exact_semantic_definition_source_lookup_effective"] = bool(
+        source_theorem_exact_semantic_definition_source_lookup_effective
+    )
     manifest["source_theorem_exact_semantic_definition_source_lookup_ran"] = (
         source_theorem_exact_semantic_definition_source_lookup_manifest is not None
     )
@@ -19385,10 +19395,10 @@ def run_research_agent_runtime(
             "source_lookup_required_but_disabled"
             if (
                 source_theorem_exact_semantic_definition_work_order_rows
-                and not config.source_theorem_exact_semantic_definition_source_lookup
+                and not source_theorem_exact_semantic_definition_source_lookup_effective
             )
             else "lookup_disabled"
-            if not config.source_theorem_exact_semantic_definition_source_lookup
+            if not source_theorem_exact_semantic_definition_source_lookup_effective
             else "no_exact_semantic_definition_work_orders"
         )
     )

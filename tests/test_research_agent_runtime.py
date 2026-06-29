@@ -23890,6 +23890,177 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
 
 
+def test_capability_eval_auto_runs_exact_semantic_source_lookup_for_work_orders(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:orderStat",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "orderStat",
+        "replacement_strategy": "formalize reviewed order statistic semantics",
+        "search_targets": ["orderStat", "quantile"],
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    lookup_calls: list[dict[str, object]] = []
+
+    def fake_semantic_work_order_rows(_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [dict(fake_work_order)]
+
+    def fake_lookup(
+        *,
+        out_dir: Path,
+        queue_jsonl: Path | None = None,
+        runtime_dir: Path | None = None,
+        source_roots: list[Path] | None = None,
+        max_hits_per_work_order: int = 8,
+    ) -> dict[str, object]:
+        assert queue_jsonl is not None
+        assert runtime_dir is None
+        assert queue_jsonl.exists()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        lookup_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_source_lookup_rows.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_source_lookup_manifest.json"
+        )
+        lookup_row = {
+            "schema_version": 1,
+            "artifact_kind": (
+                "RuntimeSourceTheoremExactSemanticDefinitionSourceLookupRow"
+            ),
+            "lookup_id": "source_lookup:orderStat",
+            "source_work_order_id": fake_work_order["work_order_id"],
+            "target_theorem_name": "split_conformal_coverage",
+            "target_ids": ["split_conformal_coverage"],
+            "placeholder_symbol": "orderStat",
+            "lookup_status": "NO_CANDIDATE_SOURCE_DECLARATIONS_FOUND",
+            "source_lookup_hits": [],
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        learning_row = {
+            **lookup_row,
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_source_lookup"
+            ),
+            "work_order_id": fake_work_order["work_order_id"],
+            "input_summary": {
+                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_SOURCE_LOOKUP",
+                "target_ids": ["split_conformal_coverage"],
+                "placeholder_symbol": "orderStat",
+                "lookup_status": "NO_CANDIDATE_SOURCE_DECLARATIONS_FOUND",
+            },
+        }
+        lookup_path.write_text(json.dumps(lookup_row) + "\n", encoding="utf-8")
+        learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "lookup_rows_jsonl": str(lookup_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_work_orders": 1,
+            "n_lookup_rows": 1,
+            "n_runtime_learning_rows": 1,
+            "n_rows_with_source_hits": 0,
+            "n_source_lookup_hits": 0,
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        lookup_calls.append(
+            {
+                "queue_jsonl": str(queue_jsonl),
+                "source_roots": [str(root) for root in source_roots or []],
+                "max_hits_per_work_order": max_hits_per_work_order,
+            }
+        )
+        return manifest
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        fake_semantic_work_order_rows,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        fake_lookup,
+    )
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=developer,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260528,
+            max_iterations=2,
+            evaluation_mode="capability_eval",
+            source_theorem_exact_semantic_definition_source_lookup=False,
+            source_theorem_exact_semantic_definition_source_roots=(str(source_root),),
+            source_theorem_exact_semantic_definition_source_lookup_max_hits=5,
+        ),
+    )
+
+    assert lookup_calls == [
+        {
+            "queue_jsonl": manifest["artifacts"][
+                "runtime_source_theorem_exact_semantic_definition_work_orders_jsonl"
+            ],
+            "source_roots": [str(source_root)],
+            "max_hits_per_work_order": 5,
+        }
+    ]
+    assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_required"]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_requested"]
+        is False
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_effective"]
+        is True
+    )
+    assert manifest["source_theorem_exact_semantic_definition_source_lookup_ran"] is True
+    assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_skipped_reason"]
+        == ""
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows"
+        ]
+        == 1
+    )
+    audit = audit_research_agent_runtime(tmp_path / "runtime")
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in audit["capability_scorecard"]["rows"]
+    }
+    assert scorecard_rows[
+        "exact_semantic_definition_source_lookup_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_learning_rows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
