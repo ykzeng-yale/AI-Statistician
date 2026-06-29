@@ -8742,6 +8742,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             for error in config_errors:
                 print(f"- {error}")
             return 2
+    static_config_errors = _research_agent_runtime_static_subsystem_config_errors(args)
+    if static_config_errors:
+        print("\nAI Statistician Agent Runtime static subsystem config rejected")
+        print("=" * 72)
+        for error in static_config_errors:
+            print(f"- {error}")
+        return 2
     verifier = _proof_verifier_from_args(args)
     proof_state_provider = _proof_state_provider_from_args(args)
     resume_initial_tasks: dict[str, AgentTask] = {}
@@ -9685,6 +9692,63 @@ def _effective_resume_through_architect(
         and bool(str(getattr(args, "resume_runtime_manifest", "") or "").strip())
         and bool(architect_coordinator_configured)
     )
+
+
+def _research_agent_runtime_static_subsystem_config_errors(
+    args: argparse.Namespace,
+) -> list[str]:
+    errors: list[str] = []
+    subsystem_static_files = (
+        (
+            "architect_coordinator_provider",
+            "architect_static_response_file",
+            "ArchitectCoordinator",
+            "--architect-static-response-file",
+        ),
+        (
+            "simulation_engineer_provider",
+            "simulation_static_response_file",
+            "SimulationEngineer",
+            "--simulation-static-response-file",
+        ),
+        (
+            "algorithm_engineer_provider",
+            "algorithm_static_response_file",
+            "AlgorithmEngineer",
+            "--algorithm-static-response-file",
+        ),
+        (
+            "formalizer_provider",
+            "formalizer_static_response_file",
+            "Formalizer/ProofEngineer",
+            "--formalizer-static-response-file",
+        ),
+        (
+            "critic_evaluator_provider",
+            "critic_static_response_file",
+            "CriticEvaluator",
+            "--critic-static-response-file",
+        ),
+    )
+    main_provider = str(getattr(args, "provider", "") or "")
+    for provider_field, static_file_field, subsystem, flag in subsystem_static_files:
+        configured_provider = str(getattr(args, provider_field, "none") or "none")
+        if configured_provider == "none":
+            continue
+        resolved_provider = (
+            main_provider if configured_provider == "same" else configured_provider
+        )
+        if resolved_provider != "static":
+            continue
+        if str(getattr(args, static_file_field, "") or "").strip():
+            continue
+        errors.append(
+            f"{subsystem} resolves to static via --{provider_field.replace('_', '-')}="
+            f"{configured_provider} but {flag} was not supplied; set "
+            f"--{provider_field.replace('_', '-')} none to intentionally disable "
+            "that subsystem in a partial debug replay"
+        )
+    return errors
 
 
 def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:

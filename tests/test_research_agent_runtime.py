@@ -15,6 +15,7 @@ from ai_statistician.cli import (
     _apply_research_agent_runtime_capability_eval_preset,
     _effective_resume_through_architect,
     _research_agent_runtime_capability_config_errors,
+    _research_agent_runtime_static_subsystem_config_errors,
     _proof_state_provider_from_args,
     main,
 )
@@ -44543,6 +44544,16 @@ def test_research_agent_runtime_cli_capability_eval_rejects_debug_modes() -> Non
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--question-id",
@@ -45125,6 +45136,33 @@ def test_capability_eval_resume_defaults_through_configured_architect() -> None:
     )
 
 
+def test_static_subsystem_config_requires_response_or_explicit_disable() -> None:
+    args = argparse.Namespace(
+        provider="static",
+        architect_coordinator_provider="static",
+        architect_static_response_file="architect.json",
+        simulation_engineer_provider="same",
+        simulation_static_response_file="",
+        algorithm_engineer_provider="none",
+        algorithm_static_response_file="",
+        formalizer_provider="static",
+        formalizer_static_response_file="",
+        critic_evaluator_provider="none",
+        critic_static_response_file="",
+    )
+
+    errors = _research_agent_runtime_static_subsystem_config_errors(args)
+
+    assert any("SimulationEngineer resolves to static" in error for error in errors)
+    assert any("Formalizer/ProofEngineer resolves to static" in error for error in errors)
+    assert not any("ArchitectCoordinator" in error for error in errors)
+
+    args.simulation_engineer_provider = "none"
+    args.formalizer_static_response_file = "formalizer.json"
+
+    assert _research_agent_runtime_static_subsystem_config_errors(args) == []
+
+
 def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     root = Path("runs/test_research_agent_runtime_cli")
     shutil.rmtree(root, ignore_errors=True)
@@ -45166,6 +45204,16 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--max-questions",
@@ -45505,6 +45553,16 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--resume-runtime-manifest",
@@ -45612,6 +45670,14 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
             "static",
             "--architect-static-response-file",
             str(architect_response_file),
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--resume-runtime-manifest",
@@ -45702,6 +45768,16 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--resume-runtime-manifest",
@@ -45760,6 +45836,16 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--resume-runtime-manifest",
@@ -45854,6 +45940,16 @@ def test_research_agent_runtime_cli_imports_truth_table_memory_into_semantic_que
             "static",
             "--static-response-file",
             str(response_file),
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
             "--question-file",
             "examples/research_questions.json",
             "--question-id",
