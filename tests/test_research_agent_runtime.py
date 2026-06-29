@@ -606,6 +606,88 @@ def test_critic_routes_explicit_weak_theory_trace_to_theory_developer() -> None:
     ]
 
 
+def test_critic_uses_explicit_handoff_artifact_ids_over_latest_blackboard() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet_id = "theory_derivation:critic_structured"
+    requested_formalization_id = "formalization_manifest:requested"
+    latest_formalization_id = "formalization_manifest:latest"
+    blackboard = BlackboardState(project_id="critic-exact-artifact-handoff-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+                "counts": {"formal_source_hits": 1},
+            },
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            "simulation_manifest:requested": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:requested",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:requested": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:requested",
+                "n_executed": 1,
+            },
+            requested_formalization_id: {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": requested_formalization_id,
+                "counts": {"proved": 1, "kernel_verified": 1, "formal_gap": 0},
+                "formal_subclaims": [],
+                "deterministic_theorem_goals": [
+                    {"id": "requested_frontier_target", "status": "PROVED"}
+                ],
+                "full_frontier_theorem_proved": False,
+            },
+            latest_formalization_id: {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": latest_formalization_id,
+                "counts": {"proved": 0, "kernel_verified": 0, "formal_gap": 3},
+                "formal_subclaims": [
+                    {
+                        "id": "latest_gap",
+                        "status": "FORMAL_GAP",
+                        "gap_reason": "newer blackboard artifact not requested",
+                    }
+                ],
+                "deterministic_theorem_goals": [
+                    {"id": "latest_frontier_target", "status": "FORMAL_GAP"}
+                ],
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:exact-handoff",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate the exact formalization handoff from the prior step.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "simulation_manifest:requested",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:requested",
+            "formalization_manifest_id": requested_formalization_id,
+            "architect_context": {},
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem().run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert critic_manifest["theory_packet_id"] == theory_packet_id
+    assert critic_manifest["simulation_manifest_id"] == "simulation_manifest:requested"
+    assert critic_manifest["algorithm_sandbox_manifest_id"] == (
+        "algorithm_sandbox_manifest:requested"
+    )
+    assert critic_manifest["formalization_manifest_id"] == requested_formalization_id
+    assert critic_manifest["counts"]["formal_gaps"] == 0
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,

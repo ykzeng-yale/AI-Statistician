@@ -9460,9 +9460,45 @@ class CriticEvaluatorRuntimeSubsystem:
             )
             if trace_repair_result is not None:
                 return trace_repair_result
-        simulation_manifest = _latest_artifact(blackboard, "simulation_manifest:")
-        algorithm_manifest = _latest_artifact(blackboard, "algorithm_sandbox_manifest:")
-        formalization_manifest = _latest_artifact(blackboard, "formalization_manifest:")
+        requested_simulation_manifest_id = str(
+            task.inputs.get("simulation_manifest_id", "") or ""
+        )
+        simulation_manifest = _artifact_by_id_or_latest(
+            blackboard,
+            requested_simulation_manifest_id,
+            "simulation_manifest:",
+        )
+        simulation_manifest_id = str(
+            requested_simulation_manifest_id
+            or simulation_manifest.get("manifest_id", "")
+            or ""
+        )
+        requested_algorithm_manifest_id = str(
+            task.inputs.get("algorithm_sandbox_manifest_id", "") or ""
+        )
+        algorithm_manifest = _artifact_by_id_or_latest(
+            blackboard,
+            requested_algorithm_manifest_id,
+            "algorithm_sandbox_manifest:",
+        )
+        algorithm_manifest_id = str(
+            requested_algorithm_manifest_id
+            or algorithm_manifest.get("manifest_id", "")
+            or ""
+        )
+        requested_formalization_manifest_id = str(
+            task.inputs.get("formalization_manifest_id", "") or ""
+        )
+        formalization_manifest = _artifact_by_id_or_latest(
+            blackboard,
+            requested_formalization_manifest_id,
+            "formalization_manifest:",
+        )
+        formalization_manifest_id = str(
+            requested_formalization_manifest_id
+            or formalization_manifest.get("manifest_id", "")
+            or ""
+        )
         formalization_manifest = _formalization_manifest_with_runtime_memory_summary(
             formalization_manifest,
             context,
@@ -9617,6 +9653,9 @@ class CriticEvaluatorRuntimeSubsystem:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "question": _question_to_payload(question),
             "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "formalization_manifest_id": formalization_manifest_id,
             "runtime_architect_control": critic_control,
             "llm_critic_evaluator_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
@@ -26214,6 +26253,17 @@ def _latest_artifact(blackboard: BlackboardState, prefix: str) -> dict[str, Any]
         if key.startswith(prefix) and isinstance(blackboard.artifacts[key], dict):
             return dict(blackboard.artifacts[key])
     return {}
+
+
+def _artifact_by_id_or_latest(
+    blackboard: BlackboardState,
+    artifact_id: str,
+    prefix: str,
+) -> dict[str, Any]:
+    if artifact_id:
+        artifact = blackboard.artifacts.get(artifact_id, {})
+        return dict(artifact) if isinstance(artifact, Mapping) else {}
+    return _latest_artifact(blackboard, prefix)
 
 
 def _algorithm_proposal_for_estimator(
