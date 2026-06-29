@@ -3584,6 +3584,166 @@ def test_runtime_learning_memory_loader_pins_adapter_import_feedback(
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
+def test_runtime_learning_memory_pins_formal_gap_planner_routing(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "filler",
+            "target_behavior": f"old row {index}",
+        }
+        for index in range(8)
+    ]
+    rows.insert(
+        1,
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "next_action_routing",
+            "input_summary": {
+                "trigger": "FORMAL_GAP",
+                "owner_subsystem": "Formalizer/LeanProver",
+                "agenda_id": "formal_gap:proof_bank_expansion",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            },
+            "target_behavior": "promote retrieved formal-source hits",
+            "acceptance_gate": "AXLE/local Lean verifies the new obligation",
+        },
+    )
+    rows.insert(
+        2,
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "next_action_routing",
+            "input_summary": {
+                "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                "owner_subsystem": "FormalizationGapPlanner",
+                "agenda_id": "formal_gap:gap_planner_handoff",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "formalization_gap_planner_bridge_id": (
+                    "runtime_formalization_gap_planner_bridge:one"
+                ),
+                "standalone_seed_artifact_id": (
+                    "runtime_formalization_gap_planner_standalone_seed:one"
+                ),
+            },
+            "target_behavior": "stage planner packets before broad theory expansion",
+            "acceptance_gate": (
+                "LLM route plan, standalone gap plan, source grounding audit, "
+                "and target-prover replay preserve proof boundaries"
+            ),
+            "proof_boundary": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+            ),
+        },
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=2)
+
+    agenda_ids = {
+        row["input_summary"]["agenda_id"]
+        for row in memory["rows"]
+        if row.get("learning_task") == "next_action_routing"
+    }
+    assert agenda_ids == {
+        "formal_gap:proof_bank_expansion",
+        "formal_gap:gap_planner_handoff",
+    }
+    planner_row = next(
+        row
+        for row in memory["rows"]
+        if row["input_summary"]["agenda_id"] == "formal_gap:gap_planner_handoff"
+    )
+    assert runtime_module._runtime_learning_memory_should_pin_context_row(planner_row)
+    assert planner_row["input_summary"]["formalization_gap_planner_bridge_id"] == (
+        "runtime_formalization_gap_planner_bridge:one"
+    )
+    assert planner_row["input_summary"]["standalone_seed_artifact_id"] == (
+        "runtime_formalization_gap_planner_standalone_seed:one"
+    )
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+
+
+def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "learning_task": "next_action_routing",
+                "input_summary": {
+                    "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                    "owner_subsystem": "FormalizationGapPlanner",
+                    "agenda_id": "formal_gap:gap_planner_handoff",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "formalization_gap_planner_bridge_id": (
+                        "runtime_formalization_gap_planner_bridge:one"
+                    ),
+                    "standalone_seed_artifact_id": (
+                        "runtime_formalization_gap_planner_standalone_seed:one"
+                    ),
+                },
+                "target_behavior": (
+                    "stage planner packets before broad theory expansion"
+                ),
+                "acceptance_gate": (
+                    "LLM route plan, standalone gap plan, source grounding audit, "
+                    "and target-prover replay preserve proof boundaries"
+                ),
+                "proof_boundary": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+                ),
+            }
+        ],
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formal_gap_next_action_routing_active"] is True
+    assert summary["formalization_gap_planner_handoff_required"] is True
+    assert summary["formalization_gap_planner_bridge_ids"] == [
+        "runtime_formalization_gap_planner_bridge:one"
+    ]
+    assert summary["formalization_gap_planner_standalone_seed_artifact_ids"] == [
+        "runtime_formalization_gap_planner_standalone_seed:one"
+    ]
+    assert summary["formal_gap_next_action_contract"]["proof_evidence_status"] == (
+        "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE"
+    )
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Formal-gap next-action routing is active" in prompt
+    assert "runtime_formalization_gap_planner_bridge:one" in prompt
+    assert "runtime_formalization_gap_planner_standalone_seed:one" in prompt
+    assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
+    assert "target-prover replay preserve proof boundaries" in prompt
+
+
 def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
     tmp_path: Path,
 ) -> None:

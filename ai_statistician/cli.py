@@ -911,6 +911,70 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
     }
 
 
+_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = frozenset(
+    {
+        "formal_gap:proof_bank_expansion",
+        "formal_gap:gap_planner_handoff",
+    }
+)
+_FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
+    {
+        "FORMAL_GAP",
+        "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+    }
+)
+
+
+def _runtime_learning_memory_row_trigger(row: Mapping[str, object]) -> str:
+    input_summary = row.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        trigger = str(input_summary.get("trigger", "") or "").strip()
+        if trigger:
+            return trigger
+    return str(row.get("trigger", "") or "").strip()
+
+
+def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    if learning_task not in {"next_action_routing", "generated_next_action_routing"}:
+        return False
+    agenda_id = str(
+        row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+    ).strip()
+    trigger = _runtime_learning_memory_row_trigger(row)
+    return bool(
+        agenda_id in _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+        or trigger in _FORMAL_GAP_NEXT_ACTION_TRIGGERS
+    )
+
+
+def _runtime_learning_memory_formal_gap_next_action_stage(
+    row: Mapping[str, object],
+) -> str:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    agenda_id = str(
+        row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+    ).strip()
+    trigger = _runtime_learning_memory_row_trigger(row)
+    if (
+        agenda_id == "formal_gap:gap_planner_handoff"
+        or trigger == "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
+    ):
+        return "gap_planner_handoff"
+    if agenda_id == "formal_gap:proof_bank_expansion" or trigger == "FORMAL_GAP":
+        return "proof_bank_expansion"
+    return "formal_gap_route"
+
+
 def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
@@ -1025,6 +1089,12 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
+        if _runtime_learning_memory_formal_gap_next_action_stage(row) == (
+            "gap_planner_handoff"
+        ):
+            return 90
+        return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
     if learning_task == "coding_agent_generated_code_capability_feedback":
@@ -1231,6 +1301,46 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + failure_scope
         )
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        agenda_id = str(
+            row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+        ).strip()
+        trigger = _runtime_learning_memory_row_trigger(row)
+        target_scope = ",".join(
+            _runtime_learning_memory_string_values(
+                row,
+                "target_ids",
+                "target_id",
+                "target_theorem_goal_ids",
+                "formal_gap_target_ids",
+                "target_theorem_name",
+            )
+        )
+        bridge_ids = _runtime_learning_memory_string_values(
+            row,
+            "formalization_gap_planner_bridge_id",
+            "supporting_formalization_gap_planner_bridge_ids",
+        )
+        seed_ids = _runtime_learning_memory_string_values(
+            row,
+            "standalone_seed_artifact_id",
+            "supporting_standalone_seed_artifact_ids",
+        )
+        return (
+            "formal_gap_next_action_routing:"
+            + (question_id or "global")
+            + ":"
+            + (agenda_id or "formal_gap")
+            + ":"
+            + trigger
+            + ":"
+            + (target_scope or target)
+            + ":"
+            + (",".join(bridge_ids) or ",".join(seed_ids))
+        )
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         component_manifest = str(
             row.get("component_eval_manifest_path", "")
@@ -1359,6 +1469,8 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
+        return True
     if learning_task in {
         "source_to_bridge_premise_derivation_feedback",
         "theory_derivation_trace_feedback",
@@ -1770,6 +1882,11 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_theorem_target_identity_status",
         "proof_evidence_status",
         "proof_evidence_boundary",
+        "proof_boundary",
+        "boundary",
+        "priority",
+        "formalization_gap_planner_bridge_id",
+        "standalone_seed_artifact_id",
         "memory_status",
         "next_owner_agent",
         "next_action",
@@ -1938,6 +2055,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "diagnostic_helper_candidate_ids",
         "source_to_bridge_metadata_blocker_target_ids",
         "source_to_bridge_metadata_blocker_helper_candidate_ids",
+        "supporting_formalization_gap_planner_bridge_ids",
+        "supporting_standalone_seed_artifact_ids",
         "target_theorem_goal_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
@@ -2098,6 +2217,11 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "next_owner_subsystem",
         "owner_subsystem",
         "agenda_id",
+        "formalization_gap_planner_bridge_id",
+        "standalone_seed_artifact_id",
+        "proof_boundary",
+        "boundary",
+        "priority",
         "work_order_id",
         "semantic_primitive_id",
         "target_theorem_name",
@@ -2310,6 +2434,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "diagnostic_helper_candidate_ids",
         "source_to_bridge_metadata_blocker_target_ids",
         "source_to_bridge_metadata_blocker_helper_candidate_ids",
+        "supporting_formalization_gap_planner_bridge_ids",
+        "supporting_standalone_seed_artifact_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
         "candidate_materialization_statuses",

@@ -3485,6 +3485,71 @@ def _formalizer_mode_specific_instructions(
             "kernel proof evidence; every formal claim still needs local Lean/AXLE "
             "verification."
         )
+    formal_gap_next_action_active = bool(
+        proof_memory_summary.get("formal_gap_next_action_routing_active")
+        or proof_memory_summary.get("formalization_gap_planner_handoff_required")
+        or proof_memory_summary.get("formal_gap_proof_bank_expansion_required")
+    )
+    if formal_gap_next_action_active:
+        target_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formal_gap_next_action_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:6]
+        bridge_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formalization_gap_planner_bridge_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:4]
+        seed_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formalization_gap_planner_standalone_seed_artifact_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:4]
+        acceptance_gates = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formal_gap_next_action_acceptance_gates",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:3]
+        instruction = (
+            "Formal-gap next-action routing is active: consume "
+            "proof_bank_runtime_memory_summary.formal_gap_next_action_contract "
+            "and diagnostics as an orchestration contract before broad theory "
+            "expansion. Reuse retrieved formal-source/prover context, stage the "
+            "runtime formalization-gap planner prompt packets from the bridge/seed "
+            "when present, run the standalone minimal-delta gap planner, and replay "
+            "target-prover/local Lean checks before promoting any obligation or "
+            "theorem claim. Do not replace the planner path with hardcoded "
+            "corner-case Lean or informal derivation claims; if the route cannot be "
+            "completed, keep the affected target as FORMAL_GAP and name the exact "
+            "missing prover API, source theorem primitive, bridge premise, or "
+            "gap-planner artifact. These routing rows are not proof evidence."
+        )
+        if target_ids:
+            instruction += " Target(s): " + ", ".join(target_ids) + "."
+        if bridge_ids:
+            instruction += " Gap-planner bridge(s): " + ", ".join(bridge_ids) + "."
+        if seed_ids:
+            instruction += " Standalone seed(s): " + ", ".join(seed_ids) + "."
+        if acceptance_gates:
+            instruction += " Acceptance gate(s): " + "; ".join(acceptance_gates) + "."
+        instructions.append(instruction)
     if source_theorem_candidate_materialization_required:
         targets = [
             str(value).strip()
@@ -5490,6 +5555,15 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_to_bridge_metadata_authoring_request_shells",
         "source_to_bridge_metadata_authoring_complete_candidate_requests_available",
         "source_to_bridge_metadata_authoring_missing_request_fields",
+        "formal_gap_next_action_routing_active",
+        "formal_gap_next_action_target_ids",
+        "formal_gap_proof_bank_expansion_required",
+        "formalization_gap_planner_handoff_required",
+        "formalization_gap_planner_bridge_ids",
+        "formalization_gap_planner_standalone_seed_artifact_ids",
+        "formal_gap_next_action_acceptance_gates",
+        "formal_gap_next_action_contract",
+        "formal_gap_next_action_diagnostics",
         "source_theorem_proof_body_adapter_diagnostics",
         "source_theorem_exact_proof_body_repair_target_names",
         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -5635,6 +5709,24 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "owner_subsystem",
                 "target_behavior",
                 "acceptance_gate",
+                "proof_evidence_status",
+            ),
+            limit=4,
+        )
+    if isinstance(row.get("formal_gap_next_action_diagnostics"), list):
+        compact["formal_gap_next_action_diagnostics"] = _compact_rows(
+            row.get("formal_gap_next_action_diagnostics", []),
+            keys=(
+                "agenda_id",
+                "trigger",
+                "route_stage",
+                "owner_subsystem",
+                "target_ids",
+                "formalization_gap_planner_bridge_ids",
+                "standalone_seed_artifact_ids",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_boundary",
                 "proof_evidence_status",
             ),
             limit=4,

@@ -25024,6 +25024,68 @@ def _prioritized_runtime_learning_memory_context_rows(
     return [row for _priority, _index, row in selected]
 
 
+_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = frozenset(
+    {
+        "formal_gap:proof_bank_expansion",
+        "formal_gap:gap_planner_handoff",
+    }
+)
+_FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
+    {
+        "FORMAL_GAP",
+        "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+    }
+)
+
+
+def _runtime_learning_row_string_values(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    *keys: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    values.extend(_runtime_row_string_values(row, *keys))
+    values.extend(_runtime_row_string_values(input_summary, *keys))
+    return tuple(dict.fromkeys(value for value in values if value))
+
+
+def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> bool:
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    if learning_task not in {"next_action_routing", "generated_next_action_routing"}:
+        return False
+    agenda_id = str(
+        row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+    ).strip()
+    trigger = _runtime_learning_row_trigger(row, input_summary)
+    return bool(
+        agenda_id in _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+        or trigger in _FORMAL_GAP_NEXT_ACTION_TRIGGERS
+    )
+
+
+def _runtime_learning_memory_formal_gap_next_action_stage(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> str:
+    agenda_id = str(
+        row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+    ).strip()
+    trigger = _runtime_learning_row_trigger(row, input_summary)
+    if (
+        agenda_id == "formal_gap:gap_planner_handoff"
+        or trigger == "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
+    ):
+        return "gap_planner_handoff"
+    if agenda_id == "formal_gap:proof_bank_expansion" or trigger == "FORMAL_GAP":
+        return "proof_bank_expansion"
+    return "formal_gap_route"
+
+
 def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
@@ -25174,6 +25236,19 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 91
     if learning_task == "theory_trace_downstream_alignment_feedback":
         return 91
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+        row,
+        input_summary,
+    ):
+        if (
+            _runtime_learning_memory_formal_gap_next_action_stage(
+                row,
+                input_summary,
+            )
+            == "gap_planner_handoff"
+        ):
+            return 90
+        return 89
     if learning_task == "architect_orchestration_feedback":
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
@@ -25558,6 +25633,41 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + failure_scope
         )
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+        row,
+        input_summary,
+    ):
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        agenda_id = str(
+            row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+        ).strip()
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        bridge_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "formalization_gap_planner_bridge_id",
+            "supporting_formalization_gap_planner_bridge_ids",
+        )
+        seed_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "standalone_seed_artifact_id",
+            "supporting_standalone_seed_artifact_ids",
+        )
+        return (
+            "formal_gap_next_action_routing:"
+            + (question_id or "global")
+            + ":"
+            + (agenda_id or "formal_gap")
+            + ":"
+            + trigger
+            + ":"
+            + target_scope
+            + ":"
+            + (",".join(bridge_ids) or ",".join(seed_ids))
+        )
     if learning_task == "architect_orchestration_feedback":
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -25659,6 +25769,11 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
         "RUNTIME_HANDOFF_ARTIFACT_MISSING",
     }
+    if _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+        row,
+        input_summary,
+    ):
+        return True
     if learning_task in route_critical_learning_tasks:
         return True
     if trigger in route_critical_triggers:
@@ -35110,6 +35225,123 @@ def _runtime_learning_memory_source_to_bridge_metadata_authoring_requests(
     )
 
 
+def _runtime_learning_memory_formal_gap_next_action_routing_rows(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    routed_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if not _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+            row,
+            input_summary,
+        ):
+            continue
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        agenda_id = str(
+            row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+        ).strip()
+        stage = _runtime_learning_memory_formal_gap_next_action_stage(
+            row,
+            input_summary,
+        )
+        target_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "formal_gap_target_ids",
+            "target_theorem_name",
+        )
+        bridge_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "formalization_gap_planner_bridge_id",
+            "supporting_formalization_gap_planner_bridge_ids",
+        )
+        seed_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "standalone_seed_artifact_id",
+            "supporting_standalone_seed_artifact_ids",
+        )
+        key = (
+            agenda_id,
+            trigger,
+            ",".join(target_ids),
+            ",".join(bridge_ids),
+            ",".join(seed_ids),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        boundary = str(
+            row.get("proof_boundary", "")
+            or row.get("boundary", "")
+            or input_summary.get("proof_boundary", "")
+            or input_summary.get("boundary", "")
+            or (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+                if stage == "gap_planner_handoff"
+                else KERNEL_PROOF_BOUNDARY
+            )
+        )
+        routed_rows.append(
+            {
+                "agenda_id": agenda_id,
+                "trigger": trigger,
+                "route_stage": stage,
+                "owner_subsystem": str(
+                    row.get("owner_subsystem", "")
+                    or input_summary.get("owner_subsystem", "")
+                    or ""
+                ),
+                "target_ids": list(target_ids),
+                "formalization_gap_planner_bridge_ids": list(bridge_ids),
+                "standalone_seed_artifact_ids": list(seed_ids),
+                "failure_classifications": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "failure_classifications",
+                    )
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "priority": str(
+                    row.get("priority", "") or input_summary.get("priority", "") or ""
+                ),
+                "recommended_commands": _runtime_recommended_commands(row)
+                or _runtime_recommended_commands(input_summary),
+                "proof_boundary": boundary,
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or "FORMAL_GAP_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+    return tuple(routed_rows)
+
+
 def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
     environment_feedback: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -35430,6 +35662,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         _runtime_learning_memory_source_to_bridge_metadata_authoring_requests(
             context
         )
+    )
+    formal_gap_next_action_routing_rows = (
+        _runtime_learning_memory_formal_gap_next_action_routing_rows(context)
     )
     complete_source_to_bridge_metadata_authoring_request_rows = tuple(
         row
@@ -36038,6 +36273,81 @@ def _formalizer_proof_bank_runtime_memory_summary(
         if source_to_bridge_metadata_authoring_rows
         else {}
     )
+    formalization_gap_planner_routing_rows = tuple(
+        row
+        for row in formal_gap_next_action_routing_rows
+        if str(row.get("route_stage", "") or "") == "gap_planner_handoff"
+    )
+    proof_bank_expansion_routing_rows = tuple(
+        row
+        for row in formal_gap_next_action_routing_rows
+        if str(row.get("route_stage", "") or "") == "proof_bank_expansion"
+    )
+    formal_gap_next_action_target_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("target_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    formalization_gap_planner_bridge_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formalization_gap_planner_routing_rows
+            for value in row.get("formalization_gap_planner_bridge_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    formalization_gap_planner_seed_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formalization_gap_planner_routing_rows
+            for value in row.get("standalone_seed_artifact_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_next_action_acceptance_gates = tuple(
+        dict.fromkeys(
+            str(row.get("acceptance_gate", "") or "").strip()
+            for row in formal_gap_next_action_routing_rows
+            if str(row.get("acceptance_gate", "") or "").strip()
+        )
+    )
+    formal_gap_next_action_contract = (
+        {
+            "contract_kind": "formal_gap_next_action_routing",
+            "required_route_stages": list(
+                dict.fromkeys(
+                    str(row.get("route_stage", "") or "").strip()
+                    for row in formal_gap_next_action_routing_rows
+                    if str(row.get("route_stage", "") or "").strip()
+                )
+            ),
+            "target_ids": list(formal_gap_next_action_target_ids),
+            "formalization_gap_planner_bridge_ids": list(
+                formalization_gap_planner_bridge_ids
+            ),
+            "standalone_seed_artifact_ids": list(formalization_gap_planner_seed_ids),
+            "acceptance_gates": list(formal_gap_next_action_acceptance_gates),
+            "required_execution_order": [
+                "reuse retrieved formal-source/prover context",
+                "stage LLM route-planner prompt packets from the runtime seed",
+                "run the standalone minimal-delta gap planner",
+                "replay target-prover/local Lean checks before claiming proof evidence",
+            ],
+            "forbidden_resolution": (
+                "Do not replace this route with broad hand-authored corner-case Lean "
+                "or informal proof claims; every promoted obligation or theorem claim "
+                "still needs AXLE/local Lean kernel evidence."
+            ),
+            "proof_evidence_status": (
+                "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        if formal_gap_next_action_routing_rows
+        else {}
+    )
     source_to_bridge_premise_derivation_all_required_verified = bool(
         known_source_to_bridge_premise_names
         and not pending_source_to_bridge_premise_names
@@ -36548,6 +36858,50 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "source_to_bridge_metadata_authoring_missing_request_fields": list(
             source_to_bridge_metadata_authoring_missing_request_fields
         ),
+        "formal_gap_next_action_routing_active": bool(
+            formal_gap_next_action_routing_rows
+        ),
+        "formal_gap_next_action_target_ids": list(
+            formal_gap_next_action_target_ids
+        ),
+        "formal_gap_proof_bank_expansion_required": bool(
+            proof_bank_expansion_routing_rows
+        ),
+        "formalization_gap_planner_handoff_required": bool(
+            formalization_gap_planner_routing_rows
+        ),
+        "formalization_gap_planner_bridge_ids": list(
+            formalization_gap_planner_bridge_ids
+        ),
+        "formalization_gap_planner_standalone_seed_artifact_ids": list(
+            formalization_gap_planner_seed_ids
+        ),
+        "formal_gap_next_action_acceptance_gates": list(
+            formal_gap_next_action_acceptance_gates
+        ),
+        "formal_gap_next_action_contract": formal_gap_next_action_contract,
+        "formal_gap_next_action_diagnostics": [
+            {
+                "agenda_id": str(row.get("agenda_id", "") or ""),
+                "trigger": str(row.get("trigger", "") or ""),
+                "route_stage": str(row.get("route_stage", "") or ""),
+                "owner_subsystem": str(row.get("owner_subsystem", "") or ""),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "formalization_gap_planner_bridge_ids": list(
+                    row.get("formalization_gap_planner_bridge_ids", []) or []
+                ),
+                "standalone_seed_artifact_ids": list(
+                    row.get("standalone_seed_artifact_ids", []) or []
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_boundary": str(row.get("proof_boundary", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+            }
+            for row in formal_gap_next_action_routing_rows[:4]
+        ],
         "source_to_bridge_metadata_authoring_candidate_requests": [
             {
                 "candidate_request_id": str(
@@ -37872,6 +38226,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "If memory records a source-to-bridge metadata-authoring blocker, first author or retrieve "
             "the candidate-request metadata with exact source binders and semantic anchors; helper-only "
             "compiled Lean remains diagnostic and is not source-theorem proof evidence. "
+            "If memory records formal-gap next-action routing, reuse the formal-source/prover "
+            "context, runtime gap-planner bridge, standalone seed, and target-prover replay path before "
+            "broad theory expansion; this planner route is orchestration guidance, not proof evidence. "
             "Placeholder formal primitives must be closed before "
             "a compiled artifact can be treated as source-theorem proof. If memory records an exact source-theorem "
             "semantic-definition repair queue, repair/import the reviewed definition semantics before "
@@ -40909,6 +41266,7 @@ def _critic_learning_rows(
             input_summary["target_theorem_name"] = target_theorem_name
         if target_ids:
             input_summary["target_ids"] = target_ids
+        route_metadata_fields: dict[str, Any] = {}
         for key in (
             "runtime_queue_status",
             "source_to_bridge_metadata_blocker_status",
@@ -40916,13 +41274,24 @@ def _critic_learning_rows(
             "diagnostic_helper_candidate_ids",
             "source_formalizer_packet_id",
             "recommended_formalizer_target_mode",
+            "formalization_gap_planner_bridge_id",
+            "supporting_formalization_gap_planner_bridge_ids",
+            "standalone_seed_artifact_id",
+            "supporting_standalone_seed_artifact_ids",
+            "failure_classifications",
+            "proof_boundary",
+            "boundary",
+            "priority",
+            "recommended_commands",
         ):
             if key in item:
                 input_summary[key] = item.get(key)
+                route_metadata_fields[key] = item.get(key)
         rows.append(
             {
                 **base,
                 "learning_task": "next_action_routing",
+                **route_metadata_fields,
                 **(
                     {"target_theorem_name": target_theorem_name}
                     if target_theorem_name
@@ -42030,6 +42399,20 @@ def _runtime_generated_next_action_learning_rows(
             target_ids = [target_theorem_name]
         if not target_theorem_name and len(target_ids) == 1:
             target_theorem_name = target_ids[0]
+        formalization_gap_planner_bridge_ids = list(
+            _runtime_row_string_values(
+                row,
+                "formalization_gap_planner_bridge_id",
+                "supporting_formalization_gap_planner_bridge_ids",
+            )
+        )
+        standalone_seed_artifact_ids = list(
+            _runtime_row_string_values(
+                row,
+                "standalone_seed_artifact_id",
+                "supporting_standalone_seed_artifact_ids",
+            )
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -42037,6 +42420,24 @@ def _runtime_generated_next_action_learning_rows(
                 "question_title": "",
                 "target_theorem_name": target_theorem_name,
                 "target_ids": target_ids,
+                **(
+                    {
+                        "supporting_formalization_gap_planner_bridge_ids": (
+                            formalization_gap_planner_bridge_ids
+                        )
+                    }
+                    if formalization_gap_planner_bridge_ids
+                    else {}
+                ),
+                **(
+                    {
+                        "supporting_standalone_seed_artifact_ids": (
+                            standalone_seed_artifact_ids
+                        )
+                    }
+                    if standalone_seed_artifact_ids
+                    else {}
+                ),
                 "learning_task": "generated_next_action_routing",
                 "input_summary": {
                     "trigger": str(row.get("trigger", "") or ""),
@@ -42109,6 +42510,21 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "environment_repair_status": str(
                         row.get("environment_repair_status", "") or ""
+                    ),
+                    "formalization_gap_planner_bridge_id": str(
+                        row.get("formalization_gap_planner_bridge_id", "") or ""
+                    ),
+                    "supporting_formalization_gap_planner_bridge_ids": (
+                        formalization_gap_planner_bridge_ids
+                    ),
+                    "standalone_seed_artifact_id": str(
+                        row.get("standalone_seed_artifact_id", "") or ""
+                    ),
+                    "supporting_standalone_seed_artifact_ids": (
+                        standalone_seed_artifact_ids
+                    ),
+                    "failure_classifications": list(
+                        _runtime_row_string_values(row, "failure_classifications")
                     ),
                     "recommended_next_action": recommended_next_action,
                     "recommended_commands": recommended_commands,
