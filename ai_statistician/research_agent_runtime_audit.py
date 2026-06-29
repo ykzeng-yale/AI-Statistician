@@ -65,6 +65,10 @@ class RuntimeAuditRow:
     result_path: str
     ok: bool
     status: str
+    pending_next_task_id: str
+    pending_next_task_owner_subsystem: str
+    budget_exhausted_with_pending_next_task: bool
+    budgeted_continuation_contract_ok: bool
     n_traces: int
     n_retrieval_manifests: int
     n_theory_packets: int
@@ -272,6 +276,26 @@ def audit_research_agent_runtime(
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
         "runtime_stage": manifest.get("runtime_stage", ""),
+        "runtime_resume_policy": str(manifest.get("runtime_resume_policy", "") or ""),
+        "runtime_resumed_from_pending_task": bool(
+            manifest.get("runtime_resumed_from_pending_task") is True
+            or (
+                isinstance(manifest.get("runtime_resume_context", {}), Mapping)
+                and int(
+                    manifest.get("runtime_resume_context", {}).get(
+                        "n_initial_task_overrides",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+            )
+        ),
+        "runtime_resume_context": (
+            dict(manifest.get("runtime_resume_context", {}) or {})
+            if isinstance(manifest.get("runtime_resume_context", {}), Mapping)
+            else {}
+        ),
         "runtime_architect_coordinator_registered": bool(
             manifest.get("runtime_architect_coordinator_registered", False)
         ),
@@ -309,6 +333,12 @@ def audit_research_agent_runtime(
         "n_results": len(rows),
         "n_distinct_question_ids": len({row.question_id for row in rows if row.question_id}),
         "n_ok": sum(1 for row in rows if row.ok),
+        "n_budget_exhausted_with_pending_next_task": sum(
+            1 for row in rows if row.budget_exhausted_with_pending_next_task
+        ),
+        "n_budgeted_continuation_contract_ok": sum(
+            1 for row in rows if row.budgeted_continuation_contract_ok
+        ),
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
         "result_errors": result_errors,
@@ -2023,6 +2053,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     artifacts = blackboard.get("artifacts", {}) if isinstance(blackboard.get("artifacts"), Mapping) else {}
     traces = data.get("traces", []) if isinstance(data.get("traces"), list) else []
     subsystem_sequence = [str(row.get("subsystem", "")) for row in traces if isinstance(row, Mapping)]
+    pending_contract = _runtime_result_pending_next_task_contract(data, traces)
+    pending_contract_errors = list(pending_contract["errors"])
+    budgeted_continuation_contract_ok = bool(pending_contract["ok"])
     architect_enabled = bool(subsystem_sequence and subsystem_sequence[0] == "ArchitectCoordinator")
     architect_resume = architect_enabled and _trace_is_architect_resume(traces)
     expected_sequence = (
@@ -2032,7 +2065,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         if architect_enabled
         else REQUIRED_SUBSYSTEMS
     )
-    if tuple(subsystem_sequence[: len(expected_sequence)]) != expected_sequence:
+    static_order_ok = tuple(subsystem_sequence[: len(expected_sequence)]) == expected_sequence
+    budgeted_continuation_order_ok = (
+        budgeted_continuation_contract_ok
+        and _runtime_trace_sequence_uses_known_subsystems(subsystem_sequence)
+    )
+    if not static_order_ok and not budgeted_continuation_order_ok:
         errors.append("runtime trace subsystem order is incomplete or misordered")
     if architect_resume and len(subsystem_sequence) > 1:
         pending_owner = _architect_resume_pending_owner(traces)
@@ -2041,7 +2079,11 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 "architect resume review did not route to the original pending subsystem"
             )
     if data.get("status") != "ACCEPTED":
-        errors.append("runtime result status is not ACCEPTED")
+        if budgeted_continuation_contract_ok:
+            pass
+        else:
+            errors.append("runtime result status is not ACCEPTED")
+            errors.extend(pending_contract_errors)
 
     retrieval = _artifacts_with_prefix(artifacts, "retrieval_memory_manifest:")
     theory = _artifacts_with_prefix(artifacts, "theory_derivation:")
@@ -2260,6 +2302,14 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         result_path=str(path),
         ok=not errors,
         status=str(data.get("status", "")),
+        pending_next_task_id=str(pending_contract["pending_next_task_id"]),
+        pending_next_task_owner_subsystem=str(
+            pending_contract["pending_next_task_owner_subsystem"]
+        ),
+        budget_exhausted_with_pending_next_task=bool(
+            pending_contract["budget_exhausted_with_pending_next_task"]
+        ),
+        budgeted_continuation_contract_ok=budgeted_continuation_contract_ok,
         n_traces=len(traces),
         n_retrieval_manifests=len(retrieval),
         n_theory_packets=len(theory),
@@ -2437,6 +2487,78 @@ def _architect_resume_pending_owner(traces: list[Any]) -> str:
     return str(pending.get("owner_subsystem", "") or "")
 
 
+def _runtime_trace_sequence_uses_known_subsystems(
+    subsystem_sequence: list[str],
+) -> bool:
+    known_subsystems = set(REQUIRED_ARCHITECT_SUBSYSTEMS)
+    return bool(subsystem_sequence) and all(
+        str(subsystem or "") in known_subsystems
+        for subsystem in subsystem_sequence
+    )
+
+
+def _runtime_result_pending_next_task_contract(
+    data: Mapping[str, Any],
+    traces: list[Any],
+) -> dict[str, Any]:
+    status = str(data.get("status", "") or "")
+    errors: list[str] = []
+    pending_next_task_id = ""
+    pending_next_task_owner_subsystem = ""
+    if status != "MAX_ITERATIONS_REACHED":
+        return {
+            "ok": False,
+            "budget_exhausted_with_pending_next_task": False,
+            "pending_next_task_id": "",
+            "pending_next_task_owner_subsystem": "",
+            "errors": (),
+        }
+    final_trace = traces[-1] if traces and isinstance(traces[-1], Mapping) else {}
+    if not final_trace:
+        errors.append("MAX_ITERATIONS_REACHED result has no final trace")
+        return {
+            "ok": False,
+            "budget_exhausted_with_pending_next_task": False,
+            "pending_next_task_id": "",
+            "pending_next_task_owner_subsystem": "",
+            "errors": tuple(errors),
+        }
+    pending_next_task_id = str(final_trace.get("next_task_id", "") or "").strip()
+    pending_task = (
+        final_trace.get("next_task", {})
+        if isinstance(final_trace.get("next_task", {}), Mapping)
+        else {}
+    )
+    if not pending_next_task_id:
+        errors.append("MAX_ITERATIONS_REACHED result is missing next_task_id")
+    if not pending_task:
+        errors.append("MAX_ITERATIONS_REACHED result is missing routeable next_task")
+    else:
+        task_id = str(pending_task.get("task_id", "") or "").strip()
+        pending_next_task_owner_subsystem = str(
+            pending_task.get("owner_subsystem", "") or ""
+        ).strip()
+        if not task_id:
+            errors.append("pending next_task is missing task_id")
+        elif pending_next_task_id and task_id != pending_next_task_id:
+            errors.append("pending next_task task_id does not match next_task_id")
+        if not pending_next_task_owner_subsystem:
+            errors.append("pending next_task is missing owner_subsystem")
+        elif pending_next_task_owner_subsystem not in set(REQUIRED_ARCHITECT_SUBSYSTEMS):
+            errors.append(
+                "pending next_task owner_subsystem is not a known runtime subsystem"
+            )
+        if not isinstance(pending_task.get("inputs", {}), Mapping):
+            errors.append("pending next_task inputs must be an object")
+    return {
+        "ok": not errors,
+        "budget_exhausted_with_pending_next_task": bool(pending_next_task_id),
+        "pending_next_task_id": pending_next_task_id,
+        "pending_next_task_owner_subsystem": pending_next_task_owner_subsystem,
+        "errors": tuple(errors),
+    }
+
+
 def _topology_unsupported_count(manifest: Mapping[str, Any]) -> int:
     topology = manifest.get("llm_runtime_topology", {})
     if not isinstance(topology, Mapping):
@@ -2509,6 +2631,7 @@ def _runtime_architect_orchestration_executed(payload: Mapping[str, Any]) -> boo
 def _runtime_architect_context_propagated(payload: Mapping[str, Any]) -> bool:
     return bool(
         payload.get("runtime_research_path_control_propagated") is True
+        or payload.get("runtime_resumed_from_pending_task") is True
         or str(payload.get("runtime_stage", "") or "").startswith("architect_")
         or str(payload.get("runtime_resume_policy", "") or "").startswith("direct_pending_task")
         or str(payload.get("architect_recommended_research_path", "") or "").strip()
@@ -5051,8 +5174,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- evidence truth table formal gaps open: {payload.get('evidence_truth_table', {}).get('formal_gaps_open')}",
         f"- current exact proof-body blocker: {payload.get('evidence_truth_table', {}).get('current_exact_proof_body_blocker')}",
         f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
+        f"- runtime resumed from pending task: {payload.get('runtime_resumed_from_pending_task')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- result errors: {payload.get('n_result_errors')}",
+        "- budgeted continuations contract-ok: "
+        f"{payload.get('n_budgeted_continuation_contract_ok')}/"
+        f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",

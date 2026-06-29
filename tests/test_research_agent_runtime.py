@@ -40703,13 +40703,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert result["blackboard"]["evidence_ledger"][-1]["evidence_type"] == "critic_evaluator"
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
-    assert audit["all_ok"] is False
-    assert audit["result_errors"][0]["errors"] == [
-        "runtime result status is not ACCEPTED"
-    ]
-    assert audit["n_result_errors"] == 1
+    assert audit["all_ok"] is True
+    assert audit["result_errors"] == []
+    assert audit["n_result_errors"] == 0
+    assert audit["n_budget_exhausted_with_pending_next_task"] == 1
+    assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["capability_ready_for_full_ai_statistician"] is False
-    assert audit["capability_status"] == "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
+    assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
@@ -40717,8 +40717,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard["ready"] is False
     ladder = audit["capability_ladder"]
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
-    assert ladder["max_contiguous_level"] == -1
-    assert ladder["levels"][0]["passed"] is False
+    assert ladder["max_contiguous_level"] == 0
+    assert ladder["levels"][0]["passed"] is True
     assert ladder["levels"][1]["passed"] is False
     truth_table = audit["evidence_truth_table"]
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
@@ -40802,9 +40802,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert system_overlay["requested"] is True
     assert system_overlay["available"] is True
-    assert system_overlay["all_ok"] is False
+    assert system_overlay["all_ok"] is True
     assert system_overlay["capability_ready_for_full_ai_statistician"] is False
-    assert system_overlay["capability_status"] == "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
+    assert system_overlay["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     assert system_overlay["architect_coordinator_enabled"] is True
     assert system_overlay["n_critic_reroutes"] == 1
     assert system_overlay["has_real_kernel_evidence"] is False
@@ -40812,6 +40812,205 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert system_overlay["n_real_kernel_verified_subclaims"] == 0
     assert system_overlay["n_non_real_kernel_verified_subclaims"] == 0
     assert Path(system_overlay["manifest_path"]).exists()
+
+
+def _write_budgeted_continuation_runtime_audit_fixture(
+    tmp_path: Path,
+    *,
+    include_pending_next_task: bool,
+) -> Path:
+    runtime_dir = tmp_path / (
+        "runtime_with_pending" if include_pending_next_task else "runtime_without_pending"
+    )
+    runtime_dir.mkdir()
+    trace_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    result_path = runtime_dir / "q1_runtime_result.json"
+    next_task = {
+        "task_id": "formalize:repair:q1",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": "Repair the remaining formal gap.",
+        "inputs": {"question": {"id": "q1"}},
+    }
+    trace = {
+        "subsystem": "CriticEvaluator",
+        "task_id": "critic:review:q1",
+        "task": {
+            "task_id": "critic:review:q1",
+            "owner_subsystem": "CriticEvaluator",
+            "inputs": {"question": {"id": "q1"}},
+        },
+        "status": "REVISE",
+        "failure_classification": "formal_gap_remaining",
+    }
+    if include_pending_next_task:
+        trace["next_task_id"] = next_task["task_id"]
+        trace["next_task"] = next_task
+    trace_path.write_text(json.dumps(trace, sort_keys=True) + "\n", encoding="utf-8")
+    agenda_path.write_text(
+        json.dumps(
+            {
+                "id": "formal_gap:repair:q1",
+                "owner_subsystem": "FormalizationEvaluator",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    learning_path.write_text(
+        json.dumps(
+            {
+                "learning_task": "formal_gap_feedback",
+                "question_id": "q1",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = {
+        "status": "MAX_ITERATIONS_REACHED",
+        "blackboard": {
+            "project_id": "project:q1",
+            "artifacts": {
+                "retrieval_memory_manifest:q1": {"artifact_kind": "RetrievalMemoryManifest"},
+                "theory_derivation:q1": {"artifact_kind": "TheoryDerivationPacket"},
+                "simulation_manifest:q1": {
+                    "n_generated_simulation_sandbox_executed": 0,
+                    "n_generated_simulation_sandbox_passed": 0,
+                    "n_generated_simulation_sandbox_metric_gate_failed": 0,
+                    "n_unsafe_generated_simulation_code_rejected": 0,
+                },
+                "algorithm_sandbox_manifest:q1": {
+                    "n_executed": 0,
+                    "n_generated_code_executed": 0,
+                    "n_metric_gate_failed": 0,
+                    "n_unsafe_generated_code_rejected": 0,
+                },
+                "formalization_manifest:q1": {
+                    "counts": {"kernel_verified": 0, "formal_gap": 1},
+                    "formal_subclaims": [],
+                },
+                "critic_evaluator_manifest:q1": {
+                    "next_action_agenda": [
+                        {
+                            "id": "formal_gap:repair:q1",
+                            "owner_subsystem": "FormalizationEvaluator",
+                        }
+                    ],
+                    "learning_rows": [
+                        {
+                            "learning_task": "formal_gap_feedback",
+                            "question_id": "q1",
+                        }
+                    ],
+                    "runtime_reroute_decision": {
+                        "reroute_to_theory_developer": False,
+                    },
+                },
+            },
+        },
+        "traces": [trace],
+    }
+    result_path.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "runtime_resume_context": {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeResumeContext",
+            "n_initial_task_overrides": 1,
+            "n_rehydrated_blackboard_artifacts": 6,
+        },
+        "n_questions": 1,
+        "n_runtime_next_action_items": 1,
+        "n_runtime_learning_rows": 1,
+        "llm_runtime_topology": {
+            "policy_status": "OK",
+            "counts": {
+                "unsupported_generator_backends_enabled": 0,
+                "subsystem_model_tier_policy_mismatches": 0,
+                "enabled_by_provider": {},
+            },
+            "policy": {
+                "resolved_claude_models_by_tier": {
+                    "haiku": "claude-haiku-test",
+                    "sonnet": "claude-sonnet-test",
+                    "opus": "claude-opus-test",
+                }
+            },
+        },
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_traces_jsonl": str(trace_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    return runtime_dir
+
+
+def test_runtime_audit_treats_budgeted_pending_continuation_as_contract_ok(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = _write_budgeted_continuation_runtime_audit_fixture(
+        tmp_path,
+        include_pending_next_task=True,
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert audit["all_ok"] is True
+    assert audit["n_ok"] == 1
+    assert audit["result_errors"] == []
+    assert audit["n_budget_exhausted_with_pending_next_task"] == 1
+    assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["runtime_resumed_from_pending_task"] is True
+    assert audit["capability_ready_for_full_ai_statistician"] is False
+    assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+    assert audit["rows"][0]["pending_next_task_id"] == "formalize:repair:q1"
+    assert audit["rows"][0]["pending_next_task_owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    system_overlay = _research_agent_runtime_audit_overlay(
+        runtime_dir / "system_overlay",
+        configured_runtime_dir=str(runtime_dir),
+    )
+    assert system_overlay["n_budget_exhausted_with_pending_next_task"] == 1
+    assert system_overlay["n_budgeted_continuation_contract_ok"] == 1
+    assert system_overlay["runtime_resumed_from_pending_task"] is True
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "budgeted continuations contract-ok: 1/1" in report
+
+
+def test_runtime_audit_keeps_budgeted_continuation_strict_without_pending_task(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = _write_budgeted_continuation_runtime_audit_fixture(
+        tmp_path,
+        include_pending_next_task=False,
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir)
+    result_errors = audit["result_errors"][0]["errors"]
+
+    assert audit["all_ok"] is False
+    assert audit["n_budget_exhausted_with_pending_next_task"] == 0
+    assert audit["n_budgeted_continuation_contract_ok"] == 0
+    assert "runtime result status is not ACCEPTED" in result_errors
+    assert "MAX_ITERATIONS_REACHED result is missing next_task_id" in result_errors
+    assert "MAX_ITERATIONS_REACHED result is missing routeable next_task" in result_errors
 
 
 def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
@@ -44584,9 +44783,12 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert "proof_state_feedback" not in evidence_types
     assert "formalization_proof_feedback" in evidence_types
     audit = audit_research_agent_runtime(out_dir, root / "out_audit")
-    assert audit["all_ok"] is False
+    assert audit["all_ok"] is True
+    assert audit["result_errors"] == []
+    assert audit["n_budget_exhausted_with_pending_next_task"] == 1
+    assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["capability_ready_for_full_ai_statistician"] is False
-    assert audit["capability_status"] == "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
+    assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert scorecard["runtime_evaluation_mode"] == "debug"

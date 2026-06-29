@@ -3019,6 +3019,15 @@ async def run_research_system_audit(
                 "n_results"
             ],
             "research_agent_runtime_audit_ok": research_agent_runtime_audit_manifest["n_ok"],
+            "research_agent_runtime_budget_exhausted_with_pending_next_task": research_agent_runtime_audit_manifest[
+                "n_budget_exhausted_with_pending_next_task"
+            ],
+            "research_agent_runtime_budgeted_continuation_contract_ok": research_agent_runtime_audit_manifest[
+                "n_budgeted_continuation_contract_ok"
+            ],
+            "research_agent_runtime_resumed_from_pending_task": research_agent_runtime_audit_manifest[
+                "runtime_resumed_from_pending_task"
+            ],
             "research_agent_runtime_architect_enabled": research_agent_runtime_audit_manifest[
                 "architect_coordinator_enabled"
             ],
@@ -9087,6 +9096,11 @@ def _research_agent_runtime_audit_overlay(
         "report_path": str(audit_out / "research_agent_runtime_audit.md"),
         "n_results": 0,
         "n_ok": 0,
+        "n_budget_exhausted_with_pending_next_task": 0,
+        "n_budgeted_continuation_contract_ok": 0,
+        "runtime_resumed_from_pending_task": False,
+        "runtime_resume_policy": "",
+        "runtime_resume_context": {},
         "n_runtime_traces": 0,
         "n_runtime_next_action_items": 0,
         "n_runtime_learning_rows": 0,

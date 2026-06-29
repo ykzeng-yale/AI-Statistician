@@ -81,6 +81,9 @@ These are hard boundaries for progress claims:
 - Explicit subsystem handoff artifact ids must resolve to the requested
   artifact kind or route back to the producer subsystem. Falling back to the
   latest blackboard artifact is not end-to-end handoff evidence.
+- `MAX_ITERATIONS_REACHED` with a routeable `pending_next_task` is an
+  incomplete continuation state, not an artifact contract error. It is also
+  not readiness or proof evidence; the next worker must resume the handoff.
 
 ## Capability Ladder
 
@@ -123,6 +126,9 @@ The live runtime has moved beyond static scaffold:
   target-identity gates. A live run can have useful Lean/code evidence and
   still fail readiness if current pending memory or agenda rows lose their
   artifact or theorem target identity.
+- Runtime audit now reports budgeted continuations separately: a valid
+  `pending_next_task` can make the artifact contract clean while capability
+  gaps remain open.
 
 The system is still incomplete:
 
