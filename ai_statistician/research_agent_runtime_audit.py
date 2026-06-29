@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -4154,6 +4155,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{_research_path_summary_detail(payload)}"
             ),
             "Architect evidence contract did not propagate consistently to runtime artifacts",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Resume through Architect so the formal verification policy, "
+                    "recommended research path, and evidence contract are "
+                    "propagated into every downstream runtime artifact."
+                ),
+                success_metric=(
+                    "runtime_research_path_control_propagated=true with zero "
+                    "policy/path mismatches in runtime_research_path_execution_summary"
+                ),
+            ),
         ),
         _scorecard_row(
             "research_path_selected_by_architect_not_manual_override",
@@ -4172,18 +4186,54 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             int(payload.get("n_results_with_problem_analysis", 0) or 0) >= n_results,
             f"problem_analysis={payload.get('n_results_with_problem_analysis')}/{n_results}",
             "Architect problem_analysis was missing for at least one result",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Resume the pending runtime through Architect and require a "
+                    "problem_analysis packet before retrieval/theory execution."
+                ),
+                success_metric=(
+                    "n_results_with_problem_analysis equals n_results in the "
+                    "capability audit"
+                ),
+            ),
         ),
         _scorecard_row(
             "dynamic_stat_knowledge_bank_planned",
             int(payload.get("n_results_with_stat_knowledge_bank_plan", 0) or 0) >= n_results,
             f"stat_knowledge_bank={payload.get('n_results_with_stat_knowledge_bank_plan')}/{n_results}",
             "dynamic StatKnowledgeBank planning was missing for at least one result",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Resume through Architect with a dynamic StatKnowledgeBank "
+                    "plan that selects statistical concepts and retrieval targets "
+                    "from the question instead of static templates."
+                ),
+                success_metric=(
+                    "n_results_with_stat_knowledge_bank_plan equals n_results"
+                ),
+            ),
         ),
         _scorecard_row(
             "literature_fair_comparison_planned",
             int(payload.get("n_results_with_literature_fair_comparison_plan", 0) or 0) >= n_results,
             f"literature_fair_comparison={payload.get('n_results_with_literature_fair_comparison_plan')}/{n_results}",
             "literature fair-comparison planning was missing for at least one result",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Resume through Architect with a literature fair-comparison "
+                    "plan that names baseline methods, theorem claims, and "
+                    "evaluation criteria before theory development."
+                ),
+                success_metric=(
+                    "n_results_with_literature_fair_comparison_plan equals n_results"
+                ),
+            ),
         ),
         _scorecard_row(
             "theory_derivation_trace_contract_observed",
@@ -4207,6 +4257,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "with equation-chain, assumption-ledger, and formalization handoff; "
                 "downstream coding/proof workers are not receiving enough LLM-derived "
                 "theory context"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="TheoryDeveloper",
+                target_behavior=(
+                    "Resume the pending task and require a TheoryDerivationPacket "
+                    "with stable anchors, equation_chain, assumption_ledger, and "
+                    "formalization_handoff consumed by code and proof agents."
+                ),
+                success_metric=(
+                    "structured_theory_derivation_trace_observed=true with "
+                    "equation-chain, assumption-ledger, and formalization handoff "
+                    "counts all positive"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4236,6 +4300,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "runtime contract; the system is not yet proving a theory-to-code/proof "
                 "agent handoff"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Route the structured TheoryDerivationPacket into "
+                    "AlgorithmEngineer, SimulationEvaluator, and "
+                    "FormalizationEvaluator tasks without losing equation or "
+                    "assumption anchors."
+                ),
+                success_metric=(
+                    "all_required_theory_trace_consumers_observed=true and each "
+                    "required consumer records a theory-trace consumption contract"
+                ),
+            ),
         ),
         _scorecard_row(
             "downstream_theory_trace_alignment_observed",
@@ -4264,6 +4342,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "did not all bind their proposal artifacts to supported theory "
                 "derivation anchors; supplied context is not yet auditable as a "
                 "theory-to-artifact handoff"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Require downstream generated artifacts to cite supported "
+                    "theory derivation anchors and reject unsupported anchor "
+                    "references before evaluation passes."
+                ),
+                success_metric=(
+                    "all_required_theory_trace_alignment_consumers_observed=true "
+                    "and n_theory_trace_alignment_contracts_with_unsupported_anchors=0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4319,12 +4410,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             int(payload.get("n_generated_code_sandbox_executed", 0) or 0) > 0,
             (
                 "n_generated_code_sandbox_executed="
-                f"{payload.get('n_generated_code_sandbox_executed')}"
+                f"{payload.get('n_generated_code_sandbox_executed')} "
+                "attached_live_component_repair_gate_passed="
+                f"{attached_live_component_repair_gate_passed} "
+                "attached_algorithm_repair_sequences="
+                f"{attached_repair_eval_algorithm_sequences}"
             ),
             (
                 "no Claude/OpenAI-generated algorithm code executed locally; "
-                "registered templates are baselines and do not demonstrate "
-                "coding-agent implementation capacity"
+                "registered templates are baselines, and attached component "
+                "repair gates do not substitute for integrated AlgorithmEngineer "
+                "execution from runtime theory context"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Resume after theory derivation and route the structured "
+                    "TheoryDerivationPacket into AlgorithmEngineer so it generates "
+                    "Python algorithm code and executes it in the local sandbox."
+                ),
+                success_metric=(
+                    "n_generated_code_sandbox_executed>0 for an integrated "
+                    "runtime AlgorithmEngineer artifact"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4340,6 +4449,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "at least one generated algorithm draft was rejected by the "
                 "sandbox guard and no later generated-code repair loop passed"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Feed sandbox rejection diagnostics back to AlgorithmEngineer "
+                    "and require a revised generated-code draft that passes the "
+                    "local sandbox guard."
+                ),
+                success_metric=(
+                    "n_unsafe_generated_code_rejected is zero or "
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4358,6 +4480,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "the statistical metric gate and no later generated-code repair "
                 "loop passed"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Feed statistical metric-gate diagnostics back to "
+                    "AlgorithmEngineer and require a revised generated algorithm "
+                    "that passes the metric gate."
+                ),
+                success_metric=(
+                    "n_generated_code_sandbox_metric_gate_failed is zero or "
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                ),
+            ),
         ),
         _scorecard_row(
             "generated_algorithm_repair_loop_observed",
@@ -4368,8 +4503,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "no generated algorithm draft failure was followed by a later "
-                "generated draft passing local sandbox/metric gates; one-shot "
-                "execution is not evidence of autonomous coding repair"
+                "generated draft passing local sandbox/metric gates; attached "
+                "component gates can show isolated coding-agent capacity, but "
+                "one-shot integrated execution is not evidence of autonomous "
+                "runtime coding repair"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Run an integrated fail-then-pass generated algorithm repair "
+                    "sequence using sandbox or metric-gate feedback from the same "
+                    "runtime question."
+                ),
+                success_metric=(
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4378,12 +4527,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             > 0,
             (
                 "n_generated_simulation_sandbox_executed="
-                f"{payload.get('n_generated_simulation_sandbox_executed')}"
+                f"{payload.get('n_generated_simulation_sandbox_executed')} "
+                "attached_live_component_repair_gate_passed="
+                f"{attached_live_component_repair_gate_passed} "
+                "attached_simulation_repair_sequences="
+                f"{attached_repair_eval_simulation_sequences}"
             ),
             (
                 "no Claude/OpenAI-generated simulation stress-test code executed "
-                "locally; registered simulator rows alone do not demonstrate "
-                "simulation coding-agent capacity"
+                "locally; registered simulator rows and attached component gates "
+                "do not substitute for integrated SimulationEvaluator execution "
+                "from runtime theory context"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Resume after theory/algorithm handoff and require "
+                    "SimulationEvaluator to generate stress-test Python code that "
+                    "runs in the local sandbox."
+                ),
+                success_metric=(
+                    "n_generated_simulation_sandbox_executed>0 for an integrated "
+                    "runtime SimulationEvaluator artifact"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4400,6 +4567,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "at least one generated simulation draft was rejected by the "
                 "sandbox guard and no later generated-code repair loop passed"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Feed sandbox rejection diagnostics back to SimulationEvaluator "
+                    "and require a revised generated simulation that passes the "
+                    "local sandbox guard."
+                ),
+                success_metric=(
+                    "n_unsafe_generated_simulation_code_rejected is zero or "
+                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4424,6 +4604,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "the statistical metric gate and no later generated-code repair "
                 "loop passed"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Feed empirical metric-gate diagnostics back to "
+                    "SimulationEvaluator and require a revised generated stress "
+                    "test that passes the configured metric gate."
+                ),
+                success_metric=(
+                    "n_generated_simulation_sandbox_metric_gate_failed is zero or "
+                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                ),
+            ),
         ),
         _scorecard_row(
             "generated_simulation_repair_loop_observed",
@@ -4435,8 +4628,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "no generated simulation draft failure was followed by a later "
                 "generated draft passing local sandbox/metric gates; registered "
-                "simulation rows or one-shot execution do not demonstrate "
-                "simulation coding-agent repair"
+                "simulation rows, attached component gates, or one-shot execution "
+                "do not demonstrate integrated simulation coding-agent repair"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Run an integrated fail-then-pass generated simulation repair "
+                    "sequence using sandbox or metric-gate feedback from the same "
+                    "runtime question."
+                ),
+                success_metric=(
+                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4485,6 +4690,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "they cannot replace a live Claude/OpenAI Formalizer or "
                 "ProofEngineer proposal in capability evidence"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Resume with a live Formalizer/ProofEngineer proposal that "
+                    "uses the structured theory handoff to generate a Lean theorem "
+                    "statement or proof candidate."
+                ),
+                success_metric=(
+                    "n_llm_formalizer_proof_engineer_proposals>0 or a live "
+                    "attached formalizer repair gate passes"
+                ),
+            ),
         ),
         _scorecard_row(
             "formalizer_lean_candidate_local_check_attempted",
@@ -4511,6 +4729,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "with local Lean; proof packets without local diagnostics do not "
                 "demonstrate Formalizer/ProofEngineer capacity"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Generate a Lean candidate from the theory handoff and run a "
+                    "local Lean diagnostic check before emitting proof feedback."
+                ),
+                success_metric=(
+                    "n_llm_formalizer_proof_engineer_proposals>0 and "
+                    "n_formalizer_lean_candidate_local_lean_checked>0, or the "
+                    "attached live formalizer repair gate checks local Lean"
+                ),
+            ),
         ),
         _scorecard_row(
             "formalizer_lean_candidate_proof_state_request_routed",
@@ -4530,6 +4761,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "Lean-LSP/MCP-ready ProofEngineer proof-state requests; local "
                 "Lean checks alone do not demonstrate an autonomous prover loop"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Convert local Lean candidate failures into Lean-LSP/MCP-ready "
+                    "proof-state requests for the ProofEngineer repair loop."
+                ),
+                success_metric=(
+                    "n_formalizer_lean_candidate_live_proof_state_requests>0 and "
+                    "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests>0"
+                ),
+            ),
         ),
         _scorecard_row(
             "formalizer_lean_candidate_proof_state_feedback_recorded",
@@ -4543,6 +4786,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "Formalizer Lean candidate failures did not produce structured "
                 "ProofEngineer feedback rows with diagnostics/residual goals for "
                 "the next Claude/OpenAI repair turn"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Record structured proof-state feedback rows with Lean "
+                    "diagnostics, residual goals, and target ids for the next "
+                    "Formalizer/ProofEngineer repair turn."
+                ),
+                success_metric=(
+                    "n_formalizer_lean_candidate_proof_state_feedback_rows>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4558,6 +4813,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "execution in executed_tools/tool_call_trace; candidate local "
                 "checks without tool-call transcript are weaker repair context"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Attach actual local Lean tool-call traces to ProofEngineer "
+                    "feedback so later LLM repair turns see executable diagnostics."
+                ),
+                success_metric=(
+                    "n_formalizer_lean_candidate_local_lean_tool_calls>0"
+                ),
+            ),
         ),
         _scorecard_row(
             "formalizer_live_prover_tool_call_observed",
@@ -4571,6 +4837,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "LeanDojo/ReProver/Lean-LSP style prover tools were requested "
                 "or staged but no live prover tool call was observed; request "
                 "rows alone are not full ProofEngineer capacity"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Drive a live Lean proof-state/prover tool call from the "
+                    "ProofEngineer feedback request rather than stopping at a "
+                    "queued request row."
+                ),
+                success_metric=(
+                    "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0"
+                ),
             ),
         ),
         _scorecard_row(
@@ -4598,6 +4876,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "live Formalizer Lean-candidate repair gate showed fail-then-pass "
                 "generated Lean repair with local Lean diagnostics; static fixtures "
                 "and proof packets do not demonstrate this capacity"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Run a fail-then-pass generated Lean candidate repair loop "
+                    "with local Lean diagnostics, either integrated in the runtime "
+                    "or through the attached live formalizer repair gate."
+                ),
+                success_metric=(
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
+                    "with live LLM proposals, or attached live formalizer repair "
+                    "gate evidence passes"
+                ),
             ),
         ),
         _scorecard_row(
@@ -5322,6 +5614,60 @@ def _cross_task_generalization_scorecard_routing(
             "This recommendation is evaluation routing metadata. It is not proof "
             "evidence and does not satisfy L9 until the audit records real "
             "kernel-verified full theorem evidence across the selected families."
+        ),
+    }
+
+
+def _capability_resume_out_dir(payload: Mapping[str, Any]) -> str:
+    runtime_dir = str(payload.get("runtime_dir", "") or "").strip()
+    if not runtime_dir:
+        return "runs/main_worker_runtime_resume_full_live"
+    path = Path(runtime_dir)
+    return str(path.with_name(f"{path.name}_resume_full_live"))
+
+
+def _capability_resume_command(
+    payload: Mapping[str, Any],
+    *,
+    max_iterations: int = 8,
+) -> str:
+    manifest_path = str(payload.get("manifest", "") or "").strip()
+    manifest_arg = manifest_path if manifest_path else "<prior_runtime_manifest>"
+    out_arg = _capability_resume_out_dir(payload)
+    return (
+        ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
+        f"--resume-runtime-manifest {shlex.quote(manifest_arg)} "
+        "--provider anthropic "
+        "--capability-eval "
+        "--capability-eval-preset full-live "
+        "--resume-through-architect "
+        f"--max-iterations {max_iterations} "
+        f"--out {shlex.quote(out_arg)}"
+    )
+
+
+def _runtime_resume_scorecard_routing(
+    payload: Mapping[str, Any],
+    *,
+    owner: str,
+    target_behavior: str,
+    success_metric: str,
+    max_iterations: int = 8,
+) -> dict[str, Any]:
+    return {
+        "next_owner_subsystem": owner,
+        "target_behavior": target_behavior,
+        "recommended_capability_eval_command": _capability_resume_command(
+            payload,
+            max_iterations=max_iterations,
+        ),
+        "success_metric": success_metric,
+        "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
+        "routing_boundary": (
+            "This recommendation resumes an evaluation run and is not proof "
+            "evidence. Capability is satisfied only after the resumed runtime "
+            "records the requested live-agent artifacts and, where relevant, "
+            "real Lean/AXLE kernel evidence in the audit."
         ),
     }
 

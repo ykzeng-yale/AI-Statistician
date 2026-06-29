@@ -43004,6 +43004,8 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
 def test_runtime_capability_scorecard_requires_architect_path_propagation() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
+        "runtime_dir": "runs/previous_capability_eval",
+        "manifest": "runs/previous_capability_eval/research_agent_runtime_manifest.json",
         "n_results": 1,
         "n_live_generator_agents_enabled": 1,
         "architect_coordinator_enabled": True,
@@ -43104,6 +43106,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "equation-chain" in rows[
         "theory_derivation_trace_contract_observed"
     ]["blocker"]
+    assert rows[
+        "theory_derivation_trace_contract_observed"
+    ]["next_owner_subsystem"] == "TheoryDeveloper"
+    assert "--resume-runtime-manifest runs/previous_capability_eval/research_agent_runtime_manifest.json" in rows[
+        "theory_derivation_trace_contract_observed"
+    ]["recommended_capability_eval_command"]
+    assert "--resume-through-architect" in rows[
+        "theory_derivation_trace_contract_observed"
+    ]["recommended_capability_eval_command"]
+    assert rows[
+        "theory_derivation_trace_contract_observed"
+    ]["proof_evidence_status"] == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
 
     payload["structured_theory_derivation_trace_observed"] = True
     payload["all_required_theory_trace_consumers_observed"] = False
@@ -43116,6 +43130,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "theory-to-code/proof" in rows[
         "downstream_theory_trace_consumption_observed"
     ]["blocker"]
+    assert rows[
+        "downstream_theory_trace_consumption_observed"
+    ]["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
 
     payload["all_required_theory_trace_consumers_observed"] = True
     payload["theory_trace_consuming_subsystems"] = [
@@ -43202,14 +43219,23 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "registered templates are baselines" in rows[
         "generated_algorithm_code_executed"
     ]["blocker"]
+    assert rows[
+        "generated_algorithm_code_executed"
+    ]["next_owner_subsystem"] == "AlgorithmEngineer"
     assert rows["generated_simulation_code_executed"]["passed"] is False
-    assert "registered simulator rows alone" in rows[
+    assert "registered simulator rows and attached component gates" in rows[
         "generated_simulation_code_executed"
     ]["blocker"]
+    assert rows[
+        "generated_simulation_code_executed"
+    ]["next_owner_subsystem"] == "SimulationEvaluator"
     assert rows["formalizer_lean_candidate_local_check_attempted"]["passed"] is False
     assert "proof packets without local diagnostics" in rows[
         "formalizer_lean_candidate_local_check_attempted"
     ]["blocker"]
+    assert rows[
+        "formalizer_lean_candidate_local_check_attempted"
+    ]["next_owner_subsystem"] == "FormalizationEvaluator"
 
     payload["n_generated_code_sandbox_executed"] = 1
     payload["n_generated_simulation_sandbox_executed"] = 1
@@ -43222,19 +43248,28 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is False
-    assert "one-shot execution is not evidence" in rows[
+    assert "one-shot integrated execution is not evidence" in rows[
         "generated_algorithm_repair_loop_observed"
     ]["blocker"]
+    assert rows[
+        "generated_algorithm_repair_loop_observed"
+    ]["next_owner_subsystem"] == "AlgorithmEngineer"
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is False
     assert "one-shot execution do not demonstrate" in rows[
         "generated_simulation_repair_loop_observed"
     ]["blocker"]
+    assert rows[
+        "generated_simulation_repair_loop_observed"
+    ]["next_owner_subsystem"] == "SimulationEvaluator"
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is False
     assert "local Lean checks alone" in rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["blocker"]
+    assert rows[
+        "formalizer_lean_candidate_proof_state_request_routed"
+    ]["next_owner_subsystem"] == "FormalizationEvaluator"
     assert rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["passed"] is False
@@ -43261,7 +43296,13 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is False
+    assert "attached component gates can show isolated coding-agent capacity" in rows[
+        "generated_algorithm_repair_loop_observed"
+    ]["blocker"]
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is False
+    assert "attached component gates" in rows[
+        "generated_simulation_repair_loop_observed"
+    ]["blocker"]
     assert rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["passed"] is True

@@ -9479,6 +9479,23 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             f"{scorecard.get('n_requirements')} "
             f"ready={scorecard.get('ready')}"
         )
+        routed_rows = [
+            row
+            for row in scorecard.get("rows", []) or []
+            if (
+                isinstance(row, dict)
+                and row.get("passed") is not True
+                and str(row.get("recommended_capability_eval_command", "") or "").strip()
+            )
+        ]
+        if routed_rows:
+            print("capability_routing:")
+            for row in routed_rows[:3]:
+                print(
+                    f"- {row.get('requirement_id')}: "
+                    f"owner={row.get('next_owner_subsystem')} "
+                    f"command={row.get('recommended_capability_eval_command')}"
+                )
         return 0 if audit.get("capability_ready_for_full_ai_statistician") else 1
     return 0
 
