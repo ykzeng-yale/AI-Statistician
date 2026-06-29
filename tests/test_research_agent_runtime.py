@@ -44388,10 +44388,16 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     assert algorithm_learning_row["next_owner_subsystem"] == "AlgorithmEngineer"
     assert "fail-then-pass" in algorithm_learning_row["target_behavior"]
-    assert "coding-agent-generated-code-repair-eval" in algorithm_learning_row[
+    assert "research-agent-runtime" in algorithm_learning_row[
         "recommended_capability_eval_command"
     ]
-    assert "algorithm_repair_sequences>0" in algorithm_learning_row[
+    assert "--capability-eval" in algorithm_learning_row[
+        "recommended_capability_eval_command"
+    ]
+    assert "--capability-eval-preset full-live" in algorithm_learning_row[
+        "recommended_capability_eval_command"
+    ]
+    assert "n_generated_code_sandbox_failed_then_passed_repair_sequences>0" in algorithm_learning_row[
         "success_metric"
     ]
     proof_state_learning_row = learning_rows_by_id[
@@ -48308,7 +48314,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         and row.get("proof_evidence_status")
         == "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
         and "static/replay" in row.get("target_behavior", "")
-        and "coding-agent-generated-code-repair-eval"
+        and "research-agent-runtime"
+        in row.get("recommended_capability_eval_command", "")
+        and "--capability-eval"
         in row.get("recommended_capability_eval_command", "")
         for row in coding_feedback_rows
     )

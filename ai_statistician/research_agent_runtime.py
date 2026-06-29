@@ -1295,6 +1295,9 @@ def _runtime_coding_agent_capability_learning_rows(
         if str(value).strip()
     ]
     question_id = question_ids[0] if question_ids else ""
+    integrated_eval_command = _runtime_integrated_capability_eval_command(
+        question_id
+    )
     generated_rows: list[dict[str, Any]] = []
     for row in rows:
         capability_id = str(row.get("capability_id", "") or "").strip()
@@ -1304,63 +1307,55 @@ def _runtime_coding_agent_capability_learning_rows(
             next_owner = "AlgorithmEngineer"
             target_behavior = (
                 "Run a Claude/OpenAI-generated algorithm-code fail-then-pass "
-                "repair loop: generated Python executes locally, exposes the "
-                "failure output, revises from that feedback, and passes sandbox "
-                "and metric gates."
+                "repair loop inside the integrated AgentRuntime: generated "
+                "Python executes locally, exposes the failure output, revises "
+                "from that feedback, and passes sandbox and metric gates in the "
+                "runtime manifest."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli coding-agent-generated-code-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "algorithm_repair_sequences>0 and "
-                "algorithm_capability_evidence_ok=true in the combined "
-                "coding-agent generated-code repair eval manifest"
+                "n_generated_code_sandbox_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; attached component "
+                "calibration alone does not satisfy this row"
             )
         elif capability_id == "generated_simulation_repair_loop_observed":
             next_owner = "SimulationEvaluator"
             target_behavior = (
                 "Run a Claude/OpenAI-generated simulation-code fail-then-pass "
-                "repair loop: generated stress-test code executes locally, "
-                "exposes the failure output, revises from that feedback, and "
-                "passes sandbox and metric gates."
+                "repair loop inside the integrated AgentRuntime: generated "
+                "stress-test code executes locally, exposes the failure output, "
+                "revises from that feedback, and passes sandbox and metric gates "
+                "in the runtime manifest."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli coding-agent-generated-code-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "simulation_repair_sequences>0 and "
-                "simulation_capability_evidence_ok=true in the combined "
-                "coding-agent generated-code repair eval manifest"
+                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; attached component "
+                "calibration alone does not satisfy this row"
             )
         elif capability_id == "generated_algorithm_code_executed_locally":
             next_owner = "AlgorithmEngineer"
             target_behavior = (
                 "Produce and locally execute generated algorithm code instead "
-                "of relying on registered templates or static replay."
+                "of relying on registered templates, static replay, or attached "
+                "component calibration."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli algorithm-engineer-generated-code-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_code_sandbox_executed>0 from a live provider with "
-                "static_or_fixture_only=false"
+                "n_generated_code_sandbox_executed>0 from the integrated "
+                "AgentRuntime AlgorithmEngineer artifact with live providers"
             )
         elif capability_id == "generated_simulation_code_executed_locally":
             next_owner = "SimulationEvaluator"
             target_behavior = (
                 "Produce and locally execute generated simulation code instead "
-                "of relying on registered simulators or static replay."
+                "of relying on registered simulators, static replay, or attached "
+                "component calibration."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli simulation-engineer-generated-code-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_simulation_sandbox_executed>0 from a live provider "
-                "with static_or_fixture_only=false"
+                "n_generated_simulation_sandbox_executed>0 from the integrated "
+                "AgentRuntime SimulationEvaluator artifact with live providers"
             )
         elif capability_id == "llm_formalizer_proofengineer_proposal_observed":
             next_owner = "FormalizationEvaluator"
@@ -1368,15 +1363,12 @@ def _runtime_coding_agent_capability_learning_rows(
                 "Use a live Claude/OpenAI Formalizer/ProofEngineer proposal for "
                 "formalization capability evaluation. Deterministic theorem-"
                 "closure seeds may create work orders, but they must not replace "
-                "the LLM agent in capability claims."
+                "the LLM agent in integrated runtime capability claims."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli research-agent-runtime "
-                "--provider anthropic --formalizer-candidate-local-lean "
-                "--local-lean"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "n_llm_formalizer_proof_engineer_proposals>0; "
+                "n_llm_formalizer_proof_engineer_proposals>0 in the integrated "
+                "AgentRuntime manifest; "
                 "n_deterministic_formalizer_work_order_seed_proposals alone is "
                 "not agentic capability"
             )
@@ -1385,15 +1377,14 @@ def _runtime_coding_agent_capability_learning_rows(
             target_behavior = (
                 "Produce a Claude/OpenAI-generated Lean candidate and check it "
                 "with local Lean/AXLE diagnostics instead of relying only on "
-                "proof packets, proof-bank queues, or static fixtures."
+                "proof packets, proof-bank queues, static fixtures, or attached "
+                "component calibration."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli formalizer-lean-candidate-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_local_lean_checked>0 from a live "
-                "provider with static_or_fixture_only=false"
+                "n_llm_formalizer_proof_engineer_proposals>0 and "
+                "n_formalizer_lean_candidate_local_lean_checked>0 in the "
+                "integrated AgentRuntime manifest"
             )
         elif capability_id == "formalizer_lean_candidate_proof_state_request_routed":
             next_owner = "ProofEngineer"
@@ -1404,14 +1395,11 @@ def _runtime_coding_agent_capability_learning_rows(
                 "Lean LSP/MCP tools such as lean_goal, lean_state_search, and "
                 "lean_multi_attempt."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli research-agent-runtime "
-                "--provider anthropic --formalizer-candidate-local-lean "
-                "--local-lean"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
                 "n_formalizer_lean_candidate_live_proof_state_requests>0 and "
-                "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests>0"
+                "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests>0 "
+                "in the integrated AgentRuntime manifest"
             )
         elif capability_id == "formalizer_lean_candidate_proof_state_feedback_recorded":
             next_owner = "ProofEngineer"
@@ -1421,11 +1409,7 @@ def _runtime_coding_agent_capability_learning_rows(
                 "residual goals, requested prover tools, and exact artifact identity "
                 "back into the next Formalizer/ProofEngineer prompt."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli research-agent-runtime "
-                "--provider anthropic --formalizer-candidate-local-lean "
-                "--local-lean"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
                 "n_formalizer_lean_candidate_proof_state_feedback_rows>0 with "
                 "diagnostics/residual_goals/requested_tools preserved in runtime "
@@ -1439,14 +1423,11 @@ def _runtime_coding_agent_capability_learning_rows(
                 "Claude can repair from real verifier output instead of a generic "
                 "failed-check flag."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli research-agent-runtime "
-                "--provider anthropic --formalizer-candidate-local-lean "
-                "--local-lean"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_local_lean_tool_calls>0 with "
-                "executed_tools/tool_call_trace preserved in runtime learning rows"
+                "n_formalizer_lean_candidate_local_lean_tool_calls>0 in the "
+                "integrated AgentRuntime manifest with executed_tools/"
+                "tool_call_trace preserved in runtime learning rows"
             )
         elif capability_id == "formalizer_live_prover_tool_call_observed":
             next_owner = "ProofEngineer"
@@ -1456,11 +1437,7 @@ def _runtime_coding_agent_capability_learning_rows(
                 "or an explicitly recorded equivalent tool call, then rerun local "
                 "Lean/AXLE on the repaired artifact."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli research-agent-runtime "
-                "--provider anthropic --formalizer-candidate-local-lean "
-                "--local-lean"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0 in "
                 "the integrated runtime; attached component calibration can "
@@ -1475,10 +1452,7 @@ def _runtime_coding_agent_capability_learning_rows(
                 "Formalizer revises from diagnostics, and the repaired helper "
                 "candidate compiles locally."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli formalizer-lean-candidate-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
                 "in the integrated runtime; standalone Formalizer repair evals "
@@ -1491,13 +1465,10 @@ def _runtime_coding_agent_capability_learning_rows(
                 "fixtures can only test plumbing and must not count as "
                 "agentic capability."
             )
-            recommended_eval = (
-                "python3 -m ai_statistician.cli coding-agent-generated-code-repair-eval "
-                "--provider anthropic --question-id conformal_prediction_coverage"
-            )
+            recommended_eval = integrated_eval_command
             success_metric = (
-                "live_generator=true and capability_evidence_ok=true in the "
-                "combined coding-agent generated-code repair eval manifest"
+                "n_live_generator_agents_enabled>0 with live providers in the "
+                "integrated AgentRuntime manifest"
             )
         generated_rows.append(
             {
@@ -1532,6 +1503,21 @@ def _runtime_coding_agent_capability_learning_rows(
             }
         )
     return generated_rows
+
+
+def _runtime_integrated_capability_eval_command(question_id: str = "") -> str:
+    question_arg = (
+        f" --question-id {question_id}"
+        if str(question_id or "").strip()
+        else " --max-questions 1"
+    )
+    return (
+        "python3 -m ai_statistician.cli research-agent-runtime "
+        "--provider anthropic --capability-eval --capability-eval-preset full-live "
+        "--formal-verification-policy required "
+        "--formalizer-candidate-local-lean --formalizer-candidate-lean-lsp-mcp"
+        f"{question_arg} --out runs/integrated_agent_runtime_capability_eval"
+    )
 
 
 def _runtime_formalizer_component_gate_learning_rows(
