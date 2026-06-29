@@ -631,6 +631,10 @@ def _runtime_source_theorem_target_names_from_manifest(
         if text:
             names.append(text)
 
+    def add_many(values: Any) -> None:
+        for value in _str_tuple(values):
+            add(value)
+
     for key in (
         "target_theorem_name",
         "source_theorem_target_name",
@@ -644,9 +648,11 @@ def _runtime_source_theorem_target_names_from_manifest(
         "source_theorem_exact_candidate_repair_target_names",
         "source_theorem_exact_semantic_definition_repair_target_names",
         "memory_source_theorem_exact_candidate_repair_target_names",
+        "runtime_formalization_gap_planner_target_ids",
+        "runtime_formalization_gap_planner_bridge_target_ids",
+        "runtime_formalization_gap_planner_handoff_target_ids",
     ):
-        for value in manifest.get(key, []) or []:
-            add(value)
+        add_many(manifest.get(key, []))
     for row in manifest.get("deterministic_theorem_goals", []) or []:
         if not isinstance(row, Mapping):
             continue
@@ -655,6 +661,32 @@ def _runtime_source_theorem_target_names_from_manifest(
             or row.get("target_theorem_name", "")
             or row.get("target_lean_declaration", "")
         )
+    for key in (
+        "runtime_formalization_gap_planner_bridges",
+        "runtime_formalization_gap_planner_handoffs",
+        "formalization_gap_planner_bridges",
+        "formalization_gap_planner_handoffs",
+    ):
+        for row in manifest.get(key, []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            add_many(row.get("target_ids", []))
+            add_many(row.get("target_theorem_goal_ids", []))
+            add(row.get("target_theorem_name", ""))
+            seed = row.get("standalone_seed", {})
+            if not isinstance(seed, Mapping):
+                continue
+            for route in seed.get("routes", []) or []:
+                if not isinstance(route, Mapping):
+                    continue
+                metadata = route.get("replan_metadata", {})
+                if not isinstance(metadata, Mapping):
+                    metadata = {}
+                add(
+                    route.get("theorem_goal_id", "")
+                    or metadata.get("runtime_theorem_goal_id", "")
+                    or route.get("target_id", "")
+                )
     for row in manifest.get("formal_targets", []) or []:
         if not isinstance(row, Mapping):
             continue
@@ -1349,7 +1381,9 @@ def _runtime_evidence_truth_learning_rows(
     target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
         manifest
     )
-    target_theorem_name = target_theorem_names[0] if target_theorem_names else ""
+    target_theorem_name = (
+        target_theorem_names[0] if len(target_theorem_names) == 1 else ""
+    )
     premise_gap_kind = (
         blocker
         if (
@@ -12536,6 +12570,38 @@ def run_research_agent_runtime(
         gap_planner_bridge_rows,
         runtime_out_dir=out_dir,
     )
+    gap_planner_target_ids = list(
+        dict.fromkeys(
+            target_id
+            for row in [*gap_planner_bridge_rows, *gap_planner_handoff_rows]
+            for target_id in _runtime_formalization_gap_planner_bridge_target_ids(row)
+            if target_id
+        )
+    )
+    if gap_planner_target_ids:
+        manifest["runtime_formalization_gap_planner_target_ids"] = (
+            gap_planner_target_ids
+        )
+        manifest["runtime_formalization_gap_planner_bridge_target_ids"] = list(
+            dict.fromkeys(
+                target_id
+                for row in gap_planner_bridge_rows
+                for target_id in _runtime_formalization_gap_planner_bridge_target_ids(
+                    row
+                )
+                if target_id
+            )
+        )
+        manifest["runtime_formalization_gap_planner_handoff_target_ids"] = list(
+            dict.fromkeys(
+                target_id
+                for row in gap_planner_handoff_rows
+                for target_id in _runtime_formalization_gap_planner_bridge_target_ids(
+                    row
+                )
+                if target_id
+            )
+        )
     source_theorem_exact_semantic_definition_work_order_rows = (
         _runtime_source_theorem_exact_semantic_definition_work_order_rows(
             [

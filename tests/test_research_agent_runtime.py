@@ -43496,6 +43496,59 @@ def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> N
     )
 
 
+def test_runtime_truth_table_recovers_targets_from_gap_planner_handoff() -> None:
+    targets = [
+        "causal_identification",
+        "aipw_double_robustness",
+        "aipw_asymptotic_normality",
+    ]
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["causal_ate_aipw"],
+        "runtime_formalization_gap_planner_handoffs": [
+            {
+                "artifact_kind": "RuntimeFormalizationGapPlannerHandoff",
+                "question_id": "causal_ate_aipw",
+                "target_ids": targets,
+            }
+        ],
+        "n_formal_gaps": 3,
+    }
+    truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
+
+    rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["learning_task"] == "source_theorem_truth_table_feedback"
+    assert row["proof_body_status"] == "MISSING"
+    assert row["target_theorem_name"] == ""
+    assert row["target_ids"] == targets
+    assert row["target_theorem_goal_ids"] == targets
+    assert row["input_summary"]["target_ids"] == targets
+    assert row["input_summary"]["target_theorem_goal_ids"] == targets
+
+    generated_agenda = _append_runtime_generated_next_action_rows(
+        [],
+        rows,
+        queue_name="runtime_evidence_truth_table",
+    )
+
+    assert len(generated_agenda) == 1
+    assert generated_agenda[0]["trigger"] == "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
+    assert generated_agenda[0]["target_theorem_name"] == ""
+    assert generated_agenda[0]["target_ids"] == targets
+    assert generated_agenda[0]["proof_body_status"] == "MISSING"
+    generated_learning = _runtime_generated_next_action_learning_rows(
+        generated_agenda
+    )
+    assert generated_learning[0]["target_ids"] == targets
+    assert generated_learning[0]["input_summary"]["target_ids"] == targets
+
+
 def test_runtime_truth_table_reached_goal_semantic_review_routes_semantic_gate(
     tmp_path: Path,
 ) -> None:
