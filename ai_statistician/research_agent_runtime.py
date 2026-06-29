@@ -10105,23 +10105,20 @@ def _formalizer_verified_narrow_imports_from_diagnostics(
     modules: list[str] = []
     seen: set[str] = set()
     for row in diagnostics:
-        text = " ".join(
-            [
-                " ".join(str(error) for error in row.get("precheck_errors", []) or []),
-                str(row.get("local_lean_stdout", "") or ""),
-                str(row.get("local_lean_stderr", "") or ""),
-                str(row.get("local_lean_stdout_excerpt", "") or ""),
-                str(row.get("local_lean_stderr_excerpt", "") or ""),
-            ]
-        )
-        for match in pattern.finditer(text):
-            for module in match.group("modules").split(","):
-                module = module.strip().strip(".")
-                if module and module not in seen:
-                    seen.add(module)
-                    modules.append(module)
-                    if len(modules) >= 8:
-                        return modules
+        for error in row.get("precheck_errors", []) or []:
+            for match in pattern.finditer(str(error)):
+                for raw_module in match.group("modules").split(","):
+                    module = raw_module.strip().strip(".")
+                    if not re.fullmatch(
+                        r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)+",
+                        module,
+                    ):
+                        continue
+                    if module and module not in seen:
+                        seen.add(module)
+                        modules.append(module)
+                        if len(modules) >= 8:
+                            return modules
     return modules
 
 
@@ -10475,7 +10472,15 @@ def _formalizer_lean_candidate_blocking_precheck_errors(
 
 def _formalizer_lean_candidate_diagnostic_only_precheck_error(error: str) -> bool:
     text = str(error or "")
-    return text.startswith("Lean parser/syntax error:")
+    return bool(
+        text.startswith("Lean parser/syntax error:")
+        or text.startswith(
+            "Lean candidate imports unavailable module in configured project:"
+        )
+        or text.startswith(
+            "Lean candidate imports unavailable umbrella module in configured project:"
+        )
+    )
 
 
 def _formalizer_lean_syntax_precheck_errors(source: str) -> list[str]:

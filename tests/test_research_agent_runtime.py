@@ -77,6 +77,9 @@ from ai_statistician.formalizer_llm import (
     build_formalizer_prompt,
     validate_formalizer_packet,
 )
+from ai_statistician.formalizer_repair_policy import (
+    formalizer_validation_repair_policy,
+)
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
@@ -6131,6 +6134,95 @@ def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -
     )
 
 
+def test_formalizer_repair_policy_covers_scaffolding_and_adapter_binders() -> None:
+    policy = formalizer_validation_repair_policy(
+        [
+            "missing or empty field: lemma_dependency_plan",
+            "missing or empty field: retrieval_queries",
+            (
+                "source_to_bridge_premise_derivation_candidates Lean candidate "
+                "takes adapter objects as theorem binders instead of deriving "
+                "them from source binders: mu1, mu0"
+            ),
+        ]
+    )
+
+    rule_ids = {row["rule_id"] for row in policy["rules"]}
+
+    assert "required_packet_scaffolding_fields" in rule_ids
+    assert "source_to_bridge_adapter_objects_not_binders" in rule_ids
+
+
+def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    packet = _normalize_formalizer_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "safe_helper",
+                    "informal_source": "diagnostic helper for prover feedback",
+                    "lean_statement_sketch": (
+                        "theorem safe_helper (P Q : Prop) "
+                        "(h : P -> Q) (hp : P) : Q := by\n"
+                        "  exact h hp\n"
+                    ),
+                    "lean_imports": [],
+                    "semantic_alignment_constraints": [],
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "hBridge",
+                    "target_theorem_name": "source_theorem",
+                    "target_lean_declaration": "source_theorem",
+                    "premise_candidate_declaration_name": "bad_bridge",
+                    "required_semantic_anchor_reference_names": ["hSrc"],
+                    "adapter_object_names_requiring_source_instantiation": [
+                        "mu1",
+                        "mu0",
+                    ],
+                    "premise_derivation_candidate_lean_source": (
+                        "theorem bad_bridge (hSrc : Prop) (mu1 mu0 : Prop) "
+                        "(h : hSrc -> mu1) (hs : hSrc) : mu1 := by\n"
+                        "  exact h hs\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="{}",
+        theory_packet=_runtime_sample_response(),
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={},
+    )
+
+    assert validate_formalizer_packet(packet) == []
+    assert packet["normalized_missing_required_scaffolding_fields"] == [
+        "lemma_dependency_plan",
+        "retrieval_queries",
+        "proof_search_plan",
+        "gap_taxonomy",
+        "critic_findings",
+        "next_actions",
+    ]
+    assert packet["source_to_bridge_premise_derivation_candidates"] == []
+    dropped = packet["dropped_source_to_bridge_premise_derivation_candidates"]
+    assert dropped[0]["failure_classification"] == (
+        "source_to_bridge_candidate_uninstantiated_adapter_objects"
+    )
+    assert dropped[0]["uninstantiated_adapter_object_binders"] == ["mu1", "mu0"]
+    assert packet["formal_targets"][0]["id"] == "safe_helper"
+
+
 def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
@@ -8663,7 +8755,7 @@ def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_
     assert "FORMAL_GAP placeholder" in " ".join(row["precheck_errors"])
 
 
-def test_formalizer_candidate_materialization_rejects_unavailable_import(
+def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -8683,7 +8775,7 @@ def test_formalizer_candidate_materialization_rejects_unavailable_import(
     task = AgentTask(
         task_id="task:formalizer_candidate_bad_import",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject guessed unavailable Lean import",
+        objective="materialize guessed unavailable Lean import for diagnostics",
     )
 
     manifest = _materialize_formalizer_lean_candidate_artifacts(
@@ -8712,9 +8804,14 @@ def test_formalizer_candidate_materialization_rejects_unavailable_import(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert row["local_lean_attempted"] is False
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert row["precheck_status"] == (
+        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    )
+    assert row["blocking_precheck_errors"] == []
+    assert row["artifact_path"]
+    assert row["local_lean_attempted"] is True
     assert "imports unavailable module" in " ".join(row["precheck_errors"])
     assert "Mathlib.Probability.ProbabilityMeasure" in " ".join(
         row["precheck_errors"]
@@ -8724,7 +8821,7 @@ def test_formalizer_candidate_materialization_rejects_unavailable_import(
     )
 
 
-def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
+def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -8748,7 +8845,7 @@ def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
     task = AgentTask(
         task_id="task:formalizer_candidate_mathlib_umbrella",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject unavailable Mathlib umbrella import",
+        objective="materialize unavailable Mathlib umbrella import for diagnostics",
     )
 
     manifest = _materialize_formalizer_lean_candidate_artifacts(
@@ -8777,8 +8874,14 @@ def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
     )
 
     row = manifest["candidate_rows"][0]
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert row["precheck_status"] == (
+        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    )
+    assert row["blocking_precheck_errors"] == []
+    assert row["artifact_path"]
+    assert row["local_lean_attempted"] is True
     error_text = " ".join(row["precheck_errors"])
     assert "imports unavailable umbrella module" in error_text
     assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in error_text

@@ -179,6 +179,50 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         ),
     ),
     FormalizerValidationRepairRule(
+        rule_id="required_packet_scaffolding_fields",
+        violation_family="packet_schema_contract",
+        trigger_markers=("missing or empty field",),
+        prompt_directive=(
+            "Populate every missing required top-level planning field with concise "
+            "routing metadata: lemma_dependency_plan, retrieval_queries, "
+            "proof_search_plan, gap_taxonomy, critic_findings, and next_actions. "
+            "These rows may name blockers or retrieval/prover work, but they must "
+            "not claim proof or kernel verification."
+        ),
+        allowed_resolution=(
+            "Use compact non-proof planning rows when executable Lean is blocked "
+            "or when a safe candidate is emitted separately."
+        ),
+        forbidden_resolution=(
+            "Do not omit required packet scaffolding, and do not fill it with "
+            "fake proof claims or fabricated tool results."
+        ),
+    ),
+    FormalizerValidationRepairRule(
+        rule_id="source_to_bridge_adapter_objects_not_binders",
+        violation_family="source_bridge_binding_contract",
+        trigger_markers=(
+            "takes adapter objects as theorem binders instead of deriving them "
+            "from source binders",
+        ),
+        prompt_directive=(
+            "Do not list adapter objects requiring source instantiation as theorem "
+            "parameters, implicit parameters, or assumptions in "
+            "source_to_bridge_premise_derivation_candidates. Derive those objects "
+            "inside the candidate from exact source binders and copied request "
+            "metadata, or emit no executable source-to-bridge candidate and record "
+            "the semantic/source-binding blocker."
+        ),
+        allowed_resolution=(
+            "Derive adapter objects from exact source hypotheses inside the proof, "
+            "or fail closed with a non-executable blocker."
+        ),
+        forbidden_resolution=(
+            "Do not satisfy a source-to-bridge premise by adding the required "
+            "adapter objects as fresh theorem binders."
+        ),
+    ),
+    FormalizerValidationRepairRule(
         rule_id="semantic_anchor_reference",
         violation_family="semantic_binding_contract",
         trigger_markers=("missing required semantic anchor references",),

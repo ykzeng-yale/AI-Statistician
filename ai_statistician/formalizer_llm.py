@@ -1382,6 +1382,7 @@ def _normalize_formalizer_packet(
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
+    _normalize_required_formalizer_scaffolding_fields(body)
     _enrich_source_to_bridge_candidates_from_memory(
         body,
         proof_bank_runtime_memory_summary or {},
@@ -1391,6 +1392,7 @@ def _normalize_formalizer_packet(
         body,
         proof_bank_runtime_memory_summary or {},
     )
+    _drop_source_to_bridge_candidates_with_uninstantiated_adapter_binders(body)
     _drop_semantically_unanchored_source_to_bridge_candidates(body)
     _drop_phantom_source_to_bridge_next_actions(body)
     _ensure_diagnostic_helper_bridge_or_blocker_packet(
@@ -1446,6 +1448,98 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) -> None:
+    """Fill omitted non-proof routing scaffolding so safe candidates can proceed."""
+
+    normalized: list[str] = []
+    if packet.get("lemma_dependency_plan") in (None, "", [], {}):
+        packet["lemma_dependency_plan"] = [
+            {
+                "from": "formalizer_candidate_or_gap",
+                "to": "local_lean_or_prover_feedback",
+                "role": "route emitted candidates or blockers through verifier feedback",
+                "risk": (
+                    "auto-filled planning metadata is not proof evidence and "
+                    "does not supply theorem content"
+                ),
+            }
+        ]
+        normalized.append("lemma_dependency_plan")
+    if packet.get("retrieval_queries") in (None, "", [], {}):
+        packet["retrieval_queries"] = [
+            {
+                "query": "retrieve local Lean declarations and proof-state context for emitted formalizer candidate or blocker",
+                "target_library": "LeanRAG",
+                "purpose": "support bounded Formalizer/ProofEngineer repair before kernel checking",
+            }
+        ]
+        normalized.append("retrieval_queries")
+    if packet.get("proof_search_plan") in (None, "", [], {}):
+        packet["proof_search_plan"] = {
+            "preferred_tools": ["local_lean", "lean_lsp_mcp"],
+            "tactic_or_certificate_hints": [],
+            "kernel_check_plan": [
+                "AgentRuntime must materialize and locally check any NEEDS_KERNEL_CHECK Lean candidate"
+            ],
+            "known_blockers": [
+                "LLM omitted proof_search_plan; runtime filled routing metadata only"
+            ],
+        }
+        normalized.append("proof_search_plan")
+    if packet.get("gap_taxonomy") in (None, "", [], {}):
+        packet["gap_taxonomy"] = [
+            {
+                "gap": (
+                    "Formalizer packet omitted gap taxonomy; keep proof claims "
+                    "proposal-only until verifier feedback is available"
+                ),
+                "kind": "other",
+                "next_owner": "FormalizerProofEngineer",
+            }
+        ]
+        normalized.append("gap_taxonomy")
+    if packet.get("critic_findings") in (None, "", [], {}):
+        packet["critic_findings"] = [
+            {
+                "critic": "local_formalizer_packet_normalizer",
+                "finding": (
+                    "Inserted missing non-proof packet scaffolding so validation "
+                    "can focus on candidate safety and verifier routing."
+                ),
+                "reroute_if_confirmed": "FormalizerProofEngineer",
+            }
+        ]
+        normalized.append("critic_findings")
+    if packet.get("next_actions") in (None, "", [], {}):
+        packet["next_actions"] = [
+            {
+                "owner_agent": "AgentRuntime",
+                "action": (
+                    "Materialize verifier-eligible candidates or route explicit "
+                    "formal blockers back to Formalizer/ProofEngineer."
+                ),
+                "acceptance_gate": (
+                    "local validation accepts the packet; proof evidence still "
+                    "requires local Lean/AXLE or prover feedback"
+                ),
+            }
+        ]
+        normalized.append("next_actions")
+    if not normalized:
+        return
+
+    existing = packet.get("normalized_missing_required_scaffolding_fields", [])
+    if not isinstance(existing, list):
+        existing = []
+    packet["normalized_missing_required_scaffolding_fields"] = [
+        *existing,
+        *normalized,
+    ]
+    packet["scaffolding_normalizer_proof_evidence_status"] = (
+        "AUTO_FILLED_ROUTING_SCAFFOLDING_NOT_PROOF_EVIDENCE"
+    )
 
 
 def _normalize_executable_candidate_expected_statuses(
@@ -2339,6 +2433,96 @@ def _quarantine_unbound_source_to_bridge_candidates(
                 "ProofEngineer request before emitting premise candidates."
             ),
             "proof_evidence_status": "DROPPED_UNBOUND_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE",
+        }
+    )
+    packet["critic_findings"] = findings
+
+
+def _drop_source_to_bridge_candidates_with_uninstantiated_adapter_binders(
+    packet: dict[str, Any],
+) -> None:
+    """Quarantine candidates that turn required adapter objects into assumptions."""
+
+    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
+    if not isinstance(candidates, list) or not candidates:
+        return
+    kept: list[Any] = []
+    dropped: list[dict[str, Any]] = []
+    for index, candidate in enumerate(candidates, start=1):
+        if not isinstance(candidate, Mapping):
+            kept.append(candidate)
+            continue
+        candidate_source = str(
+            candidate.get("premise_derivation_candidate_lean_source", "")
+            or candidate.get("lean_statement_sketch", "")
+            or candidate.get("candidate_lean_source", "")
+            or ""
+        )
+        uninstantiated_adapter_binders = (
+            _source_to_bridge_candidate_uninstantiated_adapter_object_binders(
+                candidate,
+                candidate_source,
+            )
+        )
+        if not uninstantiated_adapter_binders:
+            kept.append(candidate)
+            continue
+        premise_names = (
+            [
+                str(value).strip()
+                for value in candidate.get("premise_names", []) or []
+                if str(value).strip()
+            ]
+            if isinstance(candidate.get("premise_names", []), list | tuple | set)
+            else []
+        )
+        dropped.append(
+            {
+                "index": index,
+                "premise_name": str(candidate.get("premise_name", "") or ""),
+                "premise_names": premise_names,
+                "uninstantiated_adapter_object_binders": list(
+                    uninstantiated_adapter_binders
+                ),
+                "reason": (
+                    "source-to-bridge premise candidate omitted because it used "
+                    "adapter objects requiring source instantiation as theorem "
+                    "binders instead of deriving them from exact source binders; "
+                    "this is not proof evidence"
+                ),
+                "failure_classification": (
+                    "source_to_bridge_candidate_uninstantiated_adapter_objects"
+                ),
+            }
+        )
+    if not dropped:
+        return
+    packet["source_to_bridge_premise_derivation_candidates"] = kept
+    existing_dropped = packet.get(
+        "dropped_source_to_bridge_premise_derivation_candidates",
+        [],
+    )
+    if not isinstance(existing_dropped, list):
+        existing_dropped = []
+    packet["dropped_source_to_bridge_premise_derivation_candidates"] = [
+        *existing_dropped,
+        *dropped,
+    ]
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Dropped source_to_bridge_premise_derivation_candidates that "
+                "introduced adapter objects as fresh theorem binders. The "
+                "candidate must derive those objects from exact source binders "
+                "or remain a formal blocker."
+            ),
+            "proof_evidence_status": (
+                "DROPPED_UNINSTANTIATED_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE"
+            ),
         }
     )
     packet["critic_findings"] = findings
