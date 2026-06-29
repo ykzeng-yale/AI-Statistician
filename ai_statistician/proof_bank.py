@@ -4388,7 +4388,7 @@ theorem integrabilityOfScoreTerms_of_components {Ω : Type*} [MeasurableSpace Ω
         english="A probability measure assigns mass one to the universal set.",
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 open MeasureTheory
 
 theorem prob_measure_univ {α : Type*} [MeasurableSpace α]
@@ -4430,7 +4430,7 @@ theorem integral_of_constant {α : Type*} [MeasurableSpace α]
         english="The variance of any real-valued random variable is nonnegative.",
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.Probability.Moments.Variance
 open MeasureTheory ProbabilityTheory
 
 theorem variance_nonneg_demo {Ω : Type*} {m : MeasurableSpace Ω}
