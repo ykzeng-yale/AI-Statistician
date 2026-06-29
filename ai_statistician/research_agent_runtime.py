@@ -1585,6 +1585,88 @@ def _runtime_architect_orchestration_feedback_rows(
     return [learning_row], [agenda_row]
 
 
+def _runtime_theory_trace_feedback_target_ids(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    target_ids: list[str] = []
+
+    def extend_from_row(row: Any) -> None:
+        if not isinstance(row, Mapping):
+            return
+        for target_id in _source_theorem_target_ids_from_row(row):
+            if target_id and target_id not in target_ids:
+                target_ids.append(target_id)
+
+    pending_task = (
+        manifest.get("incomplete_pending_next_task", {})
+        if isinstance(manifest.get("incomplete_pending_next_task", {}), Mapping)
+        else {}
+    )
+    extend_from_row(pending_task)
+    pending_inputs = (
+        pending_task.get("inputs", {})
+        if isinstance(pending_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    extend_from_row(pending_inputs)
+    environment_feedback = (
+        pending_inputs.get("environment_feedback", {})
+        if isinstance(pending_inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    extend_from_row(environment_feedback)
+    architect_context = (
+        pending_inputs.get("architect_context", {})
+        if isinstance(pending_inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    extend_from_row(architect_context)
+    runtime_resume_review = (
+        architect_context.get("runtime_resume_review", {})
+        if isinstance(architect_context.get("runtime_resume_review", {}), Mapping)
+        else {}
+    )
+    extend_from_row(runtime_resume_review)
+    resume_after_theory = (
+        runtime_resume_review.get("resume_pending_task_after_theory_refresh", {})
+        if isinstance(
+            runtime_resume_review.get("resume_pending_task_after_theory_refresh", {}),
+            Mapping,
+        )
+        else {}
+    )
+    extend_from_row(resume_after_theory)
+    resume_after_inputs = (
+        resume_after_theory.get("inputs", {})
+        if isinstance(resume_after_theory.get("inputs", {}), Mapping)
+        else {}
+    )
+    extend_from_row(resume_after_inputs)
+    resume_after_context = (
+        resume_after_inputs.get("architect_context", {})
+        if isinstance(resume_after_inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    extend_from_row(resume_after_context)
+    runtime_learning_memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context.get("runtime_learning_memory", {}), Mapping)
+        else {}
+    )
+    memory_rows = (
+        runtime_learning_memory.get("rows", [])
+        if isinstance(runtime_learning_memory.get("rows", []), list)
+        else []
+    )
+    for row in memory_rows:
+        extend_from_row(row)
+        if isinstance(row, Mapping):
+            input_summary = row.get("input_summary", {})
+            if isinstance(input_summary, Mapping):
+                extend_from_row(input_summary)
+    return list(target_ids)
+
+
 def _runtime_theory_trace_feedback_rows(
     *,
     manifest: Mapping[str, Any],
@@ -1629,6 +1711,8 @@ def _runtime_theory_trace_feedback_rows(
         for value in theory.get("structured_theory_trace_aligned_subsystems", []) or []
         if str(value).strip()
     ]
+    target_ids = _runtime_theory_trace_feedback_target_ids(manifest)
+    target_theorem_name = target_ids[0] if len(target_ids) == 1 else ""
     work_order_id = stable_hash(
         {
             "learning_task": "theory_derivation_trace_feedback",
@@ -1637,6 +1721,7 @@ def _runtime_theory_trace_feedback_rows(
             "n_theory_derivation_packets": _runtime_safe_int(
                 theory.get("n_theory_derivation_packets", 0)
             ),
+            "target_ids": target_ids,
         }
     )[:16]
     target_behavior = (
@@ -1661,6 +1746,8 @@ def _runtime_theory_trace_feedback_rows(
         "work_order_id": work_order_id,
         "next_owner_subsystem": "TheoryDeveloper",
         "failure_classifications": list(failure_classifications),
+        "target_ids": list(target_ids),
+        "target_theorem_name": target_theorem_name,
         "input_summary": {
             "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
             "n_theory_derivation_packets": _runtime_safe_int(
@@ -1690,6 +1777,8 @@ def _runtime_theory_trace_feedback_rows(
             "required_theory_trace_consumers": required_consumers,
             "theory_trace_consuming_subsystems": consuming_subsystems,
             "structured_theory_trace_aligned_subsystems": aligned_subsystems,
+            "target_ids": list(target_ids),
+            "target_theorem_name": target_theorem_name,
             "all_required_theory_trace_consumers_observed": bool(
                 theory.get("all_required_theory_trace_consumers_observed", False)
             ),
@@ -1719,6 +1808,8 @@ def _runtime_theory_trace_feedback_rows(
         "work_order_id": work_order_id,
         "failure_classifications": list(failure_classifications),
         "required_theory_trace_consumers": required_consumers,
+        "target_ids": list(target_ids),
+        "target_theorem_name": target_theorem_name,
         "priority": "high",
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (

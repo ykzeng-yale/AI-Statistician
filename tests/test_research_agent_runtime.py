@@ -14919,6 +14919,29 @@ def test_runtime_audit_recomputes_theory_trace_counts_from_results(
 def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer() -> None:
     manifest = {
         "question_ids": ["conformal_prediction_coverage"],
+        "incomplete_pending_next_task": {
+            "task_id": "simulation:conformal:pending",
+            "owner_subsystem": "SimulationEvaluator",
+            "inputs": {
+                "architect_context": {
+                    "runtime_learning_memory": {
+                        "rows": [
+                            {
+                                "learning_task": (
+                                    "source_theorem_truth_table_feedback"
+                                ),
+                                "target_ids": [
+                                    "split_conformal_finite_sample_coverage"
+                                ],
+                                "target_theorem_name": (
+                                    "split_conformal_finite_sample_coverage"
+                                ),
+                            }
+                        ]
+                    }
+                }
+            },
+        },
         "runtime_evidence_summary": {
             "theory": {
                 "n_theory_derivation_packets": 2,
@@ -14955,6 +14978,12 @@ def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer
     assert learning_row["input_summary"]["trigger"] == (
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
     )
+    assert learning_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert learning_row["input_summary"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert learning_row["input_summary"][
         "n_theory_derivation_packets_with_min_derivation_steps"
     ] == 0
@@ -14981,6 +15010,9 @@ def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer
     assert agenda_row["owner_subsystem"] == "TheoryDeveloper"
     assert agenda_row["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
     assert agenda_row["work_order_id"] == learning_row["work_order_id"]
+    assert agenda_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert "does not promote" in agenda_row["boundary"]
     assert "TheoryDerivationPacket" in agenda_row["acceptance_gate"]
 
