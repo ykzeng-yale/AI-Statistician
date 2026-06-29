@@ -2277,6 +2277,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors",
+                0,
+            )
+            or 0
+        ),
         "theory_trace_consuming_subsystems": list(
             runtime_theory_summary.get("theory_trace_consuming_subsystems", [])
             if isinstance(
@@ -4834,7 +4841,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "structured="
                 f"{payload.get('n_structured_theory_trace_alignment_contracts')} "
                 "unsupported="
-                f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')}"
+                f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')} "
+                "historical_unsupported="
+                f"{payload.get('n_theory_trace_alignment_contracts_with_historical_unsupported_anchors')}"
             ),
             (
                 "SimulationEngineer, AlgorithmEngineer, and FormalizerProofEngineer "
@@ -6425,6 +6434,7 @@ def _merge_runtime_theory_summaries(
         "n_theory_trace_alignment_contracts_with_llm_alignment",
         "n_structured_theory_trace_alignment_contracts",
         "n_theory_trace_alignment_contracts_with_unsupported_anchors",
+        "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors",
         "max_derivation_steps",
         "max_equation_chain_steps",
         "max_assumption_ledger_rows",
@@ -6434,6 +6444,9 @@ def _merge_runtime_theory_summaries(
             _safe_int(merged.get(key, 0)),
             _safe_int(derived_summary.get(key, 0)),
         )
+    unresolved_key = "n_theory_trace_alignment_contracts_with_unsupported_anchors"
+    if unresolved_key in derived_summary:
+        merged[unresolved_key] = _safe_int(derived_summary.get(unresolved_key, 0))
 
     list_keys = (
         "theory_trace_consuming_subsystems",
@@ -6667,11 +6680,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('structured_theory_trace_aligned_subsystems')}",
         "- required downstream theory trace alignment consumers observed: "
         f"{payload.get('all_required_theory_trace_alignment_consumers_observed')}",
-        "- theory trace alignment contracts total / claimed / structured / unsupported: "
+        "- theory trace alignment contracts total / claimed / structured / unresolved unsupported / historical unsupported: "
         f"{payload.get('n_theory_trace_alignment_contracts')} / "
         f"{payload.get('n_theory_trace_alignment_contracts_with_llm_alignment')} / "
         f"{payload.get('n_structured_theory_trace_alignment_contracts')} / "
-        f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')}",
+        f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')} / "
+        f"{payload.get('n_theory_trace_alignment_contracts_with_historical_unsupported_anchors')}",
         f"- theory trace alignment boundary: {payload.get('theory_trace_alignment_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",

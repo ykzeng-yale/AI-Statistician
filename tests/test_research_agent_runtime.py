@@ -208,6 +208,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _manifest_or_proof_summary_count,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
+    _merge_runtime_theory_summaries,
     _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
     _runtime_target_identity_audit_summary,
@@ -238,6 +239,7 @@ from ai_statistician.research_schema import (
     ResearchProblemSpec,
     TheoremGoal,
 )
+from ai_statistician.theory_derivation_trace import theory_trace_alignment_contract
 from ai_statistician.schema import ProofCheck
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
@@ -1519,6 +1521,7 @@ def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
         "n_theory_trace_alignment_contracts_with_llm_alignment": 3,
         "n_structured_theory_trace_alignment_contracts": 3,
         "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
+        "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors": 0,
     }
 
 
@@ -1962,6 +1965,88 @@ def _structured_theory_trace_alignment_fixture() -> dict[str, object]:
         "referenced_formalization_targets": ["aipw_asymptotic_normality"],
         "rationale": "align generated artifact to score/remainder trace anchors",
     }
+
+
+def test_theory_trace_alignment_matches_descriptive_anchor_references() -> None:
+    theory_packet = {
+        "packet_id": "theory_derivation:descriptive",
+        "theory_derivation_packet": {
+            "derivation_steps": [
+                {
+                    "id": "D1",
+                    "claim": "ATE is identified under unconfoundedness and positivity",
+                },
+                {
+                    "id": "D2",
+                    "claim": "EIF has zero mean at true nuisances",
+                },
+            ],
+            "equation_chain": [
+                {
+                    "step_id": "EQ1",
+                    "lhs": "tau_hat - ATE",
+                    "rhs": "n^{-1} sum_i phi_hat(O_i) + R_n",
+                }
+            ],
+            "assumption_ledger": [
+                {
+                    "assumption": "Positivity: eta <= pi(x) <= 1-eta",
+                    "used_in": ["D1", "D2"],
+                }
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "THM1",
+                "required_definitions": [
+                    "L2 nuisance error norms",
+                    "cross-fit partition independence",
+                ],
+                "semantic_alignment_constraints": [
+                    (
+                        "phi must be formalized as a Bochner-integrable "
+                        "function with E[phi]=0 at true nuisances"
+                    ),
+                    (
+                        "double-robustness must hold when either pi_hat=pi "
+                        "or mu_hat=mu exactly"
+                    ),
+                ],
+            },
+        },
+    }
+    contract = theory_trace_alignment_contract(
+        theory_packet,
+        {
+            "referenced_derivation_steps": [
+                "D1: ATE identification under unconfoundedness and positivity",
+                "D2: EIF zero-mean property",
+            ],
+            "referenced_equation_steps": [
+                "EQ1: tau_hat - ATE linearization with remainder R_n"
+            ],
+            "referenced_assumptions": [
+                "Positivity: eta <= pi(x) <= 1-eta for bounded EIF variance"
+            ],
+            "referenced_formalization_targets": [
+                "THM1",
+                "L2 nuisance error norms and cross-fit partition independence",
+                "EIF phi as measurable function with E[phi]=0 at true nuisances",
+                (
+                    "Double-robustness holding when either pi_hat=pi or "
+                    "mu_hat=mu exactly"
+                ),
+            ],
+            "rationale": "descriptive references still bind to trace anchors",
+        },
+        consumer_subsystem="AlgorithmEngineer",
+    )
+
+    assert contract["structured_alignment_observed"] is True
+    assert contract["unsupported_derivation_steps"] == []
+    assert contract["unsupported_equation_steps"] == []
+    assert contract["unsupported_assumptions"] == []
+    assert contract["unsupported_formalization_targets"] == []
+    assert contract["n_supported_anchor_references"] == 8
+    assert contract["n_unsupported_anchor_references"] == 0
 
 
 def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_budget() -> None:
@@ -16071,6 +16156,225 @@ def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() ->
     assert "Lean/kernel proof evidence" in theory["theory_trace_alignment_boundary"]
     assert "Lean/kernel proof evidence" in theory["theory_trace_consumption_boundary"]
     assert "not execution or proof evidence" in theory["boundary"]
+
+
+def test_runtime_evidence_summary_recomputes_stale_alignment_contract() -> None:
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:stale_alignment",
+        "theory_derivation_packet": {
+            "derivation_steps": [{"id": "D1", "claim": "identify ATE"}],
+            "equation_chain": [{"step_id": "EQ1", "lhs": "tau_hat", "rhs": "tau"}],
+            "assumption_ledger": [
+                {"assumption": "Positivity: eta <= pi(x) <= 1-eta"}
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "THM1",
+                "semantic_alignment_constraints": [
+                    (
+                        "double-robustness must hold when either pi_hat=pi "
+                        "or mu_hat=mu exactly"
+                    )
+                ],
+            },
+        },
+        "theory_derivation_contract": {
+            "min_derivation_steps": 1,
+            "n_derivation_steps": 1,
+            "n_equation_chain_steps": 1,
+            "n_assumption_ledger_rows": 1,
+            "has_formalization_handoff": True,
+        },
+    }
+    artifacts = {
+        "theory_derivation:stale_alignment": theory_packet,
+        "algorithm_engineer_proposal:stale_alignment": {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "source_agent": "LLMAlgorithmEngineerAgent",
+            "theory_trace_consumption_contract": {
+                "artifact_kind": "TheoryTraceConsumptionContract",
+                "source_theory_packet_id": "theory_derivation:stale_alignment",
+                "consumer_subsystem": "AlgorithmEngineer",
+                "theory_derivation_trace_supplied": True,
+                "n_derivation_steps_supplied": 1,
+                "n_equation_chain_steps_supplied": 1,
+                "n_assumption_ledger_rows_supplied": 1,
+                "has_formalization_handoff": True,
+            },
+            "theory_trace_alignment": {
+                "referenced_derivation_steps": ["D1: identify ATE"],
+                "referenced_equation_steps": ["EQ1: tau_hat expansion"],
+                "referenced_assumptions": [
+                    "Positivity: eta <= pi(x) <= 1-eta for bounded EIF variance"
+                ],
+                "referenced_formalization_targets": [
+                    "THM1",
+                    (
+                        "Double-robustness holding when either pi_hat=pi or "
+                        "mu_hat=mu exactly"
+                    ),
+                ],
+                "rationale": "descriptive raw alignment from a prior run",
+            },
+            "theory_trace_alignment_contract": {
+                "artifact_kind": "TheoryTraceAlignmentContract",
+                "source_theory_packet_id": "theory_derivation:stale_alignment",
+                "consumer_subsystem": "AlgorithmEngineer",
+                "llm_alignment_claimed": True,
+                "structured_alignment_observed": False,
+                "supported_assumptions": [],
+                "n_unsupported_anchor_references": 5,
+            },
+        },
+    }
+
+    theory = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )["theory"]
+
+    assert theory["n_theory_trace_alignment_contracts"] == 1
+    assert theory["n_structured_theory_trace_alignment_contracts"] == 1
+    assert theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] == 0
+    assert (
+        theory[
+            "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors"
+        ]
+        == 1
+    )
+    assert theory["structured_theory_trace_aligned_subsystems"] == [
+        "AlgorithmEngineer"
+    ]
+
+
+def test_runtime_evidence_summary_discounts_repaired_alignment_anchors() -> None:
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:repair_alignment",
+        "theory_derivation_packet": {
+            "derivation_steps": [{"id": "D1", "claim": "identify ATE"}],
+            "equation_chain": [{"step_id": "EQ1", "lhs": "tau_hat", "rhs": "tau"}],
+            "assumption_ledger": [
+                {"assumption": "Positivity: eta <= pi(x) <= 1-eta"}
+            ],
+            "formalization_handoff": {"source_theorem_target": "THM1"},
+        },
+        "theory_derivation_contract": {
+            "min_derivation_steps": 1,
+            "n_derivation_steps": 1,
+            "n_equation_chain_steps": 1,
+            "n_assumption_ledger_rows": 1,
+            "has_formalization_handoff": True,
+        },
+    }
+    shared_contract = {
+        "artifact_kind": "TheoryTraceAlignmentContract",
+        "source_theory_packet_id": "theory_derivation:repair_alignment",
+        "consumer_subsystem": "AlgorithmEngineer",
+        "llm_alignment_claimed": True,
+    }
+    artifacts = {
+        "theory_derivation:repair_alignment": theory_packet,
+        "algorithm_engineer_proposal:bad_alignment": {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "theory_trace_alignment_contract": {
+                **shared_contract,
+                "structured_alignment_observed": False,
+                "n_unsupported_anchor_references": 2,
+            },
+        },
+        "algorithm_engineer_proposal:repaired_alignment": {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "theory_trace_alignment_contract": {
+                **shared_contract,
+                "structured_alignment_observed": True,
+                "supported_derivation_steps": ["D1"],
+                "supported_equation_steps": ["EQ1"],
+                "supported_assumptions": ["Positivity"],
+                "supported_formalization_targets": ["THM1"],
+                "n_unsupported_anchor_references": 0,
+            },
+        },
+    }
+
+    theory = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )["theory"]
+
+    assert theory["n_theory_trace_alignment_contracts"] == 1
+    assert theory["n_structured_theory_trace_alignment_contracts"] == 1
+    assert theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] == 0
+    assert (
+        theory[
+            "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors"
+        ]
+        == 1
+    )
+    assert theory["structured_theory_trace_aligned_subsystems"] == [
+        "AlgorithmEngineer"
+    ]
+
+
+def test_runtime_evidence_summary_recomputes_raw_alignment_without_contract() -> None:
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:raw_alignment",
+        "theory_derivation_packet": {
+            "derivation_steps": [{"id": "D1", "claim": "identify ATE"}],
+            "equation_chain": [{"step_id": "EQ1", "lhs": "tau_hat", "rhs": "tau"}],
+            "assumption_ledger": [
+                {"assumption": "Positivity: eta <= pi(x) <= 1-eta"}
+            ],
+            "formalization_handoff": {"source_theorem_target": "THM1"},
+        },
+    }
+    artifacts = {
+        "theory_derivation:raw_alignment": theory_packet,
+        "algorithm_engineer_proposal:raw_alignment": {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "source_agent": "LLMAlgorithmEngineerAgent",
+            "theory_trace_alignment": {
+                "referenced_derivation_steps": ["D1: identify ATE"],
+                "referenced_equation_steps": ["EQ1: tau_hat expansion"],
+                "referenced_assumptions": [
+                    "Positivity: eta <= pi(x) <= 1-eta for bounded EIF variance"
+                ],
+                "referenced_formalization_targets": ["THM1"],
+                "rationale": "raw LLM alignment without serialized contract",
+            },
+        },
+    }
+
+    theory = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )["theory"]
+
+    assert theory["n_theory_trace_alignment_contracts"] == 1
+    assert theory["n_structured_theory_trace_alignment_contracts"] == 1
+    assert theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] == 0
+    assert theory["structured_theory_trace_aligned_subsystems"] == [
+        "AlgorithmEngineer"
+    ]
+
+
+def test_runtime_theory_summary_merge_prefers_recomputed_unresolved_alignment() -> None:
+    merged = _merge_runtime_theory_summaries(
+        {
+            "n_theory_trace_alignment_contracts_with_unsupported_anchors": 3,
+            "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors": 0,
+        },
+        {
+            "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
+            "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors": 3,
+        },
+    )
+
+    assert merged["n_theory_trace_alignment_contracts_with_unsupported_anchors"] == 0
+    assert (
+        merged[
+            "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors"
+        ]
+        == 3
+    )
 
 
 def test_runtime_audit_recomputes_theory_trace_counts_from_results(

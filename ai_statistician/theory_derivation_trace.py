@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 
@@ -146,6 +147,7 @@ def theory_trace_anchor_summary(
             "candidate_lean_targets",
             "required_definitions",
             "lemma_dependencies",
+            "semantic_alignment_constraints",
         ):
             formalization_targets.extend(_string_values(formalization_handoff.get(key)))
     return {
@@ -356,11 +358,15 @@ def _split_supported_refs(
     refs: list[str],
     anchors: Any,
 ) -> tuple[list[str], list[str]]:
-    anchor_lookup = {_normalize_anchor(anchor): anchor for anchor in _string_values(anchors)}
+    anchor_values = _string_values(anchors)
+    anchor_aliases = [
+        _anchor_aliases(anchor)
+        for anchor in anchor_values
+    ]
     supported: list[str] = []
     unsupported: list[str] = []
     for ref in refs:
-        if _normalize_anchor(ref) in anchor_lookup:
+        if _reference_matches_any_anchor(ref, anchor_values, anchor_aliases):
             supported.append(ref)
         else:
             unsupported.append(ref)
@@ -368,7 +374,102 @@ def _split_supported_refs(
 
 
 def _normalize_anchor(value: Any) -> str:
-    return str(value or "").strip().lower()
+    text = str(value or "").strip().lower()
+    text = text.replace("‑", "-").replace("–", "-").replace("—", "-")
+    text = text.replace("'", "")
+    text = " ".join(text.split())
+    return text
+
+
+def _anchor_aliases(value: Any) -> set[str]:
+    """Return provenance-only aliases for matching LLM anchor references."""
+
+    normalized = _normalize_anchor(value)
+    aliases = {normalized} if normalized else set()
+    if not normalized:
+        return aliases
+    prefix = normalized.split(":", 1)[0].strip()
+    if prefix and prefix != normalized:
+        aliases.add(prefix)
+    id_match = _ANCHOR_ID_PATTERN.match(normalized)
+    if id_match:
+        aliases.add(id_match.group("id"))
+    return {alias for alias in aliases if alias}
+
+
+def _reference_matches_any_anchor(
+    ref: str,
+    anchor_values: list[str],
+    anchor_aliases: list[set[str]],
+) -> bool:
+    ref_aliases = _anchor_aliases(ref)
+    if any(ref_aliases & aliases for aliases in anchor_aliases):
+        return True
+    ref_norm = _normalize_anchor(ref)
+    if not ref_norm:
+        return False
+    for anchor, aliases in zip(anchor_values, anchor_aliases, strict=False):
+        if any(
+            len(alias) >= 8 and (alias in ref_norm or ref_norm in alias)
+            for alias in aliases
+        ):
+            return True
+        if _anchor_token_overlap_supported(ref_norm, _normalize_anchor(anchor)):
+            return True
+    return False
+
+
+_ANCHOR_ID_PATTERN = re.compile(
+    r"^(?P<id>[a-z]+[0-9]+)\b(?:\s*[:\-.].*)?$"
+)
+
+
+_ANCHOR_TOKEN_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "must",
+    "of",
+    "or",
+    "the",
+    "to",
+    "when",
+    "with",
+}
+
+
+def _anchor_token_overlap_supported(ref_norm: str, anchor_norm: str) -> bool:
+    ref_tokens = _anchor_tokens(ref_norm)
+    anchor_tokens = _anchor_tokens(anchor_norm)
+    if len(ref_tokens) < 3 or len(anchor_tokens) < 3:
+        return False
+    overlap = ref_tokens & anchor_tokens
+    if len(overlap) < 3:
+        return False
+    return len(overlap) / max(1, min(len(ref_tokens), len(anchor_tokens))) >= 0.6
+
+
+def _anchor_tokens(value: str) -> set[str]:
+    raw_tokens = re.findall(r"[a-z0-9_]+", value.lower())
+    tokens: set[str] = set()
+    for token in raw_tokens:
+        if token in _ANCHOR_TOKEN_STOPWORDS:
+            continue
+        if token.endswith("ing") and len(token) > 5:
+            token = token[:-3]
+        if token:
+            tokens.add(token)
+    return tokens
 
 
 def _compact_value(value: Any, *, text_limit: int) -> Any:

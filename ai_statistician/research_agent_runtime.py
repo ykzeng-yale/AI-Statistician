@@ -118,6 +118,7 @@ from .task_family import primary_task_family_from_question
 from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
+    theory_trace_alignment_contract,
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
@@ -49309,14 +49310,16 @@ def _runtime_theory_trace_consumption_contracts(
     )
     contracts: list[dict[str, Any]] = []
     for key in contract_keys:
-        contract = artifact.get(key, {})
-        if isinstance(contract, Mapping):
+        contract = artifact.get(key)
+        if isinstance(contract, Mapping) and contract:
             contracts.append(dict(contract))
     return contracts
 
 
 def _runtime_theory_trace_alignment_contracts(
     artifact: Mapping[str, Any],
+    *,
+    theory_packets_by_id: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     contract_keys = (
         "theory_trace_alignment_contract",
@@ -49326,10 +49329,78 @@ def _runtime_theory_trace_alignment_contracts(
     )
     contracts: list[dict[str, Any]] = []
     for key in contract_keys:
-        contract = artifact.get(key, {})
-        if isinstance(contract, Mapping):
+        contract = artifact.get(key)
+        if isinstance(contract, Mapping) and contract:
             contracts.append(dict(contract))
+    raw_alignment = artifact.get("theory_trace_alignment")
+    if theory_packets_by_id and isinstance(raw_alignment, Mapping) and raw_alignment:
+        primary_contract = contracts[0] if contracts else {}
+        source_packet_id = str(
+            primary_contract.get("source_theory_packet_id", "") or ""
+        )
+        consumer = str(primary_contract.get("consumer_subsystem", "") or "")
+        if not source_packet_id:
+            for consumption in _runtime_theory_trace_consumption_contracts(artifact):
+                source_packet_id = str(
+                    consumption.get("source_theory_packet_id", "") or ""
+                )
+                if source_packet_id:
+                    break
+        if not source_packet_id and len(theory_packets_by_id) == 1:
+            source_packet_id = next(iter(theory_packets_by_id))
+        if not consumer:
+            consumer = _runtime_theory_trace_alignment_consumer_from_artifact(
+                artifact
+            )
+        source_packet = theory_packets_by_id.get(source_packet_id, {})
+        if consumer and isinstance(source_packet, Mapping) and source_packet:
+            recomputed = theory_trace_alignment_contract(
+                source_packet,
+                raw_alignment,
+                consumer_subsystem=consumer,
+            )
+            recomputed["recomputed_from_raw_alignment"] = True
+            recomputed["recomputed_previous_contract_unsupported_anchors"] = int(
+                _runtime_safe_int(
+                    primary_contract.get("n_unsupported_anchor_references", 0)
+                )
+            )
+            updated_contracts: list[dict[str, Any]] = []
+            replaced = False
+            for contract in contracts:
+                if (
+                    str(contract.get("consumer_subsystem", "") or "") == consumer
+                    and str(contract.get("source_theory_packet_id", "") or "")
+                    == source_packet_id
+                ):
+                    updated_contracts.append(recomputed)
+                    replaced = True
+                else:
+                    updated_contracts.append(contract)
+            if not replaced:
+                updated_contracts.append(recomputed)
+            contracts = updated_contracts
     return contracts
+
+
+def _runtime_theory_trace_alignment_consumer_from_artifact(
+    artifact: Mapping[str, Any],
+) -> str:
+    kind = str(artifact.get("artifact_kind", "") or "")
+    source_agent = str(artifact.get("source_agent", "") or "")
+    if kind == "SimulationEngineerProposalPacket" or source_agent == (
+        "LLMSimulationEngineerAgent"
+    ):
+        return "SimulationEngineer"
+    if kind == "AlgorithmEngineerProposalPacket" or source_agent == (
+        "LLMAlgorithmEngineerAgent"
+    ):
+        return "AlgorithmEngineer"
+    if kind == "FormalizerProofEngineerProposalPacket" or source_agent == (
+        "LLMFormalizerProofEngineerAgent"
+    ):
+        return "FormalizerProofEngineer"
+    return ""
 
 
 def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -49349,6 +49420,7 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_theory_trace_alignment_contracts_with_llm_alignment": 0,
         "n_structured_theory_trace_alignment_contracts": 0,
         "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
+        "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors": 0,
         "max_derivation_steps": 0,
         "max_equation_chain_steps": 0,
         "max_assumption_ledger_rows": 0,
@@ -49496,10 +49568,21 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory_trace_alignment_claimed: set[tuple[str, str]] = set()
     structured_theory_trace_alignment_keys: set[tuple[str, str]] = set()
     theory_trace_alignment_with_unsupported_anchors: set[tuple[str, str]] = set()
+    theory_trace_alignment_with_historical_unsupported_anchors: set[
+        tuple[str, str]
+    ] = set()
     for result in results:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        theory_packets_by_id = {
+            str(artifact.get("packet_id", "") or ""): artifact
+            for artifact in artifacts.values()
+            if isinstance(artifact, Mapping)
+            and str(artifact.get("packet_id", "") or "")
+            and str(artifact.get("artifact_kind", "") or "")
+            in {"TheoryDerivationPacket", "RuntimeTheoryDerivationPacket"}
+        }
         repair_sequences = _generated_sandbox_repair_sequence_counts(artifacts)
         simulation[
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
@@ -49554,7 +49637,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     theory_trace_consumption_with_formalization_handoff.add(
                         contract_key
                     )
-            for contract in _runtime_theory_trace_alignment_contracts(artifact):
+            for contract in _runtime_theory_trace_alignment_contracts(
+                artifact,
+                theory_packets_by_id=theory_packets_by_id,
+            ):
                 consumer = str(contract.get("consumer_subsystem", "") or "")
                 source_packet_id = str(
                     contract.get("source_theory_packet_id", "") or ""
@@ -49571,6 +49657,18 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     contract.get("n_unsupported_anchor_references", 0)
                 ):
                     theory_trace_alignment_with_unsupported_anchors.add(contract_key)
+                    theory_trace_alignment_with_historical_unsupported_anchors.add(
+                        contract_key
+                    )
+                if _runtime_safe_int(
+                    contract.get(
+                        "recomputed_previous_contract_unsupported_anchors",
+                        0,
+                    )
+                ):
+                    theory_trace_alignment_with_historical_unsupported_anchors.add(
+                        contract_key
+                    )
             kind = str(artifact.get("artifact_kind", ""))
             if kind == "TheoryDerivationPacket":
                 theory["n_theory_derivation_packets"] += 1
@@ -50072,8 +50170,17 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory["n_structured_theory_trace_alignment_contracts"] = len(
         structured_theory_trace_alignment_keys
     )
-    theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] = len(
+    unresolved_theory_trace_alignment_with_unsupported_anchors = (
         theory_trace_alignment_with_unsupported_anchors
+        - structured_theory_trace_alignment_keys
+    )
+    theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] = len(
+        unresolved_theory_trace_alignment_with_unsupported_anchors
+    )
+    theory[
+        "n_theory_trace_alignment_contracts_with_historical_unsupported_anchors"
+    ] = len(
+        theory_trace_alignment_with_historical_unsupported_anchors
     )
     theory["theory_trace_aligned_subsystems"] = sorted(
         {consumer for consumer, _source_packet_id in theory_trace_alignment_claimed}
