@@ -41728,6 +41728,108 @@ def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> N
     )
 
 
+def test_runtime_truth_table_reached_goal_semantic_review_routes_semantic_gate(
+    tmp_path: Path,
+) -> None:
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["conformal_prediction_coverage"],
+        "source_theorem_exact_proof_body_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt": [
+            "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
+        ],
+        "n_formal_gaps": 76,
+    }
+    truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
+
+    rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["proof_body_status"] == "PROOF_BODY_REACHED_OPEN"
+    assert row["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert row["input_summary"]["proof_body_goal_reached"] is True
+    assert row["input_summary"]["proof_body_semantic_review_blocked"] is True
+    assert row["input_summary"]["source_theorem_ready_for_exact_proof_body"] is False
+    assert (
+        "review exact source-theorem semantic definitions"
+        in row["recommended_next_action"]
+    )
+
+    generated_agenda = _append_runtime_generated_next_action_rows(
+        [],
+        rows,
+        queue_name="runtime_evidence_truth_table",
+    )
+
+    assert len(generated_agenda) == 1
+    assert generated_agenda[0]["trigger"] == (
+        "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert generated_agenda[0]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert (
+        "review exact source-theorem semantic definitions"
+        in generated_agenda[0]["action"]
+    )
+
+    generated_learning = _runtime_generated_next_action_learning_rows(
+        generated_agenda
+    )
+    learning_path = tmp_path / "reached_semantic_review_truth_table_rows.jsonl"
+    learning_path.write_text(
+        "\n".join(json.dumps(item) for item in [row, *generated_learning]) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path])
+    compact_generated_row = next(
+        item
+        for item in memory["rows"]
+        if item["learning_task"] == "generated_next_action_routing"
+    )
+    assert compact_generated_row["input_summary"]["trigger"] == (
+        "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert compact_generated_row["input_summary"]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    )
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_semantic_definition_repair_required"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantic_definition_repair"
+    )
+    assert "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED" in summary[
+        "source_theorem_exact_candidate_repair_triggers"
+    ]
+
+
 def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
     tmp_path: Path,
 ) -> None:

@@ -1338,6 +1338,11 @@ def _runtime_evidence_truth_learning_rows(
         proof_body_status == "PROOF_BODY_ATTEMPT_BLOCKED"
     )
     semantic_review_blocked = blocker in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+    proof_body_gate_status = ""
+    if semantic_review_blocked and proof_body_goal_reached:
+        proof_body_gate_status = "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+    elif semantic_review_blocked:
+        proof_body_gate_status = "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     source_theorem_ready_for_exact_proof_body = bool(
         proof_body_goal_reached and not semantic_review_blocked
     )
@@ -1408,6 +1413,7 @@ def _runtime_evidence_truth_learning_rows(
             "premise_derivation_gap_kind": premise_gap_kind,
             "premise_target_type": premise_target_type,
             "proof_body_status": proof_body_status,
+            "proof_body_gate_status": proof_body_gate_status,
             "proof_body_attempt_blocked_before_goal": (
                 proof_body_attempt_blocked_before_goal
             ),
@@ -1422,6 +1428,7 @@ def _runtime_evidence_truth_learning_rows(
                     source_theorem_ready_for_exact_proof_body
                 ),
                 "proof_body_status": proof_body_status,
+                "proof_body_gate_status": proof_body_gate_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
                 "proof_body_attempt_blocked_before_goal": (
                     proof_body_attempt_blocked_before_goal
@@ -28264,15 +28271,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         ):
             if truth_premise_derivation_gap_kind:
                 trigger = "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
-            elif (
-                truth_proof_body_semantic_review_blocked
-                and (
-                    truth_proof_body_attempt_blocked_before_goal
-                    or truth_proof_body_status == "PROOF_BODY_ATTEMPT_BLOCKED"
-                    or not truth_proof_body_goal_reached
+            elif truth_proof_body_semantic_review_blocked:
+                trigger = (
+                    "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+                    if truth_proof_body_goal_reached
+                    else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
                 )
-            ):
-                trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
             elif truth_proof_body_goal_reached:
                 trigger = "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
             else:
@@ -37235,9 +37239,16 @@ def _append_runtime_generated_next_action_rows(
             row.get("proof_body_goal_reached", False)
             or input_summary.get("proof_body_goal_reached", False)
         )
-        truth_table_semantic_repair_queue_ready = bool(
+        truth_table_semantic_review_queue_ready = bool(
             source_trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
             and proof_body_semantic_review_blocked_for_routing
+        )
+        truth_table_proof_body_reached_semantic_review_required = bool(
+            truth_table_semantic_review_queue_ready
+            and proof_body_goal_reached_for_routing
+        )
+        truth_table_semantic_repair_queue_ready = bool(
+            truth_table_semantic_review_queue_ready
             and (
                 proof_body_attempt_blocked_before_goal_for_routing
                 or proof_body_status_for_routing == "PROOF_BODY_ATTEMPT_BLOCKED"
@@ -37245,13 +37256,13 @@ def _append_runtime_generated_next_action_rows(
             )
         )
         exact_semantic_definition_repair_queue_ready = bool(
-            source_trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+            source_trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
             or learning_task == "source_theorem_exact_semantic_definition_repair_queue"
             or str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow"
             or str(row.get("action_type", "") or "")
             == "repair_reviewed_exact_semantic_definition"
-            or truth_table_semantic_repair_queue_ready
+            or truth_table_semantic_review_queue_ready
         )
         premise_gap_kind = str(row.get("premise_derivation_gap_kind", "") or "")
         premise_name = str(row.get("premise_name", "") or "")
@@ -37344,6 +37355,8 @@ def _append_runtime_generated_next_action_rows(
             "trigger": (
                 "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
                 if source_to_bridge_premise_gap
+                else "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+                if truth_table_proof_body_reached_semantic_review_required
                 else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
                 if exact_semantic_definition_repair_queue_ready
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
