@@ -818,6 +818,112 @@ def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(
         )
 
 
+def test_runtime_manifest_exports_missing_handoff_feedback_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet_id = "theory_derivation:runtime_handoff_structured"
+    missing_simulation_manifest_id = "simulation_manifest:runtime_missing"
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    task = AgentTask(
+        task_id="algorithm:runtime-missing-simulation-handoff",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Recover missing simulation handoff before algorithm work.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": missing_simulation_manifest_id,
+            "implementation_gaps": [{"gap": "requires algorithm sandbox"}],
+            "architect_context": {},
+        },
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        config=ResearchAgentRuntimeConfig(max_iterations=1),
+        initial_task_overrides={question.id: task},
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: _structured_theory_packet_fixture(
+                    theory_packet_id
+                )
+            }
+        },
+    )
+
+    assert manifest["status_counts"] == {"MAX_ITERATIONS_REACHED": 1}
+    assert manifest["terminal_subsystem"] == "AlgorithmEngineer"
+    assert manifest["n_runtime_handoff_artifact_feedback_learning_rows"] == 1
+    assert manifest["n_runtime_handoff_artifact_feedback_next_action_rows"] == 1
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["traces"][0]["failure_classification"] == (
+        "runtime_handoff_artifact_missing"
+    )
+    assert result["traces"][0]["next_task"]["owner_subsystem"] == (
+        "SimulationEvaluator"
+    )
+
+    learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    handoff_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task") == (
+            "runtime_handoff_artifact_missing_feedback"
+        )
+    ]
+    assert len(handoff_rows) == 1
+    assert handoff_rows[0]["next_owner_subsystem"] == "SimulationEvaluator"
+    assert handoff_rows[0]["missing_artifact_id"] == missing_simulation_manifest_id
+    assert handoff_rows[0]["input_summary"]["trigger"] == (
+        "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+    )
+
+    agenda_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    handoff_agenda_rows = [
+        row
+        for row in agenda_rows
+        if row.get("trigger") == "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+    ]
+    assert len(handoff_agenda_rows) == 1
+    assert handoff_agenda_rows[0]["owner_subsystem"] == "SimulationEvaluator"
+    assert handoff_agenda_rows[0]["missing_artifact_id"] == (
+        missing_simulation_manifest_id
+    )
+
+    pending_task_path = Path(manifest["artifacts"]["runtime_pending_next_task_json"])
+    pending_payload = json.loads(pending_task_path.read_text(encoding="utf-8"))
+    pending_memory = pending_payload["pending_next_task"]["inputs"][
+        "architect_context"
+    ]["runtime_learning_memory"]
+    assert any(
+        row.get("learning_task") == "runtime_handoff_artifact_missing_feedback"
+        and row.get("missing_artifact_id") == missing_simulation_manifest_id
+        for row in pending_memory["rows"]
+    )
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,
