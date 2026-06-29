@@ -11,10 +11,13 @@ from .fingerprint import stable_hash
 from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
     _runtime_evidence_truth_table_from_manifest,
+    _runtime_manifest_int_sum,
 )
 
 
@@ -1569,90 +1572,13 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
-        "source_theorem_formal_environment_proof_body_executor_n_result_rows": (
-            int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_n_result_rows",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get("source_theorem_exact_proof_body_repair_executor_n_result_rows", 0)
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
-                    0,
-                )
-                or 0
-            )
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": _runtime_manifest_int_sum(
+            manifest,
+            SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
         ),
-        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": (
-            int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
-            + int(
-                manifest.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
-                    0,
-                )
-                or 0
-            )
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": _runtime_manifest_int_sum(
+            manifest,
+            SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
         ),
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,

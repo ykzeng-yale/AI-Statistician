@@ -202,6 +202,22 @@ SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
     "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
 )
+SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+)
+SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+)
 SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",

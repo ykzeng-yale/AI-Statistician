@@ -88,6 +88,8 @@ from ai_statistician.research_agent_runtime import (
     FormalizationEvaluatorRuntimeSubsystem,
     ProofEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
     SimulationEvaluatorRuntimeSubsystem,
@@ -39710,8 +39712,20 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
 def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts() -> None:
     raw_keys = set(SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS)
     audit_keys = set(SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS)
+    aggregate_kernel_keys = set(
+        SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS
+    )
+    aggregate_result_keys = set(
+        SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS
+    )
 
     assert audit_keys < raw_keys
+    assert aggregate_kernel_keys < raw_keys
+    assert len(SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS) == len(
+        SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS
+    )
+    assert all(key.endswith("_n_source_theorem_kernel_verified") for key in aggregate_kernel_keys)
+    assert all(key.endswith("_n_result_rows") for key in aggregate_result_keys)
     assert (
         "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
         in audit_keys
@@ -39733,8 +39747,24 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
         not in audit_keys
     )
     assert (
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified"
+        in aggregate_kernel_keys
+    )
+    assert (
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified"
+        in aggregate_kernel_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        not in aggregate_kernel_keys
+    )
+    assert (
         "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified"
         in audit_keys
+    )
+    assert (
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified"
+        not in aggregate_kernel_keys
     )
 
 
