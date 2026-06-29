@@ -1110,14 +1110,21 @@ def _semantic_alignment_constraints_from_synthesis_rows(
 
 
 def _typechecked_review_candidate_artifact_path(row: Mapping[str, Any]) -> Path | None:
+    raw = _typechecked_review_candidate_artifact_path_text(row)
+    return Path(raw) if raw else None
+
+
+def _typechecked_review_candidate_artifact_path_text(row: Mapping[str, Any]) -> str:
     nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
     nested_mapping = nested if isinstance(nested, Mapping) else {}
     raw = str(
         row.get("candidate_artifact_path", "")
         or nested_mapping.get("candidate_artifact_path", "")
+        or row.get("definition_only_candidate_artifact_path", "")
+        or nested_mapping.get("definition_only_candidate_artifact_path", "")
         or ""
     ).strip()
-    return Path(raw) if raw else None
+    return raw
 
 
 def _typechecked_review_packet_ready_for_recheck(
@@ -1207,16 +1214,12 @@ def _typechecked_review_verifier_gate_work_order(
     nested_mapping = nested if isinstance(nested, Mapping) else {}
     target = str(row.get("target_theorem_name", "") or "").strip()
     placeholder = str(row.get("placeholder_symbol", "") or "").strip()
-    candidate_artifact_path = str(
-        row.get("candidate_artifact_path", "")
-        or nested_mapping.get("candidate_artifact_path", "")
-        or ""
-    ).strip()
     definition_only_candidate_artifact_path = str(
         row.get("definition_only_candidate_artifact_path", "")
         or nested_mapping.get("definition_only_candidate_artifact_path", "")
         or ""
     ).strip()
+    candidate_artifact_path = _typechecked_review_candidate_artifact_path_text(row)
     blockers = [
         str(value)
         for value in row.get("proof_body_recheck_blockers", []) or []

@@ -2300,6 +2300,95 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
     assert learning_rows == verifier_gate_rows
 
 
+def test_typechecked_review_recheck_queue_uses_definition_only_candidate_for_verifier_gate(
+    tmp_path: Path,
+) -> None:
+    definition_only_candidate = tmp_path / "covered_definition_only.lean"
+    definition_only_candidate.write_text(
+        "def covered : Prop := True\n",
+        encoding="utf-8",
+    )
+    queue_manifest = tmp_path / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    _write_exact_proof_body_queue_manifest(
+        queue_manifest,
+        candidate=definition_only_candidate,
+    )
+    review_packets = tmp_path / "review_packets.jsonl"
+    review_packets.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionTypecheckedCandidateReviewPacket"
+                ),
+                "review_packet_id": "review:covered:definition-only",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "definition_only_candidate_artifact_path": str(
+                    definition_only_candidate
+                ),
+                "definition_only_candidate_file_resolved": True,
+                "local_definition_lean_checked": True,
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+                ),
+                "semantic_review_decision": "approved_definition_candidate",
+                "semantic_review_status": (
+                    "llm_semantic_review_approved_definition_candidate_not_proof"
+                ),
+                "semantic_review_required_before_proof_body": True,
+                "source_theorem_ready_for_exact_proof_body": False,
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(
+        out_dir=tmp_path / "recheck",
+        review_packets_jsonl=review_packets,
+        proof_body_queue_manifest=queue_manifest,
+    )
+
+    assert manifest["n_review_packets"] == 1
+    assert manifest["n_blocked_review_packets"] == 1
+    assert manifest["n_verifier_gate_work_orders"] == 1
+    blocked = [
+        json.loads(line)
+        for line in Path(manifest["blocked_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert "candidate_artifact_path_missing" not in blocked[0][
+        "proof_body_recheck_blockers"
+    ]
+    assert blocked[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    verifier_gate_rows = [
+        json.loads(line)
+        for line in Path(manifest["verifier_gate_work_orders_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert verifier_gate_rows[0]["candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    assert verifier_gate_rows[0]["definition_only_candidate_artifact_path"] == str(
+        definition_only_candidate
+    )
+    assert verifier_gate_rows[0]["proof_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_typechecked_review_verifier_gate_memory_remains_specific() -> None:
     repairs = _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         {
