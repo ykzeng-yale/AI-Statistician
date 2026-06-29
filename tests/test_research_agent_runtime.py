@@ -155,6 +155,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_evidence_truth_learning_rows,
+    _runtime_theory_trace_feedback_rows,
     _runtime_research_acceptance_contract_from_manifest,
     _normalized_formal_verification_policy,
     _effective_formal_verification_policy,
@@ -13478,6 +13479,110 @@ def test_runtime_audit_recomputes_theory_trace_counts_from_results(
     assert "theory_packets=1" in scorecard_rows[
         "theory_derivation_trace_contract_observed"
     ]["evidence"]
+
+
+def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 2,
+                "n_theory_derivation_packets_with_contract": 0,
+                "n_theory_derivation_packets_with_min_derivation_steps": 0,
+                "n_theory_derivation_packets_with_equation_chain": 0,
+                "n_theory_derivation_packets_with_assumption_ledger": 0,
+                "n_theory_derivation_packets_with_formalization_handoff": 0,
+                "all_required_theory_trace_consumers_observed": False,
+                "all_required_theory_trace_alignment_consumers_observed": False,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [],
+                "structured_theory_trace_aligned_subsystems": [],
+            },
+        },
+    }
+
+    learning_rows, agenda_rows = _runtime_theory_trace_feedback_rows(
+        manifest=manifest
+    )
+
+    assert len(learning_rows) == 1
+    learning_row = learning_rows[0]
+    assert learning_row["learning_task"] == "theory_derivation_trace_feedback"
+    assert learning_row["next_owner_subsystem"] == "TheoryDeveloper"
+    assert (
+        learning_row["proof_evidence_status"]
+        == "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert learning_row["input_summary"]["trigger"] == (
+        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    )
+    assert learning_row["input_summary"][
+        "n_theory_derivation_packets_with_min_derivation_steps"
+    ] == 0
+    assert "missing_theory_derivation_contract" in learning_row[
+        "failure_classifications"
+    ]
+    assert "insufficient_derivation_steps" in learning_row[
+        "failure_classifications"
+    ]
+    assert "missing_equation_chain" in learning_row["failure_classifications"]
+    assert "missing_assumption_ledger" in learning_row["failure_classifications"]
+    assert "missing_formalization_handoff" in learning_row[
+        "failure_classifications"
+    ]
+    assert "downstream_theory_trace_consumption_missing" in learning_row[
+        "failure_classifications"
+    ]
+    assert "downstream_theory_trace_alignment_missing" in learning_row[
+        "failure_classifications"
+    ]
+
+    assert len(agenda_rows) == 1
+    agenda_row = agenda_rows[0]
+    assert agenda_row["owner_subsystem"] == "TheoryDeveloper"
+    assert agenda_row["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    assert agenda_row["work_order_id"] == learning_row["work_order_id"]
+    assert "does not promote" in agenda_row["boundary"]
+    assert "TheoryDerivationPacket" in agenda_row["acceptance_gate"]
+
+
+def test_runtime_theory_trace_feedback_rows_skip_complete_structured_trace() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 1,
+                "n_theory_derivation_packets_with_contract": 1,
+                "n_theory_derivation_packets_with_min_derivation_steps": 1,
+                "n_theory_derivation_packets_with_equation_chain": 1,
+                "n_theory_derivation_packets_with_assumption_ledger": 1,
+                "n_theory_derivation_packets_with_formalization_handoff": 1,
+                "all_required_theory_trace_consumers_observed": True,
+                "all_required_theory_trace_alignment_consumers_observed": True,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "structured_theory_trace_aligned_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+            },
+        },
+    }
+
+    assert _runtime_theory_trace_feedback_rows(manifest=manifest) == ([], [])
 
 
 def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -> None:

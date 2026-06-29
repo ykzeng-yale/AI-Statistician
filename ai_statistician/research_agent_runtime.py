@@ -1411,6 +1411,182 @@ def _runtime_evidence_truth_learning_rows(
     ]
 
 
+def _runtime_theory_trace_feedback_rows(
+    *,
+    manifest: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    summary = (
+        manifest.get("runtime_evidence_summary", {})
+        if isinstance(manifest.get("runtime_evidence_summary", {}), Mapping)
+        else {}
+    )
+    theory = (
+        summary.get("theory", {})
+        if isinstance(summary.get("theory", {}), Mapping)
+        else {}
+    )
+    if not theory:
+        return [], []
+    failure_classifications: list[str] = []
+    if _runtime_safe_int(theory.get("n_theory_derivation_packets", 0)) <= 0:
+        failure_classifications.append("missing_theory_derivation_packet")
+    if (
+        _runtime_safe_int(
+            theory.get("n_theory_derivation_packets_with_contract", 0)
+        )
+        <= 0
+    ):
+        failure_classifications.append("missing_theory_derivation_contract")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_min_derivation_steps", 0)
+    ) <= 0:
+        failure_classifications.append("insufficient_derivation_steps")
+    if (
+        _runtime_safe_int(
+            theory.get("n_theory_derivation_packets_with_equation_chain", 0)
+        )
+        <= 0
+    ):
+        failure_classifications.append("missing_equation_chain")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_assumption_ledger", 0)
+    ) <= 0:
+        failure_classifications.append("missing_assumption_ledger")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_formalization_handoff", 0)
+    ) <= 0:
+        failure_classifications.append("missing_formalization_handoff")
+    if not bool(theory.get("all_required_theory_trace_consumers_observed", False)):
+        failure_classifications.append("downstream_theory_trace_consumption_missing")
+    if not bool(
+        theory.get("all_required_theory_trace_alignment_consumers_observed", False)
+    ):
+        failure_classifications.append("downstream_theory_trace_alignment_missing")
+    if not failure_classifications:
+        return [], []
+
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    required_consumers = [
+        str(value)
+        for value in theory.get("required_theory_trace_consumers", []) or []
+        if str(value).strip()
+    ]
+    consuming_subsystems = [
+        str(value)
+        for value in theory.get("theory_trace_consuming_subsystems", []) or []
+        if str(value).strip()
+    ]
+    aligned_subsystems = [
+        str(value)
+        for value in theory.get("structured_theory_trace_aligned_subsystems", []) or []
+        if str(value).strip()
+    ]
+    work_order_id = stable_hash(
+        {
+            "learning_task": "theory_derivation_trace_feedback",
+            "question_id": question_id,
+            "failure_classifications": failure_classifications,
+            "n_theory_derivation_packets": _runtime_safe_int(
+                theory.get("n_theory_derivation_packets", 0)
+            ),
+        }
+    )[:16]
+    target_behavior = (
+        "Route back to TheoryDeveloper for a structured derivation packet with "
+        "equation_chain, assumption_ledger, formalization_handoff, and stable "
+        "anchor ids; then require SimulationEngineer, AlgorithmEngineer, and "
+        "Formalizer/ProofEngineer proposals to consume and align to those anchors."
+    )
+    acceptance_gate = (
+        "A TheoryDerivationPacket records the derivation contract with equation "
+        "steps, assumption ledger rows, and formalization handoff; downstream "
+        "SimulationEngineer, AlgorithmEngineer, and FormalizerProofEngineer "
+        "artifacts record theory_trace_consumption_contract and "
+        "theory_trace_alignment_contract with no unsupported anchors."
+    )
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "learning_task": "theory_derivation_trace_feedback",
+        "work_order_id": work_order_id,
+        "next_owner_subsystem": "TheoryDeveloper",
+        "failure_classifications": list(failure_classifications),
+        "input_summary": {
+            "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+            "n_theory_derivation_packets": _runtime_safe_int(
+                theory.get("n_theory_derivation_packets", 0)
+            ),
+            "n_theory_derivation_packets_with_contract": _runtime_safe_int(
+                theory.get("n_theory_derivation_packets_with_contract", 0)
+            ),
+            "n_theory_derivation_packets_with_min_derivation_steps": _runtime_safe_int(
+                theory.get(
+                    "n_theory_derivation_packets_with_min_derivation_steps",
+                    0,
+                )
+            ),
+            "n_theory_derivation_packets_with_equation_chain": _runtime_safe_int(
+                theory.get("n_theory_derivation_packets_with_equation_chain", 0)
+            ),
+            "n_theory_derivation_packets_with_assumption_ledger": _runtime_safe_int(
+                theory.get("n_theory_derivation_packets_with_assumption_ledger", 0)
+            ),
+            "n_theory_derivation_packets_with_formalization_handoff": _runtime_safe_int(
+                theory.get(
+                    "n_theory_derivation_packets_with_formalization_handoff",
+                    0,
+                )
+            ),
+            "required_theory_trace_consumers": required_consumers,
+            "theory_trace_consuming_subsystems": consuming_subsystems,
+            "structured_theory_trace_aligned_subsystems": aligned_subsystems,
+            "all_required_theory_trace_consumers_observed": bool(
+                theory.get("all_required_theory_trace_consumers_observed", False)
+            ),
+            "all_required_theory_trace_alignment_consumers_observed": bool(
+                theory.get(
+                    "all_required_theory_trace_alignment_consumers_observed",
+                    False,
+                )
+            ),
+            "failure_classifications": list(failure_classifications),
+        },
+        "target_behavior": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This row is routing memory for LLM theory-spine repair. It is not "
+            "simulation evidence, code evidence, or Lean/kernel theorem proof."
+        ),
+    }
+    agenda_row = {
+        "id": f"theory:structured_derivation_trace:{work_order_id}",
+        "question_id": question_id,
+        "owner_subsystem": "TheoryDeveloper",
+        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "action": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "work_order_id": work_order_id,
+        "failure_classifications": list(failure_classifications),
+        "required_theory_trace_consumers": required_consumers,
+        "priority": "high",
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This agenda row asks for a stronger LLM derivation and downstream "
+            "trace-alignment contract. It does not promote any LLM derivation to "
+            "proof evidence."
+        ),
+    }
+    return [learning_row], [agenda_row]
+
+
 def _runtime_research_acceptance_contract_from_manifest(
     manifest: Mapping[str, Any],
     *,
@@ -21127,6 +21303,15 @@ def run_research_agent_runtime(
     )
     if coding_agent_capability_learning_rows:
         learning_rows.extend(coding_agent_capability_learning_rows)
+    (
+        theory_trace_feedback_learning_rows,
+        theory_trace_feedback_agenda_rows,
+    ) = _runtime_theory_trace_feedback_rows(manifest=manifest)
+    if theory_trace_feedback_learning_rows:
+        learning_rows.extend(theory_trace_feedback_learning_rows)
+    if theory_trace_feedback_agenda_rows:
+        agenda_rows.extend(theory_trace_feedback_agenda_rows)
+        generated_next_action_rows.extend(theory_trace_feedback_agenda_rows)
     architect_recommended_formal_verification_policy = (
         _runtime_architect_recommended_formal_verification_policy(results)
     )
@@ -21280,6 +21465,12 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
         coding_agent_capability_learning_rows
+    )
+    manifest["n_runtime_theory_trace_feedback_learning_rows"] = len(
+        theory_trace_feedback_learning_rows
+    )
+    manifest["n_runtime_theory_trace_feedback_next_action_rows"] = len(
+        theory_trace_feedback_agenda_rows
     )
     manifest["n_runtime_evidence_truth_learning_rows"] = len(
         evidence_truth_learning_rows
