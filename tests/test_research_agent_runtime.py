@@ -554,6 +554,58 @@ def test_downstream_routes_missing_theory_context_to_theory_developer(
         assert result.next_task.expected_artifacts == ("theory_derivation_packet",)
 
 
+def test_critic_routes_explicit_weak_theory_trace_to_theory_developer() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    weak_packet_id = "theory_derivation:critic_legacy"
+    blackboard = BlackboardState(project_id="critic-weak-theory-trace-test")
+    blackboard.artifacts.update(
+        {
+            weak_packet_id: {
+                "artifact_kind": "TheoryDerivationPacket",
+                "packet_id": weak_packet_id,
+                "theory_derivation_packet": {
+                    "derivation_summary": "coverage follows from exchangeability",
+                    "derivation_steps": [{"id": "rank", "claim": "rank is uniform"}],
+                },
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 1, "kernel_verified": 0},
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="critic:conformal_prediction_coverage:legacy",
+        owner_subsystem="CriticEvaluator",
+        objective="Evaluate a critic handoff with an explicit legacy theory packet.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": weak_packet_id,
+            "formalization_manifest_id": "formalization_manifest:test",
+            "architect_context": {},
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem().run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.failure_classification == (
+        "runtime_theory_derivation_trace_incomplete"
+    )
+    assert not result.tool_calls
+    assert not result.produced_artifacts
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_source"] == "CriticEvaluator"
+    assert feedback["source_theory_packet_id"] == weak_packet_id
+    assert "missing_equation_chain" in feedback["failure_classifications"]
+    assert "missing_formalization_handoff" in feedback[
+        "failure_classifications"
+    ]
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,

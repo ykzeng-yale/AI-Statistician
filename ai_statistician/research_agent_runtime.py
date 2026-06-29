@@ -9433,7 +9433,33 @@ class CriticEvaluatorRuntimeSubsystem:
         context = dict(task.inputs.get("architect_context", {}) or {})
         critic_control = _architect_control_payload(context, "CriticEvaluator")
         retrieval_manifest = _latest_artifact(blackboard, "retrieval_memory_manifest:")
-        theory_packet = _latest_artifact(blackboard, "theory_derivation:")
+        requested_theory_packet_id = str(task.inputs.get("theory_packet_id", "") or "")
+        if requested_theory_packet_id:
+            raw_theory_packet = blackboard.artifacts.get(requested_theory_packet_id, {})
+            theory_packet = (
+                dict(raw_theory_packet) if isinstance(raw_theory_packet, Mapping) else {}
+            )
+        else:
+            theory_packet = _latest_artifact(blackboard, "theory_derivation:")
+        theory_packet_id = str(
+            requested_theory_packet_id
+            or theory_packet.get("packet_id", "")
+            or ""
+        )
+        if requested_theory_packet_id or (
+            isinstance(theory_packet, Mapping)
+            and str(theory_packet.get("artifact_kind", "") or "")
+            == "TheoryDerivationPacket"
+        ):
+            trace_repair_result = _runtime_theory_trace_repair_result_if_needed(
+                source_subsystem="CriticEvaluator",
+                task=task,
+                question=question,
+                theory_packet_id=theory_packet_id,
+                theory_packet=theory_packet,
+            )
+            if trace_repair_result is not None:
+                return trace_repair_result
         simulation_manifest = _latest_artifact(blackboard, "simulation_manifest:")
         algorithm_manifest = _latest_artifact(blackboard, "algorithm_sandbox_manifest:")
         formalization_manifest = _latest_artifact(blackboard, "formalization_manifest:")
@@ -9590,6 +9616,7 @@ class CriticEvaluatorRuntimeSubsystem:
             "manifest_id": manifest_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
             "runtime_architect_control": critic_control,
             "llm_critic_evaluator_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
