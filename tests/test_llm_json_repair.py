@@ -129,3 +129,128 @@ def test_generate_validated_json_packet_feeds_validation_errors_into_repair_prom
     assert "local_validation_errors" in repair_prompt
     assert "missing required semantic anchor references: hRank" in repair_prompt
     assert '"invalid_response_excerpt": "{\\"ok\\": false}"' in repair_prompt
+
+
+def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:
+    class TruncatingThenValidBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return GeneratorResponse(
+                    text='{"ok": true, "items": ["unfinished"',
+                    provider=self.provider_name,
+                    model=request.model,
+                    metadata={
+                        "provider_stop_reason": "max_tokens",
+                        "provider_usage": {"output_tokens": request.max_tokens},
+                    },
+                )
+            return GeneratorResponse(
+                text='{"ok": true}',
+                provider=self.provider_name,
+                model=request.model,
+                metadata={"provider_stop_reason": "end_turn"},
+            )
+
+    backend = TruncatingThenValidBackend()
+    request = GeneratorRequest(
+        system_prompt="Return JSON.",
+        user_prompt="Produce a packet with required semantic anchors." + ("x" * 9000),
+        model="test-model",
+        max_tokens=128,
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=request,
+        extract_payload=lambda text: extract_json_object(text, label="test packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: []
+        if candidate.get("ok") is True
+        else ["missing ok"],
+        validation_label="test packet",
+        max_repair_attempts=1,
+    )
+
+    assert packet["ok"] is True
+    assert len(backend.requests) == 2
+    assert backend.requests[1].max_tokens > backend.requests[0].max_tokens
+    assert backend.requests[1].metadata[
+        "json_repair_previous_attempt_truncated"
+    ] is True
+    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    assert repair_payload["truncation_detected"] is True
+    assert "provider hit the max token/output limit" in " ".join(
+        repair_payload["repair_instructions"]
+    )
+    assert repair_payload["original_request"]["truncated"] is True
+    assert repair_payload["original_request"]["omitted_chars"] > 0
+    assert packet["llm_json_repair_history"][0]["request_max_tokens"] == 128
+    assert packet["llm_json_repair_history"][1]["request_max_tokens"] > 128
+
+
+def test_generate_validated_json_packet_keeps_escalated_budget_after_truncation_mode() -> None:
+    class TruncatingThenInvalidThenValidBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return GeneratorResponse(
+                    text='{"ok": true, "items": ["unfinished"',
+                    provider=self.provider_name,
+                    model=request.model,
+                    metadata={
+                        "provider_stop_reason": "max_tokens",
+                        "provider_usage": {"output_tokens": request.max_tokens},
+                    },
+                )
+            if len(self.requests) == 2:
+                return GeneratorResponse(
+                    text='{"ok": false}',
+                    provider=self.provider_name,
+                    model=request.model,
+                    metadata={"provider_stop_reason": "end_turn"},
+                )
+            return GeneratorResponse(
+                text='{"ok": true}',
+                provider=self.provider_name,
+                model=request.model,
+                metadata={"provider_stop_reason": "end_turn"},
+            )
+
+    backend = TruncatingThenInvalidThenValidBackend()
+    request = GeneratorRequest(
+        system_prompt="Return JSON.",
+        user_prompt="Produce a packet with required semantic anchors." + ("x" * 9000),
+        model="test-model",
+        max_tokens=128,
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=request,
+        extract_payload=lambda text: extract_json_object(text, label="test packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: []
+        if candidate.get("ok") is True
+        else ["missing ok"],
+        validation_label="test packet",
+        max_repair_attempts=2,
+    )
+
+    assert packet["ok"] is True
+    assert [request.max_tokens for request in backend.requests] == [128, 1152, 1152]
+    assert backend.requests[2].metadata["json_repair_truncation_repair_mode"] is True
+    third_repair_payload = json.loads(
+        backend.requests[2].user_prompt.split("\n\n", 1)[1]
+    )
+    assert third_repair_payload["truncation_detected"] is True

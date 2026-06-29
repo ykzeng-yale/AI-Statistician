@@ -58,14 +58,25 @@ def generate_validated_json_packet(
     last_errors: list[str] = []
     attempts = max(0, max_repair_attempts) + 1
     for attempt_index in range(attempts):
+        truncation_repair_mode = any(
+            _history_row_indicates_truncation(row) for row in history
+        )
+        request_max_tokens = _repair_attempt_max_tokens(
+            request.max_tokens,
+            truncation_repair_mode=truncation_repair_mode,
+        )
         response = provider.generate(
             replace(
                 request,
                 user_prompt=user_prompt,
+                max_tokens=request_max_tokens,
                 metadata={
                     **dict(request.metadata),
                     "json_repair_attempt": attempt_index,
                     "json_repair_max_attempts": max_repair_attempts,
+                    "json_repair_previous_attempt_truncated": truncation_repair_mode,
+                    "json_repair_truncation_repair_mode": truncation_repair_mode,
+                    "json_repair_request_max_tokens": request_max_tokens,
                 },
             )
         )
@@ -87,6 +98,7 @@ def generate_validated_json_packet(
                 "errors": last_errors,
                 "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
                 "response_text_chars": len(raw_text),
+                "request_max_tokens": request_max_tokens,
                 "response_metadata": _compact_response_metadata(response.metadata),
             }
         )
@@ -102,6 +114,11 @@ def generate_validated_json_packet(
                 bad_response=raw_text,
                 errors=last_errors,
                 validation_label=validation_label,
+                truncation_detected=_response_indicates_truncation(
+                    response,
+                    request_max_tokens=request_max_tokens,
+                )
+                or truncation_repair_mode,
             )
     raise PacketValidationError(
         validation_label=validation_label,
@@ -121,6 +138,7 @@ def _failure_history_suffix(history: list[dict[str, Any]]) -> str:
             "provider",
             "model",
             "response_text_chars",
+            "request_max_tokens",
             "response_metadata",
             "raw_response_fingerprint",
         )
@@ -136,6 +154,69 @@ def _format_generation_error(exc: Exception, raw_text: str) -> str:
         if excerpt:
             message += f"; response_excerpt_around_error={excerpt!r}"
     return message
+
+
+def _response_indicates_truncation(
+    response: GeneratorResponse,
+    *,
+    request_max_tokens: int,
+) -> bool:
+    metadata = response.metadata
+    stop_reason = str(metadata.get("provider_stop_reason", "") or "").lower()
+    incomplete_reason = str(
+        metadata.get("provider_incomplete_details", "") or ""
+    ).lower()
+    if any(
+        marker in f"{stop_reason} {incomplete_reason}"
+        for marker in ("max_tokens", "length", "output_limit")
+    ):
+        return True
+    usage = metadata.get("provider_usage", {})
+    if isinstance(usage, Mapping):
+        output_tokens = usage.get("output_tokens")
+        try:
+            requested = int(request_max_tokens or 0)
+            observed = int(output_tokens or 0)
+        except (TypeError, ValueError):
+            return False
+        return requested > 0 and observed >= requested
+    return False
+
+
+def _history_row_indicates_truncation(row: Mapping[str, Any]) -> bool:
+    metadata = row.get("response_metadata", {})
+    if not isinstance(metadata, Mapping):
+        return False
+    stop_reason = str(metadata.get("provider_stop_reason", "") or "").lower()
+    incomplete_reason = str(
+        metadata.get("provider_incomplete_details", "") or ""
+    ).lower()
+    if any(
+        marker in f"{stop_reason} {incomplete_reason}"
+        for marker in ("max_tokens", "length", "output_limit")
+    ):
+        return True
+    usage = metadata.get("provider_usage", {})
+    if isinstance(usage, Mapping):
+        output_tokens = usage.get("output_tokens")
+        try:
+            requested = int(row.get("request_max_tokens", 0) or 0)
+            observed = int(output_tokens or 0)
+        except (TypeError, ValueError):
+            return False
+        return requested > 0 and observed >= requested
+    return False
+
+
+def _repair_attempt_max_tokens(
+    base_max_tokens: int,
+    *,
+    truncation_repair_mode: bool,
+) -> int:
+    base = max(1, int(base_max_tokens or 1))
+    if not truncation_repair_mode:
+        return base
+    return min(max(base * 2, base + 1024), 8000)
 
 
 def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
@@ -184,22 +265,49 @@ def _repair_prompt(
     bad_response: str,
     errors: list[str],
     validation_label: str,
+    truncation_detected: bool = False,
 ) -> str:
+    original_request = (
+        _compact_original_request(original_user_prompt, head_chars=1600, tail_chars=2600)
+        if truncation_detected
+        else _compact_original_request(original_user_prompt)
+    )
+    invalid_response_excerpt = (
+        bad_response[:1200] if truncation_detected else bad_response[:2000]
+    )
+    repair_instructions = [
+        "Return only a single JSON object.",
+        "Rewrite the full JSON object from scratch; do not continue or patch the invalid response.",
+        "Satisfy the original required_output_contract exactly.",
+        "Keep all fields concise so the corrected JSON finishes within the response budget.",
+        "Use exactly one item for required arrays unless the original contract explicitly requires more.",
+        "Keep string fields under 240 characters and avoid multiline derivation essays.",
+        "Preserve all evidence boundaries.",
+        "Do not claim tool execution, simulation execution, production promotion, Lean proof, or kernel verification.",
+    ]
+    if truncation_detected:
+        repair_instructions.insert(
+            0,
+            (
+                "The previous response stopped because the provider hit the max "
+                "token/output limit; produce a deliberately compact complete JSON "
+                "object, not a longer explanation."
+            ),
+        )
+        repair_instructions.insert(
+            5,
+            (
+                "Use the minimum validator-satisfying number of rows for each "
+                "array and keep mathematical strings symbolic but short."
+            ),
+        )
     payload = {
         "validation_label": validation_label,
         "local_validation_errors": errors,
-        "invalid_response_excerpt": bad_response[:2000],
-        "repair_instructions": [
-            "Return only a single JSON object.",
-            "Rewrite the full JSON object from scratch; do not continue or patch the invalid response.",
-            "Satisfy the original required_output_contract exactly.",
-            "Keep all fields concise so the corrected JSON finishes within the response budget.",
-            "Use exactly one item for required arrays unless the original contract explicitly requires more.",
-            "Keep string fields under 240 characters and avoid multiline derivation essays.",
-            "Preserve all evidence boundaries.",
-            "Do not claim tool execution, simulation execution, production promotion, Lean proof, or kernel verification.",
-        ],
-        "original_request": _compact_original_request(original_user_prompt),
+        "truncation_detected": truncation_detected,
+        "invalid_response_excerpt": invalid_response_excerpt,
+        "repair_instructions": repair_instructions,
+        "original_request": original_request,
     }
     return (
         "Your previous response failed AI Statistician local validation. "

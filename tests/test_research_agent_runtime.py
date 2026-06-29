@@ -98,6 +98,7 @@ from ai_statistician.research_agent_runtime import (
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
     SimulationEvaluatorRuntimeSubsystem,
+    TheoryDeveloperRuntimeSubsystem,
     _critic_learning_rows,
     _critic_formal_blocker_resource_requests,
     _critic_next_action_agenda,
@@ -1009,6 +1010,79 @@ def test_downstream_routes_missing_theory_context_to_theory_developer(
         else:
             assert feedback["source_theory_packet_id"] == missing_packet_id
         assert result.next_task.expected_artifacts == ("theory_derivation_packet",)
+
+
+def test_theory_developer_validation_failure_routes_compact_retry() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+
+    class RejectingTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper packet",
+                attempts=3,
+                errors=["JSONDecodeError: response ended inside formalization_requests"],
+                history=[
+                    {
+                        "attempt_index": 2,
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-4-6",
+                        "ok": False,
+                        "errors": [
+                            "JSONDecodeError: response ended inside formalization_requests"
+                        ],
+                        "request_max_tokens": 2500,
+                        "response_metadata": {
+                            "provider_stop_reason": "max_tokens",
+                            "provider_usage": {"output_tokens": 2500},
+                        },
+                    }
+                ],
+            )
+
+    subsystem = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RejectingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=5,
+        seed=20260629,
+    )
+    task = AgentTask(
+        task_id="theory-resume-refresh:conformal_prediction_coverage:test",
+        owner_subsystem="TheoryDeveloper",
+        objective="Produce a structured theory packet.",
+        inputs={
+            "question": question_payload,
+            "architect_context": {
+                "runtime_requested_evidence_contract": {
+                    "formal_verification_policy": "optional"
+                }
+            },
+        },
+        allowed_tools=("model_backend", "rag_memory"),
+        expected_artifacts=("theory_derivation_packet",),
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="theory-validation-test"))
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == "theory_developer_packet_truncated_json"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.inputs["theory_developer_validation_retry_attempt"] == 1
+    retry_feedback = result.next_task.inputs["environment_feedback"]
+    assert retry_feedback["failure_classification"] == (
+        "theory_developer_packet_truncated_json"
+    )
+    assert retry_feedback["truncation_detected"] is True
+    assert "minimum row counts" in retry_feedback["required_revision"]
+    assert result.produced_artifacts
+    failure_artifact = next(iter(result.produced_artifacts.values()))
+    assert failure_artifact["artifact_kind"] == (
+        "RuntimeTheoryDeveloperValidationFailure"
+    )
+    assert failure_artifact["learning_rows"][0]["proof_evidence_status"] == (
+        "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+    )
+    assert result.observations[0].payload["truncation_detected"] is True
 
 
 def test_critic_routes_explicit_weak_theory_trace_to_theory_developer() -> None:

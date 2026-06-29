@@ -375,6 +375,82 @@ def test_llm_theory_developer_default_repair_budget_allows_two_repairs() -> None
     )
 
 
+def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
+    response = _sample_response()
+    derivation = dict(response["theory_derivation_packet"])
+    derivation["derivation_steps"] = [
+        {
+            "step_id": "D1",
+            "statement": "Exchangeability makes the test rank uniform.",
+            "argument": "Permutation symmetry over calibration plus test scores.",
+        },
+        {
+            "step_id": "D2",
+            "statement": "The conformal quantile keeps all but alpha ranks.",
+            "argument": "Use ceil((n+1)(1-alpha)) rank cutoff.",
+        },
+        {
+            "step_id": "D3",
+            "statement": "Coverage follows from the retained rank fraction.",
+            "argument": "The retained fraction is at least 1-alpha.",
+        },
+    ]
+    derivation["equation_chain"] = [
+        {
+            "id": "E1",
+            "left": "P(covered)",
+            "relation": ">=",
+            "right": "ceil((n+1)(1-alpha))/(n+1)",
+            "reason": "rank uniformity",
+        },
+        {
+            "id": "E2",
+            "left": "ceil((n+1)(1-alpha))/(n+1)",
+            "relation": ">=",
+            "right": "1-alpha",
+            "reason": "ceiling arithmetic",
+        },
+    ]
+    derivation["assumption_ledger"] = [
+        {"name": "exchangeable scores", "role": "identification"},
+        {"condition": "fixed alpha in (0,1)", "role": "regularity"},
+    ]
+    derivation.pop("formalization_handoff", None)
+    response["theory_derivation_packet"] = derivation
+    provider = SequentialGeneratorBackend([response])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(provider_name="sequential_test"),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="canonicalize",
+            title="Canonicalize packet",
+            description="Accept common field variants without dropping boundaries.",
+            tags=("runtime",),
+        )
+    )
+
+    theory = packet["theory_derivation_packet"]
+    assert packet["ok"] is True
+    assert theory["derivation_steps"][0]["claim"] == (
+        "Exchangeability makes the test rank uniform."
+    )
+    assert theory["derivation_steps"][0]["equation_or_argument"] == (
+        "Permutation symmetry over calibration plus test scores."
+    )
+    assert theory["equation_chain"][0]["lhs"] == "P(covered)"
+    assert theory["equation_chain"][0]["justification"] == "rank uniformity"
+    assert theory["assumption_ledger"][0]["assumption"] == "exchangeable scores"
+    assert theory["assumption_ledger"][0]["used_in_inferred_by_runtime"] is True
+    assert theory["formalization_handoff"][
+        "runtime_inferred_from_formalization_requests"
+    ] is True
+    assert packet["theory_derivation_contract"]["has_formalization_handoff"] is True
+    assert packet["proof_evidence_status"] == THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+
+
 def test_llm_theory_developer_resolves_model_tier_at_request_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

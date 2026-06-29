@@ -3618,7 +3618,15 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
-        packet = self.theory_developer.derive(question, architect_context=context)
+        try:
+            packet = self.theory_developer.derive(question, architect_context=context)
+        except PacketValidationError as exc:
+            return _theory_developer_packet_validation_failure_result(
+                task=task,
+                question=question,
+                context=context,
+                exc=exc,
+            )
         theory_control = _architect_control_payload(context, "TheoryDeveloper")
         packet["runtime_architect_control"] = theory_control
         packet_id = _unique_runtime_artifact_id(
@@ -3706,6 +3714,185 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _theory_developer_packet_validation_failure_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    exc: PacketValidationError,
+) -> AgentStepResult:
+    validation_errors = [str(error) for error in exc.errors if str(error)]
+    retry_attempt = _runtime_safe_int(
+        task.inputs.get("theory_developer_validation_retry_attempt", 0)
+    )
+    failure_classification = (
+        "theory_developer_packet_truncated_json"
+        if _packet_validation_error_truncation_detected(exc)
+        else "theory_developer_packet_validation_failed"
+    )
+    failure_id = (
+        "theory_developer_validation_failure:"
+        + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
+    )
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "question_id": question.id,
+        "question_title": question.title,
+        "learning_task": "theory_developer_packet_validation_feedback",
+        "input_summary": {
+            "trigger": "THEORY_DEVELOPER_PACKET_VALIDATION_FAILED",
+            "failed_subsystem": "TheoryDeveloper",
+            "failure_classification": failure_classification,
+            "validation_label": exc.validation_label,
+            "validation_errors": validation_errors,
+            "attempts": exc.attempts,
+            "retry_attempt": retry_attempt,
+            "last_attempt_summary": exc.history[-1] if exc.history else {},
+            "truncation_detected": _packet_validation_error_truncation_detected(exc),
+        },
+        "target_behavior": (
+            "rerun TheoryDeveloper with a compact but structured "
+            "TheoryDerivationPacket: preserve problem_card, theorem_cards, "
+            "derivation_steps, equation_chain, assumption_ledger, and "
+            "formalization_handoff, but use minimum validator-satisfying rows and "
+            "short mathematical strings"
+        ),
+        "acceptance_gate": (
+            "TheoryDeveloper packet passes local validation with proof_evidence_status "
+            "preserving the LLM-not-proof boundary; downstream workers may consume "
+            "the packet only after the structured derivation contract is present"
+        ),
+        "next_owner_subsystem": "TheoryDeveloper",
+        "proof_evidence_status": "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+    }
+    failure_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryDeveloperValidationFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "validation_label": exc.validation_label,
+        "failure_classification": failure_classification,
+        "validation_errors": validation_errors,
+        "llm_json_repair_history": exc.history,
+        "learning_rows": [learning_row],
+        "recommended_next_action": learning_row["target_behavior"],
+        "proof_evidence_status": "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This artifact records a local validator failure from an LLM "
+            "TheoryDeveloper proposal. It is orchestration feedback only: no "
+            "simulation, implementation, Lean check, or theorem proof has run."
+        ),
+    }
+    observations = (
+        EnvironmentObservation(
+            observation_type="theory_developer_packet_validation_failure",
+            summary=(
+                "TheoryDeveloper packet failed local validation; routing compact "
+                "validation feedback back to TheoryDeveloper"
+            ),
+            payload={
+                "failure_id": failure_id,
+                "failure_classification": failure_classification,
+                "validation_errors": validation_errors,
+                "retry_attempt": retry_attempt,
+                "truncation_detected": _packet_validation_error_truncation_detected(exc),
+                "proof_evidence_status": (
+                    "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        ),
+    )
+    next_task = None
+    if retry_attempt < 1:
+        retry_context = dict(context)
+        retry_feedback = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
+            "feedback_type": "theory_developer_packet_validation_feedback",
+            "failure_classification": failure_classification,
+            "validation_label": exc.validation_label,
+            "validation_errors": validation_errors,
+            "attempts": exc.attempts,
+            "retry_attempt": retry_attempt + 1,
+            "truncation_detected": _packet_validation_error_truncation_detected(exc),
+            "required_revision": (
+                "Return one complete compact JSON object satisfying the "
+                "TheoryDeveloper output contract. Use minimum row counts, short "
+                "symbolic equations, and preserve proof_evidence_status as "
+                f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
+            ),
+            "acceptance_gate": learning_row["acceptance_gate"],
+            "proof_evidence_status": (
+                "THEORY_DEVELOPER_PACKET_VALIDATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "Validation feedback guides the next LLM TheoryDeveloper turn; "
+                "it is not proof, simulation, or execution evidence."
+            ),
+        }
+        retry_context["environment_feedback"] = retry_feedback
+        next_task = AgentTask(
+            task_id=(
+                f"theory-validation-retry:{question.id}:"
+                f"{stable_hash([failure_id, retry_attempt])[:8]}"
+            ),
+            owner_subsystem="TheoryDeveloper",
+            objective=(
+                "Repair the locally invalid TheoryDeveloper packet with a compact "
+                "structured derivation trace."
+            ),
+            inputs={
+                "question": _question_to_payload(question),
+                "architect_context": retry_context,
+                "environment_feedback": retry_feedback,
+                "theory_developer_validation_retry_attempt": retry_attempt + 1,
+            },
+            allowed_tools=task.allowed_tools,
+            expected_artifacts=task.expected_artifacts
+            or ("theory_derivation_packet",),
+            acceptance_gate=learning_row["acceptance_gate"],
+            stop_condition="validated compact theory packet routes downstream",
+        )
+    return AgentStepResult(
+        status="REVISE" if next_task is not None else "FAILED",
+        rationale=(
+            "TheoryDeveloper packet failed local validation; "
+            "structured feedback was recorded"
+        ),
+        produced_artifacts={failure_id: failure_artifact},
+        observations=observations,
+        next_task=next_task,
+        failure_classification=failure_classification,
+    )
+
+
+def _packet_validation_error_truncation_detected(
+    exc: PacketValidationError,
+) -> bool:
+    for row in exc.history:
+        metadata = row.get("response_metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
+        haystack = " ".join(
+            str(metadata.get(key, "") or "").lower()
+            for key in ("provider_stop_reason", "provider_incomplete_details")
+        )
+        if any(marker in haystack for marker in ("max_tokens", "length", "output_limit")):
+            return True
+        usage = metadata.get("provider_usage", {})
+        if isinstance(usage, Mapping):
+            try:
+                output_tokens = int(usage.get("output_tokens", 0) or 0)
+                request_tokens = int(row.get("request_max_tokens", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if request_tokens > 0 and output_tokens >= request_tokens:
+                return True
+    return False
 
 
 def _runtime_theory_packet_structured_trace_failures(
