@@ -43283,6 +43283,49 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["blocker"]
 
 
+def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization() -> None:
+    payload = {
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "question_ids": ["conformal_prediction_coverage"],
+        "n_full_frontier_theorem_proved": 1,
+        "question_ids_with_full_frontier_theorem_proved": [
+            "conformal_prediction_coverage"
+        ],
+        "n_question_ids_with_full_frontier_theorem_proved": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert "single conformal lineage" in rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["blocker"]
+
+    payload["n_results"] = 2
+    payload["n_distinct_question_ids"] = 2
+    payload["question_ids"] = [
+        "causal_ate_aipw",
+        "conformal_prediction_coverage",
+    ]
+    payload["n_full_frontier_theorem_proved"] = 2
+    payload["question_ids_with_full_frontier_theorem_proved"] = [
+        "causal_ate_aipw",
+        "conformal_prediction_coverage",
+    ]
+    payload["n_question_ids_with_full_frontier_theorem_proved"] = 2
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is True
+
+
 def test_late_typechecked_candidate_review_unresolved_state_advances_after_recheck() -> None:
     assert (
         _late_typechecked_candidate_review_unresolved(

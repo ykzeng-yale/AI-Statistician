@@ -48,6 +48,39 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 )
 
 
+def _compact_string_list(values: Any) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, (str, int, float, bool)):
+        raw_values = [values]
+    elif isinstance(values, Mapping):
+        raw_values = values.values()
+    else:
+        try:
+            raw_values = list(values)
+        except TypeError:
+            raw_values = [values]
+    compacted: list[str] = []
+    for value in raw_values:
+        text = str(value or "").strip()
+        if text:
+            compacted.append(text)
+    return list(dict.fromkeys(compacted))
+
+
+def _payload_cross_task_full_theorem_question_count(
+    payload: Mapping[str, Any],
+) -> int:
+    proved_question_ids = _compact_string_list(
+        payload.get("question_ids_with_full_frontier_theorem_proved", [])
+    )
+    if proved_question_ids:
+        return len(proved_question_ids)
+    distinct_questions = int(payload.get("n_distinct_question_ids", 0) or 0)
+    proved_theorems = int(payload.get("n_full_frontier_theorem_proved", 0) or 0)
+    return min(distinct_questions, proved_theorems)
+
+
 def _manifest_or_proof_summary_count(
     manifest: Mapping[str, Any],
     proof_summary: Mapping[str, Any],
@@ -331,7 +364,26 @@ def audit_research_agent_runtime(
             else {}
         ),
         "n_results": len(rows),
-        "n_distinct_question_ids": len({row.question_id for row in rows if row.question_id}),
+        "question_ids": sorted(
+            {row.question_id for row in rows if row.question_id}
+        ),
+        "n_distinct_question_ids": len(
+            {row.question_id for row in rows if row.question_id}
+        ),
+        "question_ids_with_full_frontier_theorem_proved": sorted(
+            {
+                row.question_id
+                for row in rows
+                if row.question_id and row.full_frontier_theorem_proved
+            }
+        ),
+        "n_question_ids_with_full_frontier_theorem_proved": len(
+            {
+                row.question_id
+                for row in rows
+                if row.question_id and row.full_frontier_theorem_proved
+            }
+        ),
         "n_ok": sum(1 for row in rows if row.ok),
         "n_budget_exhausted_with_pending_next_task": sum(
             1 for row in rows if row.budget_exhausted_with_pending_next_task
@@ -3223,6 +3275,9 @@ def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
 
 def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    cross_task_full_theorem_question_count = (
+        _payload_cross_task_full_theorem_question_count(payload)
+    )
     architect_orchestration_executed = _runtime_architect_orchestration_executed(
         payload
     )
@@ -3482,12 +3537,17 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             8,
             "cross_task_generalization_demonstrated",
             int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
-            and int(payload.get("n_full_frontier_theorem_proved", 0) or 0) >= 2,
+            and cross_task_full_theorem_question_count >= 2,
             (
                 f"n_distinct_question_ids={payload.get('n_distinct_question_ids')} "
-                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')}"
+                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "proved_question_ids="
+                f"{payload.get('question_ids_with_full_frontier_theorem_proved')}"
             ),
-            "no multi-question kernel-verified theorem generalization was demonstrated",
+            (
+                "no multi-question kernel-verified theorem generalization was "
+                "demonstrated"
+            ),
         ),
     ]
     max_contiguous = -1
@@ -3562,6 +3622,9 @@ def _ladder_level(
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    cross_task_full_theorem_question_count = (
+        _payload_cross_task_full_theorem_question_count(payload)
+    )
     proof_body_goal_reached_count = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
     )
@@ -4886,6 +4949,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             "no full frontier theorem was kernel-proved",
         ),
+        _scorecard_row(
+            "cross_task_full_theorem_generalization_demonstrated",
+            int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
+            and cross_task_full_theorem_question_count >= 2,
+            (
+                "n_distinct_question_ids="
+                f"{payload.get('n_distinct_question_ids')} "
+                "question_ids="
+                f"{payload.get('question_ids')} "
+                "n_full_frontier_theorem_proved="
+                f"{payload.get('n_full_frontier_theorem_proved')} "
+                "n_question_ids_with_full_frontier_theorem_proved="
+                f"{payload.get('n_question_ids_with_full_frontier_theorem_proved')} "
+                "question_ids_with_full_frontier_theorem_proved="
+                f"{payload.get('question_ids_with_full_frontier_theorem_proved')}"
+            ),
+            (
+                "capability eval has not kernel-verified full source/frontier "
+                "theorems across at least two distinct question ids or task "
+                "families; a single conformal lineage cannot establish general "
+                "AI Statistician readiness"
+            ),
+        ),
     ]
     n_passed = sum(1 for row in rows if row["passed"])
     return {
@@ -5206,6 +5292,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
         f"- runtime resumed from pending task: {payload.get('runtime_resumed_from_pending_task')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
+        f"- question ids: {payload.get('question_ids')}",
+        "- question ids with full frontier theorem proved: "
+        f"{payload.get('question_ids_with_full_frontier_theorem_proved')}",
         f"- result errors: {payload.get('n_result_errors')}",
         "- budgeted continuations contract-ok: "
         f"{payload.get('n_budgeted_continuation_contract_ok')}/"
