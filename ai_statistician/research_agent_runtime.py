@@ -1334,6 +1334,9 @@ def _runtime_evidence_truth_learning_rows(
         "PROOF_BODY_REACHED_OPEN",
         "SOURCE_KERNEL_VERIFIED",
     }
+    proof_body_attempt_blocked_before_goal = (
+        proof_body_status == "PROOF_BODY_ATTEMPT_BLOCKED"
+    )
     semantic_review_blocked = blocker in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
     source_theorem_ready_for_exact_proof_body = bool(
         proof_body_goal_reached and not semantic_review_blocked
@@ -1404,6 +1407,10 @@ def _runtime_evidence_truth_learning_rows(
             "premise_name": premise_name,
             "premise_derivation_gap_kind": premise_gap_kind,
             "premise_target_type": premise_target_type,
+            "proof_body_status": proof_body_status,
+            "proof_body_attempt_blocked_before_goal": (
+                proof_body_attempt_blocked_before_goal
+            ),
             "recommended_next_action": target_behavior,
             "input_summary": {
                 "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
@@ -1414,7 +1421,11 @@ def _runtime_evidence_truth_learning_rows(
                 "source_theorem_ready_for_exact_proof_body": (
                     source_theorem_ready_for_exact_proof_body
                 ),
+                "proof_body_status": proof_body_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
+                "proof_body_attempt_blocked_before_goal": (
+                    proof_body_attempt_blocked_before_goal
+                ),
                 "proof_body_semantic_review_blocked": semantic_review_blocked,
                 "failure_classification": blocker,
                 "premise_name": premise_name,
@@ -28205,11 +28216,32 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             truth_premise_derivation_gap_kind = str(
                 input_summary.get("premise_derivation_gap_kind", "") or ""
             ).strip()
+        truth_proof_body_status = str(row.get("proof_body_status", "") or "").strip()
+        if not truth_proof_body_status and isinstance(input_summary, Mapping):
+            truth_proof_body_status = str(
+                input_summary.get("proof_body_status", "") or ""
+            ).strip()
         truth_proof_body_goal_reached = bool(row.get("proof_body_goal_reached", False))
         if isinstance(input_summary, Mapping):
             truth_proof_body_goal_reached = bool(
                 truth_proof_body_goal_reached
                 or input_summary.get("proof_body_goal_reached", False)
+            )
+        truth_proof_body_semantic_review_blocked = bool(
+            row.get("proof_body_semantic_review_blocked", False)
+        )
+        if isinstance(input_summary, Mapping):
+            truth_proof_body_semantic_review_blocked = bool(
+                truth_proof_body_semantic_review_blocked
+                or input_summary.get("proof_body_semantic_review_blocked", False)
+            )
+        truth_proof_body_attempt_blocked_before_goal = bool(
+            row.get("proof_body_attempt_blocked_before_goal", False)
+        )
+        if isinstance(input_summary, Mapping):
+            truth_proof_body_attempt_blocked_before_goal = bool(
+                truth_proof_body_attempt_blocked_before_goal
+                or input_summary.get("proof_body_attempt_blocked_before_goal", False)
             )
         is_source_to_bridge_premise_derivation_feedback = (
             str(row.get("learning_task", "") or "")
@@ -28232,6 +28264,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         ):
             if truth_premise_derivation_gap_kind:
                 trigger = "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
+            elif (
+                truth_proof_body_semantic_review_blocked
+                and (
+                    truth_proof_body_attempt_blocked_before_goal
+                    or truth_proof_body_status == "PROOF_BODY_ATTEMPT_BLOCKED"
+                    or not truth_proof_body_goal_reached
+                )
+            ):
+                trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
             elif truth_proof_body_goal_reached:
                 trigger = "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
             else:
@@ -29269,11 +29310,32 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             proof_body_gate_status = str(
                 input_summary.get("proof_body_gate_status", "") or ""
             ).strip()
+        proof_body_status = str(row.get("proof_body_status", "") or "").strip()
+        if not proof_body_status and isinstance(input_summary, Mapping):
+            proof_body_status = str(
+                input_summary.get("proof_body_status", "") or ""
+            ).strip()
         proof_body_goal_reached = bool(row.get("proof_body_goal_reached", False))
         if isinstance(input_summary, Mapping):
             proof_body_goal_reached = bool(
                 proof_body_goal_reached
                 or input_summary.get("proof_body_goal_reached", False)
+            )
+        proof_body_semantic_review_blocked = bool(
+            row.get("proof_body_semantic_review_blocked", False)
+        )
+        if isinstance(input_summary, Mapping):
+            proof_body_semantic_review_blocked = bool(
+                proof_body_semantic_review_blocked
+                or input_summary.get("proof_body_semantic_review_blocked", False)
+            )
+        proof_body_attempt_blocked_before_goal = bool(
+            row.get("proof_body_attempt_blocked_before_goal", False)
+        )
+        if isinstance(input_summary, Mapping):
+            proof_body_attempt_blocked_before_goal = bool(
+                proof_body_attempt_blocked_before_goal
+                or input_summary.get("proof_body_attempt_blocked_before_goal", False)
             )
         proof_body_attempted = bool(row.get("proof_body_attempted", False))
         if isinstance(input_summary, Mapping):
@@ -30047,7 +30109,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     candidate_materialization_contract
                 ),
                 "proof_body_gate_status": proof_body_gate_status,
+                "proof_body_status": proof_body_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
+                "proof_body_semantic_review_blocked": (
+                    proof_body_semantic_review_blocked
+                ),
+                "proof_body_attempt_blocked_before_goal": (
+                    proof_body_attempt_blocked_before_goal
+                ),
                 "proof_body_attempted": proof_body_attempted,
                 "proof_body_attempt_count": proof_body_attempt_count,
                 "proof_body_attempt_summaries": proof_body_attempt_summaries,
@@ -37141,6 +37210,49 @@ def _append_runtime_generated_next_action_rows(
             continue
         agenda_id = f"proof_feedback:{queue_name}:{stable_hash(work_order_id)[:12]}"
         learning_task = str(row.get("learning_task", "") or "")
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        source_trigger = str(
+            row.get("trigger", "") or input_summary.get("trigger", "") or ""
+        ).strip()
+        proof_body_status_for_routing = str(
+            row.get("proof_body_status", "")
+            or input_summary.get("proof_body_status", "")
+            or ""
+        ).strip()
+        proof_body_semantic_review_blocked_for_routing = bool(
+            row.get("proof_body_semantic_review_blocked", False)
+            or input_summary.get("proof_body_semantic_review_blocked", False)
+        )
+        proof_body_attempt_blocked_before_goal_for_routing = bool(
+            row.get("proof_body_attempt_blocked_before_goal", False)
+            or input_summary.get("proof_body_attempt_blocked_before_goal", False)
+        )
+        proof_body_goal_reached_for_routing = bool(
+            row.get("proof_body_goal_reached", False)
+            or input_summary.get("proof_body_goal_reached", False)
+        )
+        truth_table_semantic_repair_queue_ready = bool(
+            source_trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
+            and proof_body_semantic_review_blocked_for_routing
+            and (
+                proof_body_attempt_blocked_before_goal_for_routing
+                or proof_body_status_for_routing == "PROOF_BODY_ATTEMPT_BLOCKED"
+                or not proof_body_goal_reached_for_routing
+            )
+        )
+        exact_semantic_definition_repair_queue_ready = bool(
+            source_trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+            or learning_task == "source_theorem_exact_semantic_definition_repair_queue"
+            or str(row.get("artifact_kind", "") or "")
+            == "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow"
+            or str(row.get("action_type", "") or "")
+            == "repair_reviewed_exact_semantic_definition"
+            or truth_table_semantic_repair_queue_ready
+        )
         premise_gap_kind = str(row.get("premise_derivation_gap_kind", "") or "")
         premise_name = str(row.get("premise_name", "") or "")
         premise_target_type = str(row.get("premise_target_type", "") or "")
@@ -37201,6 +37313,15 @@ def _append_runtime_generated_next_action_rows(
                 f"available for {target_text}; do not treat the premise row itself "
                 "as full source theorem proof"
             )
+        elif (
+            exact_semantic_definition_repair_queue_ready
+            and not recommended_next_action
+        ):
+            action = (
+                "review or repair exact source-theorem semantic definitions before "
+                "resuming proof-body search; do not treat semantic-review blockers "
+                "as proof-body readiness"
+            )
         if recommended_commands:
             action = action + "; commands: " + "; ".join(recommended_commands)
         agenda_item = {
@@ -37214,6 +37335,8 @@ def _append_runtime_generated_next_action_rows(
             "owner_subsystem": (
                 "TheoryDeveloper/Formalizer/ProofEngineer"
                 if source_to_bridge_premise_gap
+                else "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver"
+                if truth_table_semantic_repair_queue_ready
                 else "Formalizer/ProofEngineer/LeanProver"
                 if source_to_bridge_premise_verified
                 else "Formalizer/ProofEngineer/LeanProver"
@@ -37221,6 +37344,8 @@ def _append_runtime_generated_next_action_rows(
             "trigger": (
                 "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
                 if source_to_bridge_premise_gap
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+                if exact_semantic_definition_repair_queue_ready
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
                 if source_to_bridge_premise_verified
                 else "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
@@ -37243,6 +37368,12 @@ def _append_runtime_generated_next_action_rows(
                         "requires exact theorem kernel verification."
                     )
                     if source_to_bridge_premise_verified
+                    else (
+                        "Exact source-theorem semantic definitions are reviewed or "
+                        "repaired, local Lean/AXLE checks the queued candidate, and "
+                        "proof-body search only resumes after semantic review clears."
+                    )
+                    if exact_semantic_definition_repair_queue_ready
                     else (
                         "AXLE/local Lean kernel verifies the queued target, and the "
                         "manifest keeps queued repair work separate from source theorem proof."
@@ -37309,8 +37440,26 @@ def _append_runtime_generated_next_action_rows(
             ),
             "runtime_queue_status": str(
                 row.get("runtime_queue_status", "")
+                or (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                    if exact_semantic_definition_repair_queue_ready
+                    else ""
+                )
                 or row.get("environment_repair_status", "")
                 or ""
+            ),
+            "proof_body_gate_status": str(
+                row.get("proof_body_gate_status", "")
+                or input_summary.get("proof_body_gate_status", "")
+                or ""
+            ),
+            "proof_body_status": proof_body_status_for_routing,
+            "proof_body_goal_reached": proof_body_goal_reached_for_routing,
+            "proof_body_semantic_review_blocked": (
+                proof_body_semantic_review_blocked_for_routing
+            ),
+            "proof_body_attempt_blocked_before_goal": (
+                proof_body_attempt_blocked_before_goal_for_routing
             ),
             "runtime_generated_queue_name": queue_name,
             "environment_repair_status": str(
@@ -37434,6 +37583,21 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "runtime_queue_status": str(
                         row.get("runtime_queue_status", "") or ""
+                    ),
+                    "proof_body_gate_status": str(
+                        row.get("proof_body_gate_status", "") or ""
+                    ),
+                    "proof_body_status": str(
+                        row.get("proof_body_status", "") or ""
+                    ),
+                    "proof_body_goal_reached": bool(
+                        row.get("proof_body_goal_reached", False)
+                    ),
+                    "proof_body_semantic_review_blocked": bool(
+                        row.get("proof_body_semantic_review_blocked", False)
+                    ),
+                    "proof_body_attempt_blocked_before_goal": bool(
+                        row.get("proof_body_attempt_blocked_before_goal", False)
                     ),
                     "environment_repair_status": str(
                         row.get("environment_repair_status", "") or ""

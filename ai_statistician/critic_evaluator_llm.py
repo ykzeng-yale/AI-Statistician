@@ -157,7 +157,9 @@ def build_critic_evaluator_prompt(
         "RUNTIME_EVIDENCE_TRUTH_TABLE with source_theorem_kernel_verified=false, keep the "
         "verdict at REVISE unless the next action directly targets ProofEngineer/LeanProver "
         "or upstream premise repair; do not broaden retrieval as a substitute for the open "
-        "source-theorem proof gate. "
+        "source-theorem proof gate. If proof_body_status=PROOF_BODY_ATTEMPT_BLOCKED "
+        "or proof_body_attempt_blocked_before_goal=true, require exact semantic-definition "
+        "review/repair before another exact proof-body retry. "
         "Do not summarize that state as accepted theorem proof.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )

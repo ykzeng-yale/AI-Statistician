@@ -41728,7 +41728,9 @@ def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> N
     )
 
 
-def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready() -> None:
+def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
+    tmp_path: Path,
+) -> None:
     manifest = {
         "schema_version": 1,
         "question_ids": ["conformal_prediction_coverage"],
@@ -41756,6 +41758,10 @@ def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
 
     assert len(rows) == 1
     row = rows[0]
+    assert row["proof_body_status"] == "PROOF_BODY_ATTEMPT_BLOCKED"
+    assert row["proof_body_attempt_blocked_before_goal"] is True
+    assert row["input_summary"]["proof_body_status"] == "PROOF_BODY_ATTEMPT_BLOCKED"
+    assert row["input_summary"]["proof_body_attempt_blocked_before_goal"] is True
     assert row["input_summary"]["source_theorem_ready_for_exact_proof_body"] is False
     assert row["input_summary"]["proof_body_semantic_review_blocked"] is True
     assert (
@@ -41774,6 +41780,9 @@ def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
     )
 
     assert len(generated_agenda) == 1
+    assert generated_agenda[0]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+    )
     assert (
         "review exact source-theorem semantic definitions"
         in generated_agenda[0]["action"]
@@ -41781,6 +41790,36 @@ def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
     assert (
         generated_agenda[0]["proof_boundary"]
         == runtime_module.KERNEL_PROOF_BOUNDARY
+    )
+
+    generated_learning = _runtime_generated_next_action_learning_rows(
+        generated_agenda
+    )
+    learning_path = tmp_path / "blocked_truth_table_learning_rows.jsonl"
+    learning_path.write_text(
+        "\n".join(json.dumps(item) for item in [row, *generated_learning]) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path])
+    compact_truth_row = next(
+        item
+        for item in memory["rows"]
+        if item["learning_task"] == "source_theorem_truth_table_feedback"
+    )
+    compact_generated_row = next(
+        item
+        for item in memory["rows"]
+        if item["learning_task"] == "generated_next_action_routing"
+    )
+    assert compact_truth_row["proof_body_status"] == "PROOF_BODY_ATTEMPT_BLOCKED"
+    assert compact_truth_row["proof_body_attempt_blocked_before_goal"] is True
+    assert compact_truth_row["input_summary"]["proof_body_status"] == (
+        "PROOF_BODY_ATTEMPT_BLOCKED"
+    )
+    assert (
+        compact_generated_row["input_summary"]["trigger"]
+        == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
     )
 
 
