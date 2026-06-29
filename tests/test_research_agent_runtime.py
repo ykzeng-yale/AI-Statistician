@@ -47046,6 +47046,7 @@ def test_lean_lsp_mcp_proof_state_provider_records_live_tool_trace(tmp_path: Pat
     assert len(rows) == 1
     row = rows[0]
     assert row.provider_name == "lean_lsp_mcp_proof_state_feedback"
+    assert row.artifact_path == str(artifact)
     assert "local.lake_env_lean" in row.executed_tools
     assert "lean_lsp_mcp.lean_diagnostic_messages" in row.executed_tools
     assert "lean_lsp_mcp.lean_goal" in row.executed_tools
@@ -47069,6 +47070,46 @@ def test_lean_lsp_mcp_proof_state_provider_records_live_tool_trace(tmp_path: Pat
         for trace in row.tool_call_trace
     )
     assert row.proof_evidence_status == PROOF_STATE_FEEDBACK_STATUS
+
+
+def test_lean_lsp_mcp_missing_artifact_records_skipped_trace() -> None:
+    provider = LeanLspMcpProofStateFeedbackProvider(
+        lean_command=("false",),
+        mcp_command=(sys.executable, "-c", "raise SystemExit(1)"),
+        mcp_timeout_s=1,
+    )
+
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="candidate_without_artifact",
+                title="candidate without artifact",
+                status="FAILED",
+                claim="candidate",
+                lean_statement=(
+                    "theorem candidate_without_artifact : True := by\n"
+                    "  trivial\n"
+                ),
+            )
+        ]
+    )[0]
+
+    assert row.provider_name == "lean_lsp_mcp_proof_state_feedback"
+    assert row.artifact_path == ""
+    assert row.tool_call_trace[-1]["tool"] == (
+        "lean_lsp_mcp.lean_diagnostic_messages"
+    )
+    assert row.tool_call_trace[-1]["status"] == (
+        "mcp_tool_call_skipped_no_artifact"
+    )
+    assert not any(
+        str(tool).startswith("lean_lsp_mcp.") for tool in row.executed_tools
+    )
+    assert "local.lake_env_lean" in row.executed_tools
+    assert any(
+        "no materialized artifact_path" in diagnostic
+        for diagnostic in row.diagnostics
+    )
 
 
 def test_lean_lsp_mcp_skipped_probe_is_not_counted_as_executed_tool(tmp_path: Path) -> None:

@@ -51,6 +51,7 @@ class ProofStateFeedbackRow:
     created_at: str
     executed_tools: tuple[str, ...] = ()
     tool_call_trace: tuple[dict[str, Any], ...] = ()
+    artifact_path: str = ""
 
 
 class ProofStateFeedbackProvider(Protocol):
@@ -210,6 +211,7 @@ class LocalLeanProofStateFeedbackProvider:
             created_at=datetime.now(timezone.utc).isoformat(),
             executed_tools=executed_tools,
             tool_call_trace=tool_call_trace,
+            artifact_path=str(subclaim.artifact_path or ""),
         )
 
     def _default_lean_command(self) -> tuple[str, ...]:
@@ -292,6 +294,14 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         base = super()._inspect_subclaim(subclaim)
         artifact_path = str(subclaim.artifact_path or "").strip()
         if not artifact_path:
+            skipped_trace = {
+                "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                "status": "mcp_tool_call_skipped_no_artifact",
+                "error_excerpt": (
+                    "Lean LSP MCP skipped: no materialized artifact_path"
+                ),
+                "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+            }
             return replace(
                 base,
                 provider_name=self.name,
@@ -301,6 +311,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                         "Lean LSP MCP diagnostic skipped: no materialized artifact_path",
                     ]
                 ),
+                tool_call_trace=tuple([*base.tool_call_trace, skipped_trace]),
             )
         traces = self._run_mcp_feedback_tools(artifact_path)
         diagnostics = tuple(
