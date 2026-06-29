@@ -3385,6 +3385,65 @@ def _runtime_theory_trace_repair_result_if_needed(
     )
 
 
+def _runtime_theory_trace_consumption_contract(
+    *,
+    consumer_subsystem: str,
+    source_theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    packet = theory_packet if isinstance(theory_packet, Mapping) else {}
+    contract = (
+        packet.get("theory_derivation_contract", {})
+        if isinstance(packet.get("theory_derivation_contract", {}), Mapping)
+        else {}
+    )
+    derivation = (
+        packet.get("theory_derivation_packet", {})
+        if isinstance(packet.get("theory_derivation_packet", {}), Mapping)
+        else {}
+    )
+    n_derivation_steps = _runtime_safe_int(
+        contract.get(
+            "n_derivation_steps",
+            _runtime_safe_list_len(derivation.get("derivation_steps", [])),
+        )
+    )
+    n_equation_chain_steps = _runtime_safe_int(
+        contract.get(
+            "n_equation_chain_steps",
+            _runtime_safe_list_len(derivation.get("equation_chain", [])),
+        )
+    )
+    n_assumption_ledger_rows = _runtime_safe_int(
+        contract.get(
+            "n_assumption_ledger_rows",
+            _runtime_safe_list_len(derivation.get("assumption_ledger", [])),
+        )
+    )
+    has_formalization_handoff = bool(
+        contract.get("has_formalization_handoff", False)
+        or (
+            isinstance(derivation.get("formalization_handoff", {}), Mapping)
+            and derivation.get("formalization_handoff")
+        )
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "TheoryTraceConsumptionContract",
+        "contract_source": "agent_runtime_handoff",
+        "source_theory_packet_id": source_theory_packet_id,
+        "consumer_subsystem": consumer_subsystem,
+        "theory_derivation_trace_supplied": bool(packet and source_theory_packet_id),
+        "n_derivation_steps_supplied": n_derivation_steps,
+        "n_equation_chain_steps_supplied": n_equation_chain_steps,
+        "n_assumption_ledger_rows_supplied": n_assumption_ledger_rows,
+        "has_formalization_handoff": has_formalization_handoff,
+        "target_ids": _source_theorem_target_ids_from_row(packet),
+        "proof_evidence_status": "THEORY_TRACE_CONSUMPTION_NOT_PROOF_EVIDENCE",
+        "boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
+    }
+
+
 def _runtime_handoff_artifact_missing_result_if_needed(
     *,
     source_subsystem: str,
@@ -3641,6 +3700,11 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         if trace_repair_result is not None:
             return trace_repair_result
+        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+            consumer_subsystem="SimulationEngineer",
+            source_theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+        )
         problem = ProblemFormalizer().formalize(question)
         procedures, theorem_goals = TheoryPlanner().plan(problem)
         n_runs = int(task.inputs.get("n_runs", 100))
@@ -3720,6 +3784,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             proposal_packet.get("simulation_code_drafts", []) or []
                         ),
                         "simulation_evidence_status": SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+                        "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                         "theory_trace_consumption_contract": simulation_theory_trace_contract,
                         "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                     },
@@ -3740,6 +3805,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     "simulations_executed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                     "theory_trace_consumption_contract": simulation_theory_trace_contract,
                     "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                 },
@@ -3825,6 +3891,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
             "runtime_architect_control": simulation_control,
+            "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_simulation_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
@@ -4097,6 +4164,11 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
         if trace_repair_result is not None:
             return trace_repair_result
+        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+            consumer_subsystem="AlgorithmEngineer",
+            source_theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+        )
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
         missing_simulation_result = (
@@ -4189,6 +4261,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             proposal_packet.get("implementation_targets", []) or []
                         ),
                         "execution_evidence_status": ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+                        "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                         "theory_trace_consumption_contract": algorithm_theory_trace_contract,
                         "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
                     },
@@ -4208,6 +4281,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "sandbox_executed": False,
                     "production_registered": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                     "theory_trace_consumption_contract": algorithm_theory_trace_contract,
                     "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
                 },
@@ -4308,6 +4382,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             "theory_packet_id": packet_id,
             "simulation_manifest_id": simulation_manifest_id,
             "runtime_architect_control": algorithm_control,
+            "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_algorithm_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
@@ -4696,6 +4771,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         if trace_repair_result is not None:
             return trace_repair_result
+        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+            consumer_subsystem="FormalizerProofEngineer",
+            source_theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+        )
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         algorithm_sandbox_manifest_id = str(task.inputs.get("algorithm_sandbox_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
@@ -5142,6 +5222,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                                 FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
                             )
                         ),
+                        "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                         "theory_trace_consumption_contract": formalizer_theory_trace_contract,
                         "theory_trace_alignment_contract": formalizer_theory_trace_alignment_contract,
                     },
@@ -5185,6 +5266,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "n_off_catalog_proof_bank_obligation_requests": len(llm_off_catalog_proof_obligation_ids),
                     "kernel_verified": False,
                     "full_frontier_theorem_proved": False,
+                    "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                     "theory_trace_consumption_contract": formalizer_theory_trace_contract,
                     "theory_trace_alignment_contract": formalizer_theory_trace_alignment_contract,
                 },
@@ -5476,6 +5558,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "simulation_manifest_id": simulation_manifest_id,
             "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
             "runtime_architect_control": formalization_control,
+            "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_formalizer_proof_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),

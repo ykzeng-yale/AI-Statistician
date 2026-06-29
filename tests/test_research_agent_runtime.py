@@ -701,6 +701,206 @@ def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
         ]
 
 
+def test_runtime_theory_trace_consumption_contracts_do_not_claim_alignment() -> None:
+    packet_id = "theory_derivation:structured"
+    packet = _structured_theory_packet_fixture(packet_id)
+    contracts = {
+        consumer: runtime_module._runtime_theory_trace_consumption_contract(
+            consumer_subsystem=consumer,
+            source_theory_packet_id=packet_id,
+            theory_packet=packet,
+        )
+        for consumer in (
+            "SimulationEngineer",
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+        )
+    }
+    artifacts = {
+        packet_id: packet,
+        "simulation_manifest:structured": {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "theory_trace_consumption_contract": contracts[
+                "SimulationEngineer"
+            ],
+        },
+        "algorithm_sandbox_manifest:structured": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "theory_trace_consumption_contract": contracts[
+                "AlgorithmEngineer"
+            ],
+        },
+        "formalization_manifest:structured": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "theory_trace_consumption_contract": contracts[
+                "FormalizerProofEngineer"
+            ],
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    theory = evidence_summary["theory"]
+
+    assert theory["all_required_theory_trace_consumers_observed"] is True
+    assert theory["structured_theory_trace_consuming_subsystems"] == [
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    ]
+    assert theory["n_theory_trace_consumption_contracts"] == 3
+    assert theory["n_theory_trace_alignment_contracts"] == 0
+    assert (
+        theory["all_required_theory_trace_alignment_consumers_observed"]
+        is False
+    )
+    assert all(
+        contract["proof_evidence_status"]
+        == "THEORY_TRACE_CONSUMPTION_NOT_PROOF_EVIDENCE"
+        for contract in contracts.values()
+    )
+
+
+def test_downstream_manifests_record_runtime_theory_trace_consumption(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet_id = "theory_derivation:structured_runtime_handoff"
+    packet = _structured_theory_packet_fixture(packet_id)
+    packet["estimator_specs"] = [
+        {
+            "id": "E1",
+            "name": "Split conformal interval",
+            "algorithm_sketch": (
+                "Fit regression on train split, calibrate residual quantile, "
+                "and return a prediction interval."
+            ),
+        }
+    ]
+
+    simulation_blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={packet_id: packet},
+    )
+    simulation_result = SimulationEvaluatorRuntimeSubsystem().run(
+        AgentTask(
+            task_id="simulation:structured_runtime_handoff",
+            owner_subsystem="SimulationEvaluator",
+            objective="Run simulation from structured theory trace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "n_runs": 5,
+                "seed": 20260629,
+                "architect_context": {},
+            },
+        ),
+        simulation_blackboard,
+    )
+    simulation_manifest = next(
+        artifact
+        for artifact in simulation_result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+
+    algorithm_blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            packet_id: packet,
+            "simulation_manifest:structured_runtime_handoff": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:structured_runtime_handoff",
+                "simulation_passed": True,
+            },
+        },
+    )
+    algorithm_result = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "algorithm",
+        n_runs=5,
+        seed=20260629,
+        timeout_s=20,
+    ).run(
+        AgentTask(
+            task_id="algorithm:structured_runtime_handoff",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Run algorithm sandbox from structured theory trace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "simulation_manifest_id": (
+                    "simulation_manifest:structured_runtime_handoff"
+                ),
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "E1",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    }
+                ],
+                "n_runs": 5,
+                "seed": 20260629,
+                "architect_context": {},
+            },
+        ),
+        algorithm_blackboard,
+    )
+    algorithm_manifest = next(
+        artifact
+        for artifact in algorithm_result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+
+    formalization_result = FormalizationEvaluatorRuntimeSubsystem(
+        proof_verifier=MockProofVerifier(),
+    ).run(
+        AgentTask(
+            task_id="formalize:structured_runtime_handoff",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Run formalizer from structured theory trace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "simulation_manifest_id": "simulation_manifest:structured",
+                "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:structured",
+                "architect_context": {},
+            },
+        ),
+        BlackboardState(
+            project_id=f"runtime:{question.id}",
+            artifacts={
+                packet_id: packet,
+                "simulation_manifest:structured": simulation_manifest,
+                "algorithm_sandbox_manifest:structured": algorithm_manifest,
+            },
+        ),
+    )
+    formalization_manifest = next(
+        artifact
+        for artifact in formalization_result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+
+    contracts = [
+        simulation_manifest["theory_trace_consumption_contract"],
+        algorithm_manifest["theory_trace_consumption_contract"],
+        formalization_manifest["theory_trace_consumption_contract"],
+    ]
+
+    assert [contract["consumer_subsystem"] for contract in contracts] == [
+        "SimulationEngineer",
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+    ]
+    assert all(
+        contract["source_theory_packet_id"] == packet_id
+        and contract["theory_derivation_trace_supplied"] is True
+        and contract["n_equation_chain_steps_supplied"] == 2
+        and contract["n_assumption_ledger_rows_supplied"] == 2
+        and contract["has_formalization_handoff"] is True
+        for contract in contracts
+    )
+
+
 def test_downstream_routes_missing_theory_context_to_theory_developer(
     tmp_path: Path,
 ) -> None:
