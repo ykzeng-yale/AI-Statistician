@@ -46,6 +46,13 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
     "proof_state_feedback_manifest:",
     "formalizer_lean_candidate_proof_state_feedback_manifest:",
 )
+NON_EVIDENCE_TASK_FAMILY_LABELS = {
+    "none",
+    "null",
+    "unknown",
+    "unclassified",
+    "unclassified_task_family",
+}
 
 
 def _compact_string_list(values: Any) -> list[str]:
@@ -68,17 +75,121 @@ def _compact_string_list(values: Any) -> list[str]:
     return list(dict.fromkeys(compacted))
 
 
-def _payload_cross_task_full_theorem_question_count(
+def _is_explicit_task_family(value: Any) -> bool:
+    text = str(value or "").strip()
+    lowered = text.lower()
+    return bool(
+        text
+        and lowered not in NON_EVIDENCE_TASK_FAMILY_LABELS
+        and not lowered.startswith("question_id:")
+    )
+
+
+def _explicit_task_family_list(values: Any) -> list[str]:
+    return [
+        value
+        for value in _compact_string_list(values)
+        if _is_explicit_task_family(value)
+    ]
+
+
+def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
+    raw_task_families = _compact_string_list(payload.get("task_families", []))
+    task_families = _explicit_task_family_list(raw_task_families)
+    if raw_task_families:
+        return len(task_families)
+    explicit_count = int(payload.get("n_distinct_task_families", 0) or 0)
+    if explicit_count > 0:
+        return explicit_count
+    return 0
+
+
+def _payload_cross_task_full_theorem_family_count(
     payload: Mapping[str, Any],
 ) -> int:
-    proved_question_ids = _compact_string_list(
-        payload.get("question_ids_with_full_frontier_theorem_proved", [])
+    raw_proved_families = _compact_string_list(
+        payload.get("task_families_with_full_frontier_theorem_proved", [])
     )
-    if proved_question_ids:
-        return len(proved_question_ids)
-    distinct_questions = int(payload.get("n_distinct_question_ids", 0) or 0)
-    proved_theorems = int(payload.get("n_full_frontier_theorem_proved", 0) or 0)
-    return min(distinct_questions, proved_theorems)
+    proved_families = _explicit_task_family_list(raw_proved_families)
+    if raw_proved_families:
+        return len(proved_families)
+    explicit_count = int(
+        payload.get("n_task_families_with_full_frontier_theorem_proved", 0) or 0
+    )
+    if explicit_count > 0:
+        return explicit_count
+    return 0
+
+
+TASK_FAMILY_FIELD_CANDIDATES = (
+    "primary_task_family",
+    "task_family",
+    "problem_family",
+    "question_family",
+    "benchmark_family",
+    "estimator_family",
+    "dgp_family",
+    "problem_class",
+    "topic",
+)
+
+
+def _primary_task_family_from_mapping(payload: Mapping[str, Any]) -> str:
+    for key in TASK_FAMILY_FIELD_CANDIDATES:
+        value = str(payload.get(key, "") or "").strip()
+        if value:
+            return value
+    for nested_key in ("question", "source_question", "problem"):
+        nested = payload.get(nested_key)
+        if isinstance(nested, Mapping):
+            family = _primary_task_family_from_mapping(nested)
+            if family:
+                return family
+    tags = _compact_string_list(payload.get("tags", []))
+    return tags[0] if tags else ""
+
+
+def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
+    family = _primary_task_family_from_mapping(payload)
+    if family:
+        return family
+    blackboard = (
+        payload.get("blackboard", {})
+        if isinstance(payload.get("blackboard", {}), Mapping)
+        else {}
+    )
+    family = _primary_task_family_from_mapping(blackboard)
+    if family:
+        return family
+    artifacts = (
+        blackboard.get("artifacts", {})
+        if isinstance(blackboard.get("artifacts", {}), Mapping)
+        else {}
+    )
+    for artifact in artifacts.values():
+        if isinstance(artifact, Mapping):
+            family = _primary_task_family_from_mapping(artifact)
+            if family:
+                return family
+    traces = payload.get("traces", [])
+    if isinstance(traces, list):
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            family = _primary_task_family_from_mapping(trace)
+            if family:
+                return family
+            task = trace.get("task", {})
+            if isinstance(task, Mapping):
+                family = _primary_task_family_from_mapping(task)
+                if family:
+                    return family
+                inputs = task.get("inputs", {})
+                if isinstance(inputs, Mapping):
+                    family = _primary_task_family_from_mapping(inputs)
+                    if family:
+                        return family
+    return ""
 
 
 def _manifest_or_proof_summary_count(
@@ -95,6 +206,7 @@ def _manifest_or_proof_summary_count(
 @dataclass(frozen=True)
 class RuntimeAuditRow:
     question_id: str
+    task_family: str
     result_path: str
     ok: bool
     status: str
@@ -370,6 +482,20 @@ def audit_research_agent_runtime(
         "n_distinct_question_ids": len(
             {row.question_id for row in rows if row.question_id}
         ),
+        "task_families": sorted(
+            {
+                row.task_family
+                for row in rows
+                if _is_explicit_task_family(row.task_family)
+            }
+        ),
+        "n_distinct_task_families": len(
+            {
+                row.task_family
+                for row in rows
+                if _is_explicit_task_family(row.task_family)
+            }
+        ),
         "question_ids_with_full_frontier_theorem_proved": sorted(
             {
                 row.question_id
@@ -382,6 +508,26 @@ def audit_research_agent_runtime(
                 row.question_id
                 for row in rows
                 if row.question_id and row.full_frontier_theorem_proved
+            }
+        ),
+        "task_families_with_full_frontier_theorem_proved": sorted(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    _is_explicit_task_family(row.task_family)
+                    and row.full_frontier_theorem_proved
+                )
+            }
+        ),
+        "n_task_families_with_full_frontier_theorem_proved": len(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    _is_explicit_task_family(row.task_family)
+                    and row.full_frontier_theorem_proved
+                )
             }
         ),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -2353,8 +2499,10 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         if isinstance(data.get("blackboard"), Mapping)
         else ""
     )
+    task_family = _runtime_result_primary_task_family(data)
     return RuntimeAuditRow(
         question_id=question_id,
+        task_family=task_family,
         result_path=str(path),
         ok=not errors,
         status=str(data.get("status", "")),
@@ -3275,8 +3423,9 @@ def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
 
 def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
-    cross_task_full_theorem_question_count = (
-        _payload_cross_task_full_theorem_question_count(payload)
+    distinct_task_family_count = _payload_distinct_task_family_count(payload)
+    cross_task_full_theorem_family_count = (
+        _payload_cross_task_full_theorem_family_count(payload)
     )
     architect_orchestration_executed = _runtime_architect_orchestration_executed(
         payload
@@ -3476,8 +3625,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         and int(payload.get("n_formal_gaps", 0) or 0) <= 0
     )
     cross_task_generalization_ready = (
-        int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
-        and cross_task_full_theorem_question_count >= 2
+        distinct_task_family_count >= 2
+        and cross_task_full_theorem_family_count >= 2
     )
     levels = [
         _ladder_level(
@@ -3629,12 +3778,16 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             cross_task_generalization_ready,
             (
                 f"n_distinct_question_ids={payload.get('n_distinct_question_ids')} "
+                "n_distinct_task_families="
+                f"{payload.get('n_distinct_task_families')} "
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
                 "proved_question_ids="
-                f"{payload.get('question_ids_with_full_frontier_theorem_proved')}"
+                f"{payload.get('question_ids_with_full_frontier_theorem_proved')} "
+                "proved_task_families="
+                f"{payload.get('task_families_with_full_frontier_theorem_proved')}"
             ),
             (
-                "no multi-question kernel-verified theorem generalization was "
+                "no multi-family kernel-verified theorem generalization was "
                 "demonstrated"
             ),
         ),
@@ -3711,8 +3864,9 @@ def _ladder_level(
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
-    cross_task_full_theorem_question_count = (
-        _payload_cross_task_full_theorem_question_count(payload)
+    distinct_task_family_count = _payload_distinct_task_family_count(payload)
+    cross_task_full_theorem_family_count = (
+        _payload_cross_task_full_theorem_family_count(payload)
     )
     proof_body_goal_reached_count = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
@@ -5040,24 +5194,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "cross_task_full_theorem_generalization_demonstrated",
-            int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
-            and cross_task_full_theorem_question_count >= 2,
+            distinct_task_family_count >= 2
+            and cross_task_full_theorem_family_count >= 2,
             (
                 "n_distinct_question_ids="
                 f"{payload.get('n_distinct_question_ids')} "
                 "question_ids="
                 f"{payload.get('question_ids')} "
+                "n_distinct_task_families="
+                f"{payload.get('n_distinct_task_families')} "
+                "task_families="
+                f"{payload.get('task_families')} "
                 "n_full_frontier_theorem_proved="
                 f"{payload.get('n_full_frontier_theorem_proved')} "
                 "n_question_ids_with_full_frontier_theorem_proved="
                 f"{payload.get('n_question_ids_with_full_frontier_theorem_proved')} "
                 "question_ids_with_full_frontier_theorem_proved="
-                f"{payload.get('question_ids_with_full_frontier_theorem_proved')}"
+                f"{payload.get('question_ids_with_full_frontier_theorem_proved')} "
+                "n_task_families_with_full_frontier_theorem_proved="
+                f"{payload.get('n_task_families_with_full_frontier_theorem_proved')} "
+                "task_families_with_full_frontier_theorem_proved="
+                f"{payload.get('task_families_with_full_frontier_theorem_proved')}"
             ),
             (
                 "capability eval has not kernel-verified full source/frontier "
-                "theorems across at least two distinct question ids or task "
-                "families; a single conformal lineage cannot establish general "
+                "theorems across at least two distinct statistics task families; "
+                "two question ids inside one family cannot establish general "
                 "AI Statistician readiness"
             ),
         ),
@@ -5382,8 +5544,11 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- runtime resumed from pending task: {payload.get('runtime_resumed_from_pending_task')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- question ids: {payload.get('question_ids')}",
+        f"- task families: {payload.get('task_families')}",
         "- question ids with full frontier theorem proved: "
         f"{payload.get('question_ids_with_full_frontier_theorem_proved')}",
+        "- task families with full frontier theorem proved: "
+        f"{payload.get('task_families_with_full_frontier_theorem_proved')}",
         f"- result errors: {payload.get('n_result_errors')}",
         "- budgeted continuations contract-ok: "
         f"{payload.get('n_budgeted_continuation_contract_ok')}/"
@@ -5584,7 +5749,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
     ])
     for row in payload.get("rows", []) or []:
         lines.append(
-            f"- {row.get('question_id')}: ok={row.get('ok')} traces={row.get('n_traces')} "
+            f"- {row.get('question_id')}: family={row.get('task_family')} "
+            f"ok={row.get('ok')} traces={row.get('n_traces')} "
             f"kernel={row.get('n_kernel_verified_subclaims')} "
             f"real_kernel={row.get('n_real_kernel_verified_subclaims')} "
             f"gaps={row.get('n_formal_gaps')}"

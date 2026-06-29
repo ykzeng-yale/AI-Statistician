@@ -11390,6 +11390,18 @@ def run_research_agent_runtime(
             blackboard.artifacts.update(
                 _normalize_runtime_blackboard_artifacts(rehydrated_artifacts)
             )
+        question_metadata = {
+            "artifact_kind": "RuntimeQuestionMetadata",
+            "question": _question_to_payload(question),
+            "primary_task_family": _question_primary_task_family(question),
+            "task_family_boundary": (
+                "Task-family metadata is evaluation scope only. It is not proof "
+                "evidence and does not imply theorem generalization."
+            ),
+        }
+        blackboard.artifacts[f"runtime_question_metadata:{question.id}"] = (
+            question_metadata
+        )
         blackboard.artifacts[llm_topology["manifest_id"]] = llm_topology
         formalization_subsystem = FormalizationEvaluatorRuntimeSubsystem(
             proposal_agent=formalizer,
@@ -11621,6 +11633,14 @@ def run_research_agent_runtime(
         "n_questions": len(questions),
         "question_ids": [question.id for question in questions],
         "question_titles": [question.title for question in questions],
+        "question_task_families": {
+            question.id: _question_primary_task_family(question)
+            for question in questions
+        },
+        "question_tags": {
+            question.id: [str(tag) for tag in question.tags]
+            for question in questions
+        },
         "config": asdict(config),
         "runtime_input_context": _runtime_input_context_summary(
             runtime_architect_context
@@ -50321,6 +50341,28 @@ def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
         "description": question.description,
         "tags": list(question.tags),
     }
+
+
+def _question_primary_task_family(question: OpenResearchQuestion) -> str:
+    for attr in (
+        "task_family",
+        "problem_family",
+        "question_family",
+        "estimator_family",
+        "dgp_family",
+        "problem_class",
+    ):
+        value = str(getattr(question, attr, "") or "").strip()
+        if value:
+            return value
+    tags = [
+        str(tag).strip()
+        for tag in getattr(question, "tags", ())
+        if str(tag).strip()
+    ]
+    if tags:
+        return tags[0]
+    return "unclassified"
 
 
 def _runtime_task_prompt_summary(task: AgentTask) -> dict[str, Any]:

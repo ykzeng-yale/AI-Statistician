@@ -43313,6 +43313,10 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
             "conformal_prediction_coverage"
         ],
         "n_question_ids_with_full_frontier_theorem_proved": 1,
+        "task_families": ["conformal"],
+        "n_distinct_task_families": 1,
+        "task_families_with_full_frontier_theorem_proved": ["conformal"],
+        "n_task_families_with_full_frontier_theorem_proved": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -43322,9 +43326,53 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is False
-    assert "single conformal lineage" in rows[
+    assert "two question ids inside one family" in rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["blocker"]
+
+    legacy_question_only_payload = {
+        "n_results": 2,
+        "n_distinct_question_ids": 2,
+        "question_ids": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_full_frontier_theorem_proved": 2,
+        "question_ids_with_full_frontier_theorem_proved": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_question_ids_with_full_frontier_theorem_proved": 2,
+    }
+    scorecard = _runtime_capability_scorecard(legacy_question_only_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(legacy_question_only_payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[9]["passed"] is False
+
+    non_evidence_family_payload = {
+        **legacy_question_only_payload,
+        "task_families": ["unclassified", "question_id:legacy"],
+        "n_distinct_task_families": 2,
+        "task_families_with_full_frontier_theorem_proved": [
+            "unclassified",
+            "question_id:legacy",
+        ],
+        "n_task_families_with_full_frontier_theorem_proved": 2,
+    }
+    scorecard = _runtime_capability_scorecard(non_evidence_family_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(non_evidence_family_payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[9]["passed"] is False
 
     payload["n_results"] = 2
     payload["n_distinct_question_ids"] = 2
@@ -43338,6 +43386,27 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
         "conformal_prediction_coverage",
     ]
     payload["n_question_ids_with_full_frontier_theorem_proved"] = 2
+    payload["task_families"] = ["conformal"]
+    payload["n_distinct_task_families"] = 1
+    payload["task_families_with_full_frontier_theorem_proved"] = ["conformal"]
+    payload["n_task_families_with_full_frontier_theorem_proved"] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[9]["passed"] is False
+
+    payload["task_families"] = ["causal", "conformal"]
+    payload["n_distinct_task_families"] = 2
+    payload["task_families_with_full_frontier_theorem_proved"] = [
+        "causal",
+        "conformal",
+    ]
+    payload["n_task_families_with_full_frontier_theorem_proved"] = 2
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     ladder = _runtime_capability_ladder(payload)
@@ -43348,6 +43417,108 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     ]["passed"] is True
     assert ladder["scale"] == "L0-L9"
     assert ladder_rows[9]["passed"] is True
+
+
+def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+
+    result_paths = []
+    for question_id in (
+        "conformal_prediction_coverage",
+        "conformal_selection_width",
+    ):
+        result_path = runtime_dir / f"{question_id}_runtime_result.json"
+        result_path.write_text(
+            json.dumps(
+                {
+                    "status": "ACCEPTED",
+                    "final_task_id": "critic:done",
+                    "blackboard": {
+                        "project_id": f"ai_statistician:{question_id}",
+                        "artifacts": {
+                            f"runtime_question_metadata:{question_id}": {
+                                "artifact_kind": "RuntimeQuestionMetadata",
+                                "primary_task_family": "conformal",
+                                "question": {
+                                    "id": question_id,
+                                    "title": question_id,
+                                    "description": "",
+                                    "tags": ["conformal", "coverage"],
+                                },
+                            },
+                            f"formalization_manifest:{question_id}": {
+                                "counts": {
+                                    "kernel_verified": 1,
+                                    "formal_gap": 0,
+                                },
+                                "formal_subclaims": [
+                                    {
+                                        "id": f"{question_id}:source",
+                                        "kernel_verified": True,
+                                        "verifier": "local.lake_env_lean",
+                                    }
+                                ],
+                                "full_frontier_theorem_proved": True,
+                            },
+                        },
+                    },
+                    "traces": [],
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        result_paths.append(str(result_path))
+
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_stage": (
+                    "architect_retrieval_theory_simulation_algorithm_"
+                    "formalization_critic_environment_loop"
+                ),
+                "n_questions": 2,
+                "n_runtime_next_action_items": 0,
+                "n_runtime_learning_rows": 0,
+                "artifacts": {
+                    "per_question_results": result_paths,
+                    "runtime_traces_jsonl": str(traces),
+                    "runtime_next_action_agenda_jsonl": str(agenda),
+                    "runtime_learning_rows_jsonl": str(learning),
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    ladder_rows = {row["level"]: row for row in audit["capability_ladder"]["levels"]}
+
+    assert audit["n_full_frontier_theorem_proved"] == 2
+    assert audit["n_distinct_question_ids"] == 2
+    assert audit["task_families"] == ["conformal"]
+    assert audit["n_distinct_task_families"] == 1
+    assert audit["task_families_with_full_frontier_theorem_proved"] == [
+        "conformal"
+    ]
+    assert scorecard_rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[9]["passed"] is False
 
 
 def test_late_typechecked_candidate_review_unresolved_state_advances_after_recheck() -> None:
