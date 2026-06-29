@@ -8898,6 +8898,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
 def _research_agent_runtime(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     _apply_research_agent_runtime_capability_eval_preset(args)
+    _apply_research_agent_runtime_live_lean_defaults(args)
     if getattr(args, "capability_eval", False):
         config_errors = _research_agent_runtime_capability_config_errors(args)
         if config_errors:
@@ -9941,6 +9942,49 @@ def _apply_research_agent_runtime_capability_eval_preset(
             getattr(args, "formalizer_repair_eval_lean_project", "") or ""
         ).strip():
             args.formalizer_repair_eval_lean_project = lean_project
+
+
+def _apply_research_agent_runtime_live_lean_defaults(
+    args: argparse.Namespace,
+) -> None:
+    """Attach the vendored Lake project to live Formalizer candidate checks.
+
+    This is intentionally narrower than the capability-eval preset: it does not
+    enable registered proof-bank local Lean gates or internal proof bridges. It
+    only prevents live Formalizer/ProofEngineer runs from stalling before local
+    diagnostics because no candidate Lean project was threaded into the runtime.
+    """
+
+    if not _research_agent_runtime_formalizer_resolves_to_live_provider(args):
+        return
+    lean_project = str(getattr(args, "lean_project", "") or "").strip()
+    if not lean_project:
+        for default_lean_project in (
+            _capability_eval_default_lean_project_candidates()
+        ):
+            if _is_lake_project(default_lean_project):
+                lean_project = str(default_lean_project)
+                args.lean_project = lean_project
+                break
+    if not lean_project:
+        return
+    if not str(getattr(args, "formalizer_candidate_lean_project", "") or "").strip():
+        args.formalizer_candidate_lean_project = lean_project
+    if not bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False)):
+        args.formalizer_candidate_local_lean = True
+
+
+def _research_agent_runtime_formalizer_resolves_to_live_provider(
+    args: argparse.Namespace,
+) -> bool:
+    configured_provider = str(
+        getattr(args, "formalizer_provider", "same") or "same"
+    )
+    main_provider = str(getattr(args, "provider", "") or "")
+    resolved_provider = (
+        main_provider if configured_provider == "same" else configured_provider
+    )
+    return resolved_provider in {"anthropic", "openai"}
 
 
 def _effective_resume_through_architect(

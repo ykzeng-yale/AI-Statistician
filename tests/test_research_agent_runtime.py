@@ -13,6 +13,7 @@ import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.cli import (
     _load_runtime_learning_memory,
     _apply_research_agent_runtime_capability_eval_preset,
+    _apply_research_agent_runtime_live_lean_defaults,
     _effective_resume_through_architect,
     _minimum_task_family_selection_errors,
     _research_agent_runtime_capability_config_errors,
@@ -46073,6 +46074,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         recommended_research_path="",
         lean_project="",
         formalizer_candidate_local_lean=False,
+        formalizer_candidate_lean_lsp_mcp=False,
         formalizer_candidate_lean_project="",
         theorem_closure_proofengineer_bridge=False,
         theorem_closure_proofengineer_local_lean=False,
@@ -46226,6 +46228,45 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+
+def test_live_runtime_defaults_formalizer_candidate_local_lean_project() -> None:
+    args = _capability_eval_preset_args("none")
+    args.provider = "anthropic"
+    args.formalizer_provider = "same"
+
+    _apply_research_agent_runtime_live_lean_defaults(args)
+
+    assert args.lean_project == "legacy_sources/emperical_process_lean"
+    assert args.formalizer_candidate_lean_project == args.lean_project
+    assert args.formalizer_candidate_local_lean is True
+    assert args.local_lean is False
+
+
+def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -> None:
+    static_args = _capability_eval_preset_args("none")
+    static_args.provider = "anthropic"
+    static_args.formalizer_provider = "none"
+
+    _apply_research_agent_runtime_live_lean_defaults(static_args)
+
+    assert static_args.lean_project == ""
+    assert static_args.formalizer_candidate_lean_project == ""
+    assert static_args.formalizer_candidate_local_lean is False
+
+    explicit_args = _capability_eval_preset_args("none")
+    explicit_args.provider = "anthropic"
+    explicit_args.formalizer_provider = "same"
+    explicit_args.lean_project = "/tmp/custom-lean"
+    explicit_args.formalizer_candidate_lean_project = "/tmp/candidate-lean"
+    explicit_args.formalizer_candidate_lean_lsp_mcp = True
+
+    _apply_research_agent_runtime_live_lean_defaults(explicit_args)
+
+    assert explicit_args.lean_project == "/tmp/custom-lean"
+    assert explicit_args.formalizer_candidate_lean_project == "/tmp/candidate-lean"
+    assert explicit_args.formalizer_candidate_local_lean is False
+    assert explicit_args.formalizer_candidate_lean_lsp_mcp is True
 
 
 def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> None:
