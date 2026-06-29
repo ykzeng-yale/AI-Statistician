@@ -2456,6 +2456,112 @@ def test_runtime_learning_memory_loader_pins_exact_semantic_environment_blocker(
     )
 
 
+def test_runtime_learning_memory_loader_pins_theory_trace_feedback(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    theory_trace_feedback = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "theory_derivation_trace_feedback",
+        "work_order_id": "theory-trace-work-order",
+        "next_owner_subsystem": "TheoryDeveloper",
+        "failure_classifications": [
+            "missing_theory_derivation_contract",
+            "missing_equation_chain",
+            "missing_assumption_ledger",
+            "missing_formalization_handoff",
+        ],
+        "input_summary": {
+            "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+            "n_theory_derivation_packets": 2,
+            "n_theory_derivation_packets_with_contract": 0,
+            "n_theory_derivation_packets_with_equation_chain": 0,
+            "n_theory_derivation_packets_with_assumption_ledger": 0,
+            "n_theory_derivation_packets_with_formalization_handoff": 0,
+            "failure_classifications": [
+                "missing_theory_derivation_contract",
+                "missing_equation_chain",
+                "missing_assumption_ledger",
+                "missing_formalization_handoff",
+            ],
+            "required_theory_trace_consumers": [
+                "SimulationEngineer",
+                "AlgorithmEngineer",
+                "FormalizerProofEngineer",
+            ],
+            "theory_trace_consuming_subsystems": [],
+            "structured_theory_trace_aligned_subsystems": [],
+            "all_required_theory_trace_consumers_observed": False,
+            "all_required_theory_trace_alignment_consumers_observed": False,
+        },
+        "proof_evidence_status": (
+            "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    source_to_bridge_feedback = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "premise_name": "hGoodRankImpliesCovered",
+        "input_summary": {
+            "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "premise_name": "hGoodRankImpliesCovered",
+        },
+        "proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    filler_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "latest_filler",
+            "target_behavior": f"latest filler row {index}",
+        }
+        for index in range(8)
+    ]
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [theory_trace_feedback, source_to_bridge_feedback, *filler_rows]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=2)
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert [row.get("learning_task") for row in memory["rows"]] == [
+        "theory_derivation_trace_feedback",
+        "source_to_bridge_premise_derivation_feedback",
+    ]
+    theory_row = memory["rows"][0]
+    assert theory_row["next_owner_subsystem"] == "TheoryDeveloper"
+    assert theory_row["failure_classifications"] == [
+        "missing_theory_derivation_contract",
+        "missing_equation_chain",
+        "missing_assumption_ledger",
+        "missing_formalization_handoff",
+    ]
+    assert theory_row["input_summary"]["trigger"] == (
+        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    )
+    assert theory_row["input_summary"]["n_theory_derivation_packets"] == 2
+    assert theory_row["input_summary"]["n_theory_derivation_packets_with_contract"] == 0
+    assert theory_row["input_summary"]["required_theory_trace_consumers"] == [
+        "SimulationEngineer",
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+    ]
+    assert theory_row["proof_evidence_status"] == (
+        "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -> None:
     pending_task = {
         "task_id": "critic:conformal_prediction_coverage:next",

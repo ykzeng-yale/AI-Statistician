@@ -943,6 +943,10 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 94
     if learning_task == "source_theorem_proof_body_adapter_feedback":
         return 93
+    if learning_task == "source_to_bridge_premise_derivation_feedback":
+        return 92
+    if learning_task == "theory_derivation_trace_feedback":
+        return 91
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_exact_semantic_definition_repair_priority(row)
     )
@@ -1121,6 +1125,26 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
                 + ":"
                 + adapter_artifact
             )
+    if learning_task == "theory_derivation_trace_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        failure_scope = ",".join(
+            _runtime_learning_memory_string_values(row, "failure_classifications")
+        )
+        return (
+            "theory_derivation_trace_feedback:"
+            + question_id
+            + ":"
+            + work_order_id
+            + ":"
+            + failure_scope
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -1168,6 +1192,17 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
+    if learning_task in {
+        "source_to_bridge_premise_derivation_feedback",
+        "theory_derivation_trace_feedback",
+    }:
+        return True
+    if trigger in {
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+    }:
+        return True
     if (
         learning_task == "source_theorem_proof_body_adapter_feedback"
         and _runtime_learning_memory_pin_priority(row) >= 100
@@ -1474,6 +1509,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
     }
     for key in (
         "work_order_id",
+        "next_owner_subsystem",
         "source_manifest_id",
         "source_materialization_manifest_id",
         "source_manifest_path",
@@ -1697,6 +1733,10 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "verified_source_to_bridge_premise_derivation_signature_excerpts",
         "source_to_bridge_premise_derivation_signature_excerpts",
         "premise_candidate_signature_excerpts",
+        "failure_classifications",
+        "required_theory_trace_consumers",
+        "theory_trace_consuming_subsystems",
+        "structured_theory_trace_aligned_subsystems",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -1840,7 +1880,9 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
     compact: dict[str, object] = {}
     scalar_keys = (
         "trigger",
+        "question_id",
         "learning_task",
+        "next_owner_subsystem",
         "owner_subsystem",
         "agenda_id",
         "work_order_id",
@@ -1949,6 +1991,14 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "semantic_anchor_reference_gate",
         "candidate_materialization_required",
         "candidate_materialization_contract",
+        "n_theory_derivation_packets",
+        "n_theory_derivation_packets_with_contract",
+        "n_theory_derivation_packets_with_min_derivation_steps",
+        "n_theory_derivation_packets_with_equation_chain",
+        "n_theory_derivation_packets_with_assumption_ledger",
+        "n_theory_derivation_packets_with_formalization_handoff",
+        "all_required_theory_trace_consumers_observed",
+        "all_required_theory_trace_alignment_consumers_observed",
     )
     list_keys = (
         "target_ids",
@@ -2017,6 +2067,10 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "verified_source_to_bridge_premise_derivation_signature_excerpts",
         "source_to_bridge_premise_derivation_signature_excerpts",
         "premise_candidate_signature_excerpts",
+        "failure_classifications",
+        "required_theory_trace_consumers",
+        "theory_trace_consuming_subsystems",
+        "structured_theory_trace_aligned_subsystems",
     )
     mapping_keys = (
         "formalization_counts",
