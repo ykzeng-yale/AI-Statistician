@@ -45330,9 +45330,9 @@ def test_local_lean_proof_state_provider_routes_placeholder_to_authoring_not_tac
     assert row.proof_evidence_status == PROOF_STATE_FEEDBACK_STATUS
 
 
-def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() -> None:
-    args = argparse.Namespace(
-        capability_eval_preset="minimal-live",
+def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
+    return argparse.Namespace(
+        capability_eval_preset=preset,
         provider="static",
         architect_coordinator_provider="none",
         simulation_engineer_provider="static",
@@ -45379,7 +45379,14 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
         source_theorem_exact_semantic_definition_candidate_synthesis_lean_project="",
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
+        coding_agent_repair_eval_provider="same",
+        formalizer_repair_eval_provider="same",
+        formalizer_repair_eval_lean_project="",
     )
+
+
+def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() -> None:
+    args = _capability_eval_preset_args("minimal-live")
 
     _apply_research_agent_runtime_capability_eval_preset(args)
 
@@ -45399,6 +45406,39 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+
+def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> None:
+    args = _capability_eval_preset_args("full-live")
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert args.provider in {"anthropic", "openai"}
+    assert args.architect_coordinator_provider == "same"
+    assert args.algorithm_engineer_provider == "same"
+    assert args.simulation_engineer_provider == "same"
+    assert args.formalizer_provider == "same"
+    assert args.run_coding_agent_generated_code_repair_eval is True
+    assert args.run_formalizer_lean_candidate_repair_eval is True
+    assert args.coding_agent_repair_eval_provider == "same"
+    assert args.formalizer_repair_eval_provider == "same"
+    assert args.formalizer_repair_eval_lean_project == args.lean_project
+    assert _research_agent_runtime_capability_config_errors(args) == []
+
+
+def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:
+    args = _capability_eval_preset_args("minimal-live")
+    _apply_research_agent_runtime_capability_eval_preset(args)
+    args.run_coding_agent_generated_code_repair_eval = True
+    args.coding_agent_repair_eval_provider = "static"
+
+    errors = _research_agent_runtime_capability_config_errors(args)
+
+    assert any(
+        "coding-agent generated-code repair eval" in error
+        and "resolves to static" in error
+        for error in errors
+    )
 
 
 def test_capability_eval_resume_defaults_through_configured_architect() -> None:

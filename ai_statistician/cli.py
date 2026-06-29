@@ -9597,7 +9597,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
     preset = str(getattr(args, "capability_eval_preset", "") or "").strip()
     if preset in {"", "none"}:
         return
-    if preset != "minimal-live":
+    if preset not in {"minimal-live", "full-live"}:
         raise ValueError(f"unsupported capability eval preset: {preset}")
 
     if str(getattr(args, "provider", "") or "") not in {"anthropic", "openai"}:
@@ -9677,6 +9677,21 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if not roots and default_source_root.exists():
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
+    if preset == "full-live":
+        args.run_coding_agent_generated_code_repair_eval = True
+        args.run_formalizer_lean_candidate_repair_eval = True
+        if str(
+            getattr(args, "coding_agent_repair_eval_provider", "same") or "same"
+        ) in {"", "none", "static"}:
+            args.coding_agent_repair_eval_provider = "same"
+        if str(
+            getattr(args, "formalizer_repair_eval_provider", "same") or "same"
+        ) in {"", "none", "static"}:
+            args.formalizer_repair_eval_provider = "same"
+        if lean_project and not str(
+            getattr(args, "formalizer_repair_eval_lean_project", "") or ""
+        ).strip():
+            args.formalizer_repair_eval_lean_project = lean_project
 
 
 def _effective_resume_through_architect(
@@ -9801,6 +9816,36 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 f"capability eval requires live {subsystem}; "
                 f"{field_name}={provider_choice}"
+            )
+    component_eval_provider_fields = (
+        (
+            "run_coding_agent_generated_code_repair_eval",
+            "coding_agent_repair_eval_provider",
+            "coding-agent generated-code repair eval",
+        ),
+        (
+            "run_formalizer_lean_candidate_repair_eval",
+            "formalizer_repair_eval_provider",
+            "Formalizer Lean-candidate repair eval",
+        ),
+    )
+    main_provider = str(getattr(args, "provider", "") or "")
+    for (
+        enabled_field,
+        provider_field,
+        component_name,
+    ) in component_eval_provider_fields:
+        if not bool(getattr(args, enabled_field, False)):
+            continue
+        provider_choice = str(getattr(args, provider_field, "same") or "same")
+        resolved_provider = (
+            main_provider if provider_choice == "same" else provider_choice
+        )
+        if resolved_provider not in {"anthropic", "openai"}:
+            errors.append(
+                f"capability eval requires live {component_name}; "
+                f"{provider_field}={provider_choice} resolves to "
+                f"{resolved_provider or 'none'}"
             )
     if not (getattr(args, "local_lean", False) or getattr(args, "real_lean", False)):
         errors.append("capability eval requires --local-lean or --real-lean")
@@ -16521,13 +16566,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--capability-eval-preset",
-        choices=("none", "minimal-live"),
+        choices=("none", "minimal-live", "full-live"),
         default="none",
         help=(
             "populate strict live capability-eval defaults without weakening "
             "the scorecard gates. minimal-live enables live providers and the "
-            "internal Lean/ProofEngineer paths, but does not attach separate "
-            "component gates or turn static fixtures into capability evidence."
+            "internal Lean/ProofEngineer paths; full-live also attaches the "
+            "coding-agent and Formalizer/Lean repair component gates. Static "
+            "fixtures never become capability evidence."
         ),
     )
     research_agent_runtime.add_argument(
