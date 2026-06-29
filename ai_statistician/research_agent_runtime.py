@@ -2270,6 +2270,9 @@ class TheoryDeveloperRuntimeSubsystem:
             packet["base_packet_id"] = str(packet["packet_id"])
             packet["packet_id"] = packet_id
             packet["runtime_revision_artifact"] = True
+        theory_derivation_contract = dict(
+            packet.get("theory_derivation_contract", {}) or {}
+        )
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, packet_id])[:20],
             task_id=task.task_id,
@@ -2281,6 +2284,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
                 "kernel_verified": False,
                 "architect_acceptance_gate": theory_control.get("acceptance_gate", ""),
+                "theory_derivation_contract": theory_derivation_contract,
             },
         )
         next_task = AgentTask(
@@ -2322,6 +2326,18 @@ class TheoryDeveloperRuntimeSubsystem:
                         "packet_id": packet_id,
                         "n_theorem_cards": len(packet.get("theorem_cards", []) or []),
                         "n_estimator_specs": len(packet.get("estimator_specs", []) or []),
+                        "n_derivation_steps": theory_derivation_contract.get(
+                            "n_derivation_steps", 0
+                        ),
+                        "n_equation_chain_steps": theory_derivation_contract.get(
+                            "n_equation_chain_steps", 0
+                        ),
+                        "n_assumption_ledger_rows": theory_derivation_contract.get(
+                            "n_assumption_ledger_rows", 0
+                        ),
+                        "has_formalization_handoff": theory_derivation_contract.get(
+                            "has_formalization_handoff", False
+                        ),
                         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
                     },
                 ),

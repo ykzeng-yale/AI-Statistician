@@ -27,6 +27,7 @@ from ai_statistician.research_architect import (
     StaticArchitectLLMProvider,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_prompt,
+    validate_theory_packet,
 )
 from ai_statistician.research_lab import (
     ProblemFormalizer,
@@ -84,13 +85,75 @@ def _sample_response() -> dict[str, object]:
             "derivation_summary": "Use Neyman-orthogonal AIPW score for the ATE.",
             "derivation_steps": [
                 {
+                    "id": "identify_ate",
+                    "claim": "Conditional exchangeability identifies the ATE by nuisance regressions.",
+                    "equation_or_argument": "psi = E[m_1(X)-m_0(X)]",
+                    "depends_on": [],
+                    "formal_goal": "aipw_asymptotic_normality",
+                    "risk": "consistency and positivity must be stated explicitly",
+                },
+                {
                     "id": "orthogonal_score",
                     "claim": "AIPW score has first-order insensitivity to nuisance error.",
                     "equation_or_argument": "phi = m1-m0 + A/e(Y-m1) - (1-A)/(1-e)(Y-m0) - psi",
-                    "depends_on": ["identification"],
+                    "depends_on": ["identify_ate"],
+                    "formal_goal": "second_order_remainder_bound",
                     "risk": "positivity and integrability are required",
-                }
+                },
+                {
+                    "id": "remainder_control",
+                    "claim": "Cross-fitting plus product-rate nuisance control makes the second-order remainder negligible.",
+                    "equation_or_argument": "sqrt(n)(P_n phi_hat - P_n phi) = o_p(1)",
+                    "depends_on": ["orthogonal_score"],
+                    "formal_goal": "aipw_asymptotic_normality",
+                    "risk": "empirical-process conditions are not yet formalized",
+                },
             ],
+            "equation_chain": [
+                {
+                    "step_id": "identified_estimand",
+                    "lhs": "psi",
+                    "relation": "=",
+                    "rhs": "E[m_1(X)-m_0(X)]",
+                    "justification": "identification under consistency and exchangeability",
+                    "depends_on": ["identify_ate"],
+                },
+                {
+                    "step_id": "orthogonal_expansion",
+                    "lhs": "sqrt(n)(psi_hat-psi)",
+                    "relation": "=",
+                    "rhs": "sqrt(n) P_n phi + o_p(1)",
+                    "justification": "AIPW orthogonality and cross-fit remainder control",
+                    "depends_on": ["orthogonal_score", "remainder_control"],
+                },
+            ],
+            "assumption_ledger": [
+                {
+                    "assumption": "conditional exchangeability",
+                    "role": "identification",
+                    "used_in": ["identify_ate", "identified_estimand"],
+                    "risk_if_dropped": "ATE identification fails",
+                },
+                {
+                    "assumption": "positivity",
+                    "role": "regularity",
+                    "used_in": ["orthogonal_score"],
+                    "risk_if_dropped": "inverse propensity weights can diverge",
+                },
+                {
+                    "assumption": "product-rate nuisance convergence",
+                    "role": "regularity",
+                    "used_in": ["remainder_control", "orthogonal_expansion"],
+                    "risk_if_dropped": "second-order remainder may dominate",
+                },
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "aipw_asymptotic_normality",
+                "candidate_lean_targets": ["bounded_aipw_expansion"],
+                "required_definitions": ["conditional_exchangeability", "aipw_score"],
+                "lemma_dependencies": ["second_order_remainder_bound"],
+                "semantic_alignment_constraints": ["do not drop nuisance remainder"],
+            },
             "self_critique": ["Product-rate assumptions may be too strong for adaptive learners."],
             "rejected_alternatives": [
                 {"name": "IPW only", "reason": "unstable under near-positivity violations"}
@@ -198,9 +261,32 @@ def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> N
     ledger = json.loads(ledger_path.read_text(encoding="utf-8").splitlines()[0])
     assert packet["source_agent"] == "LLMTheoryDeveloperAgent"
     assert packet["theory_derivation_packet"]["derivation_steps"]
+    assert packet["theory_derivation_contract"]["n_derivation_steps"] == 3
+    assert packet["theory_derivation_contract"]["n_equation_chain_steps"] == 2
+    assert packet["theory_derivation_contract"]["n_assumption_ledger_rows"] == 3
+    assert packet["theory_derivation_contract"]["has_formalization_handoff"] is True
     assert packet["kernel_verified"] is False
     assert ledger["evidence_status"] == "PROPOSAL_RECORDED_REQUIRES_GATES"
     assert ledger["boundary"] == KERNEL_PROOF_BOUNDARY
+
+
+def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -> None:
+    bad = _sample_response()
+    derivation = dict(bad["theory_derivation_packet"])
+    derivation["derivation_steps"] = derivation["derivation_steps"][:1]
+    derivation["equation_chain"] = []
+    derivation["assumption_ledger"] = []
+    derivation["formalization_handoff"] = {}
+    bad["theory_derivation_packet"] = derivation
+    bad["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    bad["kernel_verified"] = False
+
+    errors = validate_theory_packet(bad)
+
+    assert any("derivation_steps" in error for error in errors)
+    assert any("equation_chain" in error for error in errors)
+    assert any("assumption_ledger" in error for error in errors)
+    assert any("formalization_handoff" in error for error in errors)
 
 
 def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
@@ -624,9 +710,15 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
 
     assert "full retrieval artifacts remain" in prompt.lower()
     assert "concise_output_budget" in prompt
-    assert '"max_derivation_steps":2' in prompt
+    assert '"min_derivation_steps":3' in prompt
+    assert '"max_derivation_steps":5' in prompt
+    assert '"min_equation_chain_steps":2' in prompt
     assert '"max_next_actions":1' in prompt
-    assert "minimal first-pass discovery packet" in prompt
+    assert "focused first-pass discovery packet" in prompt
+    assert "assumption_ledger" in prompt
+    assert "formalization_handoff" in prompt
+    assert "equation_chain" in prompt
+    assert "at least three derivation steps" in prompt
     assert "Probability.coverage" in prompt
     assert "signature_omitted" in prompt
     assert long_signature not in prompt

@@ -21,6 +21,8 @@ from .research_schema import OpenResearchQuestion, ResearchReport
 
 ARCHITECT_SCHEMA_VERSION = 1
 THEORY_DERIVATION_NOT_PROOF_EVIDENCE = "LLM_THEORY_DERIVATION_NOT_PROOF_EVIDENCE"
+THEORY_MIN_DERIVATION_STEPS = 3
+THEORY_MIN_EQUATION_CHAIN_STEPS = 2
 KERNEL_PROOF_BOUNDARY = (
     "LLM derivations, retrieval hits, and simulation predictions are proposal "
     "or diagnostic evidence only. Formal proof evidence requires AXLE/local "
@@ -295,7 +297,9 @@ def build_theory_developer_prompt(
         "architect_context": _compact_architect_context_for_prompt(architect_context),
         "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
         "concise_output_budget": {
-            "max_derivation_steps": 2,
+            "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
+            "max_derivation_steps": 5,
+            "min_equation_chain_steps": THEORY_MIN_EQUATION_CHAIN_STEPS,
             "max_candidate_procedures": 1,
             "max_theorem_goals": 1,
             "max_lemma_cards": 1,
@@ -308,9 +312,10 @@ def build_theory_developer_prompt(
                 "Return a complete valid JSON object within this budget. Use exactly "
                 "one item in estimator_specs, theorem_cards, lemma_cards, "
                 "formalization_requests, critic_findings, and next_actions. Use at "
-                "most two derivation_steps. Keep every string one sentence or one "
-                "equation fragment. Do not include essays, tables, Markdown, or long "
-                "simulation instructions."
+                "least three and at most five derivation_steps, plus at least two "
+                "equation_chain rows and an assumption_ledger. Keep every string one "
+                "sentence or one equation fragment. Do not include essays, tables, "
+                "Markdown, or long simulation instructions."
             ),
         },
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
@@ -318,12 +323,15 @@ def build_theory_developer_prompt(
     return (
         "Derive statistical theory artifacts for the Architect loop. Return ONLY "
         "JSON matching required_output_contract. Do not classify and stop. Do not "
-        "claim Lean/kernel proof evidence. Be explicit about assumptions, equations, "
-        "proof dependencies, simulation implications, and rejected alternatives. This "
-        "is a minimal first-pass discovery packet: exactly one primary procedure, one "
-        "theorem card, one lemma card, one formalization request, one critic finding, "
-        "and one next action. Keep the packet concise enough to finish as one valid "
-        "JSON object; do not trade JSON completeness for detail.\n\n"
+        "claim Lean/kernel proof evidence. Build a compact derivation trace that a "
+        "Formalizer/ProofEngineer can consume: name assumptions, write a short "
+        "equation chain, expose lemma dependencies, and state exactly which semantic "
+        "alignment constraints must survive formalization. This is a focused first-pass "
+        "discovery packet: exactly one primary procedure, one theorem card, one lemma "
+        "card, one formalization request, one critic finding, and one next action, "
+        "but at least three derivation steps and two equation-chain rows. Keep the "
+        "packet concise enough to finish as one valid JSON object; do not trade JSON "
+        "completeness for detail.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -750,6 +758,10 @@ def _truncate_text(value: Any, limit: int) -> str:
     return text if len(text) <= limit else text[: max(0, limit - 3)] + "..."
 
 
+def _safe_len(value: Any) -> int:
+    return len(value) if isinstance(value, (list, tuple)) else 0
+
+
 THEORY_DEVELOPER_SYSTEM_PROMPT = """\
 You are the LLM TheoryDeveloper inside an AI Statistician Architect.
 
@@ -780,9 +792,35 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "claim": "string",
                 "equation_or_argument": "string",
                 "depends_on": ["ids"],
+                "formal_goal": "theorem_card_id or lemma_card_id",
                 "risk": "string",
             }
         ],
+        "equation_chain": [
+            {
+                "step_id": "short id",
+                "lhs": "string",
+                "relation": "=|≈|<=|=>|converges_to|implies",
+                "rhs": "string",
+                "justification": "string",
+                "depends_on": ["derivation_step ids"],
+            }
+        ],
+        "assumption_ledger": [
+            {
+                "assumption": "string",
+                "role": "identification|regularity|algorithmic|simulation|formalization",
+                "used_in": ["derivation/equation/theorem ids"],
+                "risk_if_dropped": "string",
+            }
+        ],
+        "formalization_handoff": {
+            "source_theorem_target": "theorem_card_id",
+            "candidate_lean_targets": ["string"],
+            "required_definitions": ["string"],
+            "lemma_dependencies": ["lemma_card or derivation ids"],
+            "semantic_alignment_constraints": ["string"],
+        },
         "self_critique": ["string"],
         "rejected_alternatives": [{"name": "string", "reason": "string"}],
     },
@@ -898,8 +936,58 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     derivation = packet.get("theory_derivation_packet", {})
     if not isinstance(derivation, Mapping):
         errors.append("theory_derivation_packet must be an object")
-    elif not derivation.get("derivation_steps"):
-        errors.append("theory_derivation_packet.derivation_steps must be non-empty")
+    else:
+        derivation_steps = derivation.get("derivation_steps", [])
+        if not isinstance(derivation_steps, list) or len(derivation_steps) < THEORY_MIN_DERIVATION_STEPS:
+            errors.append(
+                "theory_derivation_packet.derivation_steps must contain at least "
+                f"{THEORY_MIN_DERIVATION_STEPS} steps"
+            )
+        else:
+            for idx, row in enumerate(derivation_steps, start=1):
+                if not isinstance(row, Mapping):
+                    errors.append("theory_derivation_packet.derivation_steps entries must be objects")
+                    continue
+                if not str(row.get("id", "")).strip():
+                    errors.append(f"derivation step {idx} missing id")
+                if not str(row.get("claim", "")).strip():
+                    errors.append(f"derivation step {idx} missing claim")
+                if not str(row.get("equation_or_argument", "")).strip():
+                    errors.append(f"derivation step {idx} missing equation_or_argument")
+        equation_chain = derivation.get("equation_chain", [])
+        if not isinstance(equation_chain, list) or len(equation_chain) < THEORY_MIN_EQUATION_CHAIN_STEPS:
+            errors.append(
+                "theory_derivation_packet.equation_chain must contain at least "
+                f"{THEORY_MIN_EQUATION_CHAIN_STEPS} equation rows"
+            )
+        else:
+            for idx, row in enumerate(equation_chain, start=1):
+                if not isinstance(row, Mapping):
+                    errors.append("theory_derivation_packet.equation_chain entries must be objects")
+                    continue
+                if not str(row.get("lhs", "")).strip() or not str(row.get("rhs", "")).strip():
+                    errors.append(f"equation_chain row {idx} must include lhs and rhs")
+                if not str(row.get("justification", "")).strip():
+                    errors.append(f"equation_chain row {idx} missing justification")
+        assumption_ledger = derivation.get("assumption_ledger", [])
+        if not isinstance(assumption_ledger, list) or not assumption_ledger:
+            errors.append("theory_derivation_packet.assumption_ledger must be non-empty")
+        else:
+            for idx, row in enumerate(assumption_ledger, start=1):
+                if not isinstance(row, Mapping):
+                    errors.append("theory_derivation_packet.assumption_ledger entries must be objects")
+                    continue
+                if not str(row.get("assumption", "")).strip():
+                    errors.append(f"assumption_ledger row {idx} missing assumption")
+                if not row.get("used_in"):
+                    errors.append(f"assumption_ledger row {idx} missing used_in")
+        formalization_handoff = derivation.get("formalization_handoff", {})
+        if not isinstance(formalization_handoff, Mapping) or not formalization_handoff:
+            errors.append("theory_derivation_packet.formalization_handoff must be non-empty")
+        elif not formalization_handoff.get("semantic_alignment_constraints"):
+            errors.append(
+                "theory_derivation_packet.formalization_handoff.semantic_alignment_constraints must be non-empty"
+            )
     for list_field in ("estimator_specs", "theorem_cards", "lemma_cards", "formalization_requests"):
         if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
             errors.append(f"{list_field} must be a non-empty list")
@@ -933,6 +1021,27 @@ def _normalize_theory_packet(
     body["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
     body["kernel_verified"] = False
     body["verified_theorem_count"] = 0
+    derivation = (
+        body.get("theory_derivation_packet", {})
+        if isinstance(body.get("theory_derivation_packet", {}), Mapping)
+        else {}
+    )
+    body["theory_derivation_contract"] = {
+        "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
+        "min_equation_chain_steps": THEORY_MIN_EQUATION_CHAIN_STEPS,
+        "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),
+        "n_equation_chain_steps": _safe_len(derivation.get("equation_chain", [])),
+        "n_assumption_ledger_rows": _safe_len(derivation.get("assumption_ledger", [])),
+        "has_formalization_handoff": bool(
+            isinstance(derivation.get("formalization_handoff", {}), Mapping)
+            and derivation.get("formalization_handoff")
+        ),
+        "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+        "boundary": (
+            "Theory derivation traces are structured LLM reasoning proposals for "
+            "simulation/formalization handoff, not proof evidence."
+        ),
+    }
     packet_id = stable_hash(
         {
             "question_id": question.id,
