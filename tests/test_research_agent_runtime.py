@@ -1179,6 +1179,17 @@ def test_runtime_audit_markdown_reports_current_handoff_identity(
     assert "pending task memory rows: 1" in report
     assert "route-critical target identity rows / missing target_ids: 2 / 0" in report
     assert "missing handoff artifact feedback rows / learning / agenda: 0 / 0 / 0" in report
+    system_overlay = _research_agent_runtime_audit_overlay(
+        runtime_dir / "system_overlay",
+        configured_runtime_dir=str(runtime_dir),
+    )
+    assert system_overlay["n_runtime_pending_task_memory_rows"] == 1
+    assert system_overlay["n_runtime_route_critical_target_identity_rows"] == 2
+    assert system_overlay["n_runtime_route_critical_rows_missing_target_ids"] == 0
+    assert system_overlay["runtime_route_critical_target_identity_channels"] == [
+        "runtime_next_action_agenda",
+        "runtime_pending_task_memory",
+    ]
 
 
 def test_runtime_capability_scorecard_flags_route_critical_targetless_rows() -> None:

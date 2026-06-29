@@ -3073,6 +3073,30 @@ async def run_research_system_audit(
             "research_agent_runtime_learning_rows": research_agent_runtime_audit_manifest[
                 "n_runtime_learning_rows"
             ],
+            "research_agent_runtime_pending_task_memory_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_pending_task_memory_rows"
+            ],
+            "research_agent_runtime_route_critical_target_identity_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_route_critical_target_identity_rows"
+            ],
+            "research_agent_runtime_route_critical_rows_missing_target_ids": research_agent_runtime_audit_manifest[
+                "n_runtime_route_critical_rows_missing_target_ids"
+            ],
+            "research_agent_runtime_route_critical_target_identity_channels": research_agent_runtime_audit_manifest[
+                "runtime_route_critical_target_identity_channels"
+            ],
+            "research_agent_runtime_route_critical_rows_missing_target_ids_sample": research_agent_runtime_audit_manifest[
+                "runtime_route_critical_rows_missing_target_ids"
+            ],
+            "research_agent_runtime_handoff_artifact_missing_feedback_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_handoff_artifact_missing_feedback_rows"
+            ],
+            "research_agent_runtime_handoff_artifact_missing_ids": research_agent_runtime_audit_manifest[
+                "runtime_handoff_artifact_missing_ids"
+            ],
+            "research_agent_runtime_handoff_artifact_missing_owner_subsystems": research_agent_runtime_audit_manifest[
+                "runtime_handoff_artifact_missing_owner_subsystems"
+            ],
             "research_agent_runtime_learning_memory_inputs": research_agent_runtime_audit_manifest[
                 "n_results_with_runtime_learning_memory_input"
             ],
@@ -9066,6 +9090,14 @@ def _research_agent_runtime_audit_overlay(
         "n_runtime_traces": 0,
         "n_runtime_next_action_items": 0,
         "n_runtime_learning_rows": 0,
+        "n_runtime_pending_task_memory_rows": 0,
+        "n_runtime_route_critical_target_identity_rows": 0,
+        "n_runtime_route_critical_rows_missing_target_ids": 0,
+        "runtime_route_critical_target_identity_channels": [],
+        "runtime_route_critical_rows_missing_target_ids": [],
+        "n_runtime_handoff_artifact_missing_feedback_rows": 0,
+        "runtime_handoff_artifact_missing_ids": [],
+        "runtime_handoff_artifact_missing_owner_subsystems": [],
         "has_real_kernel_evidence": False,
         "n_results_with_real_kernel_evidence": 0,
         "n_kernel_verified_subclaims": 0,
