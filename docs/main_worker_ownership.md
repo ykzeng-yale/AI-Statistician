@@ -43,7 +43,24 @@ Reach a live, GitHub-reviewable AI Statistician capability milestone:
 6. Preserve the proof boundary: helper proofs and runtime `ACCEPTED` statuses
    do not prove the source theorem.
 7. Add a second task-family capability run beyond conformal prediction before
-   claiming generality.
+   claiming generality. Use runtime family selection rather than editing the
+   question file, for example:
+
+   ```bash
+   .venv/bin/python -m ai_statistician.cli research-agent-runtime \
+     --question-task-family conformal \
+     --question-task-family experimental_design \
+     --min-task-families 2 \
+     --provider anthropic \
+     --capability-eval \
+     --capability-eval-preset full-live \
+     --max-iterations 8 \
+     --out runs/main_worker_cross_family_full_live
+   ```
+
+   Passing `--min-task-families 2` is a selection guard only; L9 still requires
+   kernel-verified full source/frontier theorem evidence across the selected
+   families.
 8. Keep current runtime handoffs target-complete: route-critical proof/formal
    agenda rows and bounded pending-task memory must carry explicit
    `target_ids`, and missing explicit artifact ids must route back to the

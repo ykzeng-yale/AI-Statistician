@@ -447,6 +447,11 @@ from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
 from .system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
+from .task_family import (
+    is_explicit_task_family,
+    primary_task_family_from_question,
+    task_family_value,
+)
 from .theorem_composition_export import export_theorem_composition_packets
 from .theory_proposal import GeneratorTheoryProposer
 from .trace_audit import audit_run_traces
@@ -742,6 +747,77 @@ def _select_questions_by_id(
             continue
         selected.append(question)
     return selected, missing
+
+
+def _selected_question_task_families(questions: list[object]) -> list[str]:
+    families: list[str] = []
+    for question in questions:
+        family = primary_task_family_from_question(question)
+        if is_explicit_task_family(family):
+            families.append(family)
+    return sorted(dict.fromkeys(families))
+
+
+def _select_questions_by_task_family(
+    questions: list[object],
+    task_families: list[str] | tuple[str, ...],
+) -> tuple[list[object], list[str]]:
+    requested = [
+        task_family_value(item)
+        for item in task_families
+        if str(item).strip()
+    ]
+    if not requested:
+        return questions, []
+    invalid_requested = [
+        item for item in requested if not is_explicit_task_family(item)
+    ]
+    explicit_requested = [
+        item for item in requested if is_explicit_task_family(item)
+    ]
+    requested_keys = {item.lower() for item in explicit_requested}
+    selected: list[object] = []
+    available_keys: set[str] = set()
+    for question in questions:
+        family = primary_task_family_from_question(question)
+        if not is_explicit_task_family(family):
+            continue
+        family_key = family.lower()
+        available_keys.add(family_key)
+        if family_key in requested_keys:
+            selected.append(question)
+    missing = [
+        *invalid_requested,
+        *(
+            item
+            for item in explicit_requested
+            if item.lower() not in available_keys
+        ),
+    ]
+    return selected, missing
+
+
+def _minimum_task_family_selection_errors(
+    questions: list[object],
+    *,
+    min_task_families: int,
+) -> list[str]:
+    if min_task_families <= 0:
+        return []
+    families = _selected_question_task_families(questions)
+    if len(families) >= min_task_families:
+        return []
+    question_ids = [
+        str(getattr(question, "id", "") or "")
+        for question in questions
+        if str(getattr(question, "id", "") or "")
+    ]
+    return [
+        "--min-task-families="
+        f"{min_task_families} requires at least {min_task_families} explicit "
+        "statistics task families after question selection; selected "
+        f"families={families} question_ids={question_ids}"
+    ]
 
 
 def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> dict[str, object]:
@@ -8875,8 +8951,28 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         for question_id in missing_question_ids:
             print(f"- unknown question_id: {question_id}")
         return 2
+    questions, missing_task_families = _select_questions_by_task_family(
+        questions,
+        getattr(args, "question_task_family", []) or [],
+    )
+    if missing_task_families:
+        print("\nAI Statistician Agent Runtime rejected task families")
+        print("=" * 72)
+        for task_family in missing_task_families:
+            print(f"- unknown task_family: {task_family}")
+        return 2
     if args.max_questions:
         questions = questions[: args.max_questions]
+    task_family_selection_errors = _minimum_task_family_selection_errors(
+        questions,
+        min_task_families=int(getattr(args, "min_task_families", 0) or 0),
+    )
+    if task_family_selection_errors:
+        print("\nAI Statistician Agent Runtime rejected task-family selection")
+        print("=" * 72)
+        for error in task_family_selection_errors:
+            print(f"- {error}")
+        return 2
     if resume_question_id and (
         len(questions) != 1 or str(getattr(questions[0], "id", "") or "") != resume_question_id
     ):
@@ -16003,6 +16099,25 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "run only the matching question id from --question-file; repeatable "
             "for targeted live/runtime-learning smokes"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--question-task-family",
+        action="append",
+        default=[],
+        help=(
+            "run only questions whose primary statistics task family matches "
+            "this value; repeatable for cross-family capability eval selection"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--min-task-families",
+        type=int,
+        default=0,
+        help=(
+            "reject the selected question set unless it contains at least this "
+            "many explicit statistics task families; useful before live L9 "
+            "capability runs"
         ),
     )
     research_agent_runtime.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")

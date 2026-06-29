@@ -14,8 +14,11 @@ from ai_statistician.cli import (
     _load_runtime_learning_memory,
     _apply_research_agent_runtime_capability_eval_preset,
     _effective_resume_through_architect,
+    _minimum_task_family_selection_errors,
     _research_agent_runtime_capability_config_errors,
     _research_agent_runtime_static_subsystem_config_errors,
+    _select_questions_by_task_family,
+    _selected_question_task_families,
     _proof_state_provider_from_args,
     main,
 )
@@ -45867,6 +45870,98 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalizer_repair_eval_provider="same",
         formalizer_repair_eval_lean_project="",
     )
+
+
+def test_runtime_question_task_family_selector_supports_cross_family_runs() -> None:
+    questions = load_open_research_questions(Path("examples/research_questions.json"))
+
+    selected, missing = _select_questions_by_task_family(
+        questions,
+        ["task_family:experimental_design", "multiple_testing"],
+    )
+
+    assert missing == []
+    assert [question.id for question in selected] == [
+        "design_based_variance_bound",
+        "multiple_testing_fdr_bh",
+    ]
+    assert _selected_question_task_families(selected) == [
+        "experimental_design",
+        "multiple_testing",
+    ]
+    assert (
+        _minimum_task_family_selection_errors(selected, min_task_families=2)
+        == []
+    )
+
+    conformal_only, missing = _select_questions_by_task_family(
+        questions,
+        ["conformal"],
+    )
+    assert missing == []
+    errors = _minimum_task_family_selection_errors(
+        conformal_only,
+        min_task_families=2,
+    )
+    assert errors
+    assert "selected families=['conformal']" in errors[0]
+
+
+def test_runtime_question_task_family_selector_prefers_explicit_tag() -> None:
+    question = OpenResearchQuestion(
+        id="explicit_randomization",
+        title="explicit family",
+        description="task family tag should override broad first tag",
+        tags=("broad_design", "task_family:randomization_variance"),
+    )
+
+    assert _selected_question_task_families([question]) == [
+        "randomization_variance"
+    ]
+    selected, missing = _select_questions_by_task_family(
+        [question],
+        ["randomization_variance"],
+    )
+
+    assert missing == []
+    assert selected == [question]
+
+    selected, missing = _select_questions_by_task_family(
+        [OpenResearchQuestion("unclassified_case", "unknown", "", ())],
+        ["unclassified"],
+    )
+    assert selected == []
+    assert missing == ["unclassified"]
+
+
+def test_research_agent_runtime_cli_rejects_too_few_task_families() -> None:
+    code = main(
+        [
+            "research-agent-runtime",
+            "--provider",
+            "static",
+            "--architect-coordinator-provider",
+            "none",
+            "--simulation-engineer-provider",
+            "none",
+            "--algorithm-engineer-provider",
+            "none",
+            "--formalizer-provider",
+            "none",
+            "--critic-evaluator-provider",
+            "none",
+            "--question-file",
+            "examples/research_questions.json",
+            "--question-task-family",
+            "conformal",
+            "--min-task-families",
+            "2",
+            "--out",
+            "runs/test_research_agent_runtime_task_family_selection_guard",
+        ]
+    )
+
+    assert code == 2
 
 
 def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() -> None:

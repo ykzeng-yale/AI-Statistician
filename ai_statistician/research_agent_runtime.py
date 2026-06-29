@@ -114,6 +114,7 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
+from .task_family import primary_task_family_from_question
 from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
@@ -50344,25 +50345,7 @@ def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
 
 
 def _question_primary_task_family(question: OpenResearchQuestion) -> str:
-    for attr in (
-        "task_family",
-        "problem_family",
-        "question_family",
-        "estimator_family",
-        "dgp_family",
-        "problem_class",
-    ):
-        value = str(getattr(question, attr, "") or "").strip()
-        if value:
-            return value
-    tags = [
-        str(tag).strip()
-        for tag in getattr(question, "tags", ())
-        if str(tag).strip()
-    ]
-    if tags:
-        return tags[0]
-    return "unclassified"
+    return primary_task_family_from_question(question)
 
 
 def _runtime_task_prompt_summary(task: AgentTask) -> dict[str, Any]:

@@ -24,6 +24,11 @@ from .research_agent_runtime import (
     _runtime_evidence_truth_table_from_manifest,
     _runtime_manifest_int_sum,
 )
+from .task_family import (
+    explicit_task_family_list,
+    is_explicit_task_family,
+    primary_task_family_from_mapping,
+)
 
 
 RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION = 1
@@ -46,13 +51,6 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
     "proof_state_feedback_manifest:",
     "formalizer_lean_candidate_proof_state_feedback_manifest:",
 )
-NON_EVIDENCE_TASK_FAMILY_LABELS = {
-    "none",
-    "null",
-    "unknown",
-    "unclassified",
-    "unclassified_task_family",
-}
 
 
 def _compact_string_list(values: Any) -> list[str]:
@@ -75,27 +73,9 @@ def _compact_string_list(values: Any) -> list[str]:
     return list(dict.fromkeys(compacted))
 
 
-def _is_explicit_task_family(value: Any) -> bool:
-    text = str(value or "").strip()
-    lowered = text.lower()
-    return bool(
-        text
-        and lowered not in NON_EVIDENCE_TASK_FAMILY_LABELS
-        and not lowered.startswith("question_id:")
-    )
-
-
-def _explicit_task_family_list(values: Any) -> list[str]:
-    return [
-        value
-        for value in _compact_string_list(values)
-        if _is_explicit_task_family(value)
-    ]
-
-
 def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
     raw_task_families = _compact_string_list(payload.get("task_families", []))
-    task_families = _explicit_task_family_list(raw_task_families)
+    task_families = explicit_task_family_list(raw_task_families)
     if raw_task_families:
         return len(task_families)
     explicit_count = int(payload.get("n_distinct_task_families", 0) or 0)
@@ -110,7 +90,7 @@ def _payload_cross_task_full_theorem_family_count(
     raw_proved_families = _compact_string_list(
         payload.get("task_families_with_full_frontier_theorem_proved", [])
     )
-    proved_families = _explicit_task_family_list(raw_proved_families)
+    proved_families = explicit_task_family_list(raw_proved_families)
     if raw_proved_families:
         return len(proved_families)
     explicit_count = int(
@@ -121,36 +101,8 @@ def _payload_cross_task_full_theorem_family_count(
     return 0
 
 
-TASK_FAMILY_FIELD_CANDIDATES = (
-    "primary_task_family",
-    "task_family",
-    "problem_family",
-    "question_family",
-    "benchmark_family",
-    "estimator_family",
-    "dgp_family",
-    "problem_class",
-    "topic",
-)
-
-
-def _primary_task_family_from_mapping(payload: Mapping[str, Any]) -> str:
-    for key in TASK_FAMILY_FIELD_CANDIDATES:
-        value = str(payload.get(key, "") or "").strip()
-        if value:
-            return value
-    for nested_key in ("question", "source_question", "problem"):
-        nested = payload.get(nested_key)
-        if isinstance(nested, Mapping):
-            family = _primary_task_family_from_mapping(nested)
-            if family:
-                return family
-    tags = _compact_string_list(payload.get("tags", []))
-    return tags[0] if tags else ""
-
-
 def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
-    family = _primary_task_family_from_mapping(payload)
+    family = primary_task_family_from_mapping(payload)
     if family:
         return family
     blackboard = (
@@ -158,7 +110,7 @@ def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
         if isinstance(payload.get("blackboard", {}), Mapping)
         else {}
     )
-    family = _primary_task_family_from_mapping(blackboard)
+    family = primary_task_family_from_mapping(blackboard)
     if family:
         return family
     artifacts = (
@@ -168,7 +120,7 @@ def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
     )
     for artifact in artifacts.values():
         if isinstance(artifact, Mapping):
-            family = _primary_task_family_from_mapping(artifact)
+            family = primary_task_family_from_mapping(artifact)
             if family:
                 return family
     traces = payload.get("traces", [])
@@ -176,17 +128,17 @@ def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
         for trace in traces:
             if not isinstance(trace, Mapping):
                 continue
-            family = _primary_task_family_from_mapping(trace)
+            family = primary_task_family_from_mapping(trace)
             if family:
                 return family
             task = trace.get("task", {})
             if isinstance(task, Mapping):
-                family = _primary_task_family_from_mapping(task)
+                family = primary_task_family_from_mapping(task)
                 if family:
                     return family
                 inputs = task.get("inputs", {})
                 if isinstance(inputs, Mapping):
-                    family = _primary_task_family_from_mapping(inputs)
+                    family = primary_task_family_from_mapping(inputs)
                     if family:
                         return family
     return ""
@@ -486,14 +438,14 @@ def audit_research_agent_runtime(
             {
                 row.task_family
                 for row in rows
-                if _is_explicit_task_family(row.task_family)
+                if is_explicit_task_family(row.task_family)
             }
         ),
         "n_distinct_task_families": len(
             {
                 row.task_family
                 for row in rows
-                if _is_explicit_task_family(row.task_family)
+                if is_explicit_task_family(row.task_family)
             }
         ),
         "question_ids_with_full_frontier_theorem_proved": sorted(
@@ -515,7 +467,7 @@ def audit_research_agent_runtime(
                 row.task_family
                 for row in rows
                 if (
-                    _is_explicit_task_family(row.task_family)
+                    is_explicit_task_family(row.task_family)
                     and row.full_frontier_theorem_proved
                 )
             }
@@ -525,7 +477,7 @@ def audit_research_agent_runtime(
                 row.task_family
                 for row in rows
                 if (
-                    _is_explicit_task_family(row.task_family)
+                    is_explicit_task_family(row.task_family)
                     and row.full_frontier_theorem_proved
                 )
             }

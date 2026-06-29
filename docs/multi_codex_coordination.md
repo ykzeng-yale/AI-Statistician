@@ -293,4 +293,7 @@ mock/static proof row as kernel proof.
    registry tests and reruns; sandbox execution remains engineering evidence,
    not theorem proof.
 5. Add a second task-family capability run, for example FDR, randomization
-   variance, KKT/certificate, or empirical-process bound.
+   variance, KKT/certificate, or empirical-process bound. Prefer explicit
+   runtime selection such as `--question-task-family conformal
+   --question-task-family experimental_design --min-task-families 2` so a live
+   run cannot silently collapse back to a conformal-only evaluation.
