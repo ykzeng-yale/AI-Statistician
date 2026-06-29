@@ -12210,6 +12210,24 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_learning_rows: list[
         dict[str, Any]
     ] = []
+    source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest: (
+        dict[str, Any] | None
+    ) = None
+    source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest: (
+        dict[str, Any] | None
+    ) = None
+    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest: (
+        dict[str, Any] | None
+    ) = None
+    source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_order_rows: list[
+        dict[str, Any]
+    ] = []
+    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest: (
+        dict[str, Any] | None
+    ) = None
+    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_learning_rows: list[
+        dict[str, Any]
+    ] = []
     source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest: (
         dict[str, Any] | None
     ) = None
@@ -12897,6 +12915,256 @@ def run_research_agent_runtime(
                                             )
                                             _write_jsonl(agenda_path, agenda_rows)
                                             _write_jsonl(learning_path, learning_rows)
+                                materialized_review_packets_path = Path(
+                                    str(
+                                        source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest.get(
+                                            "typechecked_candidate_review_packets_jsonl",
+                                            "",
+                                        )
+                                        or ""
+                                    )
+                                )
+                                if (
+                                    config.source_theorem_exact_semantic_definition_proofengineer_bridge
+                                    and int(
+                                        source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest.get(
+                                            "n_typechecked_candidate_review_packets",
+                                            0,
+                                        )
+                                        or 0
+                                    )
+                                    > 0
+                                    and materialized_review_packets_path.exists()
+                                ):
+                                    source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest = run_source_theorem_exact_semantic_definition_proofengineer_bridge(
+                                        out_dir=out_dir
+                                        / "runtime_source_theorem_exact_semantic_definition_proofengineer_bridge_from_materialized_candidate_reviews",
+                                        review_packets_jsonl=(
+                                            materialized_review_packets_path
+                                        ),
+                                        question_id=(
+                                            questions[0].id
+                                            if len(questions) == 1
+                                            else ""
+                                        ),
+                                    )
+                                    materialized_review_bridge_learning_path = Path(
+                                        str(
+                                            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                                                "runtime_learning_rows_jsonl",
+                                                "",
+                                            )
+                                            or ""
+                                        )
+                                    )
+                                    if materialized_review_bridge_learning_path.exists():
+                                        materialized_review_bridge_learning_rows = _read_jsonl(
+                                            materialized_review_bridge_learning_path
+                                        )
+                                        if materialized_review_bridge_learning_rows:
+                                            learning_rows.extend(
+                                                materialized_review_bridge_learning_rows
+                                            )
+                                            _write_jsonl(learning_path, learning_rows)
+                                    if (
+                                        config.source_theorem_exact_semantic_definition_lean_repair_executor
+                                    ):
+                                        materialized_review_bridge_manifest_path = Path(
+                                            str(
+                                                source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                                                    "manifest_path",
+                                                    "",
+                                                )
+                                                or ""
+                                            )
+                                        )
+                                        if materialized_review_bridge_manifest_path.exists():
+                                            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+                                                out_dir=out_dir
+                                                / "runtime_source_theorem_exact_semantic_definition_lean_repair_executor_from_materialized_candidate_reviews",
+                                                bridge_manifest=(
+                                                    materialized_review_bridge_manifest_path
+                                                ),
+                                                source_roots=[
+                                                    Path(value)
+                                                    for value in config.source_theorem_exact_semantic_definition_source_roots
+                                                    if str(value).strip()
+                                                ],
+                                                local_lean=bool(
+                                                    config.source_theorem_exact_semantic_definition_lean_repair_executor_local_lean
+                                                ),
+                                                lean_project=(
+                                                    _exact_semantic_definition_lean_repair_executor_project(
+                                                        config
+                                                    )
+                                                ),
+                                                lean_timeout=int(
+                                                    config.source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout
+                                                ),
+                                            )
+                                            materialized_review_executor_learning_path = Path(
+                                                str(
+                                                    source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                                                        "runtime_learning_rows_jsonl",
+                                                        "",
+                                                    )
+                                                    or ""
+                                                )
+                                            )
+                                            if materialized_review_executor_learning_path.exists():
+                                                materialized_review_executor_learning_rows = _read_jsonl(
+                                                    materialized_review_executor_learning_path
+                                                )
+                                                if (
+                                                    materialized_review_executor_learning_rows
+                                                ):
+                                                    learning_rows.extend(
+                                                        materialized_review_executor_learning_rows
+                                                    )
+                                                    _write_jsonl(
+                                                        learning_path,
+                                                        learning_rows,
+                                                    )
+                                            materialized_review_executor_review_packets_path = Path(
+                                                str(
+                                                    source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                                                        "typechecked_candidate_review_packets_jsonl",
+                                                        "",
+                                                    )
+                                                    or ""
+                                                )
+                                            )
+                                            if (
+                                                materialized_review_executor_review_packets_path.exists()
+                                                and exact_definition_proof_body_queue_manifest_path
+                                                is not None
+                                                and exact_definition_proof_body_queue_manifest_path.exists()
+                                            ):
+                                                source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest = run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(
+                                                    out_dir=out_dir
+                                                    / "runtime_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_from_materialized_candidate_reviews",
+                                                    review_packets_jsonl=(
+                                                        materialized_review_executor_review_packets_path
+                                                    ),
+                                                    proof_body_queue_manifest=(
+                                                        exact_definition_proof_body_queue_manifest_path
+                                                    ),
+                                                )
+                                                materialized_review_verifier_gate_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
+                                                    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+                                                )
+                                                if (
+                                                    materialized_review_verifier_gate_rows
+                                                ):
+                                                    source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_order_rows.extend(
+                                                        materialized_review_verifier_gate_rows
+                                                    )
+                                                    learning_rows.extend(
+                                                        materialized_review_verifier_gate_rows
+                                                    )
+                                                    materialized_review_verifier_gate_next_action_rows = _append_runtime_generated_next_action_rows(
+                                                        agenda_rows,
+                                                        materialized_review_verifier_gate_rows,
+                                                        queue_name=(
+                                                            "source_theorem_exact_semantic_definition_"
+                                                            "typechecked_review_verifier_gate_from_"
+                                                            "materialized_candidate_reviews"
+                                                        ),
+                                                    )
+                                                    if (
+                                                        materialized_review_verifier_gate_next_action_rows
+                                                    ):
+                                                        generated_next_action_rows.extend(
+                                                            materialized_review_verifier_gate_next_action_rows
+                                                        )
+                                                        learning_rows.extend(
+                                                            _runtime_generated_next_action_learning_rows(
+                                                                materialized_review_verifier_gate_next_action_rows
+                                                            )
+                                                        )
+                                                        _write_jsonl(
+                                                            agenda_path,
+                                                            agenda_rows,
+                                                        )
+                                                    _write_jsonl(
+                                                        learning_path,
+                                                        learning_rows,
+                                                    )
+                                                materialized_review_recheck_queue_manifest_path = Path(
+                                                    str(
+                                                        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                                                            "manifest_path",
+                                                            "",
+                                                        )
+                                                        or ""
+                                                    )
+                                                )
+                                                if (
+                                                    config.source_theorem_formal_environment_proofengineer_execute_proof_body
+                                                    and materialized_review_recheck_queue_manifest_path.exists()
+                                                    and int(
+                                                        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                                                            "n_execution_queue_rows",
+                                                            0,
+                                                        )
+                                                        or 0
+                                                    )
+                                                    > 0
+                                                ):
+                                                    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest = export_exact_source_theorem_proof_body_execution_results(
+                                                        materialized_review_recheck_queue_manifest_path.parent,
+                                                        out_dir=out_dir
+                                                        / "runtime_source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_from_materialized_candidate_reviews",
+                                                        overwrite=(
+                                                            config.source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts
+                                                        ),
+                                                        local_lean=(
+                                                            config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+                                                        ),
+                                                        lean_project=(
+                                                            Path(
+                                                                config.source_theorem_formal_environment_proofengineer_lean_project
+                                                            )
+                                                            if config.source_theorem_formal_environment_proofengineer_lean_project
+                                                            else None
+                                                        ),
+                                                        lean_timeout=(
+                                                            config.source_theorem_formal_environment_proofengineer_lean_timeout
+                                                        ),
+                                                    )
+                                                    materialized_review_recheck_executor_learning_export = (
+                                                        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest.get(
+                                                            "runtime_learning_export",
+                                                            {},
+                                                        )
+                                                    )
+                                                    if isinstance(
+                                                        materialized_review_recheck_executor_learning_export,
+                                                        Mapping,
+                                                    ):
+                                                        materialized_review_recheck_executor_learning_path = Path(
+                                                            str(
+                                                                materialized_review_recheck_executor_learning_export.get(
+                                                                    "runtime_learning_rows_jsonl",
+                                                                    "",
+                                                                )
+                                                                or ""
+                                                            )
+                                                        )
+                                                        if materialized_review_recheck_executor_learning_path.exists():
+                                                            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_learning_rows = _read_jsonl(
+                                                                materialized_review_recheck_executor_learning_path
+                                                            )
+                                                            if (
+                                                                source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_learning_rows
+                                                            ):
+                                                                learning_rows.extend(
+                                                                    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_learning_rows
+                                                                )
+                                                                _write_jsonl(
+                                                                    learning_path,
+                                                                    learning_rows,
+                                                                )
             if (
                 config.source_theorem_exact_semantic_definition_lean_environment_repair_executor
                 and environment_repair_tasks_path is not None
@@ -15259,6 +15527,167 @@ def run_research_agent_runtime(
                 "",
             )
             or ""
+        )
+    if (
+        source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest
+        is not None
+    ):
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_proofengineer_bridge_from_materialized_candidate_reviews_manifest"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                "manifest_path",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_repair_packets_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                "repair_packets_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_tasks_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                "lean_repair_tasks_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_learning_rows_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest.get(
+                "runtime_learning_rows_jsonl",
+                "",
+            )
+            or ""
+        )
+    if (
+        source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest
+        is not None
+    ):
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_lean_repair_executor_from_materialized_candidate_reviews_manifest"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                "manifest_path",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_execution_results_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                "execution_results_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_learning_rows_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                "runtime_learning_rows_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_candidate_review_typechecked_candidate_review_packets_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest.get(
+                "typechecked_candidate_review_packets_jsonl",
+                "",
+            )
+            or ""
+        )
+    if (
+        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+        is not None
+    ):
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                "manifest_path",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                "proof_body_execution_queue_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_blocked_packets_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                "blocked_review_packets_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_orders_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                "verifier_gate_work_orders_jsonl",
+                "",
+            )
+            or ""
+        )
+    if (
+        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        is not None
+    ):
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_manifest"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest.get(
+                "execution_result_manifest",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_results_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest.get(
+                "execution_results_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_learning_rows_jsonl"
+        ] = str(
+            (
+                source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest.get(
+                    "runtime_learning_export",
+                    {},
+                )
+                or {}
+            ).get("runtime_learning_rows_jsonl", "")
+            if isinstance(
+                source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest.get(
+                    "runtime_learning_export",
+                    {},
+                ),
+                Mapping,
+            )
+            else ""
         )
     if (
         source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_manifest
@@ -18719,6 +19148,157 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state_reason"
     ] = materialized_lean_repair_executor_proofengineer_state_reason
+    materialized_typechecked_review_recheck_queue_ran = (
+        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+        is not None
+    )
+    materialized_typechecked_review_recheck_queue_n_approved_packets = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_semantically_approved_review_packets", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_llm_approved_packets = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_llm_semantic_review_approved_packets", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_llm_semantic_review_packets_requiring_verifier_gate", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_blocked_packets = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_blocked_review_packets", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_execution_rows = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_execution_queue_rows", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_ran"
+    ] = (
+        source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest
+        is not None
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest
+            or {}
+        ).get("n_review_typechecked_candidate_packets", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets_with_semantic_review_decision"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest
+            or {}
+        ).get(
+            "n_review_typechecked_candidate_packets_with_semantic_review_decision",
+            0,
+        )
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets_llm_approved"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_candidate_review_bridge_manifest
+            or {}
+        ).get("n_review_typechecked_candidate_packets_llm_approved", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_ran"
+    ] = (
+        source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest
+        is not None
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_n_results"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest
+            or {}
+        ).get("n_results", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_n_typechecked_candidate_review_packets"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest
+            or {}
+        ).get("n_typechecked_candidate_review_packets", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_ran"
+    ] = materialized_typechecked_review_recheck_queue_ran
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_approved_packets"
+    ] = materialized_typechecked_review_recheck_queue_n_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_llm_approved_packets"
+    ] = materialized_typechecked_review_recheck_queue_n_llm_approved_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate"
+    ] = materialized_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_packets"
+    ] = materialized_typechecked_review_recheck_queue_n_blocked_packets
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+    ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows"
+    ] = materialized_typechecked_review_recheck_queue_n_execution_rows
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_proof_evidence_status"
+    ] = str(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("proof_evidence_status", "")
+        or ""
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran"
+    ] = (
+        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        is not None
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_source_theorem_kernel_verified", 0)
+        or 0
+    )
     manifest[
         "source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_ran"
     ] = (
