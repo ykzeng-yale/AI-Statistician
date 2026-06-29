@@ -12,6 +12,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
+    theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
 
@@ -272,6 +273,9 @@ def build_algorithm_engineer_prompt(
         "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
         "Use theory_packet_summary.theory_derivation_trace to align generated code, validation metrics, "
         "and risk controls with the derivation assumptions and equation-chain quantities. "
+        "Populate theory_trace_alignment with exact referenced_derivation_steps, "
+        "referenced_equation_steps, referenced_assumptions, and referenced_formalization_targets "
+        "from the supplied trace anchors. "
         "If runtime_environment_feedback reports rejected or failed sandbox code, repair that concrete "
         "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
         "or non-executable code. "
@@ -524,6 +528,13 @@ def _truncate_text(value: Any, *, limit: int = 360) -> str:
 
 
 ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
+    "theory_trace_alignment": {
+        "referenced_derivation_steps": ["derivation step ids from theory trace"],
+        "referenced_equation_steps": ["equation step_ids from theory trace"],
+        "referenced_assumptions": ["assumption names from theory trace"],
+        "referenced_formalization_targets": ["formalization targets from theory trace"],
+        "rationale": "short string",
+    },
     "implementation_targets": [
         {
             "estimator_id": "string",
@@ -702,6 +713,13 @@ def _normalize_algorithm_packet(
     body["production_registered"] = False
     body["theory_trace_consumption_contract"] = theory_trace_consumption_contract(
         theory_packet,
+        consumer_subsystem="AlgorithmEngineer",
+        max_rows=3,
+        text_limit=240,
+    )
+    body["theory_trace_alignment_contract"] = theory_trace_alignment_contract(
+        theory_packet,
+        body.get("theory_trace_alignment", {}),
         consumer_subsystem="AlgorithmEngineer",
         max_rows=3,
         text_limit=240,

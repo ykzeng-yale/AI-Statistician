@@ -1566,6 +1566,34 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_theory_trace_alignment_contracts": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_alignment_contracts",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_alignment_contracts_with_llm_alignment": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_alignment_contracts_with_llm_alignment",
+                0,
+            )
+            or 0
+        ),
+        "n_structured_theory_trace_alignment_contracts": int(
+            runtime_theory_summary.get(
+                "n_structured_theory_trace_alignment_contracts",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_alignment_contracts_with_unsupported_anchors": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_alignment_contracts_with_unsupported_anchors",
+                0,
+            )
+            or 0
+        ),
         "theory_trace_consuming_subsystems": list(
             runtime_theory_summary.get("theory_trace_consuming_subsystems", [])
             if isinstance(
@@ -1602,8 +1630,39 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "theory_trace_aligned_subsystems": list(
+            runtime_theory_summary.get("theory_trace_aligned_subsystems", [])
+            if isinstance(
+                runtime_theory_summary.get("theory_trace_aligned_subsystems", []),
+                list,
+            )
+            else []
+        ),
+        "structured_theory_trace_aligned_subsystems": list(
+            runtime_theory_summary.get(
+                "structured_theory_trace_aligned_subsystems",
+                [],
+            )
+            if isinstance(
+                runtime_theory_summary.get(
+                    "structured_theory_trace_aligned_subsystems",
+                    [],
+                ),
+                list,
+            )
+            else []
+        ),
+        "all_required_theory_trace_alignment_consumers_observed": bool(
+            runtime_theory_summary.get(
+                "all_required_theory_trace_alignment_consumers_observed",
+                False,
+            )
+        ),
         "theory_trace_consumption_boundary": str(
             runtime_theory_summary.get("theory_trace_consumption_boundary", "") or ""
+        ),
+        "theory_trace_alignment_boundary": str(
+            runtime_theory_summary.get("theory_trace_alignment_boundary", "") or ""
         ),
         "structured_theory_derivation_trace_observed": bool(
             runtime_theory_summary.get(
@@ -2877,6 +2936,35 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "downstream_theory_trace_alignment_observed",
+            payload.get(
+                "all_required_theory_trace_alignment_consumers_observed"
+            )
+            is True,
+            (
+                "structured_aligned_subsystems="
+                f"{payload.get('structured_theory_trace_aligned_subsystems')} "
+                "aligned_subsystems="
+                f"{payload.get('theory_trace_aligned_subsystems')} "
+                "required="
+                f"{payload.get('required_theory_trace_consumers')} "
+                "alignment_contracts="
+                f"{payload.get('n_theory_trace_alignment_contracts')} "
+                "with_llm_alignment="
+                f"{payload.get('n_theory_trace_alignment_contracts_with_llm_alignment')} "
+                "structured="
+                f"{payload.get('n_structured_theory_trace_alignment_contracts')} "
+                "unsupported="
+                f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')}"
+            ),
+            (
+                "SimulationEngineer, AlgorithmEngineer, and FormalizerProofEngineer "
+                "did not all bind their proposal artifacts to supported theory "
+                "derivation anchors; supplied context is not yet auditable as a "
+                "theory-to-artifact handoff"
+            ),
+        ),
+        _scorecard_row(
             "algorithm_sandbox_executed",
             int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
             f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
@@ -3954,6 +4042,16 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_theory_trace_consumption_contracts_with_assumption_ledger')} / "
         f"{payload.get('n_theory_trace_consumption_contracts_with_formalization_handoff')}",
         f"- theory trace consumption boundary: {payload.get('theory_trace_consumption_boundary')}",
+        "- structured downstream theory trace alignment consumers: "
+        f"{payload.get('structured_theory_trace_aligned_subsystems')}",
+        "- required downstream theory trace alignment consumers observed: "
+        f"{payload.get('all_required_theory_trace_alignment_consumers_observed')}",
+        "- theory trace alignment contracts total / claimed / structured / unsupported: "
+        f"{payload.get('n_theory_trace_alignment_contracts')} / "
+        f"{payload.get('n_theory_trace_alignment_contracts_with_llm_alignment')} / "
+        f"{payload.get('n_structured_theory_trace_alignment_contracts')} / "
+        f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')}",
+        f"- theory trace alignment boundary: {payload.get('theory_trace_alignment_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
         f"- generated-code metric gate failed: {payload.get('n_generated_code_sandbox_metric_gate_failed')}",

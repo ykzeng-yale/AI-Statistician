@@ -112,7 +112,10 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
-from .theory_derivation_trace import THEORY_TRACE_CONSUMPTION_BOUNDARY
+from .theory_derivation_trace import (
+    THEORY_TRACE_ALIGNMENT_BOUNDARY,
+    THEORY_TRACE_CONSUMPTION_BOUNDARY,
+)
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
     registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
@@ -2374,6 +2377,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         produced_artifacts: dict[str, Any] = {}
         proposal_evidence: EvidenceLedgerEntry | None = None
         simulation_theory_trace_contract: dict[str, Any] = {}
+        simulation_theory_trace_alignment_contract: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = [
             EnvironmentObservation(
                 observation_type="deterministic_problem_formalization",
@@ -2420,6 +2424,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             simulation_theory_trace_contract = (
                 theory_trace_contracts[0] if theory_trace_contracts else {}
             )
+            simulation_theory_trace_alignment_contract = (
+                dict(proposal_packet.get("theory_trace_alignment_contract", {}))
+                if isinstance(
+                    proposal_packet.get("theory_trace_alignment_contract", {}),
+                    Mapping,
+                )
+                else {}
+            )
             produced_artifacts[proposal_id] = proposal_packet
             observations.append(
                 EnvironmentObservation(
@@ -2437,6 +2449,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         "simulation_evidence_status": SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
                         "theory_trace_consumption_contract": simulation_theory_trace_contract,
+                        "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                     },
                 )
             )
@@ -2456,6 +2469,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "simulations_executed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     "theory_trace_consumption_contract": simulation_theory_trace_contract,
+                    "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                 },
             )
         simulations = ResearchSimulator(n_runs=n_runs, seed=seed).run(problem, procedures)
@@ -2544,6 +2558,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "llm_simulation_engineer_theory_trace_consumption_contract": (
                 simulation_theory_trace_contract
+            ),
+            "llm_simulation_engineer_theory_trace_alignment_contract": (
+                simulation_theory_trace_alignment_contract
             ),
             "problem": _problem_to_json(problem),
             "registered_procedures": [_procedure_to_json(row) for row in procedures],
@@ -2807,6 +2824,7 @@ class AlgorithmEngineerRuntimeSubsystem:
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         algorithm_theory_trace_contract: dict[str, Any] = {}
+        algorithm_theory_trace_alignment_contract: dict[str, Any] = {}
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None and implementation_gaps:
@@ -2853,6 +2871,14 @@ class AlgorithmEngineerRuntimeSubsystem:
             algorithm_theory_trace_contract = (
                 theory_trace_contracts[0] if theory_trace_contracts else {}
             )
+            algorithm_theory_trace_alignment_contract = (
+                dict(proposal_packet.get("theory_trace_alignment_contract", {}))
+                if isinstance(
+                    proposal_packet.get("theory_trace_alignment_contract", {}),
+                    Mapping,
+                )
+                else {}
+            )
             produced_artifacts[proposal_id] = proposal_packet
             observations.append(
                 EnvironmentObservation(
@@ -2868,6 +2894,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         ),
                         "execution_evidence_status": ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
                         "theory_trace_consumption_contract": algorithm_theory_trace_contract,
+                        "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
                     },
                 )
             )
@@ -2886,6 +2913,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "production_registered": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     "theory_trace_consumption_contract": algorithm_theory_trace_contract,
+                    "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
                 },
             )
         sandbox_dir = self.out_dir / _safe_identifier(question.id) / stable_hash([task.task_id, packet_id])[:12]
@@ -2989,6 +3017,9 @@ class AlgorithmEngineerRuntimeSubsystem:
             ),
             "llm_algorithm_engineer_theory_trace_consumption_contract": (
                 algorithm_theory_trace_contract
+            ),
+            "llm_algorithm_engineer_theory_trace_alignment_contract": (
+                algorithm_theory_trace_alignment_contract
             ),
             "prototypes": prototype_rows,
             "n_prototypes": len(prototype_rows),
@@ -3407,6 +3438,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         observations: list[EnvironmentObservation] = []
         proposal_source = ""
         formalizer_theory_trace_contract: dict[str, Any] = {}
+        formalizer_theory_trace_alignment_contract: dict[str, Any] = {}
         lean_candidate_repair_feedback: dict[str, Any] | None = None
         candidate_proof_state_manifest: dict[str, Any] | None = None
         candidate_proof_state_evidence: EvidenceLedgerEntry | None = None
@@ -3507,6 +3539,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             formalizer_theory_trace_contract = (
                 theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            formalizer_theory_trace_alignment_contract = (
+                dict(proposal_packet.get("theory_trace_alignment_contract", {}))
+                if isinstance(
+                    proposal_packet.get("theory_trace_alignment_contract", {}),
+                    Mapping,
+                )
+                else {}
             )
             produced_artifacts[proposal_id] = proposal_packet
             lean_candidate_materialization = (
@@ -3766,6 +3806,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             )
                         ),
                         "theory_trace_consumption_contract": formalizer_theory_trace_contract,
+                        "theory_trace_alignment_contract": formalizer_theory_trace_alignment_contract,
                     },
                 )
             )
@@ -3808,6 +3849,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "kernel_verified": False,
                     "full_frontier_theorem_proved": False,
                     "theory_trace_consumption_contract": formalizer_theory_trace_contract,
+                    "theory_trace_alignment_contract": formalizer_theory_trace_alignment_contract,
                 },
             )
         subclaims = asyncio.run(
@@ -4102,6 +4144,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
             ),
             "llm_formalizer_proof_engineer_theory_trace_consumption_contract": (
                 formalizer_theory_trace_contract
+            ),
+            "llm_formalizer_proof_engineer_theory_trace_alignment_contract": (
+                formalizer_theory_trace_alignment_contract
             ),
             "formalizer_proposal_source": proposal_source,
             "llm_formalizer_proof_engineer_proposal_observed": (
@@ -44536,6 +44581,23 @@ def _runtime_theory_trace_consumption_contracts(
     return contracts
 
 
+def _runtime_theory_trace_alignment_contracts(
+    artifact: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    contract_keys = (
+        "theory_trace_alignment_contract",
+        "llm_simulation_engineer_theory_trace_alignment_contract",
+        "llm_algorithm_engineer_theory_trace_alignment_contract",
+        "llm_formalizer_proof_engineer_theory_trace_alignment_contract",
+    )
+    contracts: list[dict[str, Any]] = []
+    for key in contract_keys:
+        contract = artifact.get(key, {})
+        if isinstance(contract, Mapping):
+            contracts.append(dict(contract))
+    return contracts
+
+
 def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory = {
         "n_theory_derivation_packets": 0,
@@ -44549,15 +44611,23 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_theory_trace_consumption_contracts_with_equation_chain": 0,
         "n_theory_trace_consumption_contracts_with_assumption_ledger": 0,
         "n_theory_trace_consumption_contracts_with_formalization_handoff": 0,
+        "n_theory_trace_alignment_contracts": 0,
+        "n_theory_trace_alignment_contracts_with_llm_alignment": 0,
+        "n_structured_theory_trace_alignment_contracts": 0,
+        "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
         "max_derivation_steps": 0,
         "max_equation_chain_steps": 0,
         "max_assumption_ledger_rows": 0,
         "theory_trace_consuming_subsystems": [],
         "structured_theory_trace_consuming_subsystems": [],
+        "theory_trace_aligned_subsystems": [],
+        "structured_theory_trace_aligned_subsystems": [],
         "required_theory_trace_consumers": list(RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS),
         "all_required_theory_trace_consumers_observed": False,
+        "all_required_theory_trace_alignment_consumers_observed": False,
         "structured_derivation_trace_observed": False,
         "theory_trace_consumption_boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
+        "theory_trace_alignment_boundary": THEORY_TRACE_ALIGNMENT_BOUNDARY,
         "boundary": (
             "Theory derivation traces are LLM proposal context for simulation, "
             "algorithm, and formalization handoff. They are not execution or "
@@ -44682,6 +44752,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory_trace_consumption_with_equation_chain: set[tuple[str, str]] = set()
     theory_trace_consumption_with_assumption_ledger: set[tuple[str, str]] = set()
     theory_trace_consumption_with_formalization_handoff: set[tuple[str, str]] = set()
+    theory_trace_alignment_keys: set[tuple[str, str]] = set()
+    theory_trace_alignment_claimed: set[tuple[str, str]] = set()
+    structured_theory_trace_alignment_keys: set[tuple[str, str]] = set()
+    theory_trace_alignment_with_unsupported_anchors: set[tuple[str, str]] = set()
     for result in results:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
@@ -44740,6 +44814,23 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     theory_trace_consumption_with_formalization_handoff.add(
                         contract_key
                     )
+            for contract in _runtime_theory_trace_alignment_contracts(artifact):
+                consumer = str(contract.get("consumer_subsystem", "") or "")
+                source_packet_id = str(
+                    contract.get("source_theory_packet_id", "") or ""
+                )
+                if not consumer or not source_packet_id:
+                    continue
+                contract_key = (consumer, source_packet_id)
+                theory_trace_alignment_keys.add(contract_key)
+                if contract.get("llm_alignment_claimed") is True:
+                    theory_trace_alignment_claimed.add(contract_key)
+                if contract.get("structured_alignment_observed") is True:
+                    structured_theory_trace_alignment_keys.add(contract_key)
+                if _runtime_safe_int(
+                    contract.get("n_unsupported_anchor_references", 0)
+                ):
+                    theory_trace_alignment_with_unsupported_anchors.add(contract_key)
             kind = str(artifact.get("artifact_kind", ""))
             if kind == "TheoryDerivationPacket":
                 theory["n_theory_derivation_packets"] += 1
@@ -45227,6 +45318,28 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory["all_required_theory_trace_consumers_observed"] = set(
         RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS
     ).issubset(set(theory["structured_theory_trace_consuming_subsystems"]))
+    theory["n_theory_trace_alignment_contracts"] = len(theory_trace_alignment_keys)
+    theory["n_theory_trace_alignment_contracts_with_llm_alignment"] = len(
+        theory_trace_alignment_claimed
+    )
+    theory["n_structured_theory_trace_alignment_contracts"] = len(
+        structured_theory_trace_alignment_keys
+    )
+    theory["n_theory_trace_alignment_contracts_with_unsupported_anchors"] = len(
+        theory_trace_alignment_with_unsupported_anchors
+    )
+    theory["theory_trace_aligned_subsystems"] = sorted(
+        {consumer for consumer, _source_packet_id in theory_trace_alignment_claimed}
+    )
+    theory["structured_theory_trace_aligned_subsystems"] = sorted(
+        {
+            consumer
+            for consumer, _source_packet_id in structured_theory_trace_alignment_keys
+        }
+    )
+    theory["all_required_theory_trace_alignment_consumers_observed"] = set(
+        RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS
+    ).issubset(set(theory["structured_theory_trace_aligned_subsystems"]))
     theory["structured_derivation_trace_observed"] = bool(
         int(theory["n_theory_derivation_packets"]) > 0
         and int(theory["n_theory_derivation_packets_with_contract"]) > 0

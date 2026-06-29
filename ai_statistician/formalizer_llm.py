@@ -15,6 +15,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
+    theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
 
@@ -322,7 +323,9 @@ def build_formalizer_prompt(
                 "verified bridge obligations to the remaining frontier theorem goal."
             ),
         },
-        "required_output_contract": FORMALIZER_OUTPUT_CONTRACT,
+        "required_output_contract": _formalizer_output_contract_for_prompt(
+            has_theory_trace=bool(theory_derivation_trace)
+        ),
         "boundary": FORMALIZER_BOUNDARY,
     }
     metadata_authoring_mode = bool(
@@ -386,6 +389,7 @@ def build_formalizer_prompt(
         "their triggering memory fields are present. For proof_bank_obligation_requests, choose "
         "obligation_id values from registered_proof_bank_obligation_catalog when possible; these "
         "requests only prioritize AgentRuntime kernel-smoke work and may be filtered or rejected. "
+        "Populate theory_trace_alignment with exact trace anchor ids/names. "
         "Do not use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
         "`sorry`, `admit`, `axiom`, `unsafe`, or `by?` in Lean statement sketches. Mark "
         "expected_status=NEEDS_KERNEL_CHECK on every generated Lean candidate; use "
@@ -414,7 +418,14 @@ AgentRuntime provides AXLE/local Lean evidence.
 
 
 FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
-        "formal_targets": [
+    "theory_trace_alignment": {
+        "referenced_derivation_steps": ["trace step ids"],
+        "referenced_equation_steps": ["trace equation step_ids"],
+        "referenced_assumptions": ["trace assumption names"],
+        "referenced_formalization_targets": ["trace formalization targets"],
+        "rationale": "short string",
+    },
+    "formal_targets": [
         {
             "id": "string",
             "informal_source": "string",
@@ -503,6 +514,14 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
         {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
     ],
 }
+
+
+def _formalizer_output_contract_for_prompt(*, has_theory_trace: bool) -> dict[str, Any]:
+    if has_theory_trace:
+        return FORMALIZER_OUTPUT_CONTRACT
+    contract = dict(FORMALIZER_OUTPUT_CONTRACT)
+    contract.pop("theory_trace_alignment", None)
+    return contract
 
 
 FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
@@ -1294,6 +1313,11 @@ def _normalize_formalizer_packet(
     body["full_frontier_theorem_proved"] = False
     body["theory_trace_consumption_contract"] = theory_trace_consumption_contract(
         theory_packet,
+        consumer_subsystem="FormalizerProofEngineer",
+    )
+    body["theory_trace_alignment_contract"] = theory_trace_alignment_contract(
+        theory_packet,
+        body.get("theory_trace_alignment", {}),
         consumer_subsystem="FormalizerProofEngineer",
     )
     packet_id = stable_hash(

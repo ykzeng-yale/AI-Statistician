@@ -12,6 +12,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
+    theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
 
@@ -229,7 +230,10 @@ def build_simulation_engineer_prompt(
         "were run or passed. Execution is owned by AgentRuntime. Use "
         "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
         "metrics, and stress tests with the derivation assumptions and equation-chain "
-        "quantities.\n\n"
+        "quantities. Populate theory_trace_alignment with exact "
+        "referenced_derivation_steps, referenced_equation_steps, "
+        "referenced_assumptions, and referenced_formalization_targets from the "
+        "supplied trace anchors.\n\n"
         + generated_simulation_instruction
         + metric_gate_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
@@ -435,6 +439,13 @@ def _truncate_text(value: Any, *, limit: int = 360) -> str:
 
 
 SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
+    "theory_trace_alignment": {
+        "referenced_derivation_steps": ["derivation step ids from theory trace"],
+        "referenced_equation_steps": ["equation step_ids from theory trace"],
+        "referenced_assumptions": ["assumption names from theory trace"],
+        "referenced_formalization_targets": ["formalization targets from theory trace"],
+        "rationale": "short string",
+    },
     "simulation_targets": [
         {
             "procedure_id": "string",
@@ -613,6 +624,13 @@ def _normalize_simulation_packet(
     body["simulations_executed"] = False
     body["theory_trace_consumption_contract"] = theory_trace_consumption_contract(
         theory_packet,
+        consumer_subsystem="SimulationEngineer",
+        max_rows=3,
+        text_limit=240,
+    )
+    body["theory_trace_alignment_contract"] = theory_trace_alignment_contract(
+        theory_packet,
+        body.get("theory_trace_alignment", {}),
         consumer_subsystem="SimulationEngineer",
         max_rows=3,
         text_limit=240,

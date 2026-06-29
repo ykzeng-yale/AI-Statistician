@@ -31,6 +31,11 @@ THEORY_TRACE_CONSUMPTION_BOUNDARY = (
     "does not count as code execution, simulation evidence, or Lean/kernel "
     "proof evidence."
 )
+THEORY_TRACE_ALIGNMENT_BOUNDARY = (
+    "Theory trace alignment records LLM proposal-to-trace provenance only. It "
+    "does not count as code execution, simulation evidence, or Lean/kernel "
+    "proof evidence."
+)
 
 
 def compact_theory_derivation_trace(
@@ -122,6 +127,157 @@ def theory_trace_consumption_contract(
     }
 
 
+def theory_trace_anchor_summary(
+    theory_packet: Mapping[str, Any],
+    *,
+    max_rows: int = 5,
+    text_limit: int = 360,
+) -> dict[str, Any]:
+    trace = compact_theory_derivation_trace(
+        theory_packet,
+        max_rows=max_rows,
+        text_limit=text_limit,
+    )
+    formalization_handoff = trace.get("formalization_handoff", {})
+    formalization_targets: list[str] = []
+    if isinstance(formalization_handoff, Mapping):
+        for key in (
+            "source_theorem_target",
+            "candidate_lean_targets",
+            "required_definitions",
+            "lemma_dependencies",
+        ):
+            formalization_targets.extend(_string_values(formalization_handoff.get(key)))
+    return {
+        "derivation_step_ids": _unique_strings(
+            row.get("id", "")
+            for row in trace.get("derivation_steps", [])
+            if isinstance(row, Mapping)
+        ),
+        "equation_step_ids": _unique_strings(
+            row.get("step_id", "")
+            for row in trace.get("equation_chain", [])
+            if isinstance(row, Mapping)
+        ),
+        "assumption_names": _unique_strings(
+            row.get("assumption", "")
+            for row in trace.get("assumption_ledger", [])
+            if isinstance(row, Mapping)
+        ),
+        "formalization_targets": _unique_strings(formalization_targets),
+    }
+
+
+def theory_trace_alignment_contract(
+    theory_packet: Mapping[str, Any],
+    alignment: Mapping[str, Any] | None,
+    *,
+    consumer_subsystem: str,
+    max_rows: int = 5,
+    text_limit: int = 360,
+) -> dict[str, Any]:
+    anchors = theory_trace_anchor_summary(
+        theory_packet,
+        max_rows=max_rows,
+        text_limit=text_limit,
+    )
+    raw_alignment = alignment if isinstance(alignment, Mapping) else {}
+    referenced_derivation_steps = _unique_strings(
+        raw_alignment.get("referenced_derivation_steps", [])
+    )
+    referenced_equation_steps = _unique_strings(
+        raw_alignment.get("referenced_equation_steps", [])
+    )
+    referenced_assumptions = _unique_strings(
+        raw_alignment.get("referenced_assumptions", [])
+    )
+    referenced_formalization_targets = _unique_strings(
+        raw_alignment.get("referenced_formalization_targets", [])
+    )
+    supported_derivation_steps, unsupported_derivation_steps = _split_supported_refs(
+        referenced_derivation_steps,
+        anchors.get("derivation_step_ids", []),
+    )
+    supported_equation_steps, unsupported_equation_steps = _split_supported_refs(
+        referenced_equation_steps,
+        anchors.get("equation_step_ids", []),
+    )
+    supported_assumptions, unsupported_assumptions = _split_supported_refs(
+        referenced_assumptions,
+        anchors.get("assumption_names", []),
+    )
+    supported_formalization_targets, unsupported_formalization_targets = (
+        _split_supported_refs(
+            referenced_formalization_targets,
+            anchors.get("formalization_targets", []),
+        )
+    )
+    n_supported_anchor_references = (
+        len(supported_derivation_steps)
+        + len(supported_equation_steps)
+        + len(supported_assumptions)
+        + len(supported_formalization_targets)
+    )
+    n_unsupported_anchor_references = (
+        len(unsupported_derivation_steps)
+        + len(unsupported_equation_steps)
+        + len(unsupported_assumptions)
+        + len(unsupported_formalization_targets)
+    )
+    llm_alignment_claimed = any(
+        (
+            referenced_derivation_steps,
+            referenced_equation_steps,
+            referenced_assumptions,
+            referenced_formalization_targets,
+            str(raw_alignment.get("rationale", "") or "").strip(),
+        )
+    )
+    structured_alignment_observed = bool(
+        llm_alignment_claimed
+        and supported_assumptions
+        and (
+            supported_derivation_steps
+            or supported_equation_steps
+            or supported_formalization_targets
+        )
+        and n_unsupported_anchor_references == 0
+    )
+    return {
+        "artifact_kind": "TheoryTraceAlignmentContract",
+        "source_theory_packet_id": str(theory_packet.get("packet_id", "") or "")
+        if isinstance(theory_packet, Mapping)
+        else "",
+        "consumer_subsystem": consumer_subsystem,
+        "llm_alignment_claimed": llm_alignment_claimed,
+        "structured_alignment_observed": structured_alignment_observed,
+        "referenced_derivation_steps": referenced_derivation_steps,
+        "referenced_equation_steps": referenced_equation_steps,
+        "referenced_assumptions": referenced_assumptions,
+        "referenced_formalization_targets": referenced_formalization_targets,
+        "supported_derivation_steps": supported_derivation_steps,
+        "supported_equation_steps": supported_equation_steps,
+        "supported_assumptions": supported_assumptions,
+        "supported_formalization_targets": supported_formalization_targets,
+        "unsupported_derivation_steps": unsupported_derivation_steps,
+        "unsupported_equation_steps": unsupported_equation_steps,
+        "unsupported_assumptions": unsupported_assumptions,
+        "unsupported_formalization_targets": unsupported_formalization_targets,
+        "n_supported_anchor_references": n_supported_anchor_references,
+        "n_unsupported_anchor_references": n_unsupported_anchor_references,
+        "source_anchor_counts": {
+            "derivation_step_ids": _safe_list_len(anchors.get("derivation_step_ids")),
+            "equation_step_ids": _safe_list_len(anchors.get("equation_step_ids")),
+            "assumption_names": _safe_list_len(anchors.get("assumption_names")),
+            "formalization_targets": _safe_list_len(
+                anchors.get("formalization_targets")
+            ),
+        },
+        "rationale": _truncate_text(raw_alignment.get("rationale", ""), limit=240),
+        "boundary": THEORY_TRACE_ALIGNMENT_BOUNDARY,
+    }
+
+
 def _compact_rows(
     value: Any,
     *,
@@ -151,6 +307,68 @@ def _compact_rows(
 
 def _safe_list_len(value: Any) -> int:
     return len(value) if isinstance(value, list) else 0
+
+
+def _unique_strings(values: Any) -> list[str]:
+    seen: set[str] = set()
+    strings: list[str] = []
+    for value in _string_values(values):
+        normalized = _normalize_anchor(value)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        strings.append(value)
+    return strings
+
+
+def _string_values(values: Any) -> list[str]:
+    if isinstance(values, str):
+        return [values.strip()] if values.strip() else []
+    if isinstance(values, Mapping):
+        return [
+            str(value).strip()
+            for value in values.values()
+            if str(value or "").strip()
+        ]
+    if isinstance(values, (list, tuple, set)):
+        return [
+            str(value).strip()
+            for value in values
+            if str(value or "").strip()
+        ]
+    try:
+        iterator = iter(values)
+    except TypeError:
+        iterator = None
+    if iterator is not None:
+        return [
+            str(value).strip()
+            for value in iterator
+            if str(value or "").strip()
+        ]
+    if values in (None, "", [], {}):
+        return []
+    text = str(values).strip()
+    return [text] if text else []
+
+
+def _split_supported_refs(
+    refs: list[str],
+    anchors: Any,
+) -> tuple[list[str], list[str]]:
+    anchor_lookup = {_normalize_anchor(anchor): anchor for anchor in _string_values(anchors)}
+    supported: list[str] = []
+    unsupported: list[str] = []
+    for ref in refs:
+        if _normalize_anchor(ref) in anchor_lookup:
+            supported.append(ref)
+        else:
+            unsupported.append(ref)
+    return supported, unsupported
+
+
+def _normalize_anchor(value: Any) -> str:
+    return str(value or "").strip().lower()
 
 
 def _compact_value(value: Any, *, text_limit: int) -> Any:
