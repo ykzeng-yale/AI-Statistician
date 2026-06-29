@@ -1457,6 +1457,134 @@ def _runtime_evidence_truth_learning_rows(
     ]
 
 
+def _runtime_architect_orchestration_feedback_rows(
+    *,
+    manifest: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    architect_truth = _runtime_architect_control_truth(manifest)
+    architect_status = str(architect_truth.get("status", "") or "")
+    if architect_status not in {"PROPAGATED_FROM_RESUME", "REGISTERED_NOT_EXECUTED"}:
+        return [], []
+
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    pending_task = (
+        manifest.get("incomplete_pending_next_task", {})
+        if isinstance(manifest.get("incomplete_pending_next_task", {}), Mapping)
+        else {}
+    )
+    pending_task_id = str(
+        manifest.get("incomplete_pending_next_task_id", "")
+        or pending_task.get("task_id", "")
+        or ""
+    )
+    pending_owner = str(pending_task.get("owner_subsystem", "") or "")
+    runtime_resume_policy = str(manifest.get("runtime_resume_policy", "") or "")
+    work_order_id = stable_hash(
+        {
+            "learning_task": "architect_orchestration_feedback",
+            "question_id": question_id,
+            "architect_status": architect_status,
+            "runtime_resume_policy": runtime_resume_policy,
+            "pending_task_id": pending_task_id,
+        }
+    )[:16]
+    trigger = (
+        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE"
+        if architect_status == "REGISTERED_NOT_EXECUTED"
+        else "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE"
+    )
+    target_behavior = (
+        "Rerun the pending AgentRuntime task through ArchitectCoordinator resume "
+        "review before returning to the downstream subsystem; propagated Architect "
+        "context is continuity memory only and must not count as live "
+        "ArchitectCoordinator orchestration."
+    )
+    recommended_command = (
+        "python3 -m ai_statistician.cli research-agent-runtime --provider "
+        "anthropic --capability-eval --resume-runtime-manifest <prior_manifest> "
+        "--resume-through-architect --architect-coordinator-provider same"
+    )
+    acceptance_gate = (
+        "The next runtime manifest reports runtime_resume_policy="
+        "architect_resume_review, runtime_architect_coordinator_executed=true, "
+        "and n_runtime_architect_coordinator_traces>0 before the pending task is "
+        "treated as architect-orchestrated. This is orchestration evidence only, "
+        "not theorem proof."
+    )
+    input_summary = {
+        "trigger": trigger,
+        "architect_control_status": architect_status,
+        "runtime_resume_policy": runtime_resume_policy,
+        "runtime_resumed_from_pending_task": bool(
+            manifest.get("runtime_resumed_from_pending_task", False)
+        ),
+        "runtime_architect_coordinator_registered": bool(
+            manifest.get("runtime_architect_coordinator_registered", False)
+        ),
+        "runtime_architect_coordinator_executed": bool(
+            manifest.get("runtime_architect_coordinator_executed", False)
+        ),
+        "n_runtime_architect_coordinator_traces": _runtime_manifest_int(
+            manifest,
+            "n_runtime_architect_coordinator_traces",
+        ),
+        "runtime_research_path_control_propagated": bool(
+            manifest.get("runtime_research_path_control_propagated", False)
+        ),
+        "pending_task_id": pending_task_id,
+        "pending_owner_subsystem": pending_owner,
+        "recommended_capability_eval_command": recommended_command,
+    }
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "learning_task": "architect_orchestration_feedback",
+        "work_order_id": work_order_id,
+        "next_owner_subsystem": "ArchitectCoordinator",
+        "input_summary": input_summary,
+        "target_behavior": target_behavior,
+        "recommended_capability_eval_command": recommended_command,
+        "success_metric": (
+            "runtime_resume_policy=architect_resume_review and "
+            "n_runtime_architect_coordinator_traces>0"
+        ),
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": "ARCHITECT_ORCHESTRATION_FEEDBACK_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This row routes a future runtime through ArchitectCoordinator. It is "
+            "not proof evidence, not live ArchitectCoordinator execution evidence, "
+            "and not evidence that a theorem gap is closed."
+        ),
+    }
+    agenda_row = {
+        "id": f"architect:resume_review:{work_order_id}",
+        "question_id": question_id,
+        "owner_subsystem": "ArchitectCoordinator",
+        "trigger": trigger,
+        "action": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "work_order_id": work_order_id,
+        "pending_task_id": pending_task_id,
+        "pending_owner_subsystem": pending_owner,
+        "recommended_commands": [recommended_command],
+        "priority": "high",
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "Architect resume review is orchestration control only. It may "
+            "refresh routing context but cannot prove a theorem, validate "
+            "generated code, or close a formal gap."
+        ),
+    }
+    return [learning_row], [agenda_row]
+
+
 def _runtime_theory_trace_feedback_rows(
     *,
     manifest: Mapping[str, Any],
@@ -21609,6 +21737,18 @@ def run_research_agent_runtime(
     manifest["runtime_research_path_control_propagated"] = manifest[
         "runtime_research_path_execution_summary"
     ]["path_control_propagated"]
+    manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
+        manifest
+    )
+    (
+        architect_orchestration_feedback_learning_rows,
+        architect_orchestration_feedback_agenda_rows,
+    ) = _runtime_architect_orchestration_feedback_rows(manifest=manifest)
+    if architect_orchestration_feedback_learning_rows:
+        learning_rows.extend(architect_orchestration_feedback_learning_rows)
+    if architect_orchestration_feedback_agenda_rows:
+        agenda_rows.extend(architect_orchestration_feedback_agenda_rows)
+        generated_next_action_rows.extend(architect_orchestration_feedback_agenda_rows)
     manifest["research_acceptance_contract"] = (
         _runtime_research_acceptance_contract_from_manifest(
             manifest,
@@ -21729,6 +21869,12 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_theory_trace_feedback_next_action_rows"] = len(
         theory_trace_feedback_agenda_rows
+    )
+    manifest["n_runtime_architect_orchestration_feedback_learning_rows"] = len(
+        architect_orchestration_feedback_learning_rows
+    )
+    manifest["n_runtime_architect_orchestration_feedback_next_action_rows"] = len(
+        architect_orchestration_feedback_agenda_rows
     )
     manifest["n_runtime_evidence_truth_learning_rows"] = len(
         evidence_truth_learning_rows
@@ -22360,6 +22506,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if learning_task == "architect_orchestration_feedback":
+        return 90
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
             row,
@@ -22624,6 +22772,35 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + failure_scope
         )
+    if learning_task == "architect_orchestration_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        pending_task_id = str(
+            row.get("pending_task_id", "")
+            or input_summary.get("pending_task_id", "")
+            or ""
+        ).strip()
+        architect_status = str(
+            row.get("architect_control_status", "")
+            or input_summary.get("architect_control_status", "")
+            or ""
+        ).strip()
+        return (
+            "architect_orchestration_feedback:"
+            + question_id
+            + ":"
+            + work_order_id
+            + ":"
+            + pending_task_id
+            + ":"
+            + architect_status
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -22647,6 +22824,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
         "theory_derivation_trace_feedback",
+        "architect_orchestration_feedback",
     }
     route_critical_triggers = {
         "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
@@ -22655,6 +22833,8 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
+        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
     }
     if learning_task in route_critical_learning_tasks:
         return True

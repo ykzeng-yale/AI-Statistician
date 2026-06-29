@@ -2661,6 +2661,50 @@ def test_runtime_learning_memory_pins_theory_trace_feedback() -> None:
     )
 
 
+def test_runtime_learning_memory_pins_architect_orchestration_feedback() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "architect_orchestration_feedback",
+            "work_order_id": "architect-resume-work-order",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "input_summary": {
+                "trigger": "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
+                "architect_control_status": "PROPAGATED_FROM_RESUME",
+                "pending_task_id": "formalize:pending",
+            },
+            "proof_evidence_status": (
+                "ARCHITECT_ORCHESTRATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "generic_runtime_note",
+            "input_summary": {"trigger": "LOW_PRIORITY_NOTE"},
+        },
+    ]
+
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        rows,
+        max_rows=1,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == "architect_orchestration_feedback"
+    assert retained["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert retained["input_summary"]["pending_task_id"] == "formalize:pending"
+    assert retained["proof_evidence_status"] == (
+        "ARCHITECT_ORCHESTRATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_repairs() -> None:
     pending_task = {
         "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
@@ -13932,6 +13976,76 @@ def test_runtime_theory_trace_feedback_rows_skip_complete_structured_trace() -> 
     }
 
     assert _runtime_theory_trace_feedback_rows(manifest=manifest) == ([], [])
+
+
+def test_runtime_architect_orchestration_feedback_rows_route_resume_review() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "runtime_resume_policy": "direct_pending_task",
+        "runtime_resumed_from_pending_task": True,
+        "runtime_architect_coordinator_registered": False,
+        "runtime_architect_coordinator_executed": False,
+        "n_runtime_architect_coordinator_traces": 0,
+        "runtime_research_path_control_propagated": True,
+        "incomplete_pending_next_task_id": "formalize:conformal:pending",
+        "incomplete_pending_next_task": {
+            "task_id": "formalize:conformal:pending",
+            "owner_subsystem": "FormalizationEvaluator",
+        },
+    }
+
+    learning_rows, agenda_rows = (
+        runtime_module._runtime_architect_orchestration_feedback_rows(
+            manifest=manifest
+        )
+    )
+
+    assert len(learning_rows) == 1
+    learning_row = learning_rows[0]
+    assert learning_row["learning_task"] == "architect_orchestration_feedback"
+    assert learning_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert learning_row["input_summary"]["trigger"] == (
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE"
+    )
+    assert learning_row["input_summary"]["pending_task_id"] == (
+        "formalize:conformal:pending"
+    )
+    assert "--resume-through-architect" in learning_row[
+        "recommended_capability_eval_command"
+    ]
+    assert learning_row["proof_evidence_status"] == (
+        "ARCHITECT_ORCHESTRATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof evidence" in learning_row["boundary"]
+
+    assert len(agenda_rows) == 1
+    agenda_row = agenda_rows[0]
+    assert agenda_row["owner_subsystem"] == "ArchitectCoordinator"
+    assert agenda_row["trigger"] == (
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE"
+    )
+    assert agenda_row["pending_owner_subsystem"] == "FormalizationEvaluator"
+    assert agenda_row["work_order_id"] == learning_row["work_order_id"]
+    assert "--resume-through-architect" in agenda_row["recommended_commands"][0]
+    assert "cannot prove a theorem" in agenda_row["boundary"]
+
+
+def test_runtime_architect_orchestration_feedback_rows_skip_present_trace() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "runtime_resume_policy": "architect_resume_review",
+        "runtime_architect_coordinator_registered": True,
+        "runtime_architect_coordinator_executed": True,
+        "n_runtime_architect_coordinator_traces": 1,
+        "runtime_research_path_control_propagated": True,
+    }
+
+    assert (
+        runtime_module._runtime_architect_orchestration_feedback_rows(
+            manifest=manifest
+        )
+        == ([], [])
+    )
 
 
 def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -> None:
@@ -43776,6 +43890,51 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     assert not result["traces"][0]["task"]["task_id"].startswith("architect:")
     assert manifest["runtime_completion_summary"]["boundary"].startswith(
         "Runtime completion status describes orchestration progress"
+    )
+    assert (
+        manifest["n_runtime_architect_orchestration_feedback_learning_rows"] == 1
+    )
+    assert (
+        manifest["n_runtime_architect_orchestration_feedback_next_action_rows"] == 1
+    )
+    resume_learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    architect_feedback_rows = [
+        row
+        for row in resume_learning_rows
+        if row.get("learning_task") == "architect_orchestration_feedback"
+    ]
+    assert len(architect_feedback_rows) == 1
+    assert architect_feedback_rows[0]["next_owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+    assert architect_feedback_rows[0]["input_summary"]["trigger"] == (
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE"
+    )
+    assert "--resume-through-architect" in architect_feedback_rows[0][
+        "recommended_capability_eval_command"
+    ]
+    resume_agenda_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    architect_agenda_rows = [
+        row
+        for row in resume_agenda_rows
+        if str(row.get("id", "")).startswith("architect:resume_review:")
+    ]
+    assert len(architect_agenda_rows) == 1
+    assert architect_agenda_rows[0]["owner_subsystem"] == "ArchitectCoordinator"
+    assert architect_agenda_rows[0]["trigger"] == (
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE"
     )
 
     architect_resume_out_dir = root / "out_architect_resume"
