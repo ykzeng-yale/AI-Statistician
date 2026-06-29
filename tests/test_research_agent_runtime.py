@@ -46355,6 +46355,12 @@ def test_live_runtime_defaults_formalizer_candidate_local_lean_project() -> None
     assert args.lean_project == "legacy_sources/emperical_process_lean"
     assert args.formalizer_candidate_lean_project == args.lean_project
     assert args.formalizer_candidate_local_lean is True
+    assert args.source_to_bridge_premise_derivation_proofengineer_bridge is True
+    assert args.source_to_bridge_premise_derivation_proofengineer_local_lean is True
+    assert (
+        args.source_to_bridge_premise_derivation_proofengineer_lean_project
+        == args.lean_project
+    )
     assert args.local_lean is False
 
 
@@ -46368,6 +46374,15 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
     assert static_args.lean_project == ""
     assert static_args.formalizer_candidate_lean_project == ""
     assert static_args.formalizer_candidate_local_lean is False
+    assert static_args.source_to_bridge_premise_derivation_proofengineer_bridge is False
+    assert (
+        static_args.source_to_bridge_premise_derivation_proofengineer_local_lean
+        is False
+    )
+    assert (
+        static_args.source_to_bridge_premise_derivation_proofengineer_lean_project
+        == ""
+    )
 
     explicit_args = _capability_eval_preset_args("none")
     explicit_args.provider = "anthropic"
@@ -46375,6 +46390,9 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
     explicit_args.lean_project = "/tmp/custom-lean"
     explicit_args.formalizer_candidate_lean_project = "/tmp/candidate-lean"
     explicit_args.formalizer_candidate_lean_lsp_mcp = True
+    explicit_args.source_to_bridge_premise_derivation_proofengineer_lean_project = (
+        "/tmp/source-to-bridge-lean"
+    )
 
     _apply_research_agent_runtime_live_lean_defaults(explicit_args)
 
@@ -46382,6 +46400,18 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
     assert explicit_args.formalizer_candidate_lean_project == "/tmp/candidate-lean"
     assert explicit_args.formalizer_candidate_local_lean is False
     assert explicit_args.formalizer_candidate_lean_lsp_mcp is True
+    assert (
+        explicit_args.source_to_bridge_premise_derivation_proofengineer_bridge
+        is True
+    )
+    assert (
+        explicit_args.source_to_bridge_premise_derivation_proofengineer_local_lean
+        is True
+    )
+    assert (
+        explicit_args.source_to_bridge_premise_derivation_proofengineer_lean_project
+        == "/tmp/source-to-bridge-lean"
+    )
 
 
 def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> None:

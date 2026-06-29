@@ -9947,12 +9947,13 @@ def _apply_research_agent_runtime_capability_eval_preset(
 def _apply_research_agent_runtime_live_lean_defaults(
     args: argparse.Namespace,
 ) -> None:
-    """Attach the vendored Lake project to live Formalizer candidate checks.
+    """Attach the vendored Lake project to live Formalizer/ProofEngineer checks.
 
     This is intentionally narrower than the capability-eval preset: it does not
-    enable registered proof-bank local Lean gates or internal proof bridges. It
-    only prevents live Formalizer/ProofEngineer runs from stalling before local
-    diagnostics because no candidate Lean project was threaded into the runtime.
+    enable registered proof-bank local Lean gates or broad source-theorem proof
+    bridges. It prevents live Formalizer/ProofEngineer runs from stalling before
+    local diagnostics, and it keeps source-to-bridge premise work orders from
+    being dropped after the Formalizer emits them.
     """
 
     if not _research_agent_runtime_formalizer_resolves_to_live_provider(args):
@@ -9972,6 +9973,19 @@ def _apply_research_agent_runtime_live_lean_defaults(
         args.formalizer_candidate_lean_project = lean_project
     if not bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False)):
         args.formalizer_candidate_local_lean = True
+    if not str(
+        getattr(
+            args,
+            "source_to_bridge_premise_derivation_proofengineer_lean_project",
+            "",
+        )
+        or ""
+    ).strip():
+        args.source_to_bridge_premise_derivation_proofengineer_lean_project = (
+            lean_project
+        )
+    args.source_to_bridge_premise_derivation_proofengineer_bridge = True
+    args.source_to_bridge_premise_derivation_proofengineer_local_lean = True
 
 
 def _research_agent_runtime_formalizer_resolves_to_live_provider(
