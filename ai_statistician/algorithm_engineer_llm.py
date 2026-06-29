@@ -261,12 +261,24 @@ def build_algorithm_engineer_prompt(
         if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
         else ""
     )
+    component_gate_instruction = (
+        "Coding-agent component-gate feedback is active: treat "
+        "runtime_environment_feedback as calibration for the expected generated-code "
+        "repair loop, not as current-run execution evidence. Produce a bounded safe "
+        "algorithm run_sandbox draft for this question, use prior failure/metric "
+        "feedback only as repair-shape guidance, and let AgentRuntime execute it. "
+        "Do not claim the attached component gate executed this draft or proves the "
+        "statistical theorem. "
+        if _feedback_reports_coding_component_gate(payload["runtime_environment_feedback"])
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep each list to "
         "exactly 1 short object or 1 short string. Include only required fields. "
         + generated_code_instruction
         + metric_gate_instruction
+        + component_gate_instruction
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
@@ -392,6 +404,44 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             limit=240,
         ),
         "feedback_type": _truncate_text(feedback.get("feedback_type", ""), limit=180),
+        "target_component": _truncate_text(
+            feedback.get("target_component", ""),
+            limit=80,
+        ),
+        "component_eval": _truncate_text(feedback.get("component_eval", ""), limit=180),
+        "component_eval_manifest_path": _truncate_text(
+            feedback.get("component_eval_manifest_path", ""),
+            limit=240,
+        ),
+        "live_generator": feedback.get("live_generator"),
+        "static_or_fixture_only": feedback.get("static_or_fixture_only"),
+        "capability_evidence_ok": feedback.get("capability_evidence_ok"),
+        "algorithm_capability_evidence_ok": feedback.get(
+            "algorithm_capability_evidence_ok"
+        ),
+        "simulation_capability_evidence_ok": feedback.get(
+            "simulation_capability_evidence_ok"
+        ),
+        "algorithm_repair_sequences": feedback.get("algorithm_repair_sequences"),
+        "simulation_repair_sequences": feedback.get("simulation_repair_sequences"),
+        "algorithm_live_repair_sequences": feedback.get(
+            "algorithm_live_repair_sequences"
+        ),
+        "simulation_live_repair_sequences": feedback.get(
+            "simulation_live_repair_sequences"
+        ),
+        "capability_evidence_scope": _truncate_text(
+            feedback.get("capability_evidence_scope", ""),
+            limit=180,
+        ),
+        "proof_evidence_status": _truncate_text(
+            feedback.get("proof_evidence_status", ""),
+            limit=180,
+        ),
+        "proof_evidence_boundary": _truncate_text(
+            feedback.get("proof_evidence_boundary", ""),
+            limit=240,
+        ),
         "algorithm_sandbox_manifest_id": _truncate_text(
             feedback.get("algorithm_sandbox_manifest_id", ""),
             limit=180,
@@ -447,6 +497,14 @@ def _feedback_reports_metric_gate_failure(feedback: Mapping[str, Any]) -> bool:
         if isinstance(row, Mapping) and row.get("metric_gate_errors"):
             return True
     return False
+
+
+def _feedback_reports_coding_component_gate(feedback: Mapping[str, Any]) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    return str(feedback.get("feedback_type", "") or "") == (
+        "coding_agent_generated_code_component_gate_feedback"
+    )
 
 
 def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
@@ -624,6 +682,7 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
         "generated_algorithm_sandbox_metric_gate_failed",
         "generated_algorithm_sandbox_required_not_executed",
         "generated_algorithm_sandbox_repair_required",
+        "coding_agent_component_gate_calibration_required",
     }:
         return True
     for row in feedback.get("prototypes", []) or []:

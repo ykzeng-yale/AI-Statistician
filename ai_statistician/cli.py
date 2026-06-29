@@ -425,6 +425,7 @@ from .proof_state_feedback import (
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
+    _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
     _runtime_formalizer_component_gate_learning_rows,
@@ -950,6 +951,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 91
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
+    if learning_task == "coding_agent_generated_code_component_gate_feedback":
+        return 87
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_exact_semantic_definition_repair_priority(row)
     )
@@ -1164,6 +1167,22 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "formalizer_lean_candidate_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "coding_agent_generated_code_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        return (
+            "coding_agent_generated_code_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -1215,6 +1234,7 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         "source_to_bridge_premise_derivation_feedback",
         "theory_derivation_trace_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
+        "coding_agent_generated_code_component_gate_feedback",
     }:
         return True
     if trigger in {
@@ -1693,7 +1713,13 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "live_generator",
         "static_or_fixture_only",
         "capability_evidence_ok",
+        "algorithm_capability_evidence_ok",
+        "simulation_capability_evidence_ok",
         "repair_sequences",
+        "algorithm_repair_sequences",
+        "simulation_repair_sequences",
+        "algorithm_live_repair_sequences",
+        "simulation_live_repair_sequences",
         "local_lean_checked",
         "local_lean_compiled",
         "proofengineer_repair_task_observed",
@@ -1701,6 +1727,10 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "prior_feedback_proof_state_rows",
         "candidate_kernel_verified",
         "full_frontier_theorem_proved",
+        "prior_failure_feedback_injected",
+        "autonomous_live_failed_then_passed_repair_observed",
+        "capability_evidence_scope",
+        "target_component",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
@@ -2045,7 +2075,13 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "live_generator",
         "static_or_fixture_only",
         "capability_evidence_ok",
+        "algorithm_capability_evidence_ok",
+        "simulation_capability_evidence_ok",
         "repair_sequences",
+        "algorithm_repair_sequences",
+        "simulation_repair_sequences",
+        "algorithm_live_repair_sequences",
+        "simulation_live_repair_sequences",
         "local_lean_checked",
         "local_lean_compiled",
         "proofengineer_repair_task_observed",
@@ -2053,6 +2089,10 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "prior_feedback_proof_state_rows",
         "candidate_kernel_verified",
         "full_frontier_theorem_proved",
+        "prior_failure_feedback_injected",
+        "autonomous_live_failed_then_passed_repair_observed",
+        "capability_evidence_scope",
+        "target_component",
     )
     list_keys = (
         "target_ids",
@@ -9421,8 +9461,26 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
         "algorithm_repair_sequences": int(
             eval_manifest.get("algorithm_repair_sequences", 0) or 0
         ),
+        "algorithm_live_repair_sequences": int(
+            eval_manifest.get("algorithm_live_repair_sequences", 0) or 0
+        ),
         "simulation_repair_sequences": int(
             eval_manifest.get("simulation_repair_sequences", 0) or 0
+        ),
+        "simulation_live_repair_sequences": int(
+            eval_manifest.get("simulation_live_repair_sequences", 0) or 0
+        ),
+        "prior_failure_feedback_injected": bool(
+            eval_manifest.get("prior_failure_feedback_injected", False)
+        ),
+        "autonomous_live_failed_then_passed_repair_observed": bool(
+            eval_manifest.get(
+                "autonomous_live_failed_then_passed_repair_observed",
+                False,
+            )
+        ),
+        "capability_evidence_scope": str(
+            eval_manifest.get("capability_evidence_scope", "") or ""
         ),
         "proof_evidence_status": str(
             eval_manifest.get(
@@ -9610,6 +9668,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
         manifest=manifest,
         capability_table=manifest["runtime_coding_agent_capability"],
     )
+    coding_component_gate_learning_rows = (
+        _runtime_coding_agent_component_gate_learning_rows(manifest)
+    )
     component_gate_learning_rows = _runtime_formalizer_component_gate_learning_rows(
         manifest
     )
@@ -9637,12 +9698,14 @@ def _refresh_runtime_coding_agent_capability_manifest(
         if row.get("learning_task")
         not in {
             "coding_agent_generated_code_capability_feedback",
+            "coding_agent_generated_code_component_gate_feedback",
             "formalizer_lean_candidate_component_gate_feedback",
         }
     ]
     refreshed_rows = [
         *retained_rows,
         *capability_learning_rows,
+        *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
     ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
@@ -9652,6 +9715,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
         capability_learning_rows
+    )
+    manifest["n_runtime_coding_agent_component_gate_learning_rows"] = len(
+        coding_component_gate_learning_rows
     )
     manifest["n_runtime_formalizer_component_gate_learning_rows"] = len(
         component_gate_learning_rows

@@ -12868,6 +12868,146 @@ def test_algorithm_sandbox_failure_memory_replays_to_algorithm_prompt(
     assert "Do not only rename metrics or hide the coverage field" in prompt
 
 
+def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "coding_agent_generated_code_component_gate_feedback",
+                "next_owner_subsystem": "AlgorithmEngineer+SimulationEvaluator",
+                "component_eval": (
+                    "AlgorithmEngineer + SimulationEngineer generated-code repair"
+                ),
+                "component_eval_manifest_path": (
+                    "runs/coding_component_gate/"
+                    "coding_agent_generated_code_repair_eval_manifest.json"
+                ),
+                "provider_name": "anthropic",
+                "model": "claude-haiku-test",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "capability_evidence_ok": True,
+                "algorithm_capability_evidence_ok": True,
+                "simulation_capability_evidence_ok": True,
+                "algorithm_repair_sequences": 1,
+                "simulation_repair_sequences": 1,
+                "algorithm_live_repair_sequences": 1,
+                "simulation_live_repair_sequences": 1,
+                "capability_evidence_scope": "live_attempt_failed_then_passed",
+                "target_behavior": "Use as coding-agent repair calibration.",
+                "acceptance_gate": (
+                    "Integrated runtime must execute its own generated code."
+                ),
+                "proof_evidence_status": (
+                    "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": (
+                    "Component-gate feedback is not current-run execution evidence."
+                ),
+                "input_summary": {
+                    "trigger": "CODING_AGENT_GENERATED_CODE_COMPONENT_GATE_ATTACHED",
+                    "component_eval_manifest_path": (
+                        "runs/coding_component_gate/"
+                        "coding_agent_generated_code_repair_eval_manifest.json"
+                    ),
+                    "capability_evidence_ok": True,
+                    "algorithm_repair_sequences": 1,
+                    "simulation_repair_sequences": 1,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    assert memory["rows"][0]["learning_task"] == (
+        "coding_agent_generated_code_component_gate_feedback"
+    )
+    algorithm_feedback = _runtime_algorithm_sandbox_feedback_from_learning_memory(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+    simulation_feedback = _runtime_generated_simulation_feedback_from_learning_memory(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+
+    assert algorithm_feedback["feedback_type"] == (
+        "coding_agent_generated_code_component_gate_feedback"
+    )
+    assert algorithm_feedback["target_component"] == "algorithm"
+    assert algorithm_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_algorithm_code": True
+    }
+    assert simulation_feedback["target_component"] == "simulation"
+    assert simulation_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_simulation_code": True
+    }
+
+    algorithm_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "problem_card": {"estimand": "coverage"},
+            "estimator_specs": [
+                {"id": "custom_conformal", "name": "custom conformal estimator"}
+            ],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "custom_conformal",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        environment_feedback=algorithm_feedback,
+    )
+    simulation_prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "theorem_cards": [],
+            "estimator_specs": [],
+            "simulation_ademp_spec": {"aim": "stress split conformal coverage"},
+        },
+        registered_problem={
+            "problem_class": "conformal_prediction",
+            "estimand": "finite-sample coverage",
+        },
+        registered_procedures=[],
+        n_runs=12,
+        seed=20260629,
+        environment_feedback=simulation_feedback,
+    )
+
+    assert "Coding-agent component-gate feedback is active" in algorithm_prompt
+    assert "not as current-run execution evidence" in algorithm_prompt
+    assert "include exactly one safe sandbox_code_drafts entry" in algorithm_prompt
+    assert "live_attempt_failed_then_passed" in algorithm_prompt
+    assert "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE" in (
+        algorithm_prompt
+    )
+    assert "Coding-agent component-gate feedback is active" in simulation_prompt
+    assert "not as current-run simulation evidence" in simulation_prompt
+    assert "include exactly one safe simulation_code_drafts entry" in simulation_prompt
+    assert "live_attempt_failed_then_passed" in simulation_prompt
+
+
 def test_algorithm_runtime_injects_sandbox_failure_memory_without_current_feedback(
     tmp_path: Path,
 ) -> None:
@@ -45745,23 +45885,41 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["n_runtime_coding_agent_capability_learning_rows"] == len(
         coding_feedback_rows
     )
-    component_gate_rows = [
+    coding_component_gate_rows = [
+        row
+        for row in output_learning_rows
+        if row.get("learning_task")
+        == "coding_agent_generated_code_component_gate_feedback"
+    ]
+    assert len(coding_component_gate_rows) == 1
+    assert manifest["n_runtime_coding_agent_component_gate_learning_rows"] == 1
+    assert coding_component_gate_rows[0]["static_or_fixture_only"] is True
+    assert coding_component_gate_rows[0]["capability_evidence_ok"] is False
+    assert coding_component_gate_rows[0]["algorithm_repair_sequences"] >= 1
+    assert coding_component_gate_rows[0]["simulation_repair_sequences"] >= 1
+    assert coding_component_gate_rows[0]["proof_evidence_status"] == (
+        "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert "not evidence that the current AgentRuntime turn executed generated code" in (
+        coding_component_gate_rows[0]["proof_evidence_boundary"]
+    )
+    formalizer_component_gate_rows = [
         row
         for row in output_learning_rows
         if row.get("learning_task")
         == "formalizer_lean_candidate_component_gate_feedback"
     ]
-    assert len(component_gate_rows) == 1
+    assert len(formalizer_component_gate_rows) == 1
     assert manifest["n_runtime_formalizer_component_gate_learning_rows"] == 1
-    assert component_gate_rows[0]["static_or_fixture_only"] is True
-    assert component_gate_rows[0]["capability_evidence_ok"] is False
-    assert component_gate_rows[0]["repair_sequences"] >= 1
-    assert component_gate_rows[0]["prior_feedback_proof_state_rows"] >= 1
-    assert component_gate_rows[0]["source_theorem_kernel_verified"] is False
-    assert component_gate_rows[0]["proof_evidence_status"] == (
+    assert formalizer_component_gate_rows[0]["static_or_fixture_only"] is True
+    assert formalizer_component_gate_rows[0]["capability_evidence_ok"] is False
+    assert formalizer_component_gate_rows[0]["repair_sequences"] >= 1
+    assert formalizer_component_gate_rows[0]["prior_feedback_proof_state_rows"] >= 1
+    assert formalizer_component_gate_rows[0]["source_theorem_kernel_verified"] is False
+    assert formalizer_component_gate_rows[0]["proof_evidence_status"] == (
         "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
     )
-    assert "not source theorem proof" in component_gate_rows[0][
+    assert "not source theorem proof" in formalizer_component_gate_rows[0][
         "proof_evidence_boundary"
     ]
     attached_repair_eval = manifest[

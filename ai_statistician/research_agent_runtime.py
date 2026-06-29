@@ -1513,6 +1513,128 @@ def _runtime_formalizer_component_gate_learning_rows(
     ]
 
 
+def _runtime_coding_agent_component_gate_learning_rows(
+    manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Turn an attached coding-agent component gate into bounded prompt memory."""
+
+    attached = manifest.get("internal_coding_agent_generated_code_repair_eval", {})
+    if not isinstance(attached, Mapping):
+        return []
+    manifest_path = str(attached.get("manifest_path", "") or "").strip()
+    if not manifest_path:
+        return []
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    capability_ok = bool(attached.get("capability_evidence_ok", False))
+    live_generator = bool(attached.get("live_generator", False))
+    static_or_fixture_only = bool(attached.get("static_or_fixture_only", False))
+    algorithm_ok = bool(attached.get("algorithm_capability_evidence_ok", False))
+    simulation_ok = bool(attached.get("simulation_capability_evidence_ok", False))
+    algorithm_repairs = int(attached.get("algorithm_repair_sequences", 0) or 0)
+    simulation_repairs = int(attached.get("simulation_repair_sequences", 0) or 0)
+    algorithm_live_repairs = int(
+        attached.get("algorithm_live_repair_sequences", 0) or 0
+    )
+    simulation_live_repairs = int(
+        attached.get("simulation_live_repair_sequences", 0) or 0
+    )
+    proof_evidence_status = str(
+        attached.get(
+            "proof_evidence_status",
+            "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE",
+        )
+        or ""
+    )
+    return [
+        {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question_id,
+            "learning_task": "coding_agent_generated_code_component_gate_feedback",
+            "next_owner_subsystem": "AlgorithmEngineer+SimulationEvaluator",
+            "source_manifest_path": manifest_path,
+            "component_eval_manifest_path": manifest_path,
+            "component_eval": (
+                "AlgorithmEngineer + SimulationEngineer generated-code repair"
+            ),
+            "provider_name": str(attached.get("provider_name", "") or ""),
+            "model": str(attached.get("model", "") or ""),
+            "live_generator": live_generator,
+            "static_or_fixture_only": static_or_fixture_only,
+            "capability_evidence_ok": capability_ok,
+            "algorithm_capability_evidence_ok": algorithm_ok,
+            "simulation_capability_evidence_ok": simulation_ok,
+            "algorithm_repair_sequences": algorithm_repairs,
+            "simulation_repair_sequences": simulation_repairs,
+            "algorithm_live_repair_sequences": algorithm_live_repairs,
+            "simulation_live_repair_sequences": simulation_live_repairs,
+            "prior_failure_feedback_injected": bool(
+                attached.get("prior_failure_feedback_injected", False)
+            ),
+            "autonomous_live_failed_then_passed_repair_observed": bool(
+                attached.get(
+                    "autonomous_live_failed_then_passed_repair_observed",
+                    False,
+                )
+            ),
+            "capability_evidence_scope": str(
+                attached.get("capability_evidence_scope", "") or ""
+            ),
+            "target_behavior": (
+                "Use the attached coding-agent component gate as calibration for "
+                "generated-code repair: AlgorithmEngineer and SimulationEngineer "
+                "must both produce safe generated Python, consume local failure or "
+                "metric feedback, and reach a local sandbox pass. This component "
+                "gate is not current-run execution evidence."
+            ),
+            "acceptance_gate": (
+                "A future integrated AgentRuntime turn records generated algorithm "
+                "and simulation code execution or fail-then-pass repair in its own "
+                "runtime manifests; the attached component gate may guide that loop "
+                "but cannot substitute for it."
+            ),
+            "input_summary": {
+                "trigger": "CODING_AGENT_GENERATED_CODE_COMPONENT_GATE_ATTACHED",
+                "component_eval_manifest_path": manifest_path,
+                "capability_evidence_ok": capability_ok,
+                "live_generator": live_generator,
+                "static_or_fixture_only": static_or_fixture_only,
+                "algorithm_capability_evidence_ok": algorithm_ok,
+                "simulation_capability_evidence_ok": simulation_ok,
+                "algorithm_repair_sequences": algorithm_repairs,
+                "simulation_repair_sequences": simulation_repairs,
+                "algorithm_live_repair_sequences": algorithm_live_repairs,
+                "simulation_live_repair_sequences": simulation_live_repairs,
+                "capability_evidence_scope": str(
+                    attached.get("capability_evidence_scope", "") or ""
+                ),
+                "proof_evidence_status": proof_evidence_status,
+            },
+            "proof_evidence_status": (
+                "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": (
+                "This learning row carries component-gate feedback for generated "
+                "Python repair loops. It is not theorem proof, not simulation "
+                "proof, and not evidence that the current AgentRuntime turn "
+                "executed generated code."
+            ),
+            "boundary": (
+                "This learning row carries component-gate feedback for generated "
+                "Python repair loops. It is not theorem proof, not simulation "
+                "proof, and not evidence that the current AgentRuntime turn "
+                "executed generated code."
+            ),
+        }
+    ]
+
+
 def _runtime_evidence_truth_learning_rows(
     *,
     manifest: Mapping[str, Any],
@@ -23906,6 +24028,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
+    if learning_task == "coding_agent_generated_code_component_gate_feedback":
+        return 87
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
             row,
@@ -24161,6 +24285,22 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             "formalizer_lean_candidate_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "coding_agent_generated_code_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        return (
+            "coding_agent_generated_code_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+        )
     if learning_task == "theory_derivation_trace_feedback":
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -24300,6 +24440,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
+        "coding_agent_generated_code_component_gate_feedback",
         "theory_derivation_trace_feedback",
         "theory_trace_downstream_alignment_feedback",
         "architect_orchestration_feedback",
@@ -27542,11 +27683,18 @@ def _runtime_algorithm_sandbox_feedback_from_learning_memory(
     architect_context: Mapping[str, Any],
     question_id: str,
 ) -> dict[str, Any]:
-    return _runtime_feedback_from_learning_memory(
+    feedback = _runtime_feedback_from_learning_memory(
         architect_context,
         question_id,
         learning_task="algorithm_sandbox_execution_feedback",
         feedback_type="algorithm_sandbox_execution_feedback",
+    )
+    if feedback:
+        return feedback
+    return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
+        architect_context,
+        question_id,
+        target_component="algorithm",
     )
 
 
@@ -27554,12 +27702,70 @@ def _runtime_generated_simulation_feedback_from_learning_memory(
     architect_context: Mapping[str, Any],
     question_id: str,
 ) -> dict[str, Any]:
-    return _runtime_feedback_from_learning_memory(
+    feedback = _runtime_feedback_from_learning_memory(
         architect_context,
         question_id,
         learning_task="generated_simulation_sandbox_execution_feedback",
         feedback_type="generated_simulation_sandbox_execution_feedback",
     )
+    if feedback:
+        return feedback
+    return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
+        architect_context,
+        question_id,
+        target_component="simulation",
+    )
+
+
+def _runtime_coding_agent_component_gate_feedback_from_learning_memory(
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    *,
+    target_component: str,
+) -> dict[str, Any]:
+    feedback = _runtime_feedback_from_learning_memory(
+        architect_context,
+        question_id,
+        learning_task="coding_agent_generated_code_component_gate_feedback",
+        feedback_type="coding_agent_generated_code_component_gate_feedback",
+    )
+    if not feedback:
+        return {}
+    target = str(target_component or "").strip()
+    feedback["target_component"] = target
+    feedback["feedback_type"] = "coding_agent_generated_code_component_gate_feedback"
+    feedback["failure_classification"] = (
+        "coding_agent_component_gate_calibration_required"
+    )
+    if target == "algorithm":
+        feedback["runtime_requested_evidence_contract"] = {
+            "capability_eval_requires_generated_algorithm_code": True
+        }
+        feedback["required_repair"] = (
+            "Use the attached coding-agent component gate only as calibration: "
+            "produce one safe generated algorithm run_sandbox draft, consume any "
+            "local failure or metric feedback, and let AgentRuntime execute it in "
+            "this run. Do not claim the component gate is current-run execution."
+        )
+    elif target == "simulation":
+        feedback["runtime_requested_evidence_contract"] = {
+            "capability_eval_requires_generated_simulation_code": True
+        }
+        feedback["required_repair"] = (
+            "Use the attached coding-agent component gate only as calibration: "
+            "produce one safe generated simulation run_sandbox draft, consume any "
+            "local failure or metric feedback, and let AgentRuntime execute it in "
+            "this run. Do not claim the component gate is current-run simulation."
+        )
+    feedback.setdefault(
+        "boundary",
+        (
+            "Coding-agent component-gate feedback is prompt memory only. It is "
+            "not theorem proof, not simulation proof, and not evidence that this "
+            "AgentRuntime turn executed generated code."
+        ),
+    )
+    return feedback
 
 
 def _runtime_feedback_from_learning_memory(
