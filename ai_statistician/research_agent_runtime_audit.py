@@ -542,6 +542,27 @@ def audit_research_agent_runtime(
             manifest.get("source_theorem_promotion_proofengineer_bridge_skipped_reason", "")
             or ""
         ),
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_proofengineer_bridge_ran": bool(
             manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
         )
@@ -1563,6 +1584,13 @@ def audit_research_agent_runtime(
                 or 0
             )
             + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+            + int(
                 manifest.get("source_theorem_exact_proof_body_repair_executor_n_result_rows", 0)
                 or 0
             )
@@ -1592,6 +1620,13 @@ def audit_research_agent_runtime(
             + int(
                 manifest.get(
                     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
                     0,
                 )
                 or 0
@@ -2325,6 +2360,9 @@ def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
         )
     )
 
@@ -4309,6 +4347,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM off-catalog proof obligations: {payload.get('n_llm_off_catalog_proof_obligations')}",
         f"- LLM-rejected proof obligations: {payload.get('n_llm_rejected_proof_obligations')}",
         f"- full frontier theorem proved: {payload.get('n_full_frontier_theorem_proved')}",
+        "- source-theorem kernel verified total: "
+        f"{_payload_source_theorem_kernel_count(payload)}",
         "- exact proof-body repair executor source-kernel verified: "
         f"{payload.get('source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified')}",
         "- post-adapter exact proof-body retry queue ran: "
@@ -4317,6 +4357,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran')}",
         "- post-adapter exact proof-body executor source-kernel verified: "
         f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified')}",
+        "- source theorem promotion source-kernel verified: "
+        f"direct={payload.get('source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified')} "
+        f"source_semantic={payload.get('source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified')} "
+        f"post_executor={payload.get('source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified')}",
         "- post-adapter semantic primitive work orders: "
         f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')}",
         "- exact semantic-definition work orders: "

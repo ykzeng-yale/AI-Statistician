@@ -373,12 +373,16 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         (
             "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
             "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
             "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
         ),
     )
@@ -386,6 +390,8 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         (
             "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
             "source_theorem_exact_proof_body_repair_executor_n_result_rows",
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
