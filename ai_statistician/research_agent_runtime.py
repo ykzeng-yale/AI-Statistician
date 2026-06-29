@@ -2953,6 +2953,235 @@ def _runtime_theory_trace_repair_result_if_needed(
     )
 
 
+def _runtime_handoff_artifact_missing_result_if_needed(
+    *,
+    source_subsystem: str,
+    producer_subsystem: str,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    artifact_id: str,
+    artifact: Any,
+    artifact_role: str,
+    expected_artifact_kind: str,
+    next_task_inputs: Mapping[str, Any],
+    allowed_tools: tuple[str, ...],
+    expected_artifacts: tuple[str, ...],
+    acceptance_gate: str,
+    stop_condition: str,
+) -> AgentStepResult | None:
+    if not artifact_id:
+        return None
+    if isinstance(artifact, Mapping) and artifact:
+        return None
+    feedback = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeHandoffArtifactMissingFeedback",
+        "feedback_source": source_subsystem,
+        "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+        "failure_classification": "runtime_handoff_artifact_missing",
+        "failure_classifications": [f"missing_{artifact_role}"],
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_owner_subsystem": task.owner_subsystem,
+        "missing_artifact_id": artifact_id,
+        "missing_artifact_role": artifact_role,
+        "expected_artifact_kind": expected_artifact_kind,
+        "repair_owner_agent": producer_subsystem,
+        "required_repair": (
+            f"{producer_subsystem} must regenerate or rehydrate the requested "
+            f"{artifact_role} artifact `{artifact_id}` before {source_subsystem} "
+            "can consume the handoff."
+        ),
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": (
+            "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is an AgentRuntime handoff-integrity gate. It is not simulation, "
+            "algorithm execution, formalization, or Lean/kernel proof evidence."
+        ),
+    }
+    raw_architect_context = task.inputs.get("architect_context", {})
+    repair_context = (
+        dict(raw_architect_context) if isinstance(raw_architect_context, Mapping) else {}
+    )
+    repair_context["environment_feedback"] = feedback
+    repair_inputs = dict(next_task_inputs)
+    repair_inputs["architect_context"] = repair_context
+    repair_inputs["environment_feedback"] = feedback
+    next_task = AgentTask(
+        task_id=(
+            f"handoff-missing:{question.id}:{artifact_role}:"
+            f"{stable_hash([task.task_id, artifact_id, producer_subsystem])[:8]}"
+        ),
+        owner_subsystem=producer_subsystem,
+        objective=(
+            f"Recover the missing {artifact_role} handoff artifact required by "
+            f"{source_subsystem}."
+        ),
+        inputs=repair_inputs,
+        allowed_tools=allowed_tools,
+        expected_artifacts=expected_artifacts,
+        acceptance_gate=acceptance_gate,
+        stop_condition=stop_condition,
+    )
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            f"{source_subsystem} could not find the explicit upstream "
+            f"{artifact_role} handoff artifact and routed recovery to "
+            f"{producer_subsystem}."
+        ),
+        observations=(
+            EnvironmentObservation(
+                observation_type="runtime_handoff_artifact_missing",
+                summary=(
+                    f"missing {artifact_role} artifact {artifact_id}; "
+                    f"{producer_subsystem} recovery required"
+                ),
+                payload=feedback,
+            ),
+        ),
+        next_task=next_task,
+        failure_classification="runtime_handoff_artifact_missing",
+    )
+
+
+def _runtime_missing_simulation_handoff_result_if_needed(
+    *,
+    source_subsystem: str,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    simulation_manifest_id: str,
+    simulation_manifest: Any,
+    theory_packet_id: str,
+    n_runs: Any,
+    seed: Any,
+) -> AgentStepResult | None:
+    return _runtime_handoff_artifact_missing_result_if_needed(
+        source_subsystem=source_subsystem,
+        producer_subsystem="SimulationEvaluator",
+        task=task,
+        question=question,
+        artifact_id=simulation_manifest_id,
+        artifact=simulation_manifest,
+        artifact_role="simulation_manifest",
+        expected_artifact_kind="RuntimeSimulationManifest",
+        next_task_inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "n_runs": n_runs,
+            "seed": seed,
+        },
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "SimulationEvaluator",
+            ("simulation_manifest", "implementation_gap_manifest"),
+        ),
+        acceptance_gate=_architect_acceptance_gate(
+            context,
+            "SimulationEvaluator",
+            "requested simulation manifest is regenerated or an explicit blocker is recorded",
+        ),
+        stop_condition="simulation handoff artifact recovered",
+    )
+
+
+def _runtime_missing_algorithm_handoff_result_if_needed(
+    *,
+    source_subsystem: str,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    algorithm_sandbox_manifest_id: str,
+    algorithm_manifest: Any,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    implementation_gaps: Any,
+    n_runs: Any,
+    seed: Any,
+) -> AgentStepResult | None:
+    return _runtime_handoff_artifact_missing_result_if_needed(
+        source_subsystem=source_subsystem,
+        producer_subsystem="AlgorithmEngineer",
+        task=task,
+        question=question,
+        artifact_id=algorithm_sandbox_manifest_id,
+        artifact=algorithm_manifest,
+        artifact_role="algorithm_sandbox_manifest",
+        expected_artifact_kind="RuntimeAlgorithmSandboxManifest",
+        next_task_inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": implementation_gaps,
+            "n_runs": n_runs,
+            "seed": seed,
+        },
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "AlgorithmEngineer",
+            ("algorithm_sandbox_manifest",),
+        ),
+        acceptance_gate=_architect_acceptance_gate(
+            context,
+            "AlgorithmEngineer",
+            "requested algorithm sandbox manifest is regenerated or an explicit blocker is recorded",
+        ),
+        stop_condition="algorithm sandbox handoff artifact recovered",
+    )
+
+
+def _runtime_missing_formalization_handoff_result_if_needed(
+    *,
+    source_subsystem: str,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    formalization_manifest_id: str,
+    formalization_manifest: Any,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+) -> AgentStepResult | None:
+    return _runtime_handoff_artifact_missing_result_if_needed(
+        source_subsystem=source_subsystem,
+        producer_subsystem="FormalizationEvaluator",
+        task=task,
+        question=question,
+        artifact_id=formalization_manifest_id,
+        artifact=formalization_manifest,
+        artifact_role="formalization_manifest",
+        expected_artifact_kind="RuntimeFormalizationManifest",
+        next_task_inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        },
+        allowed_tools=(
+            "model_backend",
+            "proof_verifier",
+            "proof_state",
+            "formal_source_retrieval",
+        ),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "FormalizationEvaluator",
+            ("formalization_manifest", "proof_feedback"),
+        ),
+        acceptance_gate=_architect_acceptance_gate(
+            context,
+            "FormalizationEvaluator",
+            "requested formalization manifest is regenerated or an explicit formal blocker is recorded",
+        ),
+        stop_condition="formalization handoff artifact recovered",
+    )
+
+
 class SimulationEvaluatorRuntimeSubsystem:
     name = "SimulationEvaluator"
 
@@ -3438,6 +3667,21 @@ class AlgorithmEngineerRuntimeSubsystem:
             return trace_repair_result
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
+        missing_simulation_result = (
+            _runtime_missing_simulation_handoff_result_if_needed(
+                source_subsystem="AlgorithmEngineer",
+                task=task,
+                question=question,
+                context=context,
+                simulation_manifest_id=simulation_manifest_id,
+                simulation_manifest=simulation_manifest,
+                theory_packet_id=packet_id,
+                n_runs=task.inputs.get("n_runs", self.n_runs),
+                seed=task.inputs.get("seed", self.seed),
+            )
+        )
+        if missing_simulation_result is not None:
+            return missing_simulation_result
         implementation_gaps = [
             row for row in task.inputs.get("implementation_gaps", []) or [] if isinstance(row, Mapping)
         ]
@@ -4024,6 +4268,38 @@ class FormalizationEvaluatorRuntimeSubsystem:
         algorithm_sandbox_manifest_id = str(task.inputs.get("algorithm_sandbox_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
         algorithm_manifest = blackboard.artifacts.get(algorithm_sandbox_manifest_id, {})
+        missing_simulation_result = (
+            _runtime_missing_simulation_handoff_result_if_needed(
+                source_subsystem=subsystem_name,
+                task=task,
+                question=question,
+                context=context,
+                simulation_manifest_id=simulation_manifest_id,
+                simulation_manifest=simulation_manifest,
+                theory_packet_id=packet_id,
+                n_runs=task.inputs.get("n_runs", 100),
+                seed=task.inputs.get("seed", 20260528),
+            )
+        )
+        if missing_simulation_result is not None:
+            return missing_simulation_result
+        missing_algorithm_result = (
+            _runtime_missing_algorithm_handoff_result_if_needed(
+                source_subsystem=subsystem_name,
+                task=task,
+                question=question,
+                context=context,
+                algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                algorithm_manifest=algorithm_manifest,
+                theory_packet_id=packet_id,
+                simulation_manifest_id=simulation_manifest_id,
+                implementation_gaps=task.inputs.get("implementation_gaps", []),
+                n_runs=task.inputs.get("n_runs", 100),
+                seed=task.inputs.get("seed", 20260528),
+            )
+        )
+        if missing_algorithm_result is not None:
+            return missing_algorithm_result
         problem = ProblemFormalizer().formalize(question)
         _procedures, theorem_goals = TheoryPlanner().plan(problem)
         proof_bank_obligation_catalog = self.prover.proof_obligation_catalog(problem, theorem_goals)
@@ -9468,6 +9744,21 @@ class CriticEvaluatorRuntimeSubsystem:
             requested_simulation_manifest_id,
             "simulation_manifest:",
         )
+        missing_simulation_result = (
+            _runtime_missing_simulation_handoff_result_if_needed(
+                source_subsystem="CriticEvaluator",
+                task=task,
+                question=question,
+                context=context,
+                simulation_manifest_id=requested_simulation_manifest_id,
+                simulation_manifest=simulation_manifest,
+                theory_packet_id=theory_packet_id,
+                n_runs=task.inputs.get("n_runs", 100),
+                seed=task.inputs.get("seed", 20260528),
+            )
+        )
+        if missing_simulation_result is not None:
+            return missing_simulation_result
         simulation_manifest_id = str(
             requested_simulation_manifest_id
             or simulation_manifest.get("manifest_id", "")
@@ -9481,6 +9772,23 @@ class CriticEvaluatorRuntimeSubsystem:
             requested_algorithm_manifest_id,
             "algorithm_sandbox_manifest:",
         )
+        missing_algorithm_result = (
+            _runtime_missing_algorithm_handoff_result_if_needed(
+                source_subsystem="CriticEvaluator",
+                task=task,
+                question=question,
+                context=context,
+                algorithm_sandbox_manifest_id=requested_algorithm_manifest_id,
+                algorithm_manifest=algorithm_manifest,
+                theory_packet_id=theory_packet_id,
+                simulation_manifest_id=simulation_manifest_id,
+                implementation_gaps=task.inputs.get("implementation_gaps", []),
+                n_runs=task.inputs.get("n_runs", 100),
+                seed=task.inputs.get("seed", 20260528),
+            )
+        )
+        if missing_algorithm_result is not None:
+            return missing_algorithm_result
         algorithm_manifest_id = str(
             requested_algorithm_manifest_id
             or algorithm_manifest.get("manifest_id", "")
@@ -9494,6 +9802,21 @@ class CriticEvaluatorRuntimeSubsystem:
             requested_formalization_manifest_id,
             "formalization_manifest:",
         )
+        missing_formalization_result = (
+            _runtime_missing_formalization_handoff_result_if_needed(
+                source_subsystem="CriticEvaluator",
+                task=task,
+                question=question,
+                context=context,
+                formalization_manifest_id=requested_formalization_manifest_id,
+                formalization_manifest=formalization_manifest,
+                theory_packet_id=theory_packet_id,
+                simulation_manifest_id=simulation_manifest_id,
+                algorithm_sandbox_manifest_id=algorithm_manifest_id,
+            )
+        )
+        if missing_formalization_result is not None:
+            return missing_formalization_result
         formalization_manifest_id = str(
             requested_formalization_manifest_id
             or formalization_manifest.get("manifest_id", "")

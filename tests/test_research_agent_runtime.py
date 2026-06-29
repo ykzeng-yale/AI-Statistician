@@ -688,6 +688,136 @@ def test_critic_uses_explicit_handoff_artifact_ids_over_latest_blackboard() -> N
     assert critic_manifest["counts"]["formal_gaps"] == 0
 
 
+def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+    theory_packet_id = "theory_derivation:handoff_structured"
+    simulation_manifest_id = "simulation_manifest:handoff"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:handoff"
+    formalization_manifest_id = "formalization_manifest:handoff"
+    theory_packet = _structured_theory_packet_fixture(theory_packet_id)
+
+    cases = [
+        (
+            AlgorithmEngineerRuntimeSubsystem(
+                out_dir=tmp_path / "algorithm",
+                n_runs=5,
+                seed=20260629,
+            ),
+            BlackboardState(
+                project_id="missing-simulation-handoff",
+                artifacts={theory_packet_id: theory_packet},
+            ),
+            AgentTask(
+                task_id="algorithm:missing-simulation-handoff",
+                owner_subsystem="AlgorithmEngineer",
+                objective="Require an explicit simulation handoff artifact.",
+                inputs={
+                    "question": question_payload,
+                    "theory_packet_id": theory_packet_id,
+                    "simulation_manifest_id": simulation_manifest_id,
+                    "implementation_gaps": [{"gap": "needs algorithm sandbox"}],
+                    "architect_context": {},
+                },
+            ),
+            "SimulationEvaluator",
+            simulation_manifest_id,
+            "simulation_manifest",
+        ),
+        (
+            FormalizationEvaluatorRuntimeSubsystem(
+                proof_verifier=MockProofVerifier(),
+            ),
+            BlackboardState(
+                project_id="missing-algorithm-handoff",
+                artifacts={
+                    theory_packet_id: theory_packet,
+                    simulation_manifest_id: {
+                        "artifact_kind": "RuntimeSimulationManifest",
+                        "manifest_id": simulation_manifest_id,
+                    },
+                },
+            ),
+            AgentTask(
+                task_id="formalize:missing-algorithm-handoff",
+                owner_subsystem="FormalizationEvaluator",
+                objective="Require an explicit algorithm handoff artifact.",
+                inputs={
+                    "question": question_payload,
+                    "theory_packet_id": theory_packet_id,
+                    "simulation_manifest_id": simulation_manifest_id,
+                    "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                    "architect_context": {},
+                },
+            ),
+            "AlgorithmEngineer",
+            algorithm_manifest_id,
+            "algorithm_sandbox_manifest",
+        ),
+        (
+            runtime_module.CriticEvaluatorRuntimeSubsystem(),
+            BlackboardState(
+                project_id="missing-formalization-handoff",
+                artifacts={
+                    theory_packet_id: theory_packet,
+                    simulation_manifest_id: {
+                        "artifact_kind": "RuntimeSimulationManifest",
+                        "manifest_id": simulation_manifest_id,
+                    },
+                    algorithm_manifest_id: {
+                        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                        "manifest_id": algorithm_manifest_id,
+                    },
+                },
+            ),
+            AgentTask(
+                task_id="critic:missing-formalization-handoff",
+                owner_subsystem="CriticEvaluator",
+                objective="Require an explicit formalization handoff artifact.",
+                inputs={
+                    "question": question_payload,
+                    "theory_packet_id": theory_packet_id,
+                    "simulation_manifest_id": simulation_manifest_id,
+                    "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                    "formalization_manifest_id": formalization_manifest_id,
+                    "architect_context": {},
+                },
+            ),
+            "FormalizationEvaluator",
+            formalization_manifest_id,
+            "formalization_manifest",
+        ),
+    ]
+
+    for (
+        subsystem,
+        blackboard,
+        task,
+        expected_owner,
+        missing_artifact_id,
+        missing_role,
+    ) in cases:
+        result = subsystem.run(task, blackboard)
+
+        assert result.status == "REVISE"
+        assert result.failure_classification == "runtime_handoff_artifact_missing"
+        assert result.next_task is not None
+        assert result.next_task.owner_subsystem == expected_owner
+        assert not result.produced_artifacts
+        assert not result.tool_calls
+        feedback = result.next_task.inputs["environment_feedback"]
+        assert feedback["trigger"] == "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+        assert feedback["missing_artifact_id"] == missing_artifact_id
+        assert feedback["missing_artifact_role"] == missing_role
+        assert f"missing_{missing_role}" in feedback["failure_classifications"]
+        assert feedback["repair_owner_agent"] == expected_owner
+        assert feedback["proof_evidence_status"] == (
+            "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+        )
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,
