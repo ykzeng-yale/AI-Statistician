@@ -1879,6 +1879,15 @@ def audit_research_agent_runtime(
             "full frontier theorem proof remains false unless a separate kernel-verified reduction closes formal gaps",
         ],
     }
+    payload["runtime_architect_control_status"] = _runtime_architect_control_status(
+        payload
+    )
+    payload["runtime_architect_orchestration_evidence"] = (
+        _runtime_architect_orchestration_evidence(payload)
+    )
+    payload["runtime_architect_orchestration_blocker"] = (
+        _runtime_architect_orchestration_blocker(payload)
+    )
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
@@ -2365,6 +2374,80 @@ def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
     )
 
 
+def _runtime_architect_trace_count(payload: Mapping[str, Any]) -> int:
+    return int(payload.get("n_runtime_architect_coordinator_traces", 0) or 0)
+
+
+def _runtime_architect_orchestration_executed(payload: Mapping[str, Any]) -> bool:
+    return bool(
+        payload.get("architect_coordinator_enabled") is True
+        or payload.get("runtime_architect_coordinator_executed") is True
+        or _runtime_architect_trace_count(payload) > 0
+    )
+
+
+def _runtime_architect_context_propagated(payload: Mapping[str, Any]) -> bool:
+    return bool(
+        payload.get("runtime_research_path_control_propagated") is True
+        or str(payload.get("runtime_stage", "") or "").startswith("architect_")
+        or str(payload.get("runtime_resume_policy", "") or "").startswith("direct_pending_task")
+        or str(payload.get("architect_recommended_research_path", "") or "").strip()
+        or str(
+            payload.get("architect_recommended_formal_verification_policy", "") or ""
+        ).strip()
+        or str(payload.get("architect_coordinator_proposal_id", "") or "").strip()
+    )
+
+
+def _runtime_architect_control_status(payload: Mapping[str, Any]) -> str:
+    if _runtime_architect_orchestration_executed(payload):
+        return "PRESENT"
+    if payload.get("runtime_architect_coordinator_registered") is True:
+        return "REGISTERED_NOT_EXECUTED"
+    if _runtime_architect_context_propagated(payload):
+        return "PROPAGATED_FROM_RESUME"
+    return "DISABLED"
+
+
+def _runtime_architect_orchestration_evidence(payload: Mapping[str, Any]) -> str:
+    return (
+        "architect_coordinator_enabled="
+        f"{payload.get('architect_coordinator_enabled')} "
+        "runtime_architect_coordinator_registered="
+        f"{payload.get('runtime_architect_coordinator_registered')} "
+        "runtime_architect_coordinator_executed="
+        f"{payload.get('runtime_architect_coordinator_executed')} "
+        "n_runtime_architect_coordinator_traces="
+        f"{_runtime_architect_trace_count(payload)} "
+        "runtime_resume_policy="
+        f"{payload.get('runtime_resume_policy', '')} "
+        "architect_control_status="
+        f"{_runtime_architect_control_status(payload)}"
+    )
+
+
+def _runtime_architect_orchestration_blocker(payload: Mapping[str, Any]) -> str:
+    status = _runtime_architect_control_status(payload)
+    if status == "PRESENT":
+        return ""
+    if status == "REGISTERED_NOT_EXECUTED":
+        return (
+            "ArchitectCoordinator was registered, but no ArchitectCoordinator trace "
+            "executed in this runtime budget; rerun through ArchitectCoordinator "
+            "before claiming architect-orchestrated research"
+        )
+    if status == "PROPAGATED_FROM_RESUME":
+        return (
+            "Architect-derived context was propagated, but no ArchitectCoordinator "
+            "trace executed in this runtime budget; propagated context is "
+            "continuity evidence, not architect-orchestrated research"
+        )
+    return (
+        "ArchitectCoordinator was not configured or did not register; this is a "
+        "subsystem-chain run, not architect-orchestrated research"
+    )
+
+
 def _runtime_capability_gaps_from_scorecard(
     scorecard: Mapping[str, Any],
 ) -> list[str]:
@@ -2494,6 +2577,15 @@ def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
 
 def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    architect_orchestration_executed = _runtime_architect_orchestration_executed(
+        payload
+    )
+    architect_orchestration_evidence = _runtime_architect_orchestration_evidence(
+        payload
+    )
+    architect_orchestration_blocker = _runtime_architect_orchestration_blocker(
+        payload
+    )
     integrated_algorithm_repair_sequences = int(
         payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
         or 0
@@ -2629,12 +2721,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "live_architect_controlled_runtime_completed",
             payload.get("all_ok") is True
             and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0
-            and payload.get("architect_coordinator_enabled") is True,
+            and architect_orchestration_executed,
             (
-                f"architect_coordinator_enabled={payload.get('architect_coordinator_enabled')} "
-                f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')}"
+                f"{architect_orchestration_evidence} "
+                "n_live_generator_agents_enabled="
+                f"{payload.get('n_live_generator_agents_enabled')}"
             ),
-            "live run did not complete under ArchitectCoordinator control",
+            architect_orchestration_blocker
+            or "live run did not complete under ArchitectCoordinator control",
         ),
         _ladder_level(
             3,
@@ -2822,6 +2916,15 @@ def _ladder_level(
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    architect_orchestration_executed = _runtime_architect_orchestration_executed(
+        payload
+    )
+    architect_orchestration_evidence = _runtime_architect_orchestration_evidence(
+        payload
+    )
+    architect_orchestration_blocker = _runtime_architect_orchestration_blocker(
+        payload
+    )
     integrated_algorithm_repair_sequences = int(
         payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
         or 0
@@ -3067,9 +3170,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "architect_orchestrated",
-            payload.get("architect_coordinator_enabled") is True,
-            f"architect_coordinator_enabled={payload.get('architect_coordinator_enabled')}",
-            "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research",
+            architect_orchestration_executed,
+            architect_orchestration_evidence,
+            architect_orchestration_blocker,
         ),
         _scorecard_row(
             "architect_research_path_control_propagated",
@@ -4407,7 +4510,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
         f"- live generator agents enabled: {payload.get('n_live_generator_agents_enabled')}",
-        f"- ArchitectCoordinator enabled: {payload.get('architect_coordinator_enabled')}",
+        f"- ArchitectCoordinator trace executed: {payload.get('architect_coordinator_enabled')}",
+        f"- Architect control status: {payload.get('runtime_architect_control_status')}",
+        f"- Architect orchestration evidence: {payload.get('runtime_architect_orchestration_evidence')}",
+        f"- Architect orchestration blocker: {payload.get('runtime_architect_orchestration_blocker')}",
         f"- LLM topology policy ok: {payload.get('llm_topology_policy_ok')}",
         f"- unsupported generator backends: {payload.get('unsupported_generator_backends_enabled')}",
         f"- critic reroutes: {payload.get('n_critic_reroutes')}",

@@ -41399,6 +41399,83 @@ def test_runtime_manifest_truth_table_marks_resume_architect_context_as_propagat
     assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
 
 
+def test_runtime_capability_scorecard_names_resume_architect_context_boundary() -> None:
+    payload = {
+        "all_ok": True,
+        "runtime_evaluation_mode": "capability_eval",
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_resumed_from_pending_task": True,
+        "runtime_resume_policy": "direct_pending_task",
+        "runtime_architect_coordinator_registered": False,
+        "runtime_architect_coordinator_executed": False,
+        "n_runtime_architect_coordinator_traces": 0,
+        "architect_coordinator_enabled": False,
+        "runtime_research_path_control_propagated": True,
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "structured_theory_derivation_trace_observed": True,
+        "n_theory_derivation_packets": 1,
+        "n_theory_derivation_packets_with_contract": 1,
+        "n_theory_derivation_packets_with_min_derivation_steps": 1,
+        "n_theory_derivation_packets_with_equation_chain": 1,
+        "n_theory_derivation_packets_with_assumption_ledger": 1,
+        "n_theory_derivation_packets_with_formalization_handoff": 1,
+        **_scorecard_theory_trace_consumption_payload(),
+        "n_algorithm_sandbox_executed": 1,
+        "n_generated_code_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_code_sandbox_metric_gate_failed": 0,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_unsafe_generated_simulation_code_rejected": 0,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_live_proof_state_requests": 1,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_runtime_progress_events": 4,
+        "n_runtime_traces": 2,
+        "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": 1,
+        "source_theorem_proof_body_executor_ran": True,
+        "source_theorem_proof_body_executor_n_result_rows": 1,
+        "source_theorem_proof_body_local_lean_requested": True,
+        "n_lean_lsp_mcp_live_calls": 1,
+        "n_real_kernel_verified_subclaims": 1,
+        "n_formal_gaps": 1,
+        "n_full_frontier_theorem_proved": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    architect_row = scorecard_rows["architect_orchestrated"]
+    assert architect_row["passed"] is False
+    assert "Architect-derived context was propagated" in architect_row["blocker"]
+    assert "architect_control_status=PROPAGATED_FROM_RESUME" in architect_row[
+        "evidence"
+    ]
+    assert "continuity evidence" in architect_row["blocker"]
+    assert ladder_rows[2]["passed"] is False
+    assert "Architect-derived context was propagated" in ladder_rows[2]["blocker"]
+    assert "architect_control_status=PROPAGATED_FROM_RESUME" in ladder_rows[2][
+        "evidence"
+    ]
+
+
 def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
     tmp_path: Path,
 ) -> None:
@@ -43384,7 +43461,11 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
-    assert "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research" in audit["capability_gaps"]
+    assert (
+        "Architect-derived context was propagated, but no ArchitectCoordinator "
+        "trace executed in this runtime budget; propagated context is "
+        "continuity evidence, not architect-orchestrated research"
+    ) in audit["capability_gaps"]
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
     assert audit["has_real_kernel_evidence"] is False
