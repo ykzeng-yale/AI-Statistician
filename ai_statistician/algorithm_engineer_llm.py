@@ -10,7 +10,10 @@ from .generated_metric_repair_policy import generated_metric_gate_repair_instruc
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .theory_derivation_trace import compact_theory_derivation_trace
+from .theory_derivation_trace import (
+    compact_theory_derivation_trace,
+    theory_trace_consumption_contract,
+)
 
 
 ALGORITHM_ENGINEER_SCHEMA_VERSION = 1
@@ -94,6 +97,7 @@ class LLMAlgorithmEngineerAgent:
                 model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
+                theory_packet=theory_packet,
                 implementation_gaps=implementation_gaps,
             )
 
@@ -139,6 +143,12 @@ def build_algorithm_engineer_prompt(
             "tags": list(question.tags),
         },
         "theory_packet_summary": _compact_theory_packet_for_algorithm(theory_packet),
+        "theory_trace_consumption_contract": theory_trace_consumption_contract(
+            theory_packet,
+            consumer_subsystem="AlgorithmEngineer",
+            max_rows=3,
+            text_limit=240,
+        ),
         "simulation_manifest_summary": _compact_simulation_manifest_for_algorithm(simulation_manifest),
         "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
         "runtime_environment_feedback": _compact_algorithm_environment_feedback(
@@ -677,6 +687,7 @@ def _normalize_algorithm_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
+    theory_packet: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
 ) -> dict[str, Any]:
     body = dict(payload)
@@ -689,6 +700,12 @@ def _normalize_algorithm_packet(
     body["proof_evidence_status"] = "NOT_PROOF_EVIDENCE"
     body["sandbox_executed"] = False
     body["production_registered"] = False
+    body["theory_trace_consumption_contract"] = theory_trace_consumption_contract(
+        theory_packet,
+        consumer_subsystem="AlgorithmEngineer",
+        max_rows=3,
+        text_limit=240,
+    )
     packet_id = stable_hash(
         {
             "question_id": question.id,

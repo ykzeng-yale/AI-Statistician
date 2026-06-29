@@ -26,6 +26,12 @@ ASSUMPTION_LEDGER_KEYS = (
     "risk_if_dropped",
 )
 
+THEORY_TRACE_CONSUMPTION_BOUNDARY = (
+    "Theory trace consumption records proposal-context provenance only. It "
+    "does not count as code execution, simulation evidence, or Lean/kernel "
+    "proof evidence."
+)
+
 
 def compact_theory_derivation_trace(
     theory_packet: Mapping[str, Any],
@@ -80,6 +86,42 @@ def compact_theory_derivation_trace(
     }
 
 
+def theory_trace_consumption_contract(
+    theory_packet: Mapping[str, Any],
+    *,
+    consumer_subsystem: str,
+    max_rows: int = 5,
+    text_limit: int = 360,
+) -> dict[str, Any]:
+    """Describe which compact theory trace a downstream worker received.
+
+    This is provenance metadata for runtime auditability. It records that the
+    worker prompt/artifact was grounded in an upstream TheoryDeveloper packet,
+    while preserving that the trace remains LLM proposal context.
+    """
+
+    trace = compact_theory_derivation_trace(
+        theory_packet,
+        max_rows=max_rows,
+        text_limit=text_limit,
+    )
+    return {
+        "artifact_kind": "TheoryTraceConsumptionContract",
+        "source_theory_packet_id": str(theory_packet.get("packet_id", "") or "")
+        if isinstance(theory_packet, Mapping)
+        else "",
+        "consumer_subsystem": consumer_subsystem,
+        "theory_derivation_trace_supplied": bool(trace),
+        "n_derivation_steps_supplied": _safe_list_len(trace.get("derivation_steps", [])),
+        "n_equation_chain_steps_supplied": _safe_list_len(trace.get("equation_chain", [])),
+        "n_assumption_ledger_rows_supplied": _safe_list_len(
+            trace.get("assumption_ledger", [])
+        ),
+        "has_formalization_handoff": bool(trace.get("formalization_handoff")),
+        "boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
+    }
+
+
 def _compact_rows(
     value: Any,
     *,
@@ -105,6 +147,10 @@ def _compact_rows(
         if len(rows) >= limit:
             break
     return rows
+
+
+def _safe_list_len(value: Any) -> int:
+    return len(value) if isinstance(value, list) else 0
 
 
 def _compact_value(value: Any, *, text_limit: int) -> Any:

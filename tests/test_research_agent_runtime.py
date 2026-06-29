@@ -230,6 +230,72 @@ from ai_statistician.simulation_engineer_llm import (
 from ai_statistician.verifier import MockProofVerifier
 
 
+def _structured_theory_packet_fixture(
+    packet_id: str = "theory_derivation:structured",
+) -> dict[str, object]:
+    return {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "theory_derivation_packet": {
+            "derivation_summary": "identify estimand, build score, bound remainder",
+            "derivation_steps": [
+                {"id": "identify", "claim": "identify estimand"},
+                {"id": "score", "claim": "build orthogonal score"},
+                {"id": "remainder", "claim": "bound remainder"},
+            ],
+            "equation_chain": [
+                {"step_id": "estimand", "lhs": "psi", "rhs": "E[m1-m0]"},
+                {
+                    "step_id": "expansion",
+                    "lhs": "sqrt(n)(psi_hat-psi)",
+                    "rhs": "sqrt(n)P_n phi + o_p(1)",
+                },
+            ],
+            "assumption_ledger": [
+                {"assumption": "exchangeability", "used_in": ["identify"]},
+                {"assumption": "positivity", "used_in": ["score"]},
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "aipw_asymptotic_normality",
+                "semantic_alignment_constraints": ["keep nuisance remainder"],
+            },
+        },
+        "theory_derivation_contract": {
+            "min_derivation_steps": 3,
+            "n_derivation_steps": 3,
+            "n_equation_chain_steps": 2,
+            "n_assumption_ledger_rows": 2,
+            "has_formalization_handoff": True,
+        },
+    }
+
+
+def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
+    return {
+        "all_required_theory_trace_consumers_observed": True,
+        "theory_trace_consuming_subsystems": [
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+            "SimulationEngineer",
+        ],
+        "structured_theory_trace_consuming_subsystems": [
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+            "SimulationEngineer",
+        ],
+        "required_theory_trace_consumers": [
+            "SimulationEngineer",
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+        ],
+        "n_theory_trace_consumption_contracts": 3,
+        "n_theory_trace_consumption_contracts_with_trace": 3,
+        "n_theory_trace_consumption_contracts_with_equation_chain": 3,
+        "n_theory_trace_consumption_contracts_with_assumption_ledger": 3,
+        "n_theory_trace_consumption_contracts_with_formalization_handoff": 3,
+    }
+
+
 def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_budget() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     blackboard = BlackboardState(project_id="critic-formalizer-routing-test")
@@ -3710,6 +3776,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
         model_tier="haiku",
         provider_name="anthropic",
         raw_response="{}",
+        theory_packet=_structured_theory_packet_fixture(),
         implementation_gaps=[
             {
                 "estimator_id": "E1",
@@ -3722,6 +3789,10 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
     assert draft["estimator_id"] == "E1"
+    contract = packet["theory_trace_consumption_contract"]
+    assert contract["consumer_subsystem"] == "AlgorithmEngineer"
+    assert contract["theory_derivation_trace_supplied"] is True
+    assert contract["n_equation_chain_steps_supplied"] == 2
     assert validate_algorithm_engineer_packet(packet) == []
     assert (
         _validate_capability_eval_generated_algorithm_packet(
@@ -3769,6 +3840,7 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
         model_tier="haiku",
         provider_name="anthropic",
         raw_response="{}",
+        theory_packet=_structured_theory_packet_fixture(),
         n_runs=12,
         seed=20260625,
     )
@@ -3776,6 +3848,10 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
     draft = packet["simulation_code_drafts"][0]
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
+    contract = packet["theory_trace_consumption_contract"]
+    assert contract["consumer_subsystem"] == "SimulationEngineer"
+    assert contract["theory_derivation_trace_supplied"] is True
+    assert contract["n_assumption_ledger_rows_supplied"] == 2
     assert validate_simulation_engineer_packet(packet) == []
     assert _validate_capability_eval_generated_simulation_packet(packet) == []
 
@@ -9017,10 +9093,20 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model_tier="test",
         provider_name="test",
         raw_response=json.dumps(payload),
+        theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
         environment_feedback={},
     )
 
+    assert packet["theory_trace_consumption_contract"]["consumer_subsystem"] == (
+        "FormalizerProofEngineer"
+    )
+    assert (
+        packet["theory_trace_consumption_contract"][
+            "theory_derivation_trace_supplied"
+        ]
+        is True
+    )
     assert packet["diagnostic_helper_bridge_blocker_status"] == (
         "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
     )
@@ -9053,6 +9139,7 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model_tier="test",
         provider_name="test",
         raw_response=json.dumps(textual_blocker_payload),
+        theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
         environment_feedback={},
     )
@@ -9110,6 +9197,7 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model_tier="test",
         provider_name="test",
         raw_response=json.dumps(bound_payload),
+        theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
         environment_feedback={},
     )
@@ -13113,41 +13201,42 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
 
 
 def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() -> None:
-    artifacts = {
-        "theory_derivation:structured": {
-            "artifact_kind": "TheoryDerivationPacket",
-            "packet_id": "theory_derivation:structured",
-            "theory_derivation_packet": {
-                "derivation_steps": [
-                    {"id": "identify", "claim": "identify estimand"},
-                    {"id": "score", "claim": "build orthogonal score"},
-                    {"id": "remainder", "claim": "bound remainder"},
-                ],
-                "equation_chain": [
-                    {"step_id": "estimand", "lhs": "psi", "rhs": "E[m1-m0]"},
-                    {
-                        "step_id": "expansion",
-                        "lhs": "sqrt(n)(psi_hat-psi)",
-                        "rhs": "sqrt(n)P_n phi + o_p(1)",
-                    },
-                ],
-                "assumption_ledger": [
-                    {"assumption": "exchangeability", "used_in": ["identify"]},
-                    {"assumption": "positivity", "used_in": ["score"]},
-                ],
-                "formalization_handoff": {
-                    "source_theorem_target": "aipw_asymptotic_normality",
-                    "semantic_alignment_constraints": ["keep nuisance remainder"],
-                },
-            },
-            "theory_derivation_contract": {
-                "min_derivation_steps": 3,
-                "n_derivation_steps": 3,
-                "n_equation_chain_steps": 2,
-                "n_assumption_ledger_rows": 2,
-                "has_formalization_handoff": True,
-            },
+    def consumption_contract(consumer: str) -> dict[str, object]:
+        return {
+            "artifact_kind": "TheoryTraceConsumptionContract",
+            "source_theory_packet_id": "theory_derivation:structured",
+            "consumer_subsystem": consumer,
+            "theory_derivation_trace_supplied": True,
+            "n_derivation_steps_supplied": 3,
+            "n_equation_chain_steps_supplied": 2,
+            "n_assumption_ledger_rows_supplied": 2,
+            "has_formalization_handoff": True,
+            "boundary": (
+                "Theory trace consumption records proposal-context provenance "
+                "only; not proof evidence."
+            ),
         }
+
+    artifacts = {
+        "theory_derivation:structured": _structured_theory_packet_fixture(),
+        "simulation_engineer_proposal:structured": {
+            "artifact_kind": "SimulationEngineerProposalPacket",
+            "theory_trace_consumption_contract": consumption_contract(
+                "SimulationEngineer"
+            ),
+        },
+        "algorithm_engineer_proposal:structured": {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "theory_trace_consumption_contract": consumption_contract(
+                "AlgorithmEngineer"
+            ),
+        },
+        "formalizer_proposal:structured": {
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "theory_trace_consumption_contract": consumption_contract(
+                "FormalizerProofEngineer"
+            ),
+        },
     }
 
     evidence_summary = _runtime_evidence_summary(
@@ -13164,6 +13253,26 @@ def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() ->
     assert theory["max_derivation_steps"] == 3
     assert theory["max_equation_chain_steps"] == 2
     assert theory["structured_derivation_trace_observed"] is True
+    assert theory["n_theory_trace_consumption_contracts"] == 3
+    assert theory["n_theory_trace_consumption_contracts_with_trace"] == 3
+    assert theory["n_theory_trace_consumption_contracts_with_equation_chain"] == 3
+    assert theory["n_theory_trace_consumption_contracts_with_assumption_ledger"] == 3
+    assert (
+        theory["n_theory_trace_consumption_contracts_with_formalization_handoff"]
+        == 3
+    )
+    assert theory["theory_trace_consuming_subsystems"] == [
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    ]
+    assert theory["structured_theory_trace_consuming_subsystems"] == [
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    ]
+    assert theory["all_required_theory_trace_consumers_observed"] is True
+    assert "Lean/kernel proof evidence" in theory["theory_trace_consumption_boundary"]
     assert "not execution or proof evidence" in theory["boundary"]
 
 
@@ -37649,6 +37758,28 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ]
         >= 1
     )
+    assert (
+        evidence_summary["theory"]["all_required_theory_trace_consumers_observed"]
+        is True
+    )
+    assert set(evidence_summary["theory"]["theory_trace_consuming_subsystems"]) == {
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    }
+    assert set(
+        evidence_summary["theory"]["structured_theory_trace_consuming_subsystems"]
+    ) == {
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    }
+    assert evidence_summary["theory"][
+        "n_theory_trace_consumption_contracts_with_trace"
+    ] >= 3
+    assert evidence_summary["theory"][
+        "n_theory_trace_consumption_contracts_with_equation_chain"
+    ] >= 3
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is False
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 0
@@ -38510,6 +38641,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         scorecard_rows["theory_derivation_trace_contract_observed"]["passed"]
         is True
     )
+    assert audit["all_required_theory_trace_consumers_observed"] is True
+    assert set(audit["theory_trace_consuming_subsystems"]) == {
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    }
+    assert set(audit["structured_theory_trace_consuming_subsystems"]) == {
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    }
+    assert (
+        scorecard_rows["downstream_theory_trace_consumption_observed"]["passed"]
+        is True
+    )
     assert audit["n_results_with_runtime_learning_memory_input"] == 0
     assert audit["n_runtime_learning_memory_input_rows"] == 0
     system_overlay = _research_agent_runtime_audit_overlay(
@@ -38747,6 +38893,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_theory_derivation_packets_with_equation_chain": 1,
         "n_theory_derivation_packets_with_assumption_ledger": 1,
         "n_theory_derivation_packets_with_formalization_handoff": 1,
+        **_scorecard_theory_trace_consumption_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -39028,6 +39175,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_theory_derivation_packets_with_equation_chain": 1,
         "n_theory_derivation_packets_with_assumption_ledger": 1,
         "n_theory_derivation_packets_with_formalization_handoff": 1,
+        **_scorecard_theory_trace_consumption_payload(),
         "runtime_research_path_control_propagated": True,
         "effective_formal_verification_policy": "required",
         "effective_recommended_research_path": "proof_first",
@@ -39083,6 +39231,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "research_path_selected_by_architect_not_manual_override"
     ]["passed"] is True
     assert rows["theory_derivation_trace_contract_observed"]["passed"] is True
+    assert rows["downstream_theory_trace_consumption_observed"]["passed"] is True
     assert rows["generated_algorithm_code_executed"]["passed"] is True
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is True
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is True
@@ -39114,6 +39263,28 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["blocker"]
 
     payload["structured_theory_derivation_trace_observed"] = True
+    payload["all_required_theory_trace_consumers_observed"] = False
+    payload["theory_trace_consuming_subsystems"] = ["SimulationEngineer"]
+    payload["structured_theory_trace_consuming_subsystems"] = ["SimulationEngineer"]
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["downstream_theory_trace_consumption_observed"]["passed"] is False
+    assert "theory-to-code/proof" in rows[
+        "downstream_theory_trace_consumption_observed"
+    ]["blocker"]
+
+    payload["all_required_theory_trace_consumers_observed"] = True
+    payload["theory_trace_consuming_subsystems"] = [
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    ]
+    payload["structured_theory_trace_consuming_subsystems"] = [
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+        "SimulationEngineer",
+    ]
     payload["runtime_research_path_control_propagated"] = False
     payload["runtime_research_path_execution_summary"] = {
         "n_controlled_artifacts": 2,

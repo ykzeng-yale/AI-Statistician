@@ -1531,6 +1531,80 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_theory_trace_consumption_contracts": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_consumption_contracts",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_consumption_contracts_with_trace": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_consumption_contracts_with_trace",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_consumption_contracts_with_equation_chain": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_consumption_contracts_with_equation_chain",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_consumption_contracts_with_assumption_ledger": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_consumption_contracts_with_assumption_ledger",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_trace_consumption_contracts_with_formalization_handoff": int(
+            runtime_theory_summary.get(
+                "n_theory_trace_consumption_contracts_with_formalization_handoff",
+                0,
+            )
+            or 0
+        ),
+        "theory_trace_consuming_subsystems": list(
+            runtime_theory_summary.get("theory_trace_consuming_subsystems", [])
+            if isinstance(
+                runtime_theory_summary.get("theory_trace_consuming_subsystems", []),
+                list,
+            )
+            else []
+        ),
+        "structured_theory_trace_consuming_subsystems": list(
+            runtime_theory_summary.get(
+                "structured_theory_trace_consuming_subsystems",
+                [],
+            )
+            if isinstance(
+                runtime_theory_summary.get(
+                    "structured_theory_trace_consuming_subsystems",
+                    [],
+                ),
+                list,
+            )
+            else []
+        ),
+        "required_theory_trace_consumers": list(
+            runtime_theory_summary.get("required_theory_trace_consumers", [])
+            if isinstance(
+                runtime_theory_summary.get("required_theory_trace_consumers", []),
+                list,
+            )
+            else []
+        ),
+        "all_required_theory_trace_consumers_observed": bool(
+            runtime_theory_summary.get(
+                "all_required_theory_trace_consumers_observed",
+                False,
+            )
+        ),
+        "theory_trace_consumption_boundary": str(
+            runtime_theory_summary.get("theory_trace_consumption_boundary", "") or ""
+        ),
         "structured_theory_derivation_trace_observed": bool(
             runtime_theory_summary.get(
                 "structured_derivation_trace_observed",
@@ -2775,6 +2849,34 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "downstream_theory_trace_consumption_observed",
+            payload.get("all_required_theory_trace_consumers_observed") is True,
+            (
+                "structured_consumers="
+                f"{payload.get('structured_theory_trace_consuming_subsystems')} "
+                "all_consumers="
+                f"{payload.get('theory_trace_consuming_subsystems')} "
+                "required="
+                f"{payload.get('required_theory_trace_consumers')} "
+                "contracts="
+                f"{payload.get('n_theory_trace_consumption_contracts')} "
+                "with_trace="
+                f"{payload.get('n_theory_trace_consumption_contracts_with_trace')} "
+                "with_equation_chain="
+                f"{payload.get('n_theory_trace_consumption_contracts_with_equation_chain')} "
+                "with_assumption_ledger="
+                f"{payload.get('n_theory_trace_consumption_contracts_with_assumption_ledger')} "
+                "with_formalization_handoff="
+                f"{payload.get('n_theory_trace_consumption_contracts_with_formalization_handoff')}"
+            ),
+            (
+                "SimulationEngineer, AlgorithmEngineer, and FormalizerProofEngineer "
+                "did not all consume the structured theory derivation trace by "
+                "runtime contract; the system is not yet proving a theory-to-code/proof "
+                "agent handoff"
+            ),
+        ),
+        _scorecard_row(
             "algorithm_sandbox_executed",
             int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
             f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
@@ -3840,6 +3942,18 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_theory_derivation_packets_with_assumption_ledger')} / "
         f"{payload.get('n_theory_derivation_packets_with_formalization_handoff')}",
         f"- theory derivation trace boundary: {payload.get('theory_derivation_trace_boundary')}",
+        "- downstream theory trace consumers: "
+        f"{payload.get('theory_trace_consuming_subsystems')}",
+        "- structured downstream theory trace consumers: "
+        f"{payload.get('structured_theory_trace_consuming_subsystems')}",
+        "- required downstream theory trace consumers observed: "
+        f"{payload.get('all_required_theory_trace_consumers_observed')}",
+        "- theory trace consumption contracts with trace / equation chain / assumption ledger / formalization handoff: "
+        f"{payload.get('n_theory_trace_consumption_contracts_with_trace')} / "
+        f"{payload.get('n_theory_trace_consumption_contracts_with_equation_chain')} / "
+        f"{payload.get('n_theory_trace_consumption_contracts_with_assumption_ledger')} / "
+        f"{payload.get('n_theory_trace_consumption_contracts_with_formalization_handoff')}",
+        f"- theory trace consumption boundary: {payload.get('theory_trace_consumption_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
         f"- generated-code metric gate failed: {payload.get('n_generated_code_sandbox_metric_gate_failed')}",

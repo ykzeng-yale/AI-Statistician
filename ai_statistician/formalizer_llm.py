@@ -13,7 +13,10 @@ from .formalizer_repair_policy import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .theory_derivation_trace import compact_theory_derivation_trace
+from .theory_derivation_trace import (
+    compact_theory_derivation_trace,
+    theory_trace_consumption_contract,
+)
 
 
 FORMALIZER_SCHEMA_VERSION = 1
@@ -106,6 +109,7 @@ class LLMFormalizerProofEngineerAgent:
                 model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
+                theory_packet=theory_packet,
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
                 environment_feedback=environment_feedback or {},
@@ -247,6 +251,10 @@ def build_formalizer_prompt(
                 ),
             },
         },
+        "theory_trace_consumption_contract": theory_trace_consumption_contract(
+            theory_packet,
+            consumer_subsystem="FormalizerProofEngineer",
+        ),
         "simulation_manifest_summary": {
             "manifest_id": simulation_manifest.get("manifest_id", ""),
             "simulation_passed": simulation_manifest.get("simulation_passed"),
@@ -1251,6 +1259,7 @@ def _normalize_formalizer_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
+    theory_packet: Mapping[str, Any],
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1283,6 +1292,10 @@ def _normalize_formalizer_packet(
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
     body["full_frontier_theorem_proved"] = False
+    body["theory_trace_consumption_contract"] = theory_trace_consumption_contract(
+        theory_packet,
+        consumer_subsystem="FormalizerProofEngineer",
+    )
     packet_id = stable_hash(
         {
             "question_id": question.id,
