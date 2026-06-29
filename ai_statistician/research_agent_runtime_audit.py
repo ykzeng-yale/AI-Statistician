@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -28,6 +28,7 @@ from .task_family import (
     explicit_task_family_list,
     is_explicit_task_family,
     primary_task_family_from_mapping,
+    task_family_value,
 )
 
 
@@ -144,6 +145,47 @@ def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
     return ""
 
 
+def _manifest_question_task_family_map(manifest: Mapping[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    raw_families = manifest.get("question_task_families", {})
+    if isinstance(raw_families, Mapping):
+        for question_id, family in raw_families.items():
+            normalized = task_family_value(family)
+            if is_explicit_task_family(normalized):
+                out[str(question_id)] = normalized
+    raw_tags = manifest.get("question_tags", {})
+    if isinstance(raw_tags, Mapping):
+        for question_id, tags in raw_tags.items():
+            if str(question_id) in out:
+                continue
+            family = primary_task_family_from_mapping({"tags": tags})
+            if is_explicit_task_family(family):
+                out[str(question_id)] = family
+    return out
+
+
+def _rows_with_manifest_task_family_backfill(
+    rows: list["RuntimeAuditRow"],
+    manifest: Mapping[str, Any],
+) -> tuple[list["RuntimeAuditRow"], int]:
+    family_by_question = _manifest_question_task_family_map(manifest)
+    if not family_by_question:
+        return rows, 0
+    backfilled: list[RuntimeAuditRow] = []
+    n_backfilled = 0
+    for row in rows:
+        if is_explicit_task_family(row.task_family):
+            backfilled.append(row)
+            continue
+        family = family_by_question.get(row.question_id, "")
+        if not family:
+            backfilled.append(row)
+            continue
+        backfilled.append(replace(row, task_family=family))
+        n_backfilled += 1
+    return backfilled, n_backfilled
+
+
 def _manifest_or_proof_summary_count(
     manifest: Mapping[str, Any],
     proof_summary: Mapping[str, Any],
@@ -228,6 +270,10 @@ def audit_research_agent_runtime(
     errors.extend(topology_errors)
     result_paths = _resolve_manifest_paths(runtime_dir, manifest)
     rows = [_audit_result_path(path) for path in result_paths]
+    manifest_question_task_families = _manifest_question_task_family_map(manifest)
+    rows, n_rows_task_family_backfilled_from_manifest = (
+        _rows_with_manifest_task_family_backfill(rows, manifest)
+    )
     artifacts = manifest.get("artifacts", {})
     if not isinstance(artifacts, Mapping):
         artifacts = {}
@@ -447,6 +493,12 @@ def audit_research_agent_runtime(
                 for row in rows
                 if is_explicit_task_family(row.task_family)
             }
+        ),
+        "manifest_question_task_families": dict(
+            sorted(manifest_question_task_families.items())
+        ),
+        "n_rows_task_family_backfilled_from_manifest": (
+            n_rows_task_family_backfilled_from_manifest
         ),
         "question_ids_with_full_frontier_theorem_proved": sorted(
             {
@@ -5497,6 +5549,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- question ids: {payload.get('question_ids')}",
         f"- task families: {payload.get('task_families')}",
+        "- rows task-family backfilled from manifest: "
+        f"{payload.get('n_rows_task_family_backfilled_from_manifest')}",
         "- question ids with full frontier theorem proved: "
         f"{payload.get('question_ids_with_full_frontier_theorem_proved')}",
         "- task families with full frontier theorem proved: "

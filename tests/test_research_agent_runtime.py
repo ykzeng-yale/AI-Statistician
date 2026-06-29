@@ -43524,6 +43524,108 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
     assert ladder_rows[9]["passed"] is False
 
 
+def test_runtime_audit_backfills_task_family_from_manifest_metadata(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+
+    result_paths = []
+    for question_id in (
+        "conformal_prediction_coverage",
+        "conformal_selection_width",
+    ):
+        result_path = runtime_dir / f"{question_id}_runtime_result.json"
+        result_path.write_text(
+            json.dumps(
+                {
+                    "status": "ACCEPTED",
+                    "final_task_id": "critic:done",
+                    "blackboard": {
+                        "project_id": f"ai_statistician:{question_id}",
+                        "artifacts": {
+                            f"formalization_manifest:{question_id}": {
+                                "counts": {
+                                    "kernel_verified": 1,
+                                    "formal_gap": 0,
+                                },
+                                "formal_subclaims": [
+                                    {
+                                        "id": f"{question_id}:source",
+                                        "kernel_verified": True,
+                                        "verifier": "local.lake_env_lean",
+                                    }
+                                ],
+                                "full_frontier_theorem_proved": True,
+                            },
+                        },
+                    },
+                    "traces": [],
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        result_paths.append(str(result_path))
+
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_stage": (
+                    "architect_retrieval_theory_simulation_algorithm_"
+                    "formalization_critic_environment_loop"
+                ),
+                "n_questions": 2,
+                "question_task_families": {
+                    "conformal_prediction_coverage": "conformal",
+                    "conformal_selection_width": "conformal",
+                },
+                "question_tags": {
+                    "conformal_prediction_coverage": ["conformal", "coverage"],
+                    "conformal_selection_width": ["conformal", "selection"],
+                },
+                "n_runtime_next_action_items": 0,
+                "n_runtime_learning_rows": 0,
+                "artifacts": {
+                    "per_question_results": result_paths,
+                    "runtime_traces_jsonl": str(traces),
+                    "runtime_next_action_agenda_jsonl": str(agenda),
+                    "runtime_learning_rows_jsonl": str(learning),
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert audit["n_full_frontier_theorem_proved"] == 2
+    assert audit["n_rows_task_family_backfilled_from_manifest"] == 2
+    assert audit["manifest_question_task_families"] == {
+        "conformal_prediction_coverage": "conformal",
+        "conformal_selection_width": "conformal",
+    }
+    assert audit["task_families"] == ["conformal"]
+    assert audit["n_distinct_task_families"] == 1
+    assert audit["task_families_with_full_frontier_theorem_proved"] == [
+        "conformal"
+    ]
+    assert scorecard_rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+
+
 def test_late_typechecked_candidate_review_unresolved_state_advances_after_recheck() -> None:
     assert (
         _late_typechecked_candidate_review_unresolved(
