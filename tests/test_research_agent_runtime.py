@@ -88,6 +88,8 @@ from ai_statistician.research_agent_runtime import (
     FormalizationEvaluatorRuntimeSubsystem,
     ProofEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
+    SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
     SimulationEvaluatorRuntimeSubsystem,
     _critic_learning_rows,
     _critic_formal_blocker_resource_requests,
@@ -39703,6 +39705,37 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert truth_table["source_theorem_kernel_verified"] is True
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
+
+
+def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts() -> None:
+    raw_keys = set(SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS)
+    audit_keys = set(SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS)
+
+    assert audit_keys < raw_keys
+    assert (
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
+        in raw_keys
+    )
+    assert (
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
+        not in audit_keys
+    )
+    assert (
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified"
+        in raw_keys
+    )
+    assert (
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified"
+        not in audit_keys
+    )
+    assert (
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
 
 
 def test_runtime_audit_count_prefers_manifest_or_proof_summary_max() -> None:

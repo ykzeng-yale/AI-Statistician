@@ -11,6 +11,7 @@ from .fingerprint import stable_hash
 from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
+    SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
     _runtime_evidence_truth_table_from_manifest,
@@ -2355,15 +2356,7 @@ def _runtime_capability_gaps(payload: Mapping[str, Any]) -> list[str]:
 def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
     return sum(
         int(payload.get(key, 0) or 0)
-        for key in (
-            "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
-        )
+        for key in SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS
     )
 
 

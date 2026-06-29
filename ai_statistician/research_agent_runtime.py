@@ -179,6 +179,56 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY = (
 FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
 FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT = 12
+SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
+)
+SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
+    "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
+)
+SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
+)
+SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS: tuple[str, ...] = (
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification",
+    "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+)
+SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS: tuple[str, ...] = (
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt",
+    "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
+)
 
 
 def _executor_manifest_compact_payload(
@@ -371,34 +421,11 @@ def _runtime_evidence_truth_table_from_manifest(
 
     source_kernel_count = _runtime_manifest_int_sum(
         payload,
-        (
-            "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
-            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
-            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
-            "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
-            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
-            "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
-        ),
+        SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
     )
     proof_body_result_rows = _runtime_manifest_int_sum(
         payload,
-        (
-            "source_theorem_formal_environment_proof_body_executor_n_result_rows",
-            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
-            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
-            "source_theorem_exact_proof_body_repair_executor_n_result_rows",
-            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
-            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
-            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
-            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
-            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
-        ),
+        SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     )
     proof_body_goal_reached = _runtime_manifest_int(
         payload,
@@ -406,25 +433,11 @@ def _runtime_evidence_truth_table_from_manifest(
     )
     proof_body_blocker = _runtime_manifest_first_nonempty(
         payload,
-        (
-            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
-            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
-            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
-            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
-            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification",
-            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
-        ),
+        SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS,
     )
     proof_body_goal_excerpt = _runtime_manifest_first_nonempty_list(
         payload,
-        (
-            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
-            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
-            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
-            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
-            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt",
-            "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
-        ),
+        SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
     )
     bridge_helper_count = _runtime_manifest_int(payload, "n_kernel_verified_subclaims")
     bridge_helper_count += _runtime_manifest_int(
