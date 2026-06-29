@@ -345,6 +345,21 @@ def audit_research_agent_runtime(
         learning_rows=learning_rows,
         agenda_rows=agenda_rows,
     )
+    runtime_source_to_bridge_feedback_contract_summary = (
+        _runtime_source_to_bridge_feedback_contract_audit_summary(
+            pending_task_payload=(
+                pending_task_payload
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            pending_memory_rows=(
+                runtime_pending_task_memory_rows
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            learning_rows=learning_rows,
+        )
+    )
     result_errors = [
         {
             "question_id": row.question_id,
@@ -610,6 +625,31 @@ def audit_research_agent_runtime(
         "runtime_route_critical_target_identity_boundary": str(
             runtime_target_identity_summary[
                 "runtime_route_critical_target_identity_boundary"
+            ]
+        ),
+        "n_runtime_source_to_bridge_feedback_contract_rows": int(
+            runtime_source_to_bridge_feedback_contract_summary[
+                "n_runtime_source_to_bridge_feedback_contract_rows"
+            ]
+        ),
+        "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract": int(
+            runtime_source_to_bridge_feedback_contract_summary[
+                "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+            ]
+        ),
+        "runtime_source_to_bridge_feedback_rows_missing_declaration_contract": list(
+            runtime_source_to_bridge_feedback_contract_summary[
+                "runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+            ]
+        ),
+        "runtime_source_to_bridge_feedback_contract_channels": list(
+            runtime_source_to_bridge_feedback_contract_summary[
+                "runtime_source_to_bridge_feedback_contract_channels"
+            ]
+        ),
+        "runtime_source_to_bridge_feedback_contract_boundary": str(
+            runtime_source_to_bridge_feedback_contract_summary[
+                "runtime_source_to_bridge_feedback_contract_boundary"
             ]
         ),
         "n_runtime_theorem_reduction_closure_work_orders": int(
@@ -3092,6 +3132,288 @@ def _runtime_target_identity_audit_summary(
     }
 
 
+def _runtime_source_to_bridge_feedback_contract_audit_summary(
+    *,
+    pending_task_payload: Mapping[str, Any] | None = None,
+    pending_memory_rows: list[Any] | None = None,
+    learning_rows: list[Any] | None = None,
+) -> dict[str, Any]:
+    missing_rows: list[dict[str, Any]] = []
+    contract_rows = 0
+    channels: set[str] = set()
+    row_sources: list[tuple[str, list[Any]]] = []
+    if isinstance(pending_task_payload, Mapping) and pending_task_payload:
+        row_sources.extend(
+            _runtime_pending_task_source_to_bridge_feedback_row_sources(
+                pending_task_payload
+            )
+        )
+    if pending_memory_rows is not None:
+        row_sources.append(("runtime_pending_task_memory", pending_memory_rows))
+    else:
+        row_sources.append(("runtime_learning_rows", learning_rows or []))
+    for channel, rows in row_sources:
+        for index, row in enumerate(rows):
+            if not _runtime_source_to_bridge_feedback_row_requires_declaration(row):
+                continue
+            contract_rows += 1
+            channels.add(channel)
+            missing_fields = _runtime_source_to_bridge_feedback_missing_contract_fields(
+                row
+            )
+            if not missing_fields:
+                continue
+            missing_rows.append(
+                {
+                    "channel": channel,
+                    "index": str(index),
+                    "row_id": _runtime_route_row_identifier(row),
+                    "learning_task": _runtime_route_row_field(row, "learning_task"),
+                    "trigger": _runtime_route_row_trigger_value(row),
+                    "failure_classification": _runtime_route_row_field(
+                        row,
+                        "failure_classification",
+                    ),
+                    "premise_name": _runtime_route_row_field(row, "premise_name"),
+                    "target_theorem_name": _runtime_route_row_field(
+                        row,
+                        "target_theorem_name",
+                        "target_lean_declaration",
+                    ),
+                    "missing_fields": missing_fields,
+                }
+            )
+    return {
+        "n_runtime_source_to_bridge_feedback_contract_rows": contract_rows,
+        "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract": len(
+            missing_rows
+        ),
+        "runtime_source_to_bridge_feedback_rows_missing_declaration_contract": (
+            missing_rows[:25]
+        ),
+        "runtime_source_to_bridge_feedback_contract_channels": sorted(channels),
+        "runtime_source_to_bridge_feedback_contract_boundary": (
+            "source-to-bridge premise derivation feedback and metadata-authoring "
+            "requests that re-enter prompt memory must carry exact "
+            "premise_candidate_declaration_name contracts at the diagnostic/request "
+            "boundary. These contracts identify the Lean declaration to author or "
+            "repair; they are routing metadata, not proof evidence."
+        ),
+    }
+
+
+def _runtime_pending_task_source_to_bridge_feedback_row_sources(
+    payload: Mapping[str, Any],
+) -> list[tuple[str, list[Any]]]:
+    pending_task = (
+        payload.get("pending_next_task", {})
+        if isinstance(payload.get("pending_next_task", {}), Mapping)
+        else {}
+    )
+    inputs = (
+        pending_task.get("inputs", {})
+        if isinstance(pending_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    row_sources: list[tuple[str, list[Any]]] = []
+    for channel, feedback in (
+        ("runtime_pending_task_environment_feedback", inputs.get("environment_feedback")),
+        (
+            "runtime_pending_task_architect_context_environment_feedback",
+            architect_context.get("environment_feedback"),
+        ),
+    ):
+        if not isinstance(feedback, Mapping):
+            continue
+        rows = _runtime_environment_feedback_source_to_bridge_contract_rows(feedback)
+        if rows:
+            row_sources.append((channel, rows))
+    return row_sources
+
+
+def _runtime_environment_feedback_source_to_bridge_contract_rows(
+    feedback: Mapping[str, Any],
+) -> list[Any]:
+    rows: list[Any] = []
+    premise_feedback = feedback.get("source_to_bridge_premise_derivation_feedback", {})
+    if isinstance(premise_feedback, Mapping):
+        diagnostics = premise_feedback.get("diagnostics", [])
+        if isinstance(diagnostics, list):
+            rows.extend(row for row in diagnostics if isinstance(row, Mapping))
+    top_level_diagnostics = feedback.get(
+        "source_to_bridge_premise_derivation_diagnostics",
+        [],
+    )
+    if isinstance(top_level_diagnostics, list):
+        rows.extend(row for row in top_level_diagnostics if isinstance(row, Mapping))
+    return rows
+
+
+def _runtime_source_to_bridge_feedback_row_requires_declaration(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    ).strip()
+    if learning_task == "generated_next_action_routing":
+        return False
+    request = (
+        row.get("source_to_bridge_premise_derivation_candidate_request", {})
+        if isinstance(
+            row.get("source_to_bridge_premise_derivation_candidate_request", {}),
+            Mapping,
+        )
+        else {}
+    )
+    input_request = (
+        input_summary.get("source_to_bridge_premise_derivation_candidate_request", {})
+        if isinstance(
+            input_summary.get("source_to_bridge_premise_derivation_candidate_request", {}),
+            Mapping,
+        )
+        else {}
+    )
+    text = " ".join(
+        str(source.get(key, "") or "")
+        for source in (row, input_summary)
+        for key in (
+            "learning_task",
+            "trigger",
+            "failure_classification",
+            "runtime_queue_status",
+            "proof_evidence_status",
+            "metadata_authoring_status",
+        )
+    ).lower()
+    has_source_to_bridge_marker = (
+        "source_to_bridge" in text
+        or "source-to-bridge" in text
+        or bool(request)
+        or bool(input_request)
+    )
+    if not has_source_to_bridge_marker:
+        return False
+    premise = (
+        _runtime_source_to_bridge_contract_text(row, input_summary, request, input_request, "premise_name")
+        or _runtime_source_to_bridge_contract_text(
+            row,
+            input_summary,
+            request,
+            input_request,
+            "source_to_bridge_premise_name",
+        )
+    )
+    target = (
+        _runtime_source_to_bridge_contract_text(
+            row,
+            input_summary,
+            request,
+            input_request,
+            "target_theorem_name",
+        )
+        or _runtime_source_to_bridge_contract_text(
+            row,
+            input_summary,
+            request,
+            input_request,
+            "target_lean_declaration",
+        )
+    )
+    return bool(premise and target)
+
+
+def _runtime_source_to_bridge_feedback_missing_contract_fields(
+    row: Any,
+) -> list[str]:
+    if not isinstance(row, Mapping):
+        return ["row_not_object"]
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    request = (
+        row.get("source_to_bridge_premise_derivation_candidate_request", {})
+        if isinstance(
+            row.get("source_to_bridge_premise_derivation_candidate_request", {}),
+            Mapping,
+        )
+        else {}
+    )
+    input_request = (
+        input_summary.get("source_to_bridge_premise_derivation_candidate_request", {})
+        if isinstance(
+            input_summary.get("source_to_bridge_premise_derivation_candidate_request", {}),
+            Mapping,
+        )
+        else {}
+    )
+    missing: list[str] = []
+    declaration = (
+        _runtime_source_to_bridge_contract_text(
+            row,
+            input_summary,
+            request,
+            input_request,
+            "premise_candidate_declaration_name",
+        )
+        or _runtime_source_to_bridge_contract_text(
+            row,
+            input_summary,
+            request,
+            input_request,
+            "source_to_bridge_premise_candidate_declaration_name",
+        )
+    )
+    if not declaration:
+        missing.append("premise_candidate_declaration_name")
+    if request:
+        request_declaration = _runtime_source_to_bridge_contract_text(
+            request,
+            {},
+            input_request,
+            {},
+            "premise_candidate_declaration_name",
+        ) or _runtime_source_to_bridge_contract_text(
+            request,
+            {},
+            input_request,
+            {},
+            "source_to_bridge_premise_candidate_declaration_name",
+        )
+        if not request_declaration:
+            missing.append(
+                "source_to_bridge_premise_derivation_candidate_request.premise_candidate_declaration_name"
+            )
+    return missing
+
+
+def _runtime_source_to_bridge_contract_text(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    request: Mapping[str, Any],
+    input_request: Mapping[str, Any],
+    key: str,
+) -> str:
+    return str(
+        row.get(key, "")
+        or request.get(key, "")
+        or input_summary.get(key, "")
+        or input_request.get(key, "")
+        or ""
+    ).strip()
+
+
 def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
     pending_task = (
         payload.get("pending_next_task", {})
@@ -4030,6 +4352,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_route_missing_target_ids_count = int(
         payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
     )
+    runtime_source_to_bridge_missing_declaration_contract_count = int(
+        payload.get(
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_required = bool(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
@@ -4374,6 +4703,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "route-critical proof/formal agenda or learning rows lacked "
                 "top-level target_ids; preserve source-theorem target identity "
                 "before reusing runtime memory or handoff instructions"
+            ),
+        ),
+        _scorecard_row(
+            "source_to_bridge_feedback_declaration_contracts_complete",
+            runtime_source_to_bridge_missing_declaration_contract_count <= 0,
+            (
+                "contract_rows="
+                f"{payload.get('n_runtime_source_to_bridge_feedback_contract_rows')} "
+                "missing_declaration_contracts="
+                f"{payload.get('n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract')} "
+                "channels="
+                f"{payload.get('runtime_source_to_bridge_feedback_contract_channels')} "
+                "missing="
+                f"{payload.get('runtime_source_to_bridge_feedback_rows_missing_declaration_contract')}"
+            ),
+            (
+                "source-to-bridge premise derivation feedback or metadata-authoring "
+                "requests are being reused without exact "
+                "premise_candidate_declaration_name contracts; downstream "
+                "Formalizer/ProofEngineer turns must not guess the Lean declaration "
+                "name from stale or null request metadata"
             ),
         ),
         _scorecard_row(
@@ -5994,6 +6344,13 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('runtime_route_critical_target_identity_channels')}",
         "- route-critical target identity missing sample: "
         f"{payload.get('runtime_route_critical_rows_missing_target_ids')}",
+        "- source-to-bridge feedback declaration contracts / missing: "
+        f"{payload.get('n_runtime_source_to_bridge_feedback_contract_rows')} / "
+        f"{payload.get('n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract')}",
+        "- source-to-bridge feedback contract channels: "
+        f"{payload.get('runtime_source_to_bridge_feedback_contract_channels')}",
+        "- source-to-bridge feedback declaration missing sample: "
+        f"{payload.get('runtime_source_to_bridge_feedback_rows_missing_declaration_contract')}",
         "- missing handoff artifact feedback rows / learning / agenda: "
         f"{payload.get('n_runtime_handoff_artifact_missing_feedback_rows')} / "
         f"{payload.get('n_runtime_handoff_artifact_missing_learning_rows')} / "

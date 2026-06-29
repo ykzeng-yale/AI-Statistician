@@ -202,6 +202,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _manifest_or_proof_summary_count,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
+    _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
     _runtime_target_identity_audit_summary,
     _resolve_manifest_paths,
@@ -1617,6 +1618,189 @@ def test_runtime_target_identity_audit_prefers_pending_memory_over_history() -> 
     assert summary["runtime_route_critical_target_identity_channels"] == [
         "runtime_pending_task_memory"
     ]
+
+
+def test_runtime_source_to_bridge_feedback_contract_audit_flags_null_declaration() -> None:
+    summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
+        pending_task_payload={
+            "pending_next_task": {
+                "task_id": "theory-critic-revise:conformal_prediction_coverage:test",
+                "owner_subsystem": "TheoryDeveloper",
+                "inputs": {
+                    "environment_feedback": {
+                        "source_to_bridge_premise_derivation_feedback": {
+                            "diagnostics": [
+                                {
+                                    "target_theorem_name": (
+                                        "split_conformal_finite_sample_coverage"
+                                    ),
+                                    "premise_name": "hRankUniform",
+                                    "failure_classification": (
+                                        "COMPLETE_SOURCE_TO_BRIDGE_CANDIDATE_REQUEST_AUTHORED"
+                                    ),
+                                    "source_to_bridge_premise_derivation_candidate_request": {
+                                        "candidate_request_id": "request:hRankUniform",
+                                        "target_theorem_name": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "target_lean_declaration": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "premise_name": "hRankUniform",
+                                        "premise_candidate_declaration_name": None,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                },
+            }
+        },
+        pending_memory_rows=[],
+        learning_rows=[],
+    )
+
+    assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+        ]
+        == 1
+    )
+    missing = summary[
+        "runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+    ][0]
+    assert missing["channel"] == "runtime_pending_task_environment_feedback"
+    assert missing["premise_name"] == "hRankUniform"
+    assert "premise_candidate_declaration_name" in missing["missing_fields"]
+    assert (
+        "source_to_bridge_premise_derivation_candidate_request."
+        "premise_candidate_declaration_name"
+        in missing["missing_fields"]
+    )
+
+
+def test_runtime_source_to_bridge_feedback_contract_audit_accepts_normalized_declaration() -> None:
+    declaration = (
+        "split_conformal_finite_sample_coverage_hRankUniform_source_to_bridge_derivation"
+    )
+    summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
+        pending_task_payload={
+            "pending_next_task": {
+                "task_id": "theory-critic-revise:conformal_prediction_coverage:test",
+                "owner_subsystem": "TheoryDeveloper",
+                "inputs": {
+                    "environment_feedback": {
+                        "source_to_bridge_premise_derivation_feedback": {
+                            "diagnostics": [
+                                {
+                                    "target_theorem_name": (
+                                        "split_conformal_finite_sample_coverage"
+                                    ),
+                                    "target_lean_declaration": (
+                                        "split_conformal_finite_sample_coverage"
+                                    ),
+                                    "premise_name": "hRankUniform",
+                                    "premise_candidate_declaration_name": declaration,
+                                    "source_to_bridge_premise_derivation_candidate_request": {
+                                        "candidate_request_id": "request:hRankUniform",
+                                        "target_theorem_name": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "target_lean_declaration": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "premise_name": "hRankUniform",
+                                        "premise_candidate_declaration_name": declaration,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                },
+            }
+        },
+        pending_memory_rows=[],
+        learning_rows=[],
+    )
+
+    assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+        ]
+        == 0
+    )
+
+
+def test_runtime_source_to_bridge_feedback_contract_audit_ignores_generated_routing() -> None:
+    summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
+        pending_memory_rows=[
+            {
+                "learning_task": "generated_next_action_routing",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "input_summary": {
+                    "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+                    "premise_name": "hRankUniform",
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        learning_rows=[],
+    )
+
+    assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 0
+    assert (
+        summary[
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+        ]
+        == 0
+    )
+
+
+def test_runtime_capability_scorecard_flags_source_to_bridge_feedback_contract_gap() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows[
+        "source_to_bridge_feedback_declaration_contracts_complete"
+    ]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "n_runtime_source_to_bridge_feedback_contract_rows": 1,
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract": 1,
+            "runtime_source_to_bridge_feedback_contract_channels": [
+                "runtime_pending_task_environment_feedback"
+            ],
+            "runtime_source_to_bridge_feedback_rows_missing_declaration_contract": [
+                {
+                    "channel": "runtime_pending_task_environment_feedback",
+                    "row_id": "request:hRankUniform",
+                    "premise_name": "hRankUniform",
+                    "missing_fields": [
+                        "premise_candidate_declaration_name",
+                    ],
+                }
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    contract_score = rows[
+        "source_to_bridge_feedback_declaration_contracts_complete"
+    ]
+
+    assert contract_score["passed"] is False
+    assert "hRankUniform" in contract_score["evidence"]
+    assert "premise_candidate_declaration_name" in contract_score["blocker"]
 
 
 def test_runtime_audit_markdown_reports_current_handoff_identity(
