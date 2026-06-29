@@ -19627,6 +19627,41 @@ def test_generated_premise_gap_next_actions_drive_formalizer_and_critic_route() 
     assert agenda[0]["premise_names"] == ["hGoodCovered", "hRank"]
 
 
+def test_critic_agenda_kernel_rerun_preserves_target_ids() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 0},
+        formalization_manifest={
+            "counts": {
+                "formal_gap": 1,
+                "proved": 1,
+                "kernel_verified": 0,
+            },
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+        },
+    )
+
+    kernel_rerun = next(
+        row for row in agenda if row["id"] == "proof_feedback:kernel_rerun"
+    )
+    assert kernel_rerun["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+    summary = _runtime_target_identity_audit_summary(
+        learning_rows=[],
+        agenda_rows=agenda,
+    )
+    assert summary["n_runtime_route_critical_rows_missing_target_ids"] == 0
+
+
 def test_grouped_source_to_bridge_premise_request_is_first_class_memory(
     tmp_path: Path,
 ) -> None:
@@ -29376,6 +29411,54 @@ def test_runtime_agenda_rows_prunes_historical_metadata_blocker_after_downstream
     assert [row["id"] for row in compacted] == [
         "formal_gap:source_theorem_exact_semantic_definition_repair"
     ]
+
+
+def test_runtime_agenda_rows_backfills_targets_from_formalization_manifest() -> None:
+    targetless_kernel_rerun = {
+        "id": "proof_feedback:kernel_rerun",
+        "owner_subsystem": "FormalizationEvaluator",
+        "trigger": "NONKERNEL_PROOF_ROWS",
+        "action": (
+            "rerun registered proof-bank rows with --local-lean or --real-lean "
+            "before claiming kernel evidence"
+        ),
+        "acceptance_gate": (
+            "kernel_verified count is recorded from AXLE/local Lean"
+        ),
+        "priority": "high",
+    }
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "formalization:conformal": {
+                        "artifact_kind": "RuntimeFormalizationManifest",
+                        "deterministic_theorem_goals": [
+                            {"id": "split_conformal_finite_sample_coverage"}
+                        ],
+                    },
+                    "critic:resume": {
+                        "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                        "next_action_agenda": [targetless_kernel_rerun],
+                    },
+                }
+            }
+        }
+    ]
+
+    compacted = runtime_module._runtime_agenda_rows(results)
+
+    assert compacted == [
+        {
+            **targetless_kernel_rerun,
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+        }
+    ]
+    summary = _runtime_target_identity_audit_summary(
+        learning_rows=[],
+        agenda_rows=compacted,
+    )
+    assert summary["n_runtime_route_critical_rows_missing_target_ids"] == 0
 
 
 def test_runtime_next_action_agenda_merges_algorithm_reviews_across_prototypes() -> None:

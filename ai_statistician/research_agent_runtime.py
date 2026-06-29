@@ -28986,6 +28986,7 @@ def _critic_next_action_agenda(
                 "trigger": "NONKERNEL_PROOF_ROWS",
                 "action": "rerun registered proof-bank rows with --local-lean or --real-lean before claiming kernel evidence",
                 "acceptance_gate": "kernel_verified count is recorded from AXLE/local Lean",
+                "target_ids": [row for row in gap_goals if row],
                 "priority": "high",
                 "proof_boundary": KERNEL_PROOF_BOUNDARY,
             }
@@ -39053,12 +39054,67 @@ def _runtime_agenda_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        fallback_target_ids = _runtime_result_formalization_target_ids(artifacts)
         for artifact in artifacts.values():
             if isinstance(artifact, Mapping) and artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest":
                 for item in artifact.get("next_action_agenda", []) or []:
                     if isinstance(item, Mapping):
-                        rows.append(dict(item))
+                        rows.append(
+                            _runtime_agenda_row_with_target_fallback(
+                                item,
+                                fallback_target_ids=fallback_target_ids,
+                            )
+                        )
     return _dedupe_runtime_next_action_agenda_rows(rows)
+
+
+def _runtime_result_formalization_target_ids(
+    artifacts: Mapping[str, Any],
+) -> list[str]:
+    target_ids: list[str] = []
+    for artifact in artifacts.values():
+        if not (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+        ):
+            continue
+        for target_id in _formal_blocker_target_ids_from_manifest_and_diagnostics(
+            artifact,
+            [],
+        ):
+            if target_id:
+                target_ids.append(target_id)
+    return list(dict.fromkeys(target_ids))
+
+
+def _runtime_agenda_row_with_target_fallback(
+    item: Mapping[str, Any],
+    *,
+    fallback_target_ids: Sequence[str],
+) -> dict[str, Any]:
+    row = dict(item)
+    if _runtime_next_action_agenda_target_keys(row):
+        return row
+    row_id = str(row.get("id", "") or "")
+    trigger = str(row.get("trigger", "") or "")
+    owner = str(row.get("owner_subsystem", "") or row.get("owner", "") or "")
+    route_critical = (
+        row_id.startswith(("formal_gap:", "proof_feedback:"))
+        or "FORMAL" in trigger
+        or "PROOF" in trigger
+        or "Formal" in owner
+        or "Proof" in owner
+    )
+    if not route_critical:
+        return row
+    target_ids = [
+        str(value).strip()
+        for value in fallback_target_ids
+        if str(value).strip()
+    ]
+    if target_ids:
+        row["target_ids"] = list(dict.fromkeys(target_ids))
+    return row
 
 
 def _dedupe_runtime_next_action_agenda_rows(
