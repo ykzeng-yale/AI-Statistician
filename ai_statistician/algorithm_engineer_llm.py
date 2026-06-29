@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .generated_metric_repair_policy import generated_metric_gate_repair_instruction
+from .generated_metric_repair_policy import (
+    generated_metric_gate_repair_instruction,
+    generated_python_sandbox_guard_repair_instruction,
+    generated_python_sandbox_safe_subset_contract,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -173,49 +177,7 @@ def build_algorithm_engineer_prompt(
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
             "default": "leave sandbox_code_drafts empty when a registered template matches",
-            "safe_subset": {
-                "allowed_globals": [
-                    "math",
-                    "statistics",
-                    "abs",
-                    "bool",
-                    "dict",
-                    "enumerate",
-                    "float",
-                    "int",
-                    "len",
-                    "list",
-                    "max",
-                    "min",
-                    "pow",
-                    "range",
-                    "round",
-                    "sorted",
-                    "sum",
-                ],
-                "forbidden_dependencies": [
-                    "numpy",
-                    "scipy",
-                    "sklearn",
-                    "pandas",
-                    "statsmodels",
-                    "torch",
-                    "jax",
-                ],
-                "forbidden_syntax": [
-                    "imports except math/statistics",
-                    "class definitions",
-                    "with blocks",
-                    "global/nonlocal",
-                    "file I/O, network, subprocess, eval, exec",
-                    "method calls or attribute access except math.*, statistics.*, and list append",
-                ],
-                "fallback_rule": (
-                    "If you cannot express the draft in this pure-Python safe subset, "
-                    "leave sandbox_code_drafts empty and put the implementation details "
-                    "in sandbox_plan/code_generation_plan instead."
-                ),
-            },
+            "safe_subset": generated_python_sandbox_safe_subset_contract(),
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts only "
                 "inside a bounded sandbox; unsafe or nonconforming drafts are rejected."
@@ -261,6 +223,13 @@ def build_algorithm_engineer_prompt(
         if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
         else ""
     )
+    sandbox_guard_instruction = (
+        generated_python_sandbox_guard_repair_instruction(
+            artifact_label="generated algorithm draft"
+        )
+        if requires_generated_code
+        else ""
+    )
     component_gate_instruction = (
         "Coding-agent component-gate feedback is active: treat "
         "runtime_environment_feedback as calibration for the expected generated-code "
@@ -278,6 +247,7 @@ def build_algorithm_engineer_prompt(
         "exactly 1 short object or 1 short string. Include only required fields. "
         + generated_code_instruction
         + metric_gate_instruction
+        + sandbox_guard_instruction
         + component_gate_instruction
         + "You may "
         "propose code and tests, but "

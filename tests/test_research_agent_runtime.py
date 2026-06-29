@@ -13567,8 +13567,10 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert "sklearn" in prompt
     assert "split_conformal_interval" in prompt
     assert "trusted split-conformal regression interval sandbox" in prompt
-    assert "imports except math/statistics" in prompt
-    assert "method calls or attribute access except math.*, statistics.*, and list append" in prompt
+    assert "imports except math/statistics/random" in prompt
+    assert "random.Random" in prompt
+    assert "global/nonlocal" in prompt
+    assert "method calls or attribute access outside math/statistics/random" in prompt
     assert "leave sandbox_code_drafts empty" in prompt
 
 
@@ -13618,6 +13620,8 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "can import only math/statistics" in prompt
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "rng = random.Random(seed + rep)" in prompt
+    assert "avoid global/nonlocal" in prompt
     assert "do not repeat the same unsafe" in prompt
 
 
@@ -14081,6 +14085,9 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "generated_simulation_sandbox_no_executable_draft" in prompt
     assert "REJECTED_UNSAFE_GENERATED_CODE" in prompt
     assert "can import only math/statistics" in prompt
+    assert "imports except math/statistics/random" in prompt
+    assert "rng = random.Random(seed + rep)" in prompt
+    assert "avoid global/nonlocal" in prompt
     assert "do not repeat the same unsafe" in prompt
 
 

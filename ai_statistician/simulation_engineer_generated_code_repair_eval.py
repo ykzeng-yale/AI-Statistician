@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .agent_runtime import AgentTask, BlackboardState
 from .generated_metric_repair_policy import (
     generated_coverage_metric_component_feedback,
+    generated_python_sandbox_guard_repair_instruction,
 )
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
@@ -500,6 +501,10 @@ def _prior_metric_gate_feedback(
                 "mean_width",
                 "sandbox_failed=False",
             ),
+        )
+        + " "
+        + generated_python_sandbox_guard_repair_instruction(
+            artifact_label="generated simulation sandbox"
         ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_simulation_code": True

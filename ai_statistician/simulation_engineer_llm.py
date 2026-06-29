@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .generated_metric_repair_policy import generated_metric_gate_repair_instruction
+from .generated_metric_repair_policy import (
+    generated_metric_gate_repair_instruction,
+    generated_python_sandbox_guard_repair_instruction,
+    generated_python_sandbox_safe_subset_contract,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -160,33 +164,7 @@ def build_simulation_engineer_prompt(
             "language": "python",
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
-            "safe_subset": {
-                "allowed_globals": [
-                    "abs",
-                    "bool",
-                    "dict",
-                    "enumerate",
-                    "float",
-                    "int",
-                    "len",
-                    "list",
-                    "max",
-                    "min",
-                    "pow",
-                    "range",
-                    "round",
-                    "sorted",
-                    "sum",
-                ],
-                "allowed_modules": ["math", "statistics"],
-                "forbidden": [
-                    "imports except math/statistics",
-                    "file/network/subprocess/eval/exec",
-                    "class definitions",
-                    "method calls or attribute access except math.* and statistics.*",
-                    "method calls except math.*, statistics.*, and list append",
-                ],
-            },
+            "safe_subset": generated_python_sandbox_safe_subset_contract(),
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts "
                 "inside a bounded local sandbox. Failed or unsafe drafts are "
@@ -222,6 +200,13 @@ def build_simulation_engineer_prompt(
         if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
         else ""
     )
+    sandbox_guard_instruction = (
+        generated_python_sandbox_guard_repair_instruction(
+            artifact_label="generated simulation draft"
+        )
+        if requires_generated_code
+        else ""
+    )
     component_gate_instruction = (
         "Coding-agent component-gate feedback is active: treat "
         "runtime_environment_feedback as calibration for the expected generated "
@@ -247,6 +232,7 @@ def build_simulation_engineer_prompt(
         "supplied trace anchors.\n\n"
         + generated_simulation_instruction
         + metric_gate_instruction
+        + sandbox_guard_instruction
         + component_gate_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
         "draft or metric-gate failure, repair that concrete draft or omit "

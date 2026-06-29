@@ -8,6 +8,90 @@ GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE = (
 )
 
 
+def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
+    """Shared generated-Python contract exposed to coding-agent prompts."""
+
+    return {
+        "allowed_modules": ["math", "statistics", "random"],
+        "allowed_globals": [
+            "abs",
+            "bool",
+            "dict",
+            "enumerate",
+            "float",
+            "int",
+            "len",
+            "list",
+            "max",
+            "min",
+            "pow",
+            "range",
+            "round",
+            "sorted",
+            "str",
+            "sum",
+            "tuple",
+        ],
+        "allowed_methods": [
+            "list.append",
+            "list.sort",
+            "random.Random",
+            "rng.random",
+            "rng.uniform",
+            "rng.gauss",
+            "rng.normalvariate",
+            "math.*",
+            "statistics.*",
+        ],
+        "forbidden_dependencies": [
+            "numpy",
+            "scipy",
+            "sklearn",
+            "pandas",
+            "statsmodels",
+            "torch",
+            "jax",
+        ],
+        "forbidden_syntax": [
+            "imports except math/statistics/random",
+            "class definitions",
+            "with blocks",
+            "global/nonlocal",
+            "file I/O, network, subprocess, eval, exec",
+            "private/dunder names or attributes",
+            "method calls or attribute access outside math/statistics/random and list append/sort",
+        ],
+        "safe_random_usage": (
+            "Use local RNG objects such as rng = random.Random(seed + rep); "
+            "keep mutable state inside run_sandbox and do not use global/nonlocal."
+        ),
+        "fallback_rule": (
+            "If the draft cannot be expressed in this pure-Python safe subset, "
+            "omit the generated draft and record the required registered adapter "
+            "or human-reviewed implementation blocker instead."
+        ),
+        "boundary": (
+            "This contract describes the local generated-Python sandbox API only. "
+            "Passing it is implementation evidence, not theorem proof evidence."
+        ),
+    }
+
+
+def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) -> str:
+    """Prompt repair instruction for drafts rejected by the static guard."""
+
+    label = artifact_label.strip() or "generated Python sandbox draft"
+    return (
+        f"Generated-Python sandbox guard repair is active for the {label}: "
+        "the next draft must keep all mutable state local to run_sandbox, avoid "
+        "global/nonlocal, avoid classes/with/file/network/subprocess/eval/exec, "
+        "and import only math, statistics, or random. For stochastic simulations, "
+        "prefer local RNG objects such as rng = random.Random(seed + rep) and "
+        "call rng.random(), rng.uniform(), rng.gauss(), or rng.normalvariate(). "
+        "Do not hand-roll closure-based RNG state that requires nonlocal. "
+    )
+
+
 def generated_metric_gate_repair_instruction(*, artifact_label: str) -> str:
     """Shared prompt policy for generated-code metric gate repairs.
 
@@ -23,7 +107,11 @@ def generated_metric_gate_repair_instruction(*, artifact_label: str) -> str:
         f"{label} executed locally but returned statistically invalid metrics. "
         "Repair the estimator, DGP, uncertainty calculation, or metric computation "
         "so named probability/coverage metrics are nondegenerate, inside [0,1], "
-        "and satisfy the stated target when target_coverage is present. Do not "
+        "and satisfy the stated target when target_coverage is present. If an "
+        "interval or prediction-set coverage metric is below target_coverage, "
+        "the next draft must correct the coverage indicator and increase or "
+        "recalibrate the uncertainty radius/quantile enough to meet the target "
+        "while still reporting utility diagnostics. Do not "
         "only rename metrics or hide the coverage field. Do not satisfy the gate "
         "with a vacuous all-covering or otherwise utility-free output; preserve "
         "and return relevant utility diagnostics such as mean_width, interval_size, "
@@ -51,7 +139,10 @@ def generated_coverage_metric_component_feedback(
         f"Repair the {label}. The previous draft executed but reported zero "
         f"coverage; return empirical_coverage >= {target_coverage}. The repair "
         "must come from a statistically meaningful DGP, estimator, uncertainty, "
-        "or coverage computation, not from renaming metrics, hiding the coverage "
+        "or coverage computation. For interval or prediction-set coverage, "
+        "correct the coverage indicator and increase or recalibrate the "
+        "uncertainty radius/quantile enough to meet target_coverage while still "
+        "reporting utility diagnostics. Do not repair by renaming metrics, hiding the coverage "
         "field, or returning a vacuous all-covering output. Preserve utility "
         "diagnostics such as mean_width, interval_size, bias, RMSE, efficiency, "
         "or failure_rate when relevant so the eval can detect coverage-utility "

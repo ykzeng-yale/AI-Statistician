@@ -38,6 +38,9 @@ from .critic_evaluator_llm import (
     LLMCriticEvaluatorAgent,
 )
 from .fingerprint import stable_hash
+from .generated_metric_repair_policy import (
+    generated_python_sandbox_guard_repair_instruction,
+)
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
@@ -50670,6 +50673,10 @@ def _generated_simulation_revision_feedback(
             "nondegenerate diagnostic metrics that satisfy the stated acceptance "
             "gate, or omit the generated draft with an explicit blocker instead "
             "of repeating the same non-executable or metric-failing code"
+            + " "
+            + generated_python_sandbox_guard_repair_instruction(
+                artifact_label="generated simulation draft"
+            )
         ),
         "boundary": boundary,
     }
