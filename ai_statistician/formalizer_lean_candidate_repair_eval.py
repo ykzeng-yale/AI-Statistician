@@ -9,6 +9,7 @@ from .agent_runtime import AgentTask, BlackboardState
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
 from .model_backend import OpenAIResponsesGeneratorBackend, default_generator_model
 from .proof_state_feedback import (
+    LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
     proof_state_feedback_row_to_json,
 )
@@ -41,6 +42,7 @@ def run_formalizer_lean_candidate_repair_eval(
     temperature: float = 0.1,
     lean_project: Path | None = None,
     lean_timeout: int = 15,
+    lean_lsp_mcp_proof_state_feedback: bool = False,
     max_repair_attempts: int = 3,
 ) -> dict[str, Any]:
     """Run a narrow Formalizer/ProofEngineer Lean-candidate repair eval.
@@ -104,7 +106,12 @@ def run_formalizer_lean_candidate_repair_eval(
     if prior_feedback is None:
         raise RuntimeError("failed to create prior Formalizer local-Lean feedback")
     prior_feedback = dict(prior_feedback)
-    proof_state_provider = LocalLeanProofStateFeedbackProvider(
+    proof_state_provider_cls = (
+        LeanLspMcpProofStateFeedbackProvider
+        if lean_lsp_mcp_proof_state_feedback
+        else LocalLeanProofStateFeedbackProvider
+    )
+    proof_state_provider = proof_state_provider_cls(
         project_root=lean_project,
         timeout_s=lean_timeout,
     )
@@ -380,6 +387,7 @@ def run_formalizer_lean_candidate_repair_eval(
         "prior_failure_manifest": prior_failure_manifest,
         "prior_feedback_proof_state_provider": prior_feedback_proof_state_provider,
         "prior_feedback_proof_state_rows": prior_feedback_proof_state_rows,
+        "prior_feedback_proof_state_counts": dict(proof_state_counts),
         "formalizer_lean_candidate_materialization": dict(latest_materialization),
         "proof_evidence_status": (
             FORMALIZER_LEAN_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE
@@ -514,6 +522,21 @@ def _attach_candidate_proof_state_feedback(
     proofengineer_context["candidate_proof_state_feedback_counts"] = {
         "rows": len(row_dicts),
         "residual_goals": sum(len(row.residual_goals) for row in proof_state_rows),
+        "executed_tool_calls": sum(
+            len(row.executed_tools) for row in proof_state_rows
+        ),
+        "local_lean_tool_calls": sum(
+            1
+            for row in proof_state_rows
+            for tool in row.executed_tools
+            if tool == "local.lake_env_lean"
+        ),
+        "lean_lsp_mcp_tool_calls": sum(
+            1
+            for row in proof_state_rows
+            for tool in row.executed_tools
+            if str(tool).startswith("lean_lsp_mcp.")
+        ),
         "route_revision_recommended": sum(
             1 for row in proof_state_rows if row.route_revision_recommended
         ),

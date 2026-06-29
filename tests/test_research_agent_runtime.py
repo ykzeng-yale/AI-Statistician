@@ -8154,14 +8154,14 @@ def test_formalizer_candidate_materialization_captures_malformed_formal_target(
     assert "exact?" in errors
 
 
-def test_formalizer_candidate_materialization_rejects_type_star_syntax(
+def test_formalizer_candidate_materialization_materializes_type_star_diagnostic(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_type_star",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject Lean parser-incompatible Type* syntax",
+        objective="materialize Lean parser diagnostics for prover feedback",
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -8174,8 +8174,9 @@ def test_formalizer_candidate_materialization_rejects_type_star_syntax(
                     "id": "type_star_candidate",
                     "lean_statement_sketch": (
                         "theorem type_star_candidate "
-                        "{Omega : Type*} : True := by\n"
-                        "  trivial\n"
+                        "{Omega : Type*} (p : Prop) : p -> p := by\n"
+                        "  intro hp\n"
+                        "  exact hp\n"
                     ),
                     "expected_status": "NEEDS_KERNEL_CHECK",
                 }
@@ -8188,14 +8189,21 @@ def test_formalizer_candidate_materialization_rejects_type_star_syntax(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert row["artifact_path"] == ""
-    assert row["local_lean_attempted"] is False
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert manifest["n_live_proof_state_requests"] == 1
+    assert manifest["n_lean_lsp_mcp_ready_requests"] == 1
+    assert row["precheck_status"] == (
+        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    )
+    assert row["artifact_path"]
+    assert row["target_lean_declaration"] == "type_star_candidate"
+    assert row["local_lean_attempted"] is True
     assert "Type*" in " ".join(row["precheck_errors"])
     assert "parser/syntax" in " ".join(row["precheck_errors"])
+    assert row["blocking_precheck_errors"] == []
 
 
 def test_repeated_syntax_contract_precheck_rejects_source_theorem_retry(
@@ -17211,6 +17219,40 @@ def test_formalizer_lean_candidate_repair_eval_static_fixture_is_not_capability(
     assert manifest["full_frontier_theorem_proved"] is False
     assert manifest["proof_evidence_status"].endswith("NOT_SOURCE_THEOREM_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_formalizer_lean_candidate_repair_eval_can_use_lean_lsp_mcp_provider(
+    tmp_path: Path,
+) -> None:
+    static_response_file = _write_formalizer_lean_repair_static_response(tmp_path)
+
+    manifest = run_formalizer_lean_candidate_repair_eval(
+        question_file=Path("examples/research_questions.json"),
+        question_id="conformal_prediction_coverage",
+        out_dir=tmp_path / "formalizer_repair_eval_lsp",
+        provider_name="static",
+        static_response_file=static_response_file,
+        lean_timeout=10,
+        lean_lsp_mcp_proof_state_feedback=True,
+    )
+
+    assert manifest["prior_feedback_proof_state_provider"] == (
+        "lean_lsp_mcp_proof_state_feedback"
+    )
+    assert manifest["prior_feedback_proof_state_rows"] >= 1
+    assert (
+        manifest["prior_feedback_proof_state_counts"]["local_lean_tool_calls"]
+        >= 1
+    )
+    assert (
+        manifest["prior_feedback_proof_state_counts"]["lean_lsp_mcp_tool_calls"]
+        == 0
+    )
+    assert manifest["candidate_kernel_verified"] is True
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["proof_evidence_status"].endswith(
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
 
 
 def test_formalizer_lean_candidate_repair_eval_cli_static_is_not_capability(
@@ -47389,6 +47431,8 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.algorithm_engineer_provider == "same"
     assert args.simulation_engineer_provider == "same"
     assert args.formalizer_provider == "same"
+    assert args.formalizer_candidate_local_lean is True
+    assert args.formalizer_candidate_lean_lsp_mcp is True
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
@@ -47408,6 +47452,12 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         == "full"
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+    args.formalizer_candidate_lean_lsp_mcp = False
+    assert (
+        "capability eval preset full-live requires the live Lean LSP/MCP "
+        "proof-state feedback path; missing --formalizer-candidate-lean-lsp-mcp"
+    ) in _research_agent_runtime_capability_config_errors(args)
 
 
 def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:

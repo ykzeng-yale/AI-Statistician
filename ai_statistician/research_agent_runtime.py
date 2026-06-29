@@ -2625,6 +2625,7 @@ class ResearchAgentRuntimeConfig:
     llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     evaluation_mode: str = "debug"
     formalizer_candidate_local_lean: bool = False
+    formalizer_candidate_lean_lsp_mcp: bool = False
     formalizer_candidate_lean_project: str = ""
     formalizer_candidate_lean_timeout: int = 30
     theorem_closure_proofengineer_bridge: bool = False
@@ -7334,9 +7335,12 @@ def _materialize_formalizer_lean_candidate_artifacts(
             local_lean_repair_contract=active_local_lean_repair_contract,
             lean_project=lean_project,
         )
+        blocking_precheck_errors = (
+            _formalizer_lean_candidate_blocking_precheck_errors(precheck_errors)
+        )
         artifact_path = ""
         source_hash = stable_hash(source)
-        if not precheck_errors:
+        if not blocking_precheck_errors:
             artifact_dir.mkdir(parents=True, exist_ok=True)
             path = artifact_dir / (
                 f"{index:03d}_{_safe_identifier(candidate_id)}_{source_hash[:10]}.lean"
@@ -7478,10 +7482,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "live_proof_state_request": live_proof_state_request,
                 "precheck_status": (
                     "REJECTED_BY_RUNTIME_PRECHECK"
-                    if precheck_errors
-                    else "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    if blocking_precheck_errors
+                    else (
+                        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                        if precheck_errors
+                        else "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    )
                 ),
                 "precheck_errors": precheck_errors,
+                "blocking_precheck_errors": blocking_precheck_errors,
                 "local_lean_attempted": bool(
                     local_lean_result.get("local_lean_attempted", False)
                 ),
@@ -8440,10 +8449,15 @@ def _formalizer_lean_candidate_repair_feedback(
             str(row.get("precheck_status", "") or "")
             == "REJECTED_BY_RUNTIME_PRECHECK"
         )
+        precheck_diagnostic_failed = (
+            str(row.get("precheck_status", "") or "")
+            == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+            and bool(row.get("precheck_errors", []))
+        )
         local_lean_failed = bool(row.get("local_lean_attempted", False)) and not bool(
             row.get("local_lean_compiled", False)
         )
-        if precheck_failed or local_lean_failed:
+        if precheck_failed or precheck_diagnostic_failed or local_lean_failed:
             failed_rows.append(row)
     if not failed_rows:
         return None
@@ -8518,7 +8532,16 @@ def _formalizer_lean_candidate_repair_feedback(
     failure_classification = (
         "formalizer_lean_candidate_precheck_rejected"
         if precheck_rejected > 0 and local_checked <= 0
-        else "formalizer_lean_candidate_local_lean_failed"
+        else (
+            "formalizer_lean_candidate_precheck_diagnostics"
+            if any(
+                str(row.get("precheck_status", "") or "")
+                == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                for row in failed_rows
+            )
+            and local_checked <= 0
+            else "formalizer_lean_candidate_local_lean_failed"
+        )
     )
     proofengineer_repair_context = _proofengineer_repair_context_from_diagnostics(
         manifest=manifest,
@@ -10375,6 +10398,23 @@ def _formalizer_lean_candidate_precheck_errors(
     )
     errors.extend(_formalizer_import_precheck_errors(text, lean_project=lean_project))
     return sorted(set(errors))
+
+
+def _formalizer_lean_candidate_blocking_precheck_errors(
+    errors: Sequence[str],
+) -> list[str]:
+    """Return precheck errors that should prevent diagnostic artifact creation."""
+
+    return [
+        str(error)
+        for error in errors
+        if not _formalizer_lean_candidate_diagnostic_only_precheck_error(error)
+    ]
+
+
+def _formalizer_lean_candidate_diagnostic_only_precheck_error(error: str) -> bool:
+    text = str(error or "")
+    return text.startswith("Lean parser/syntax error:")
 
 
 def _formalizer_lean_syntax_precheck_errors(source: str) -> list[str]:

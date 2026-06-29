@@ -9057,6 +9057,9 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(args, "formalizer_candidate_local_lean", False)
                 or getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
             ),
+            formalizer_candidate_lean_lsp_mcp=bool(
+                getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+            ),
             formalizer_candidate_lean_project=str(
                 getattr(args, "formalizer_candidate_lean_project", "")
                 or getattr(args, "lean_project", "")
@@ -9678,6 +9681,9 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             else None
         ),
         lean_timeout=int(getattr(args, "formalizer_repair_eval_lean_timeout", 15)),
+        lean_lsp_mcp_proof_state_feedback=bool(
+            getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+        ),
         max_repair_attempts=int(
             getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
         ),
@@ -9705,6 +9711,9 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         ),
         "prior_feedback_proof_state_rows": int(
             eval_manifest.get("prior_feedback_proof_state_rows", 0) or 0
+        ),
+        "prior_feedback_proof_state_counts": dict(
+            eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
         ),
         "source_theorem_kernel_verified": bool(
             eval_manifest.get("source_theorem_kernel_verified", False)
@@ -9928,6 +9937,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
+        args.formalizer_candidate_lean_lsp_mcp = True
         args.run_coding_agent_generated_code_repair_eval = True
         args.run_formalizer_lean_candidate_repair_eval = True
         args.source_theorem_exact_semantic_definition_authoring_worker = True
@@ -10284,6 +10294,15 @@ def _research_agent_runtime_capability_config_errors(
                 f"missing {flag}"
             )
     if (
+        str(getattr(args, "capability_eval_preset", "") or "") == "full-live"
+        and not bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False))
+    ):
+        errors.append(
+            "capability eval preset full-live requires the live Lean LSP/MCP "
+            "proof-state feedback path; missing "
+            "--formalizer-candidate-lean-lsp-mcp"
+        )
+    if (
         bool(getattr(args, "formalizer_candidate_local_lean", False))
         or bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False))
     ) and not (
@@ -10566,6 +10585,9 @@ def _formalizer_lean_candidate_repair_eval(args: argparse.Namespace) -> int:
             temperature=args.temperature,
             lean_project=lean_project,
             lean_timeout=args.lean_timeout,
+            lean_lsp_mcp_proof_state_feedback=bool(
+                getattr(args, "lean_lsp_mcp_proof_state_feedback", False)
+            ),
             max_repair_attempts=args.max_repair_attempts,
         )
     except Exception as exc:
@@ -17429,6 +17451,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--lean-timeout",
         type=int,
         default=15,
+    )
+    formalizer_lean_candidate_repair_eval.add_argument(
+        "--lean-lsp-mcp-proof-state-feedback",
+        action="store_true",
+        help=(
+            "use the Lean LSP/MCP proof-state provider for injected prior "
+            "candidate feedback instead of the local-only adapter"
+        ),
     )
     formalizer_lean_candidate_repair_eval.add_argument(
         "--max-repair-attempts",
