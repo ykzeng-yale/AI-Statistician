@@ -3397,6 +3397,20 @@ def _formalizer_mode_specific_instructions(
         for row in runtime_environment_feedback.get("high_priority_agenda", []) or []
         if isinstance(row, Mapping)
     ]
+    formal_gap_next_action_agenda_rows = [
+        row
+        for row in high_priority_agenda
+        if str(row.get("id", "") or "").strip()
+        in {
+            "formal_gap:proof_bank_expansion",
+            "formal_gap:gap_planner_handoff",
+        }
+        or str(row.get("trigger", "") or "").strip()
+        in {
+            "FORMAL_GAP",
+            "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+        }
+    ]
     theory_trace_downstream_alignment_feedback = (
         _theory_trace_downstream_alignment_feedback(runtime_environment_feedback)
     )
@@ -3489,6 +3503,7 @@ def _formalizer_mode_specific_instructions(
         proof_memory_summary.get("formal_gap_next_action_routing_active")
         or proof_memory_summary.get("formalization_gap_planner_handoff_required")
         or proof_memory_summary.get("formal_gap_proof_bank_expansion_required")
+        or formal_gap_next_action_agenda_rows
     )
     if formal_gap_next_action_active:
         target_ids = [
@@ -3500,6 +3515,16 @@ def _formalizer_mode_specific_instructions(
             or []
             if str(value).strip()
         ][:6]
+        for row in formal_gap_next_action_agenda_rows:
+            target_ids.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
+            target_id = str(row.get("target_id", "") or "").strip()
+            if target_id:
+                target_ids.append(target_id)
+        target_ids = list(dict.fromkeys(target_ids))[:6]
         bridge_ids = [
             str(value).strip()
             for value in proof_memory_summary.get(
@@ -3509,6 +3534,21 @@ def _formalizer_mode_specific_instructions(
             or []
             if str(value).strip()
         ][:4]
+        for row in formal_gap_next_action_agenda_rows:
+            bridge_ids.extend(
+                str(value).strip()
+                for value in (
+                    row.get("supporting_formalization_gap_planner_bridge_ids", [])
+                    or []
+                )
+                if str(value).strip()
+            )
+            bridge_id = str(
+                row.get("formalization_gap_planner_bridge_id", "") or ""
+            ).strip()
+            if bridge_id:
+                bridge_ids.append(bridge_id)
+        bridge_ids = list(dict.fromkeys(bridge_ids))[:4]
         seed_ids = [
             str(value).strip()
             for value in proof_memory_summary.get(
@@ -3518,6 +3558,18 @@ def _formalizer_mode_specific_instructions(
             or []
             if str(value).strip()
         ][:4]
+        for row in formal_gap_next_action_agenda_rows:
+            seed_ids.extend(
+                str(value).strip()
+                for value in (
+                    row.get("supporting_standalone_seed_artifact_ids", []) or []
+                )
+                if str(value).strip()
+            )
+            seed_id = str(row.get("standalone_seed_artifact_id", "") or "").strip()
+            if seed_id:
+                seed_ids.append(seed_id)
+        seed_ids = list(dict.fromkeys(seed_ids))[:4]
         acceptance_gates = [
             str(value).strip()
             for value in proof_memory_summary.get(
@@ -3527,6 +3579,11 @@ def _formalizer_mode_specific_instructions(
             or []
             if str(value).strip()
         ][:3]
+        for row in formal_gap_next_action_agenda_rows:
+            acceptance_gate = str(row.get("acceptance_gate", "") or "").strip()
+            if acceptance_gate:
+                acceptance_gates.append(acceptance_gate)
+        acceptance_gates = list(dict.fromkeys(acceptance_gates))[:3]
         instruction = (
             "Formal-gap next-action routing is active: consume "
             "proof_bank_runtime_memory_summary.formal_gap_next_action_contract "
@@ -4850,6 +4907,11 @@ def _compact_formalizer_environment_feedback(
                 "action",
                 "acceptance_gate",
                 "target_ids",
+                "target_id",
+                "formalization_gap_planner_bridge_id",
+                "supporting_formalization_gap_planner_bridge_ids",
+                "standalone_seed_artifact_id",
+                "supporting_standalone_seed_artifact_ids",
                 "candidate_materialization_statuses",
                 "failure_classifications",
                 "recommended_formalizer_target_mode",

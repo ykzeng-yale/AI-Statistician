@@ -35225,6 +35225,54 @@ def _runtime_learning_memory_source_to_bridge_metadata_authoring_requests(
     )
 
 
+def _runtime_formal_gap_next_action_agenda_memory_row(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    agenda_id = str(row.get("id", "") or row.get("agenda_id", "") or "").strip()
+    input_summary = (
+        dict(row.get("input_summary", {}))
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    input_summary.setdefault("trigger", str(row.get("trigger", "") or ""))
+    input_summary.setdefault(
+        "owner_subsystem",
+        str(row.get("owner_subsystem", "") or row.get("owner", "") or ""),
+    )
+    input_summary.setdefault("agenda_id", agenda_id)
+    for key in (
+        "target_ids",
+        "target_id",
+        "target_theorem_goal_ids",
+        "target_theorem_name",
+        "formalization_gap_planner_bridge_id",
+        "supporting_formalization_gap_planner_bridge_ids",
+        "standalone_seed_artifact_id",
+        "supporting_standalone_seed_artifact_ids",
+        "failure_classifications",
+        "proof_boundary",
+        "boundary",
+        "priority",
+        "recommended_commands",
+    ):
+        if key in row and key not in input_summary:
+            input_summary[key] = row.get(key)
+    return {
+        **dict(row),
+        "learning_task": "next_action_routing",
+        "agenda_id": agenda_id,
+        "input_summary": input_summary,
+        "target_behavior": str(
+            row.get("target_behavior", "") or row.get("action", "") or ""
+        ),
+        "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+        "proof_evidence_status": str(
+            row.get("proof_evidence_status", "")
+            or "FORMAL_GAP_NEXT_ACTION_AGENDA_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
 def _runtime_learning_memory_formal_gap_next_action_routing_rows(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -35233,12 +35281,33 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
         if isinstance(architect_context, Mapping)
         else {}
     )
-    if (
-        not isinstance(memory, Mapping)
-        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
-    ):
-        return ()
-    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    rows = (
+        list(memory.get("rows", []) if isinstance(memory.get("rows"), list) else [])
+        if isinstance(memory, Mapping)
+        and memory.get("artifact_kind") == "RuntimeLearningMemoryContext"
+        else []
+    )
+    environment_feedback = (
+        architect_context.get("environment_feedback", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if isinstance(environment_feedback, Mapping):
+        feedback_input_summary = (
+            environment_feedback.get("input_summary", {})
+            if isinstance(environment_feedback.get("input_summary", {}), Mapping)
+            else {}
+        )
+        agenda_rows = (
+            environment_feedback.get("high_priority_agenda", [])
+            or feedback_input_summary.get("high_priority_agenda", [])
+            or []
+        )
+        rows.extend(
+            _runtime_formal_gap_next_action_agenda_memory_row(row)
+            for row in agenda_rows
+            if isinstance(row, Mapping)
+        )
     routed_rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str, str]] = set()
     for row in rows:

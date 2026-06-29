@@ -1543,6 +1543,8 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 483 passed in 190.02s after theory-trace downstream alignment replay patch",
     "Formal-gap planner routing memory patch # next_action_routing/generated_next_action_routing rows for formal_gap:proof_bank_expansion and formal_gap:gap_planner_handoff now pin through runtime and CLI memory compaction, preserve formalization_gap_planner_bridge_id/standalone_seed_artifact_id metadata, and replay into Formalizer proof-bank memory as a non-proof planner/prover orchestration contract.",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formal_gap_planner_routing or formal_gap_planner_routing_memory or runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance\" # 3 passed, 482 deselected after formal-gap planner routing memory patch",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 485 passed in 192.91s after formal-gap planner routing memory patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 485 passed in 192.91s after formal-gap planner routing memory patch",
+    "Formal-gap planner same-turn replay patch # Formalizer proof-bank summary now normalizes environment_feedback.high_priority_agenda formal_gap:proof_bank_expansion / formal_gap:gap_planner_handoff rows into the same non-proof planner/prover orchestration contract, so Critic handoffs can drive the immediate next Formalizer prompt without waiting for persisted runtime memory reload.",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 486 passed in 193.18s after formal-gap planner same-turn replay patch"
   ]
 }

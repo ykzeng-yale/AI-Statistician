@@ -3744,6 +3744,86 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
     assert "target-prover replay preserve proof boundaries" in prompt
 
 
+def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    environment_feedback = {
+        "high_priority_agenda": [
+            {
+                "id": "formal_gap:gap_planner_handoff",
+                "owner_subsystem": "FormalizationGapPlanner",
+                "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                "action": "stage planner packets before broad theory expansion",
+                "acceptance_gate": (
+                    "LLM route plan, standalone gap plan, source grounding audit, "
+                    "and target-prover replay preserve proof boundaries"
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "formalization_gap_planner_bridge_id": (
+                    "runtime_formalization_gap_planner_bridge:same_turn"
+                ),
+                "standalone_seed_artifact_id": (
+                    "runtime_formalization_gap_planner_standalone_seed:same_turn"
+                ),
+                "proof_boundary": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+                ),
+            }
+        ]
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"environment_feedback": environment_feedback},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formal_gap_next_action_routing_active"] is True
+    assert summary["formalization_gap_planner_handoff_required"] is True
+    assert summary["formalization_gap_planner_bridge_ids"] == [
+        "runtime_formalization_gap_planner_bridge:same_turn"
+    ]
+    assert summary["formalization_gap_planner_standalone_seed_artifact_ids"] == [
+        "runtime_formalization_gap_planner_standalone_seed:same_turn"
+    ]
+    assert summary["formal_gap_next_action_diagnostics"][0][
+        "proof_evidence_status"
+    ] == "FORMAL_GAP_NEXT_ACTION_AGENDA_NOT_PROOF_EVIDENCE"
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback=environment_feedback,
+    )
+
+    assert "Formal-gap next-action routing is active" in prompt
+    assert "runtime_formalization_gap_planner_bridge:same_turn" in prompt
+    assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in prompt
+    assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
+
+    direct_prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=environment_feedback,
+    )
+    assert "Formal-gap next-action routing is active" in direct_prompt
+    assert "runtime_formalization_gap_planner_bridge:same_turn" in direct_prompt
+    assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in direct_prompt
+
+
 def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
     tmp_path: Path,
 ) -> None:
