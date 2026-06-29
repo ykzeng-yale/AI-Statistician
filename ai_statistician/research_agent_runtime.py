@@ -25097,14 +25097,97 @@ def _critic_next_action_agenda(
                 proof_bank_memory_summary.get(
                     "recommended_formalizer_target_mode",
                     "",
+                )
+                or ""
             )
-            or ""
-        )
             == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
         )
+        source_theorem_candidate_materialization_required = bool(
+            proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_required",
+                False,
+            )
+            or str(
+                proof_bank_memory_summary.get(
+                    "recommended_formalizer_target_mode",
+                    "",
+                )
+                or ""
+            )
+            == "source_theorem_exact_candidate_materialization_required"
+        )
+        if source_theorem_candidate_materialization_required:
+            materialization_statuses = [
+                str(value).strip()
+                for value in proof_bank_memory_summary.get(
+                    "source_theorem_candidate_materialization_required_statuses",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ]
+            materialization_contract = str(
+                proof_bank_memory_summary.get(
+                    "source_theorem_candidate_materialization_contract",
+                    "",
+                )
+                or ""
+            ).strip()
+            agenda.append(
+                {
+                    "id": "formal_gap:source_theorem_candidate_materialization",
+                    "owner_subsystem": (
+                        "Formalizer/ProofEngineer/AgenticMaterializer/LeanProver"
+                    ),
+                    "trigger": (
+                        "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+                    ),
+                    "action": (
+                        "materialize a runnable exact source-theorem Lean candidate "
+                        "artifact, then run signature probes to obtain the live "
+                        "proof-body location before exact proof-body execution"
+                    ),
+                    "acceptance_gate": materialization_contract
+                    or (
+                        "A concrete exact source-theorem Lean candidate artifact, "
+                        "signature_probe_artifact_path, target Lean declaration, "
+                        "and live proof-body location are available; proof evidence "
+                        "still requires later local Lean/AXLE kernel verification."
+                    ),
+                    "target_ids": list(
+                        proof_bank_memory_summary.get(
+                            "source_theorem_candidate_materialization_required_target_names",
+                            [],
+                        )
+                        or []
+                    )
+                    or [row for row in gap_goals if row],
+                    "candidate_materialization_statuses": materialization_statuses,
+                    "failure_classifications": list(
+                        proof_bank_memory_summary.get(
+                            "source_theorem_exact_candidate_failure_classifications",
+                            [],
+                        )
+                        or []
+                    ),
+                    "recommended_formalizer_target_mode": (
+                        "source_theorem_exact_candidate_materialization_required"
+                    ),
+                    "runtime_queue_status": (
+                        "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+                    ),
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                    "boundary": (
+                        "Candidate materialization is operational routing context, "
+                        "not proof evidence. The materialized artifact must still "
+                        "pass local Lean/AXLE before any source-theorem proof claim."
+                    ),
+                }
+            )
         if proof_bank_memory_summary.get(
             "source_theorem_exact_candidate_environment_gap", False
-        ):
+        ) and not source_theorem_candidate_materialization_required:
             agenda.append(
                 {
                     "id": "formal_gap:source_theorem_formal_environment_repair",

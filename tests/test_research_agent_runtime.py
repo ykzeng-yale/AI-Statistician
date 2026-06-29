@@ -24418,6 +24418,44 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
         "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
     )
 
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={},
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": (
+                "formalization_manifest:exact_proof_body_materialization"
+            ),
+            "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": summary,
+        },
+    )
+    assert agenda[0]["id"] == "formal_gap:source_theorem_candidate_materialization"
+    assert agenda[0]["trigger"] == (
+        "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    )
+    assert agenda[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+    )
+    assert agenda[0]["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_candidate_materialization_required"
+    )
+    assert agenda[0]["candidate_materialization_statuses"] == [
+        "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+        "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
+        "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+    ]
+    assert all(
+        row["id"] != "formal_gap:source_theorem_formal_environment_repair"
+        for row in agenda
+    )
+
 
 def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
     verifier_payload = {
