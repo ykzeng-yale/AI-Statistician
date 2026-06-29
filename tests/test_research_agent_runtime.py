@@ -41166,6 +41166,56 @@ def test_runtime_evidence_truth_table_tracks_candidate_synthesis_recheck_attempt
     assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
 
 
+def test_runtime_evidence_truth_table_marks_pre_goal_executor_result_blocked() -> None:
+    payload = {
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_algorithm_sandbox_executed": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status": {
+            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY": 1,
+        },
+        "n_formal_gaps": 1,
+    }
+
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {
+        row["evidence_id"]: row for row in truth_table["rows"]
+    }
+    scorecard = _runtime_capability_scorecard(
+        {
+            **payload,
+            "runtime_evaluation_mode": "capability_eval",
+            "n_results": 1,
+        }
+    )
+    scorecard_rows = {
+        row["requirement_id"]: row for row in scorecard["rows"]
+    }
+
+    assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_ATTEMPT_BLOCKED"
+    )
+    assert truth_rows["exact_source_proof_body_attempt"]["count"] == 1
+    assert truth_rows["exact_source_proof_body_attempt"]["proof_evidence"] is False
+    assert truth_rows["exact_source_proof_body_attempt"]["goal_excerpt"] == []
+    assert truth_rows["exact_source_proof_body_attempt"]["blocker"] == (
+        "source_theorem_semantic_alignment_unreviewed"
+    )
+    assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
+    proof_body_gate = scorecard_rows["source_theorem_signature_probe_reached_proof_body"]
+    assert proof_body_gate["passed"] is False
+    assert "proof_body_goal_reached_evidence=0" in proof_body_gate["evidence"]
+    assert "proof_body_result_rows=1" in proof_body_gate["evidence"]
+    assert "pre-proof-body blockers" in proof_body_gate["blocker"]
+
+
 def test_runtime_evidence_truth_table_counts_post_executor_promotion_source_kernel() -> None:
     truth_table = _runtime_evidence_truth_table_from_manifest(
         {
@@ -41358,7 +41408,9 @@ def test_runtime_manifest_truth_table_separates_support_from_source_theorem() ->
     assert rows["bridge_helper_kernel_evidence"]["status"] == "KERNEL_VERIFIED"
     assert rows["theorem_reduction_closure_kernel_evidence"]["status"] == "KERNEL_VERIFIED"
     assert rows["source_semantic_primitive_kernel_evidence"]["status"] == "KERNEL_VERIFIED"
-    assert rows["exact_source_proof_body_attempt"]["status"] == "PROOF_BODY_REACHED_OPEN"
+    assert rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_REACHED_OPEN"
+    )
     assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
     assert any(
@@ -41395,7 +41447,9 @@ def test_runtime_manifest_truth_table_marks_resume_architect_context_as_propagat
         "blocker"
     ]
     assert rows["architect_control"]["proof_evidence"] is False
-    assert rows["exact_source_proof_body_attempt"]["status"] == "PROOF_BODY_REACHED_OPEN"
+    assert rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_ATTEMPT_BLOCKED"
+    )
     assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
 
 

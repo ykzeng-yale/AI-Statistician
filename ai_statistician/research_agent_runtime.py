@@ -234,6 +234,20 @@ SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
 )
+SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+    "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+    "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+)
+SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
+    "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows",
+)
 SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
     "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification",
@@ -450,9 +464,13 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     )
-    proof_body_goal_reached = _runtime_manifest_int(
+    proof_body_goal_reached = _runtime_manifest_int_sum(
         payload,
-        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+        SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+    )
+    proof_body_goal_excerpt_rows = _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
     )
     proof_body_blocker = _runtime_manifest_first_nonempty(
         payload,
@@ -461,6 +479,11 @@ def _runtime_evidence_truth_table_from_manifest(
     proof_body_goal_excerpt = _runtime_manifest_first_nonempty_list(
         payload,
         SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
+    )
+    proof_body_goal_evidence_count = (
+        proof_body_goal_reached
+        + proof_body_goal_excerpt_rows
+        + (1 if proof_body_goal_excerpt else 0)
     )
     bridge_helper_count = _runtime_manifest_int(payload, "n_kernel_verified_subclaims")
     bridge_helper_count += _runtime_manifest_int(
@@ -553,9 +576,12 @@ def _runtime_evidence_truth_table_from_manifest(
             "SOURCE_KERNEL_VERIFIED"
             if source_kernel_count > 0
             else "PROOF_BODY_REACHED_OPEN"
-            if proof_body_goal_reached > 0 or proof_body_result_rows > 0
+            if proof_body_goal_evidence_count > 0
+            else "PROOF_BODY_ATTEMPT_BLOCKED"
+            if proof_body_result_rows > 0
             else "MISSING",
-            proof_body_result_rows or proof_body_goal_reached,
+            proof_body_result_rows
+            or proof_body_goal_evidence_count,
             "Proof-body attempts expose Lean goals/residuals; they are source theorem proof only when source-kernel verified.",
             proof_evidence=source_kernel_count > 0,
             blocker=proof_body_blocker,

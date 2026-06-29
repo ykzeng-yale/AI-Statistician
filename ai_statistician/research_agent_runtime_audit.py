@@ -14,6 +14,10 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
     _runtime_evidence_summary,
@@ -1888,6 +1892,12 @@ def audit_research_agent_runtime(
     payload["runtime_architect_orchestration_blocker"] = (
         _runtime_architect_orchestration_blocker(payload)
     )
+    payload["source_theorem_proof_body_goal_reached_evidence_count"] = (
+        _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    payload["source_theorem_proof_body_result_row_count"] = (
+        _payload_source_theorem_proof_body_result_row_count(payload)
+    )
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
@@ -2371,6 +2381,30 @@ def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
     return sum(
         int(payload.get(key, 0) or 0)
         for key in SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS
+    )
+
+
+def _payload_source_theorem_proof_body_goal_reached_count(
+    payload: Mapping[str, Any],
+) -> int:
+    return _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+    ) + _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
+    ) + _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
+    )
+
+
+def _payload_source_theorem_proof_body_result_row_count(
+    payload: Mapping[str, Any],
+) -> int:
+    return _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     )
 
 
@@ -2916,6 +2950,12 @@ def _ladder_level(
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    proof_body_goal_reached_count = (
+        _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    proof_body_result_row_count = _payload_source_theorem_proof_body_result_row_count(
+        payload
+    )
     architect_orchestration_executed = _runtime_architect_orchestration_executed(
         payload
     )
@@ -3628,19 +3668,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_signature_probe_reached_proof_body",
-            int(
-                payload.get(
-                    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
-                    0,
-                )
-                or 0
-            )
-            > 0,
+            proof_body_goal_reached_count > 0,
             (
-                "n_signature_or_proof_body_work_orders="
+                "proof_body_goal_reached_evidence="
+                f"{proof_body_goal_reached_count} "
+                "proof_body_result_rows="
+                f"{proof_body_result_row_count} "
+                "signature_probe_reached="
                 f"{payload.get('source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body')}"
             ),
-            "source-theorem signature probe did not reach an exact proof body",
+            (
+                "exact source-theorem proof-body goal was not reached; result "
+                "rows without goal evidence are pre-proof-body blockers, not "
+                "proof-body repair evidence"
+            ),
         ),
         _scorecard_row(
             "source_theorem_proof_body_executor_ran",
@@ -4517,6 +4558,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM topology policy ok: {payload.get('llm_topology_policy_ok')}",
         f"- unsupported generator backends: {payload.get('unsupported_generator_backends_enabled')}",
         f"- critic reroutes: {payload.get('n_critic_reroutes')}",
+        "- exact source proof-body goal-reached evidence count: "
+        f"{payload.get('source_theorem_proof_body_goal_reached_evidence_count')}",
+        "- exact source proof-body result row count: "
+        f"{payload.get('source_theorem_proof_body_result_row_count')}",
         f"- theory derivation packets: {payload.get('n_theory_derivation_packets')}",
         "- structured theory derivation trace observed: "
         f"{payload.get('structured_theory_derivation_trace_observed')}",
