@@ -40581,6 +40581,23 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                     row["target_theorem_name"] = target_theorem_name
                 if target_lean_declaration:
                     row["target_lean_declaration"] = target_lean_declaration
+                premise_name = str(
+                    row.get("premise_name", "")
+                    or row.get("source_to_bridge_premise_name", "")
+                    or ""
+                ).strip()
+                if not premise_name:
+                    premise_names = _runtime_row_string_values(
+                        row,
+                        "premise_names",
+                        "source_to_bridge_premise_names",
+                    )
+                    premise_name = premise_names[0] if premise_names else ""
+                premise_candidate_declaration_name = str(
+                    row.get("premise_candidate_declaration_name", "")
+                    or row.get("source_to_bridge_premise_candidate_declaration_name", "")
+                    or ""
+                ).strip()
                 for request_key in (
                     "source_to_bridge_premise_derivation_candidate_request",
                     "source_to_bridge_grouped_premise_derivation_candidate_request",
@@ -40606,7 +40623,67 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                             "target_lean_declaration",
                             target_lean_declaration,
                         )
+                    if (
+                        request_key
+                        == "source_to_bridge_premise_derivation_candidate_request"
+                    ):
+                        nested_request.setdefault("premise_name", premise_name)
+                        if not premise_candidate_declaration_name:
+                            premise_candidate_declaration_name = str(
+                                nested_request.get(
+                                    "premise_candidate_declaration_name",
+                                    "",
+                                )
+                                or nested_request.get(
+                                    "source_to_bridge_premise_candidate_declaration_name",
+                                    "",
+                                )
+                                or ""
+                            ).strip()
+                        if not premise_candidate_declaration_name:
+                            premise_candidate_declaration_name = (
+                                stb_metadata.default_premise_candidate_declaration_name(
+                                    {
+                                        "target_lean_declaration": (
+                                            target_lean_declaration
+                                        ),
+                                        "target_theorem_name": target_theorem_name,
+                                        "premise_name": (
+                                            premise_name
+                                            or str(
+                                                nested_request.get(
+                                                    "premise_name",
+                                                    "",
+                                                )
+                                                or ""
+                                            )
+                                        ),
+                                    }
+                                )
+                            )
+                        if premise_candidate_declaration_name:
+                            nested_request.setdefault(
+                                "premise_candidate_declaration_name",
+                                premise_candidate_declaration_name,
+                            )
                     row[request_key] = nested_request
+                if not premise_candidate_declaration_name:
+                    premise_candidate_declaration_name = (
+                        stb_metadata.default_premise_candidate_declaration_name(
+                            {
+                                "target_lean_declaration": target_lean_declaration,
+                                "target_theorem_name": target_theorem_name,
+                                "premise_name": premise_name,
+                            }
+                        )
+                    )
+                if premise_candidate_declaration_name:
+                    row["premise_candidate_declaration_name"] = (
+                        premise_candidate_declaration_name
+                    )
+                    row["source_to_bridge_premise_candidate_declaration_name"] = (
+                        premise_candidate_declaration_name
+                    )
                 row["runtime_queue_status"] = (
                     "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
                 )
@@ -40646,6 +40723,10 @@ def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer
                         "premise_derivation_gap_summary",
                         "premise_semantic_dependency_status",
                         "premise_semantic_dependency_requirements",
+                        "premise_candidate_declaration_name",
+                        "source_to_bridge_premise_candidate_declaration_name",
+                        "source_to_bridge_premise_derivation_candidate_request",
+                        "source_to_bridge_grouped_premise_derivation_candidate_request",
                         "target_ids",
                         "target_theorem_goal_ids",
                     ):

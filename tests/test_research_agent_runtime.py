@@ -11687,6 +11687,71 @@ def test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate(
     )
 
 
+def test_runtime_export_normalizes_persisted_source_to_bridge_work_order_declaration() -> None:
+    stale_source = (
+        "theorem invented_hGoodCovered_bridge "
+        "(A B : Prop) (hC : A -> B) : A -> B := by\n"
+        "  exact hC\n"
+    )
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:stale-source-to-bridge": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization_manifest:stale-source-to-bridge",
+                    "question": {
+                        "id": "conformal_prediction_coverage",
+                        "title": "Split conformal prediction interval coverage",
+                    },
+                    "source_to_bridge_premise_derivation_work_orders": [
+                        {
+                            "work_order_id": (
+                                "source_to_bridge_premise_derivation_work_order:hGoodCovered"
+                            ),
+                            "premise_name": "hGoodCovered",
+                            "target_theorem_name": "split_conformal_coverage",
+                            "target_lean_declaration": "split_conformal_coverage",
+                            "source_to_bridge_premise_derivation_candidate_request_id": (
+                                "request:hGoodCovered"
+                            ),
+                            "source_to_bridge_premise_derivation_candidate_request": {
+                                "candidate_request_id": "request:hGoodCovered",
+                                "premise_name": "hGoodCovered",
+                                "target_theorem_name": "split_conformal_coverage",
+                                "target_lean_declaration": "split_conformal_coverage",
+                                "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
+                            },
+                            "premise_derivation_candidate_lean_source": stale_source,
+                        }
+                    ],
+                }
+            }
+        }
+    }
+
+    rows = _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(
+        [result]
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    expected_declaration = (
+        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+    )
+    assert row["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        row["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    assert row["source_to_bridge_premise_derivation_candidate_request"][
+        "premise_candidate_declaration_name"
+    ] == expected_declaration
+    assert row["premise_derivation_candidate_lean_source"] == stale_source
+    assert row["question_id"] == "conformal_prediction_coverage"
+    assert row["runtime_queue_status"] == "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION"
+    assert row.get("proof_evidence_status") != "KERNEL_VERIFIED"
+
+
 def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_prompt(
     tmp_path: Path,
 ) -> None:
