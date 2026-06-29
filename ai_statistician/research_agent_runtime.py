@@ -889,6 +889,26 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
     )
+    attached_coding_algorithm_calibration = (
+        attached_coding_live_gate and attached_algorithm_repair_sequences > 0
+    )
+    attached_coding_simulation_calibration = (
+        attached_coding_live_gate and attached_simulation_repair_sequences > 0
+    )
+    attached_coding_repair_calibration = (
+        attached_coding_algorithm_calibration
+        and attached_coding_simulation_calibration
+    )
+    attached_formalizer_local_check_calibration = (
+        attached_formalizer_live_gate and attached_formalizer_checked > 0
+    )
+    attached_formalizer_repair_calibration = (
+        attached_formalizer_live_gate and attached_formalizer_repair_sequences > 0
+    )
+    attached_formalizer_prover_tool_calibration = (
+        attached_formalizer_live_gate
+        and attached_formalizer_lean_lsp_mcp_tool_calls > 0
+    )
     rows = [
         {
             "capability_id": "live_generator_agents_enabled",
@@ -903,123 +923,125 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "generated_algorithm_code_executed_locally",
-            "passed": algorithm_executed > 0
-            or (attached_coding_live_gate and attached_algorithm_repair_sequences > 0),
-            "count": algorithm_executed or attached_algorithm_repair_sequences,
+            "passed": algorithm_executed > 0,
+            "count": algorithm_executed,
             "evidence": (
                 f"n_generated_code_sandbox_executed={algorithm_executed}; "
-                "attached_live_algorithm_repair_sequences="
-                f"{attached_algorithm_repair_sequences}"
+                "attached_component_algorithm_repair_calibration="
+                f"{attached_coding_algorithm_calibration}"
             ),
             "blocker": (
                 ""
                 if algorithm_executed > 0
-                or (attached_coding_live_gate and attached_algorithm_repair_sequences > 0)
-                else "no Claude/OpenAI-generated algorithm code executed locally"
+                else (
+                    "no Claude/OpenAI-generated algorithm code executed locally "
+                    "inside the integrated AgentRuntime loop"
+                )
             ),
         },
         {
             "capability_id": "generated_algorithm_repair_loop_observed",
-            "passed": algorithm_repair_sequences > 0
-            or (attached_coding_live_gate and attached_algorithm_repair_sequences > 0),
-            "count": algorithm_repair_sequences
-            or attached_algorithm_repair_sequences,
+            "passed": algorithm_repair_sequences > 0,
+            "count": algorithm_repair_sequences,
             "evidence": (
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{algorithm_repair_sequences}; "
-                "attached_live_algorithm_repair_sequences="
-                f"{attached_algorithm_repair_sequences}"
+                "attached_component_algorithm_repair_calibration="
+                f"{attached_coding_algorithm_calibration}"
             ),
             "blocker": (
                 ""
                 if algorithm_repair_sequences > 0
-                or (attached_coding_live_gate and attached_algorithm_repair_sequences > 0)
-                else "one-shot generated algorithm execution is not evidence of autonomous code repair"
+                else (
+                    "one-shot generated algorithm execution and attached component "
+                    "calibration are not evidence of integrated autonomous code repair"
+                )
             ),
         },
         {
             "capability_id": "generated_simulation_code_executed_locally",
-            "passed": simulation_executed > 0
-            or (attached_coding_live_gate and attached_simulation_repair_sequences > 0),
-            "count": simulation_executed or attached_simulation_repair_sequences,
+            "passed": simulation_executed > 0,
+            "count": simulation_executed,
             "evidence": (
                 "n_generated_simulation_sandbox_executed="
                 f"{simulation_executed}; "
-                "attached_live_simulation_repair_sequences="
-                f"{attached_simulation_repair_sequences}"
+                "attached_component_simulation_repair_calibration="
+                f"{attached_coding_simulation_calibration}"
             ),
             "blocker": (
                 ""
                 if simulation_executed > 0
-                or (attached_coding_live_gate and attached_simulation_repair_sequences > 0)
-                else "no Claude/OpenAI-generated simulation code executed locally"
+                else (
+                    "no Claude/OpenAI-generated simulation code executed locally "
+                    "inside the integrated AgentRuntime loop"
+                )
             ),
         },
         {
             "capability_id": "generated_simulation_repair_loop_observed",
-            "passed": simulation_repair_sequences > 0
-            or (attached_coding_live_gate and attached_simulation_repair_sequences > 0),
-            "count": simulation_repair_sequences
-            or attached_simulation_repair_sequences,
+            "passed": simulation_repair_sequences > 0,
+            "count": simulation_repair_sequences,
             "evidence": (
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{simulation_repair_sequences}; "
-                "attached_live_simulation_repair_sequences="
-                f"{attached_simulation_repair_sequences}"
+                "attached_component_simulation_repair_calibration="
+                f"{attached_coding_simulation_calibration}"
             ),
             "blocker": (
                 ""
                 if simulation_repair_sequences > 0
-                or (attached_coding_live_gate and attached_simulation_repair_sequences > 0)
-                else "one-shot generated simulation execution is not evidence of autonomous simulation repair"
+                else (
+                    "one-shot generated simulation execution and attached component "
+                    "calibration are not evidence of integrated autonomous simulation repair"
+                )
             ),
         },
         {
             "capability_id": "llm_formalizer_proofengineer_proposal_observed",
-            "passed": llm_formalizer_proposals > 0 or attached_formalizer_live_gate,
-            "count": llm_formalizer_proposals
-            or (1 if attached_formalizer_live_gate else 0),
+            "passed": llm_formalizer_proposals > 0,
+            "count": llm_formalizer_proposals,
             "evidence": (
                 "n_llm_formalizer_proof_engineer_proposals="
                 f"{llm_formalizer_proposals}; "
                 "n_deterministic_formalizer_work_order_seed_proposals="
                 f"{deterministic_formalizer_seeds}; "
-                "attached_live_formalizer_repair_eval="
-                f"{attached_formalizer_live_gate}"
+                "attached_component_formalizer_repair_calibration="
+                f"{attached_formalizer_repair_calibration}"
             ),
             "blocker": (
                 ""
-                if llm_formalizer_proposals > 0 or attached_formalizer_live_gate
+                if llm_formalizer_proposals > 0
                 else (
                     "deterministic theorem-closure seeds are work-order "
-                    "scaffolds; they do not demonstrate live Formalizer or "
-                    "ProofEngineer capability"
+                    "scaffolds, and attached component calibration does not "
+                    "demonstrate an integrated live Formalizer or ProofEngineer "
+                    "proposal"
                 )
             ),
         },
         {
             "capability_id": "formalizer_lean_candidate_checked_locally",
             "passed": llm_formalizer_proposals > 0
-            and formalizer_checked > 0
-            or (attached_formalizer_live_gate and attached_formalizer_checked > 0),
-            "count": formalizer_checked or attached_formalizer_checked,
+            and formalizer_checked > 0,
+            "count": formalizer_checked,
             "evidence": (
                 "n_llm_formalizer_proof_engineer_proposals="
                 f"{llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_local_lean_checked="
                 f"{formalizer_checked}; "
-                "attached_live_local_lean_checked="
-                f"{attached_formalizer_checked}"
+                "attached_component_local_lean_check_calibration="
+                f"{attached_formalizer_local_check_calibration}"
             ),
             "blocker": (
                 ""
                 if llm_formalizer_proposals > 0
                 and formalizer_checked > 0
-                or (attached_formalizer_live_gate and attached_formalizer_checked > 0)
                 else (
                     "no Claude/OpenAI-generated Lean candidate was checked "
                     "locally; deterministic work-order seeds and proof-bank "
-                    "queues do not count as Formalizer capability"
+                    "queues do not count as Formalizer capability, and attached "
+                    "component calibration does not substitute for integrated "
+                    "runtime evidence"
                 )
             ),
         },
@@ -1082,77 +1104,172 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "formalizer_live_prover_tool_call_observed",
-            "passed": formalizer_lean_lsp_mcp_live_calls > 0
-            or (
-                attached_formalizer_live_gate
-                and attached_formalizer_lean_lsp_mcp_tool_calls > 0
-            ),
-            "count": formalizer_lean_lsp_mcp_live_calls
-            or attached_formalizer_lean_lsp_mcp_tool_calls,
+            "passed": formalizer_lean_lsp_mcp_live_calls > 0,
+            "count": formalizer_lean_lsp_mcp_live_calls,
             "evidence": (
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls="
                 f"{formalizer_lean_lsp_mcp_live_calls}; "
+                "attached_component_prover_tool_calibration="
+                f"{attached_formalizer_prover_tool_calibration}; "
                 "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
                 f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
             ),
             "blocker": (
                 ""
                 if formalizer_lean_lsp_mcp_live_calls > 0
-                or (
-                    attached_formalizer_live_gate
-                    and attached_formalizer_lean_lsp_mcp_tool_calls > 0
-                )
                 else (
                     "LeanDojo/ReProver/Lean-LSP style tools are only requested "
-                    "or emulated by local Lean feedback; no integrated or "
-                    "attached live Formalizer repair prover tool call was observed"
+                    "or calibrated by attached component probes; no integrated "
+                    "live Formalizer repair prover tool call was observed"
                 )
             ),
         },
         {
             "capability_id": "formalizer_lean_candidate_repair_loop_observed",
-            "passed": formalizer_repair_sequences > 0
-            or (
-                attached_formalizer_live_gate
-                and attached_formalizer_repair_sequences > 0
-            ),
-            "count": formalizer_repair_sequences
-            or attached_formalizer_repair_sequences,
+            "passed": formalizer_repair_sequences > 0,
+            "count": formalizer_repair_sequences,
             "evidence": (
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences="
                 f"{formalizer_repair_sequences}; "
-                "attached_live_formalizer_repair_sequences="
-                f"{attached_formalizer_repair_sequences}"
+                "attached_component_formalizer_repair_calibration="
+                f"{attached_formalizer_repair_calibration}"
             ),
             "blocker": (
                 ""
                 if formalizer_repair_sequences > 0
-                or (
-                    attached_formalizer_live_gate
-                    and attached_formalizer_repair_sequences > 0
+                else (
+                    "no generated Lean candidate failure inside the integrated "
+                    "runtime was followed by a local-kernel-checked repair; "
+                    "attached component calibration is reported separately"
                 )
-                else "no generated Lean candidate failure was followed by a local-kernel-checked repair"
             ),
         },
     ]
+    for row in rows:
+        row.setdefault("scope", "integrated_runtime")
+    rows.extend(
+        [
+            {
+                "capability_id": "coding_agent_generated_code_repair_component_calibration",
+                "scope": "component_calibration",
+                "passed": attached_coding_repair_calibration,
+                "count": (
+                    attached_algorithm_repair_sequences
+                    + attached_simulation_repair_sequences
+                ),
+                "evidence": (
+                    "attached_live_coding_repair_gate="
+                    f"{attached_coding_live_gate}; "
+                    "attached_algorithm_repair_sequences="
+                    f"{attached_algorithm_repair_sequences}; "
+                    "attached_simulation_repair_sequences="
+                    f"{attached_simulation_repair_sequences}"
+                ),
+                "blocker": (
+                    ""
+                    if attached_coding_repair_calibration
+                    else (
+                        "attached live coding-agent component calibration did "
+                        "not show both algorithm and simulation fail-then-pass "
+                        "generated-code repair"
+                    )
+                ),
+            },
+            {
+                "capability_id": "formalizer_lean_candidate_repair_component_calibration",
+                "scope": "component_calibration",
+                "passed": attached_formalizer_repair_calibration
+                and attached_formalizer_local_check_calibration,
+                "count": attached_formalizer_repair_sequences,
+                "evidence": (
+                    "attached_live_formalizer_repair_gate="
+                    f"{attached_formalizer_live_gate}; "
+                    "attached_repair_sequences="
+                    f"{attached_formalizer_repair_sequences}; "
+                    "attached_local_lean_checked="
+                    f"{attached_formalizer_checked}"
+                ),
+                "blocker": (
+                    ""
+                    if attached_formalizer_repair_calibration
+                    and attached_formalizer_local_check_calibration
+                    else (
+                        "attached live Formalizer component calibration did "
+                        "not show fail-then-pass Lean repair with local Lean "
+                        "diagnostics"
+                    )
+                ),
+            },
+            {
+                "capability_id": "formalizer_live_prover_tool_component_calibration",
+                "scope": "component_calibration",
+                "passed": attached_formalizer_prover_tool_calibration,
+                "count": attached_formalizer_lean_lsp_mcp_tool_calls,
+                "evidence": (
+                    "attached_live_formalizer_repair_gate="
+                    f"{attached_formalizer_live_gate}; "
+                    "attached_prior_feedback_lean_lsp_mcp_tool_calls="
+                    f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
+                ),
+                "blocker": (
+                    ""
+                    if attached_formalizer_prover_tool_calibration
+                    else (
+                        "attached live Formalizer component calibration did "
+                        "not record a Lean-LSP/MCP prover tool call"
+                    )
+                ),
+            },
+        ]
+    )
+    integrated_rows = [
+        row for row in rows if row.get("scope") != "component_calibration"
+    ]
+    component_calibration_rows = [
+        row for row in rows if row.get("scope") == "component_calibration"
+    ]
+    integrated_ready = all(row["passed"] for row in integrated_rows)
+    component_calibration_ready = all(
+        row["passed"] for row in component_calibration_rows
+    )
     return {
         "artifact_kind": "RuntimeCodingAgentCapabilityTable",
         "rows": rows,
-        "coding_agent_capability_ready": all(row["passed"] for row in rows),
-        "algorithm_repair_loop_observed": algorithm_repair_sequences > 0
-        or (attached_coding_live_gate and attached_algorithm_repair_sequences > 0),
-        "simulation_repair_loop_observed": simulation_repair_sequences > 0
-        or (attached_coding_live_gate and attached_simulation_repair_sequences > 0),
-        "formalizer_lean_repair_loop_observed": formalizer_repair_sequences > 0
-        or (
-            attached_formalizer_live_gate
-            and attached_formalizer_repair_sequences > 0
+        "coding_agent_capability_ready": integrated_ready,
+        "integrated_capability_ready": integrated_ready,
+        "component_calibration_ready": component_calibration_ready,
+        "n_integrated_capability_rows": len(integrated_rows),
+        "n_integrated_capability_rows_passed": sum(
+            1 for row in integrated_rows if row["passed"]
         ),
+        "n_component_calibration_rows": len(component_calibration_rows),
+        "n_component_calibration_rows_passed": sum(
+            1 for row in component_calibration_rows if row["passed"]
+        ),
+        "component_calibration": {
+            "attached_coding_repair_calibration": attached_coding_repair_calibration,
+            "attached_formalizer_repair_calibration": (
+                attached_formalizer_repair_calibration
+                and attached_formalizer_local_check_calibration
+            ),
+            "attached_formalizer_prover_tool_calibration": (
+                attached_formalizer_prover_tool_calibration
+            ),
+            "boundary": (
+                "Attached live component evals calibrate subsystem capacity and "
+                "can seed next-run memory, but they do not satisfy integrated "
+                "AgentRuntime capability rows."
+            ),
+        },
+        "algorithm_repair_loop_observed": algorithm_repair_sequences > 0,
+        "simulation_repair_loop_observed": simulation_repair_sequences > 0,
+        "formalizer_lean_repair_loop_observed": formalizer_repair_sequences > 0,
         "boundary": (
             "This table is capability evidence for the generated-code environment "
             "loop only. It does not make simulations proof evidence and does not "
             "prove any theorem. Static/replay providers and one-shot generated-code "
-            "execution are not sufficient."
+            "execution are not sufficient; attached component calibration is "
+            "reported separately from integrated runtime readiness."
         ),
     }
 
@@ -1168,6 +1285,7 @@ def _runtime_coding_agent_capability_learning_rows(
         row
         for row in capability_table.get("rows", []) or []
         if isinstance(row, Mapping) and not bool(row.get("passed", False))
+        and row.get("scope") != "component_calibration"
     ]
     if not rows:
         return []
@@ -1344,10 +1462,10 @@ def _runtime_coding_agent_capability_learning_rows(
                 "--local-lean"
             )
             success_metric = (
-                "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0; "
-                "or attached live Formalizer repair eval "
-                "prior_feedback_lean_lsp_mcp_tool_calls>0; ready/request rows "
-                "alone do not satisfy this capability"
+                "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0 in "
+                "the integrated runtime; attached component calibration can "
+                "diagnose prover-tool capacity, but ready/request rows alone "
+                "do not satisfy this capability"
             )
         elif capability_id == "formalizer_lean_candidate_repair_loop_observed":
             next_owner = "FormalizationEvaluator"
@@ -1363,8 +1481,8 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             success_metric = (
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
-                "and capability_evidence_ok=true in the Formalizer Lean-candidate "
-                "repair eval manifest"
+                "in the integrated runtime; standalone Formalizer repair evals "
+                "are component calibration until consumed by the AgentRuntime loop"
             )
         else:
             next_owner = "ArchitectCoordinator"

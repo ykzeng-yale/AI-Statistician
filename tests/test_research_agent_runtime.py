@@ -206,8 +206,10 @@ from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
     _manifest_or_proof_summary_count,
+    _runtime_capability_gaps_from_scorecard,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
+    _runtime_component_calibration_gaps_from_scorecard,
     _merge_runtime_theory_summaries,
     _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
@@ -1559,6 +1561,30 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
     assert "simulation_manifest:missing" in handoff_score["evidence"]
     assert "SimulationEvaluator" in handoff_score["evidence"]
     assert "rerun or rehydrate" in handoff_score["blocker"]
+
+
+def test_runtime_capability_gaps_separate_component_calibration() -> None:
+    scorecard = {
+        "rows": [
+            {
+                "requirement_id": "integrated_runtime_requirement",
+                "scope": "integrated_runtime",
+                "passed": True,
+                "blocker": "",
+            },
+            {
+                "requirement_id": "attached_component_calibration",
+                "scope": "component_calibration",
+                "passed": False,
+                "blocker": "attached component calibration missing",
+            },
+        ],
+    }
+
+    assert _runtime_capability_gaps_from_scorecard(scorecard) == []
+    assert _runtime_component_calibration_gaps_from_scorecard(scorecard) == [
+        "attached component calibration missing"
+    ]
 
 
 def test_runtime_target_identity_audit_flags_route_critical_targetless_rows() -> None:
@@ -17275,10 +17301,15 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert repair_sequences == 1
-    assert rows["formalizer_lean_candidate_repair_component_gate"]["passed"] is True
+    assert rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]["passed"] is True
     assert "integrated_formalizer_repair_sequences=1" in rows[
-        "formalizer_lean_candidate_repair_component_gate"
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
     ]["evidence"]
+    assert rows["formalizer_lean_candidate_repair_component_gate"][
+        "passed"
+    ] is False
 
 
 def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
@@ -17375,7 +17406,10 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
         ]
         == 3
     )
-    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is True
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
@@ -44491,13 +44525,24 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     }
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
-    assert rows["generated_algorithm_code_executed_locally"]["passed"] is True
-    assert rows["generated_simulation_code_executed_locally"]["passed"] is True
+    assert rows["generated_algorithm_code_executed_locally"]["passed"] is False
+    assert rows["generated_simulation_code_executed_locally"]["passed"] is False
+    assert rows[
+        "coding_agent_generated_code_repair_component_calibration"
+    ]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is True
-    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
-    assert table["coding_agent_capability_ready"] is True
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert rows[
+        "formalizer_lean_candidate_repair_component_calibration"
+    ]["passed"] is True
+    assert table["coding_agent_capability_ready"] is False
+    assert table["integrated_capability_ready"] is False
+    assert table["component_calibration"]["attached_coding_repair_calibration"] is True
+    assert table["component_calibration"][
+        "attached_formalizer_repair_calibration"
+    ] is True
 
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] = 0
     payload[
@@ -44505,7 +44550,10 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ] = 3
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
-    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is True
     assert "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3" in (
         rows["formalizer_live_prover_tool_call_observed"]["evidence"]
     )
@@ -44556,14 +44604,22 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
         "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
         "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
+        "internal_coding_agent_generated_code_repair_eval_live_generator": True,
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
+        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
+        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
         "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 1,
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
         "n_real_kernel_verified_subclaims": 1,
@@ -44601,12 +44657,16 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is True
     assert rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]["passed"] is True
+    assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_feedback_recorded"
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
 
     payload["structured_theory_derivation_trace_observed"] = False
     scorecard = _runtime_capability_scorecard(payload)
@@ -44740,7 +44800,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "generated_simulation_code_executed"
     ]["next_owner_subsystem"] == "SimulationEvaluator"
     assert rows["formalizer_lean_candidate_local_check_attempted"]["passed"] is False
-    assert "proof packets without local diagnostics" in rows[
+    assert "attached component calibration without integrated diagnostics" in rows[
         "formalizer_lean_candidate_local_check_attempted"
     ]["blocker"]
     assert rows[
@@ -44754,6 +44814,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests"] = 0
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
+    ] = False
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
+    ] = True
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
+    ] = 0
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
+    ] = 0
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
@@ -44783,7 +44855,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["passed"] is False
-    assert "neither integrated AgentRuntime repair loops" in rows[
+    assert "attached live combined coding-agent repair calibration" in rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["blocker"]
 
@@ -45737,11 +45809,17 @@ def test_runtime_capability_scorecard_credits_attached_live_formalizer_lsp_tool_
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     live_prover_row = rows["formalizer_live_prover_tool_call_observed"]
-    assert live_prover_row["passed"] is True
+    assert live_prover_row["passed"] is False
     assert (
         "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3"
         in live_prover_row["evidence"]
     )
+    assert rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is True
+    assert scorecard["component_calibration"][
+        "attached_formalizer_prover_tool_called"
+    ] is True
     assert rows["live_lean_lsp_mcp_called"]["passed"] is True
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]

@@ -2400,6 +2400,9 @@ def audit_research_agent_runtime(
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
     payload["evidence_truth_table"] = _runtime_evidence_truth_table(payload)
     capability_gaps = _runtime_capability_gaps_from_scorecard(capability_scorecard)
+    component_calibration_gaps = (
+        _runtime_component_calibration_gaps_from_scorecard(capability_scorecard)
+    )
     payload["capability_ready_for_full_ai_statistician"] = not capability_gaps
     payload["capability_status"] = (
         "FULL_AUTONOMOUS_AI_STATISTICIAN_READY"
@@ -2411,12 +2414,17 @@ def audit_research_agent_runtime(
         )
     )
     payload["capability_gaps"] = capability_gaps
+    payload["component_calibration_gaps"] = component_calibration_gaps
+    payload["component_calibration_ready"] = bool(
+        capability_scorecard.get("component_calibration_ready", False)
+    )
     payload["readiness_boundary"] = (
         "all_ok only means runtime artifacts satisfy the audit contract. "
         "capability_ready_for_full_ai_statistician is the stricter gate for the "
         "original goal: live Architect orchestration, executable algorithm feedback, "
         "live Lean LSP/MCP proof-state interaction, real kernel evidence, and no "
-        "remaining full-theorem formal gaps."
+        "remaining full-theorem formal gaps. Attached component calibration is "
+        "reported separately and does not substitute for integrated readiness."
     )
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -3107,10 +3115,36 @@ def _runtime_architect_orchestration_blocker(payload: Mapping[str, Any]) -> str:
 def _runtime_capability_gaps_from_scorecard(
     scorecard: Mapping[str, Any],
 ) -> list[str]:
+    return _runtime_scorecard_gaps_from_scorecard(
+        scorecard,
+        include_component_calibration=False,
+    )
+
+
+def _runtime_component_calibration_gaps_from_scorecard(
+    scorecard: Mapping[str, Any],
+) -> list[str]:
+    return _runtime_scorecard_gaps_from_scorecard(
+        scorecard,
+        component_calibration_only=True,
+    )
+
+
+def _runtime_scorecard_gaps_from_scorecard(
+    scorecard: Mapping[str, Any],
+    *,
+    include_component_calibration: bool = True,
+    component_calibration_only: bool = False,
+) -> list[str]:
     rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
     gaps: list[str] = []
     for row in rows:
         if not isinstance(row, Mapping):
+            continue
+        is_component_calibration = row.get("scope") == "component_calibration"
+        if component_calibration_only and not is_component_calibration:
+            continue
+        if not include_component_calibration and is_component_calibration:
             continue
         if row.get("passed") is True:
             continue
@@ -4018,23 +4052,17 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     generated_code_execution_ready = (
         (
-            (
-                integrated_algorithm_code_executed > 0
-                or integrated_algorithm_repair_sequences > 0
-            )
-            and (
-                integrated_simulation_code_executed > 0
-                or integrated_simulation_repair_sequences > 0
-            )
+            integrated_algorithm_code_executed > 0
+            or integrated_algorithm_repair_sequences > 0
         )
-        or attached_coding_repair_ready
+        and (
+            integrated_simulation_code_executed > 0
+            or integrated_simulation_repair_sequences > 0
+        )
     )
     generated_code_repair_ready = (
-        (
-            integrated_algorithm_repair_sequences > 0
-            and integrated_simulation_repair_sequences > 0
-        )
-        or attached_coding_repair_ready
+        integrated_algorithm_repair_sequences > 0
+        and integrated_simulation_repair_sequences > 0
     )
     formalizer_local_check_ready = (
         integrated_llm_formalizer_proposals > 0
@@ -4042,17 +4070,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             integrated_formalizer_candidate_checked > 0
             or integrated_formalizer_repair_sequences > 0
         )
-    ) or attached_formalizer_repair_ready
+    )
     proofengineer_feedback_repair_ready = (
-        (
-            integrated_formalizer_agentic_repair_ready
-            and (
-                integrated_formalizer_proof_state_feedback_rows > 0
-                or integrated_formalizer_local_lean_tool_calls > 0
-                or integrated_formalizer_lean_lsp_mcp_live_calls > 0
-            )
+        integrated_formalizer_agentic_repair_ready
+        and (
+            integrated_formalizer_proof_state_feedback_rows > 0
+            or integrated_formalizer_local_lean_tool_calls > 0
+            or integrated_formalizer_lean_lsp_mcp_live_calls > 0
         )
-        or attached_formalizer_repair_ready
     )
     helper_kernel_evidence_ready = (
         int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
@@ -4300,6 +4325,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             if noncontiguous_evidence
             else ""
         ),
+        "component_calibration": {
+            "attached_coding_repair_ready": attached_coding_repair_ready,
+            "attached_formalizer_repair_ready": attached_formalizer_repair_ready,
+            "boundary": (
+                "Attached component repair gates are calibration evidence for "
+                "subsystems. They do not advance integrated ladder levels L3-L6."
+            ),
+        },
         "levels": levels,
         "boundary": (
             "This ladder is descriptive evidence, not a proof gate. LLM routing, "
@@ -5175,11 +5208,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "coding_agent_generated_code_repair_component_gate",
-            (
-                integrated_algorithm_repair_sequences > 0
-                and integrated_simulation_repair_sequences > 0
-            )
-            or attached_live_component_repair_gate_passed,
+            attached_live_component_repair_gate_passed,
             (
                 "integrated_algorithm_repair_sequences="
                 f"{integrated_algorithm_repair_sequences} "
@@ -5197,15 +5226,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{attached_repair_eval_simulation_sequences}"
             ),
             (
-                "neither integrated AgentRuntime repair loops nor an attached "
-                "live combined coding-agent repair gate show both AlgorithmEngineer "
-                "and SimulationEngineer fail-then-pass generated-code repair evidence"
+                "attached live combined coding-agent repair calibration did not "
+                "show both AlgorithmEngineer and SimulationEngineer fail-then-pass "
+                "generated-code repair evidence"
             ),
+            scope="component_calibration",
         ),
         _scorecard_row(
             "llm_formalizer_proofengineer_proposal_observed",
-            integrated_llm_formalizer_proposals > 0
-            or attached_formalizer_live_gate_passed,
+            integrated_llm_formalizer_proposals > 0,
             (
                 "n_llm_formalizer_proof_engineer_proposals="
                 f"{payload.get('n_llm_formalizer_proof_engineer_proposals')} "
@@ -5216,8 +5245,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "deterministic theorem-closure seeds are work-order scaffolds; "
-                "they cannot replace a live Claude/OpenAI Formalizer or "
-                "ProofEngineer proposal in capability evidence"
+                "attached component calibration cannot replace a live "
+                "Claude/OpenAI Formalizer or ProofEngineer proposal in the "
+                "integrated runtime"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -5228,21 +5258,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "statement or proof candidate."
                 ),
                 success_metric=(
-                    "n_llm_formalizer_proof_engineer_proposals>0 or a live "
-                    "attached formalizer repair gate passes"
+                    "n_llm_formalizer_proof_engineer_proposals>0 in the "
+                    "integrated runtime manifest"
                 ),
             ),
         ),
         _scorecard_row(
             "formalizer_lean_candidate_local_check_attempted",
-            (
-                integrated_llm_formalizer_proposals > 0
-                and integrated_formalizer_candidate_checked > 0
-            )
-            or (
-                attached_formalizer_live_gate_passed
-                and attached_formalizer_local_lean_checked > 0
-            ),
+            integrated_llm_formalizer_proposals > 0
+            and integrated_formalizer_candidate_checked > 0,
             (
                 "n_formalizer_lean_candidate_local_lean_checked="
                 f"{payload.get('n_formalizer_lean_candidate_local_lean_checked')} "
@@ -5255,8 +5279,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "no Claude/OpenAI-generated Formalizer Lean candidate was checked "
-                "with local Lean; proof packets without local diagnostics do not "
-                "demonstrate Formalizer/ProofEngineer capacity"
+                "with local Lean in the integrated runtime; proof packets or "
+                "attached component calibration without integrated diagnostics "
+                "do not demonstrate Formalizer/ProofEngineer capacity"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -5267,8 +5292,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_llm_formalizer_proof_engineer_proposals>0 and "
-                    "n_formalizer_lean_candidate_local_lean_checked>0, or the "
-                    "attached live formalizer repair gate checks local Lean"
+                    "n_formalizer_lean_candidate_local_lean_checked>0 in the "
+                    "integrated runtime manifest"
                 ),
             ),
         ),
@@ -5356,11 +5381,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "formalizer_live_prover_tool_call_observed",
-            (
-                integrated_llm_formalizer_proposals > 0
-                and integrated_formalizer_lean_lsp_mcp_live_calls > 0
-            )
-            or attached_formalizer_live_prover_tool_called,
+            integrated_llm_formalizer_proposals > 0
+            and integrated_formalizer_lean_lsp_mcp_live_calls > 0,
             (
                 "lean_lsp_mcp_live_calls="
                 f"{payload.get('n_formalizer_lean_candidate_lean_lsp_mcp_live_calls')}"
@@ -5371,9 +5393,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "LeanDojo/ReProver/Lean-LSP style prover tools were requested "
-                "or staged but no integrated or attached live Formalizer repair "
-                "prover tool call was observed; request rows alone are not full "
-                "ProofEngineer capacity"
+                "or calibrated by attached component probes, but no integrated "
+                "live Formalizer repair prover tool call was observed; request "
+                "rows alone are not full ProofEngineer capacity"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -5385,15 +5407,44 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0 "
-                    "or attached live Formalizer repair eval "
-                    "prior_feedback_lean_lsp_mcp_tool_calls>0"
+                    "from the integrated runtime Formalizer/ProofEngineer loop"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_lean_candidate_integrated_repair_loop_observed",
+            integrated_formalizer_agentic_repair_ready,
+            (
+                "integrated_formalizer_repair_sequences="
+                f"{integrated_formalizer_repair_sequences} "
+                "integrated_llm_formalizer_proposals="
+                f"{integrated_llm_formalizer_proposals} "
+                "attached_formalizer_live_gate="
+                f"{attached_formalizer_live_gate_passed}"
+            ),
+            (
+                "no integrated live Formalizer/ProofEngineer fail-then-pass Lean "
+                "candidate repair loop was observed; attached component repair "
+                "calibration is diagnostic evidence only"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Run a fail-then-pass generated Lean candidate repair loop "
+                    "inside the integrated runtime, with a live LLM proposal, "
+                    "local Lean diagnostics, and a repaired candidate."
+                ),
+                success_metric=(
+                    "n_llm_formalizer_proof_engineer_proposals>0 and "
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
+                    "in the integrated runtime manifest"
                 ),
             ),
         ),
         _scorecard_row(
             "formalizer_lean_candidate_repair_component_gate",
-            integrated_formalizer_agentic_repair_ready
-            or attached_formalizer_live_gate_passed,
+            attached_formalizer_live_gate_passed,
             (
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
@@ -5411,23 +5462,37 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{attached_formalizer_local_lean_checked}"
             ),
             (
-                "neither integrated AgentRuntime repair loops nor an attached "
-                "live Formalizer Lean-candidate repair gate showed fail-then-pass "
-                "generated Lean repair with local Lean diagnostics; static fixtures "
-                "and proof packets do not demonstrate this capacity"
+                "attached live Formalizer Lean-candidate repair calibration did "
+                "not show fail-then-pass generated Lean repair with local Lean "
+                "diagnostics; static fixtures and proof packets do not demonstrate "
+                "this component capacity"
             ),
+            scope="component_calibration",
+        ),
+        _scorecard_row(
+            "formalizer_live_prover_tool_component_calibration",
+            attached_formalizer_live_prover_tool_called,
+            (
+                "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
+                f"{attached_formalizer_lean_lsp_mcp_tool_calls} "
+                "attached_formalizer_live_gate="
+                f"{attached_formalizer_live_gate_passed}"
+            ),
+            (
+                "attached live Formalizer repair calibration did not record a "
+                "Lean-LSP/MCP prover tool call"
+            ),
+            scope="component_calibration",
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalizationEvaluator",
                 target_behavior=(
-                    "Run a fail-then-pass generated Lean candidate repair loop "
-                    "with local Lean diagnostics, either integrated in the runtime "
-                    "or through the attached live formalizer repair gate."
+                    "Run the attached live formalizer repair calibration with "
+                    "prior ProofEngineer feedback that drives a Lean-LSP/MCP "
+                    "prover tool call."
                 ),
                 success_metric=(
-                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
-                    "with live LLM proposals, or attached live formalizer repair "
-                    "gate evidence passes"
+                    "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls>0"
                 ),
             ),
         ),
@@ -6116,7 +6181,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             **_cross_task_generalization_scorecard_routing(payload),
         ),
     ]
+    integrated_rows = [
+        row for row in rows if row.get("scope") != "component_calibration"
+    ]
+    component_calibration_rows = [
+        row for row in rows if row.get("scope") == "component_calibration"
+    ]
     n_passed = sum(1 for row in rows if row["passed"])
+    n_integrated_passed = sum(1 for row in integrated_rows if row["passed"])
+    n_component_calibration_passed = sum(
+        1 for row in component_calibration_rows if row["passed"]
+    )
+    integrated_ready = n_integrated_passed == len(integrated_rows)
+    component_calibration_ready = (
+        n_component_calibration_passed == len(component_calibration_rows)
+        if component_calibration_rows
+        else False
+    )
     return {
         "artifact_kind": "RuntimeCapabilityScorecard",
         "scope": "live autonomous AI Statistician core runtime readiness",
@@ -6124,11 +6205,34 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         "n_requirements": len(rows),
         "n_passed": n_passed,
         "n_failed": len(rows) - n_passed,
-        "ready": n_passed == len(rows),
+        "n_integrated_requirements": len(integrated_rows),
+        "n_integrated_passed": n_integrated_passed,
+        "n_integrated_failed": len(integrated_rows) - n_integrated_passed,
+        "integrated_ready": integrated_ready,
+        "n_component_calibration_requirements": len(component_calibration_rows),
+        "n_component_calibration_passed": n_component_calibration_passed,
+        "n_component_calibration_failed": (
+            len(component_calibration_rows) - n_component_calibration_passed
+        ),
+        "component_calibration_ready": component_calibration_ready,
+        "component_calibration": {
+            "attached_coding_repair_ready": attached_live_component_repair_gate_passed,
+            "attached_formalizer_repair_ready": attached_formalizer_live_gate_passed,
+            "attached_formalizer_prover_tool_called": (
+                attached_formalizer_live_prover_tool_called
+            ),
+            "boundary": (
+                "Attached live component evals calibrate subsystem capacity and "
+                "can guide next-run routing, but they do not satisfy integrated "
+                "AgentRuntime readiness rows."
+            ),
+        },
+        "ready": integrated_ready,
         "rows": rows,
         "boundary": (
             "This scorecard is a capability truth table. It separates runtime "
-            "contract health from live-agent ability and Lean-kernel theorem evidence."
+            "contract health from live-agent ability, attached component calibration, "
+            "and Lean-kernel theorem evidence."
         ),
     }
 
@@ -6158,8 +6262,10 @@ def _scorecard_row(
     blocker: str,
     **routing: Any,
 ) -> dict[str, Any]:
+    scope = str(routing.pop("scope", "integrated_runtime") or "integrated_runtime")
     row = {
         "requirement_id": requirement_id,
+        "scope": scope,
         "passed": bool(passed),
         "evidence": evidence,
         "blocker": "" if passed else blocker,
