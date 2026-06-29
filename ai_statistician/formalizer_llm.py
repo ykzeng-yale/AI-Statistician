@@ -203,6 +203,9 @@ def build_formalizer_prompt(
     diagnostic_helper_bridge_blocker_contract = (
         _diagnostic_helper_bridge_blocker_contract(proof_memory_summary)
     )
+    source_theorem_candidate_materialization_contract = (
+        _source_theorem_candidate_materialization_contract(proof_memory_summary)
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -254,6 +257,9 @@ def build_formalizer_prompt(
         ),
         "diagnostic_helper_bridge_blocker_contract": (
             diagnostic_helper_bridge_blocker_contract
+        ),
+        "source_theorem_candidate_materialization_contract": (
+            source_theorem_candidate_materialization_contract
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
@@ -3037,6 +3043,33 @@ def _formalizer_mode_specific_instructions(
         or []
         if isinstance(row, Mapping)
     ]
+    high_priority_agenda = [
+        row
+        for row in runtime_environment_feedback.get("high_priority_agenda", []) or []
+        if isinstance(row, Mapping)
+    ]
+    materialization_agenda_rows = [
+        row
+        for row in high_priority_agenda
+        if str(row.get("trigger", "") or "")
+        == "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+        or str(row.get("recommended_formalizer_target_mode", "") or "")
+        == "source_theorem_exact_candidate_materialization_required"
+        or str(row.get("id", "") or "")
+        == "formal_gap:source_theorem_candidate_materialization"
+    ]
+    materialization_resource_requests = [
+        row
+        for row in formal_blocker_resource_requests
+        if str(row.get("blocker_kind", "") or "")
+        == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+    ]
+    source_theorem_candidate_materialization_required = bool(
+        proof_memory_summary.get("source_theorem_candidate_materialization_required")
+        or mode == "source_theorem_exact_candidate_materialization_required"
+        or materialization_agenda_rows
+        or materialization_resource_requests
+    )
     source_theorem_proof_body_adapter_feedback = (
         runtime_environment_feedback.get(
             "source_theorem_proof_body_adapter_feedback",
@@ -3088,6 +3121,82 @@ def _formalizer_mode_specific_instructions(
             "proof-search blocker; if the request cannot be resolved, keep the affected "
             "source theorem as FORMAL_GAP and name the exact missing resource."
         )
+    if source_theorem_candidate_materialization_required:
+        targets = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        for row in materialization_agenda_rows:
+            targets.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
+        targets = list(dict.fromkeys(targets))[:4]
+        statuses = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_statuses",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        for row in materialization_agenda_rows:
+            statuses.extend(
+                str(value).strip()
+                for value in row.get("candidate_materialization_statuses", []) or []
+                if str(value).strip()
+            )
+        statuses = list(dict.fromkeys(statuses))[:5]
+        materialization_contract = str(
+            proof_memory_summary.get(
+                "source_theorem_candidate_materialization_contract",
+                "",
+            )
+            or ""
+        ).strip()
+        if not materialization_contract:
+            materialization_contract = next(
+                (
+                    str(row.get("acceptance_gate", "") or "").strip()
+                    for row in materialization_agenda_rows
+                    if str(row.get("acceptance_gate", "") or "").strip()
+                ),
+                "",
+            )
+        if not materialization_contract:
+            materialization_contract = next(
+                (
+                    str(row.get("required_resolution", "") or "").strip()
+                    for row in materialization_resource_requests
+                    if str(row.get("required_resolution", "") or "").strip()
+                ),
+                "",
+            )
+        instruction = (
+            "For source_theorem_exact_candidate_materialization_required, make the "
+            "main output a concrete exact source-theorem formal_targets candidate "
+            "that AgentRuntime can materialize into a Lean artifact and then send "
+            "through signature probes. Do not treat this as proof-body repair, "
+            "semantic-definition review, or proof evidence. Preserve the exact source "
+            "theorem target/provenance, name the target Lean declaration when known, "
+            "include retrieval/prover queries for missing imports or APIs, and only "
+            "ask local Lean/AXLE/signature-probe tools to check candidates actually "
+            "emitted in this packet."
+        )
+        if targets:
+            instruction += " Materialization target(s): " + ", ".join(targets) + "."
+        if statuses:
+            instruction += " Blocking status(es): " + ", ".join(statuses) + "."
+        if materialization_contract:
+            instruction += " Acceptance gate: " + materialization_contract
+        instructions.append(instruction)
     if source_theorem_proof_body_adapter_feedback:
         instructions.append(
             "Source theorem proof-body adapter feedback is active: consume "
@@ -3908,6 +4017,7 @@ def _formalizer_mode_specific_instructions(
         mode == "source_theorem_exact_proof_body_repair"
         or (
             proof_memory_summary.get("source_theorem_exact_candidate_requires_repair")
+            and not source_theorem_candidate_materialization_required
             and not proof_memory_summary.get(
                 "source_to_bridge_metadata_authoring_required"
             )
@@ -4148,6 +4258,35 @@ def _compact_formalizer_environment_feedback(
     if formal_blocker_resource_requests:
         payload["formal_blocker_resource_requests"] = _compact_value(
             formal_blocker_resource_requests
+        )
+    high_priority_agenda = (
+        feedback.get("high_priority_agenda", [])
+        or input_summary.get("high_priority_agenda", [])
+    )
+    if high_priority_agenda:
+        payload["high_priority_agenda"] = _compact_rows(
+            [
+                row
+                for row in high_priority_agenda
+                if isinstance(row, Mapping)
+            ],
+            keys=(
+                "id",
+                "owner_subsystem",
+                "trigger",
+                "action",
+                "acceptance_gate",
+                "target_ids",
+                "candidate_materialization_statuses",
+                "failure_classifications",
+                "recommended_formalizer_target_mode",
+                "runtime_queue_status",
+                "priority",
+                "proof_evidence_status",
+                "proof_boundary",
+                "boundary",
+            ),
+            limit=5,
         )
     source_theorem_proof_body_adapter_feedback = (
         feedback.get("source_theorem_proof_body_adapter_feedback", {})
@@ -4668,6 +4807,11 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_exact_candidate_repair_triggers",
         "source_theorem_exact_candidate_failure_classifications",
         "source_theorem_exact_candidate_environment_gap",
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_materialization_required_target_names",
+        "source_theorem_candidate_materialization_required_statuses",
+        "source_theorem_candidate_materialization_missing_formal_symbols",
+        "source_theorem_candidate_materialization_contract",
         "source_theorem_exact_semantic_definition_repair_required",
         "source_theorem_exact_proof_body_repair_required",
         "formalizer_diagnostic_helper_integration_required",
@@ -5041,6 +5185,65 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
             limit=4,
         )
     return compact
+
+
+def _source_theorem_candidate_materialization_contract(
+    proof_memory_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(proof_memory_summary, Mapping):
+        return {}
+    required = bool(
+        proof_memory_summary.get("source_theorem_candidate_materialization_required")
+        or proof_memory_summary.get("recommended_formalizer_target_mode")
+        == "source_theorem_exact_candidate_materialization_required"
+    )
+    if not required:
+        return {}
+    return {
+        "required": True,
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_candidate_materialization_required"
+        ),
+        "target_names": [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "blocking_statuses": [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_statuses",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "missing_formal_symbols": [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_missing_formal_symbols",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "acceptance_gate": str(
+            proof_memory_summary.get(
+                "source_theorem_candidate_materialization_contract",
+                "",
+            )
+            or ""
+        ).strip(),
+        "proof_evidence_boundary": (
+            "Candidate materialization only creates a runnable Lean target for "
+            "signature probes/local Lean. It is not source-theorem proof evidence "
+            "until AgentRuntime obtains local Lean/AXLE kernel verification."
+        ),
+    }
 
 
 def _compact_value(value: Any) -> Any:

@@ -24455,6 +24455,28 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
         row["id"] != "formal_gap:source_theorem_formal_environment_repair"
         for row in agenda
     )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=theorem_goals,
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback={
+            "high_priority_agenda": agenda,
+            "formal_blocker_resource_requests": requests,
+        },
+    )
+    assert "source_theorem_candidate_materialization_contract" in prompt
+    assert "For source_theorem_exact_candidate_materialization_required" in prompt
+    assert "formal_gap:source_theorem_candidate_materialization" in prompt
+    assert "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION" in prompt
+    assert "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY" in prompt
+    assert "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING" in prompt
+    assert "Do not treat this as proof-body repair" in prompt
+    assert "source_theorem_formal_environment_repair" not in prompt
 
 
 def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
