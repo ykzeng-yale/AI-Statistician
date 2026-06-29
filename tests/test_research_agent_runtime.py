@@ -923,6 +923,24 @@ def test_runtime_manifest_exports_missing_handoff_feedback_memory(
         for row in pending_memory["rows"]
     )
 
+    audit = audit_research_agent_runtime(tmp_path / "runtime")
+    assert audit["n_runtime_handoff_artifact_missing_feedback_rows"] == 1
+    assert audit["n_runtime_handoff_artifact_missing_learning_rows"] == 1
+    assert audit["n_runtime_handoff_artifact_missing_agenda_rows"] == 1
+    assert audit["runtime_handoff_artifact_missing_ids"] == [
+        missing_simulation_manifest_id
+    ]
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    handoff_score = scorecard_rows["explicit_handoff_artifacts_available"]
+    assert handoff_score["passed"] is False
+    assert missing_simulation_manifest_id in handoff_score["evidence"]
+    assert any(
+        "explicit subsystem handoff artifact ids were missing" in gap
+        for gap in audit["capability_gaps"]
+    )
+
 
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
@@ -963,6 +981,42 @@ def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
         "n_structured_theory_trace_alignment_contracts": 3,
         "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
     }
+
+
+def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows["explicit_handoff_artifacts_available"]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "n_runtime_handoff_artifact_missing_feedback_rows": 1,
+            "n_runtime_handoff_artifact_missing_learning_rows": 1,
+            "n_runtime_handoff_artifact_missing_agenda_rows": 1,
+            "runtime_handoff_artifact_missing_ids": [
+                "simulation_manifest:missing"
+            ],
+            "runtime_handoff_artifact_missing_roles": [
+                "simulation_manifest"
+            ],
+            "runtime_handoff_artifact_missing_owner_subsystems": [
+                "SimulationEvaluator"
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    handoff_score = rows["explicit_handoff_artifacts_available"]
+
+    assert handoff_score["passed"] is False
+    assert "simulation_manifest:missing" in handoff_score["evidence"]
+    assert "SimulationEvaluator" in handoff_score["evidence"]
+    assert "rerun or rehydrate" in handoff_score["blocker"]
 
 
 def _structured_theory_trace_alignment_fixture() -> dict[str, object]:

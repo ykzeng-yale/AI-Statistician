@@ -172,6 +172,13 @@ def audit_research_agent_runtime(
     ):
         errors.append("runtime input context memory rows were not propagated into per-question traces")
 
+    runtime_handoff_artifact_missing_summary = (
+        _runtime_handoff_artifact_missing_audit_summary(
+            manifest=manifest,
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
+        )
+    )
     result_errors = [
         {
             "question_id": row.question_id,
@@ -293,6 +300,41 @@ def audit_research_agent_runtime(
         "n_runtime_traces": len(trace_rows),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_runtime_handoff_artifact_missing_feedback_rows": int(
+            runtime_handoff_artifact_missing_summary[
+                "n_runtime_handoff_artifact_missing_feedback_rows"
+            ]
+        ),
+        "n_runtime_handoff_artifact_missing_learning_rows": int(
+            runtime_handoff_artifact_missing_summary[
+                "n_runtime_handoff_artifact_missing_learning_rows"
+            ]
+        ),
+        "n_runtime_handoff_artifact_missing_agenda_rows": int(
+            runtime_handoff_artifact_missing_summary[
+                "n_runtime_handoff_artifact_missing_agenda_rows"
+            ]
+        ),
+        "runtime_handoff_artifact_missing_ids": list(
+            runtime_handoff_artifact_missing_summary[
+                "runtime_handoff_artifact_missing_ids"
+            ]
+        ),
+        "runtime_handoff_artifact_missing_roles": list(
+            runtime_handoff_artifact_missing_summary[
+                "runtime_handoff_artifact_missing_roles"
+            ]
+        ),
+        "runtime_handoff_artifact_missing_owner_subsystems": list(
+            runtime_handoff_artifact_missing_summary[
+                "runtime_handoff_artifact_missing_owner_subsystems"
+            ]
+        ),
+        "runtime_handoff_artifact_missing_boundary": str(
+            runtime_handoff_artifact_missing_summary[
+                "runtime_handoff_artifact_missing_boundary"
+            ]
+        ),
         "n_runtime_theorem_reduction_closure_work_orders": int(
             manifest.get("n_runtime_theorem_reduction_closure_work_orders", 0) or 0
         ),
@@ -2498,6 +2540,99 @@ def _runtime_capability_gaps_from_scorecard(
     return gaps
 
 
+def _runtime_handoff_artifact_missing_audit_summary(
+    *,
+    manifest: Mapping[str, Any],
+    learning_rows: list[Any],
+    agenda_rows: list[Any],
+) -> dict[str, Any]:
+    learning_feedback_rows = [
+        row
+        for row in learning_rows
+        if _is_runtime_handoff_artifact_missing_learning_row(row)
+    ]
+    agenda_feedback_rows = [
+        row for row in agenda_rows if _is_runtime_handoff_artifact_missing_agenda_row(row)
+    ]
+    n_learning_rows = max(
+        _safe_int(manifest.get("n_runtime_handoff_artifact_feedback_learning_rows", 0)),
+        len(learning_feedback_rows),
+    )
+    n_agenda_rows = max(
+        _safe_int(
+            manifest.get("n_runtime_handoff_artifact_feedback_next_action_rows", 0)
+        ),
+        len(agenda_feedback_rows),
+    )
+    feedback_rows = [*learning_feedback_rows, *agenda_feedback_rows]
+    return {
+        "n_runtime_handoff_artifact_missing_feedback_rows": max(
+            n_learning_rows,
+            n_agenda_rows,
+        ),
+        "n_runtime_handoff_artifact_missing_learning_rows": n_learning_rows,
+        "n_runtime_handoff_artifact_missing_agenda_rows": n_agenda_rows,
+        "runtime_handoff_artifact_missing_ids": _sorted_row_values(
+            feedback_rows,
+            "missing_artifact_id",
+        ),
+        "runtime_handoff_artifact_missing_roles": _sorted_row_values(
+            feedback_rows,
+            "missing_artifact_role",
+        ),
+        "runtime_handoff_artifact_missing_owner_subsystems": _sorted_row_values(
+            feedback_rows,
+            "next_owner_subsystem",
+            "owner_subsystem",
+            "repair_owner_agent",
+        ),
+        "runtime_handoff_artifact_missing_boundary": (
+            "missing handoff artifact feedback is orchestration evidence only; "
+            "readiness requires the producing subsystem to rehydrate the requested "
+            "artifact before a downstream agent can claim an end-to-end handoff"
+        ),
+    }
+
+
+def _is_runtime_handoff_artifact_missing_learning_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    if str(row.get("learning_task", "") or "") == (
+        "runtime_handoff_artifact_missing_feedback"
+    ):
+        return True
+    input_summary = row.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        return str(input_summary.get("trigger", "") or "") == (
+            "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+        )
+    return False
+
+
+def _is_runtime_handoff_artifact_missing_agenda_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    if str(row.get("trigger", "") or "") == "RUNTIME_HANDOFF_ARTIFACT_MISSING":
+        return True
+    for key in ("work_order_id", "agenda_item_id", "id"):
+        value = str(row.get(key, "") or "")
+        if value.startswith("runtime_handoff_missing:"):
+            return True
+    return False
+
+
+def _sorted_row_values(rows: list[Any], *keys: str) -> list[str]:
+    values: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for key in keys:
+            value = str(row.get(key, "") or "").strip()
+            if value:
+                values.add(value)
+    return sorted(values)
+
+
 def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]:
     proof_obligation_ids: list[str] = []
     source_semantic_ids: list[str] = []
@@ -3101,6 +3236,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         integrated_llm_formalizer_proposals > 0
         and integrated_formalizer_repair_sequences > 0
     )
+    runtime_handoff_artifact_missing_feedback_rows = int(
+        payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
+    )
     primary_typechecked_review_required = bool(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
@@ -3336,6 +3474,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "did not all bind their proposal artifacts to supported theory "
                 "derivation anchors; supplied context is not yet auditable as a "
                 "theory-to-artifact handoff"
+            ),
+        ),
+        _scorecard_row(
+            "explicit_handoff_artifacts_available",
+            runtime_handoff_artifact_missing_feedback_rows <= 0,
+            (
+                "missing_handoff_feedback_rows="
+                f"{payload.get('n_runtime_handoff_artifact_missing_feedback_rows')} "
+                "learning_rows="
+                f"{payload.get('n_runtime_handoff_artifact_missing_learning_rows')} "
+                "agenda_rows="
+                f"{payload.get('n_runtime_handoff_artifact_missing_agenda_rows')} "
+                "missing_artifact_ids="
+                f"{payload.get('runtime_handoff_artifact_missing_ids')} "
+                "missing_roles="
+                f"{payload.get('runtime_handoff_artifact_missing_roles')} "
+                "owner_subsystems="
+                f"{payload.get('runtime_handoff_artifact_missing_owner_subsystems')}"
+            ),
+            (
+                "explicit subsystem handoff artifact ids were missing from the "
+                "blackboard; rerun or rehydrate the producing subsystem before "
+                "claiming an end-to-end AgentRuntime handoff"
             ),
         ),
         _scorecard_row(
