@@ -448,6 +448,112 @@ def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
         ]
 
 
+def test_downstream_routes_missing_theory_context_to_theory_developer(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+
+    def blackboard() -> BlackboardState:
+        state = BlackboardState(project_id="missing-theory-context-test")
+        state.artifacts.update(
+            {
+                "simulation_manifest:test": {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "manifest_id": "simulation_manifest:test",
+                },
+                "algorithm_sandbox_manifest:test": {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "manifest_id": "algorithm_sandbox_manifest:test",
+                },
+            }
+        )
+        return state
+
+    missing_packet_id = "theory_derivation:missing"
+    cases = [
+        (
+            SimulationEvaluatorRuntimeSubsystem(),
+            AgentTask(
+                task_id="simulation:conformal_prediction_coverage:missing-id",
+                owner_subsystem="SimulationEvaluator",
+                objective="Block simulation until a registered theory packet exists.",
+                inputs={
+                    "question": question_payload,
+                    "architect_context": {},
+                    "n_runs": 5,
+                    "seed": 20260629,
+                },
+            ),
+            True,
+        ),
+        (
+            AlgorithmEngineerRuntimeSubsystem(
+                out_dir=tmp_path / "algorithm",
+                n_runs=5,
+                seed=20260629,
+            ),
+            AgentTask(
+                task_id="algorithm:conformal_prediction_coverage:missing-artifact",
+                owner_subsystem="AlgorithmEngineer",
+                objective="Block algorithm work until the theory artifact is rehydrated.",
+                inputs={
+                    "question": question_payload,
+                    "theory_packet_id": missing_packet_id,
+                    "simulation_manifest_id": "simulation_manifest:test",
+                    "implementation_gaps": [{"gap": "needs implementation"}],
+                    "architect_context": {},
+                },
+            ),
+            False,
+        ),
+        (
+            FormalizationEvaluatorRuntimeSubsystem(
+                proof_verifier=MockProofVerifier(),
+            ),
+            AgentTask(
+                task_id="formalize:conformal_prediction_coverage:missing-artifact",
+                owner_subsystem="FormalizationEvaluator",
+                objective="Block formalization until the theory artifact is rehydrated.",
+                inputs={
+                    "question": question_payload,
+                    "theory_packet_id": missing_packet_id,
+                    "simulation_manifest_id": "simulation_manifest:test",
+                    "algorithm_sandbox_manifest_id": (
+                        "algorithm_sandbox_manifest:test"
+                    ),
+                    "architect_context": {},
+                },
+            ),
+            False,
+        ),
+    ]
+
+    for subsystem, task, missing_packet_id_expected in cases:
+        result = subsystem.run(task, blackboard())
+
+        assert result.status == "REVISE"
+        assert result.next_task is not None
+        assert result.next_task.owner_subsystem == "TheoryDeveloper"
+        assert result.failure_classification == (
+            "runtime_theory_derivation_trace_incomplete"
+        )
+        assert not result.tool_calls
+        feedback = result.next_task.inputs["environment_feedback"]
+        assert feedback["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+        assert "missing_theory_derivation_packet" in feedback[
+            "failure_classifications"
+        ]
+        if missing_packet_id_expected:
+            assert "missing_theory_packet_id" in feedback[
+                "failure_classifications"
+            ]
+            assert feedback["source_theory_packet_id"] == ""
+        else:
+            assert feedback["source_theory_packet_id"] == missing_packet_id
+        assert result.next_task.expected_artifacts == ("theory_derivation_packet",)
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,

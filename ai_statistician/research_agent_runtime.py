@@ -2869,28 +2869,51 @@ def _runtime_theory_trace_repair_result_if_needed(
     theory_packet_id: str,
     theory_packet: Mapping[str, Any],
 ) -> AgentStepResult | None:
-    if not theory_packet_id or not isinstance(theory_packet, Mapping) or not theory_packet:
-        return None
-    if not _runtime_theory_packet_requires_structured_trace_gate(theory_packet):
+    packet = theory_packet if isinstance(theory_packet, Mapping) else {}
+    missing_theory_context = not theory_packet_id or not packet
+    if (
+        not missing_theory_context
+        and not _runtime_theory_packet_requires_structured_trace_gate(packet)
+    ):
         return None
     feedback = _runtime_theory_trace_repair_feedback(
         source_subsystem=source_subsystem,
         source_task=task,
         question=question,
         theory_packet_id=theory_packet_id,
-        theory_packet=theory_packet,
+        theory_packet=packet,
     )
     if not feedback:
         return None
+    if not theory_packet_id:
+        classifications = [
+            "missing_theory_packet_id",
+            *[
+                str(item)
+                for item in feedback.get("failure_classifications", []) or []
+                if str(item) != "missing_theory_packet_id"
+            ],
+        ]
+        feedback["failure_classifications"] = classifications
+        feedback["required_repair"] = (
+            "TheoryDeveloper must emit and register a structured "
+            "TheoryDerivationPacket with a stable packet_id before downstream "
+            "execution."
+        )
     raw_architect_context = task.inputs.get("architect_context", {})
     repair_context = (
         dict(raw_architect_context) if isinstance(raw_architect_context, Mapping) else {}
     )
     repair_context["environment_feedback"] = feedback
+    repair_hash_input = [
+        task.task_id,
+        theory_packet_id or "missing_theory_packet_id",
+        feedback,
+    ]
     next_task = AgentTask(
         task_id=(
             f"theory-trace-repair:{question.id}:"
-            f"{stable_hash([task.task_id, theory_packet_id, feedback])[:8]}"
+            f"{stable_hash(repair_hash_input)[:8]}"
         ),
         owner_subsystem="TheoryDeveloper",
         objective=(
