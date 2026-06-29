@@ -1025,6 +1025,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if learning_task == "coding_agent_generated_code_capability_feedback":
+        return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
@@ -1259,6 +1261,28 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "coding_agent_generated_code_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "coding_agent_generated_code_capability_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        capability_id = str(
+            row.get("capability_id", "")
+            or input_summary.get("capability_id", "")
+            or ""
+        ).strip()
+        next_owner = str(
+            row.get("next_owner_subsystem", "")
+            or input_summary.get("next_owner_subsystem", "")
+            or ""
+        ).strip()
+        return (
+            "coding_agent_generated_code_capability_feedback:"
+            + (question_id or "global")
+            + ":"
+            + (capability_id or "unknown_capability")
+            + ":"
+            + (next_owner or "unknown_owner")
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -1311,6 +1335,7 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         "theory_derivation_trace_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "coding_agent_generated_code_component_gate_feedback",
+        "coding_agent_generated_code_capability_feedback",
     }:
         return True
     if trigger in {
@@ -1783,6 +1808,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "candidate_materialization_required",
         "candidate_materialization_contract",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
+        "capability_id",
+        "recommended_capability_eval_command",
+        "success_metric",
         "component_eval",
         "component_eval_manifest_path",
         "model",

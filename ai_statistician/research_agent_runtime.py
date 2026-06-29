@@ -24546,6 +24546,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
         return 89
+    if learning_task == "coding_agent_generated_code_capability_feedback":
+        return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
@@ -24821,6 +24823,28 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             "coding_agent_generated_code_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "coding_agent_generated_code_capability_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        capability_id = str(
+            row.get("capability_id", "")
+            or input_summary.get("capability_id", "")
+            or ""
+        ).strip()
+        next_owner = str(
+            row.get("next_owner_subsystem", "")
+            or input_summary.get("next_owner_subsystem", "")
+            or ""
+        ).strip()
+        return (
+            "coding_agent_generated_code_capability_feedback:"
+            + (question_id or "global")
+            + ":"
+            + (capability_id or "unknown_capability")
+            + ":"
+            + (next_owner or "unknown_owner")
+        )
     if learning_task == "theory_derivation_trace_feedback":
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -24961,6 +24985,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "coding_agent_generated_code_component_gate_feedback",
+        "coding_agent_generated_code_capability_feedback",
         "theory_derivation_trace_feedback",
         "theory_trace_downstream_alignment_feedback",
         "architect_orchestration_feedback",
@@ -28310,6 +28335,17 @@ def _runtime_algorithm_sandbox_feedback_from_learning_memory(
     )
     if feedback:
         return feedback
+    feedback = _runtime_coding_agent_capability_feedback_from_learning_memory(
+        architect_context,
+        question_id,
+        target_component="algorithm",
+        capability_ids=(
+            "generated_algorithm_code_executed_locally",
+            "generated_algorithm_repair_loop_observed",
+        ),
+    )
+    if feedback:
+        return feedback
     return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
         architect_context,
         question_id,
@@ -28329,11 +28365,122 @@ def _runtime_generated_simulation_feedback_from_learning_memory(
     )
     if feedback:
         return feedback
+    feedback = _runtime_coding_agent_capability_feedback_from_learning_memory(
+        architect_context,
+        question_id,
+        target_component="simulation",
+        capability_ids=(
+            "generated_simulation_code_executed_locally",
+            "generated_simulation_repair_loop_observed",
+        ),
+    )
+    if feedback:
+        return feedback
     return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
         architect_context,
         question_id,
         target_component="simulation",
     )
+
+
+def _runtime_coding_agent_capability_feedback_from_learning_memory(
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    *,
+    target_component: str,
+    capability_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return {}
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    wanted = {str(value).strip() for value in capability_ids if str(value).strip()}
+    for row in reversed(rows):
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("learning_task", "") or "") != (
+            "coding_agent_generated_code_capability_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        row_question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        )
+        if row_question_id and question_id and row_question_id != question_id:
+            continue
+        capability_id = str(
+            row.get("capability_id", "")
+            or input_summary.get("capability_id", "")
+            or ""
+        ).strip()
+        if wanted and capability_id not in wanted:
+            continue
+        target = str(target_component or "").strip()
+        feedback = dict(row)
+        feedback["capability_id"] = capability_id
+        feedback.setdefault("blocker", str(input_summary.get("blocker", "") or ""))
+        feedback.setdefault("evidence", str(input_summary.get("evidence", "") or ""))
+        feedback["target_component"] = target
+        feedback["feedback_type"] = "coding_agent_generated_code_capability_feedback"
+        feedback["failure_classification"] = "integrated_coding_agent_capability_gap"
+        requested_contract = (
+            dict(feedback.get("runtime_requested_evidence_contract", {}))
+            if isinstance(feedback.get("runtime_requested_evidence_contract", {}), Mapping)
+            else {}
+        )
+        if target == "algorithm":
+            requested_contract["capability_eval_requires_generated_algorithm_code"] = True
+            if capability_id == "generated_algorithm_repair_loop_observed":
+                requested_contract[
+                    "capability_eval_requires_generated_algorithm_repair_loop"
+                ] = True
+        elif target == "simulation":
+            requested_contract["capability_eval_requires_generated_simulation_code"] = True
+            if capability_id == "generated_simulation_repair_loop_observed":
+                requested_contract[
+                    "capability_eval_requires_generated_simulation_repair_loop"
+                ] = True
+        if requested_contract:
+            feedback["runtime_requested_evidence_contract"] = requested_contract
+        target_behavior = str(feedback.get("target_behavior", "") or "").strip()
+        success_metric = str(feedback.get("success_metric", "") or "").strip()
+        feedback["required_repair"] = (
+            "Integrated coding-agent capability feedback is active: "
+            + (
+                target_behavior
+                if target_behavior
+                else "produce live generated code and let AgentRuntime execute it"
+            )
+            + (
+                " Success requires "
+                + success_metric
+                + "."
+                if success_metric
+                else "."
+            )
+        )
+        feedback.setdefault(
+            "boundary",
+            (
+                "Integrated capability feedback is prompt memory only. It is not "
+                "proof evidence, not simulation evidence, and not evidence that "
+                "this AgentRuntime turn executed generated code until the current "
+                "runtime records that execution."
+            ),
+        )
+        return feedback
+    return {}
 
 
 def _runtime_coding_agent_component_gate_feedback_from_learning_memory(
@@ -33524,6 +33671,86 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return integrated Formalizer/ProofEngineer capability gaps from memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    formalizer_capability_ids = {
+        "llm_formalizer_proofengineer_proposal_observed",
+        "formalizer_lean_candidate_checked_locally",
+        "formalizer_lean_candidate_proof_state_request_routed",
+        "formalizer_lean_candidate_proof_state_feedback_recorded",
+        "formalizer_local_lean_tool_call_observed",
+        "formalizer_live_prover_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
+    }
+    feedback_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("learning_task", "") or "") != (
+            "coding_agent_generated_code_capability_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        capability_id = str(
+            row.get("capability_id", "")
+            or input_summary.get("capability_id", "")
+            or ""
+        ).strip()
+        if capability_id not in formalizer_capability_ids:
+            continue
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        next_owner = str(
+            row.get("next_owner_subsystem", "")
+            or input_summary.get("next_owner_subsystem", "")
+            or ""
+        ).strip()
+        key = (question_id, capability_id, next_owner)
+        if key in seen:
+            continue
+        seen.add(key)
+        feedback_rows.append(
+            {
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "question_id": question_id,
+                "capability_id": capability_id,
+                "next_owner_subsystem": next_owner,
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "recommended_capability_eval_command": str(
+                    row.get("recommended_capability_eval_command", "") or ""
+                ),
+                "success_metric": str(row.get("success_metric", "") or ""),
+                "blocker": str(input_summary.get("blocker", "") or ""),
+                "evidence": str(input_summary.get("evidence", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+        )
+    return tuple(feedback_rows)
+
+
 def _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -34000,6 +34227,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_lean_candidate_component_gate_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
+            context
+        )
+    )
+    formalizer_lean_candidate_capability_feedback_rows = (
+        _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
             context
         )
     )
@@ -36055,9 +36287,34 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_component_gate_feedback_available": bool(
             formalizer_lean_candidate_component_gate_feedback_rows
         ),
+        "formalizer_lean_candidate_capability_feedback_available": bool(
+            formalizer_lean_candidate_capability_feedback_rows
+        ),
         "formalizer_lean_candidate_repair_manifest_paths": list(
             formalizer_lean_candidate_repair_manifest_paths
         ),
+        "formalizer_lean_candidate_capability_feedback_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
+                "capability_id": str(row.get("capability_id", "") or ""),
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "") or ""
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "recommended_capability_eval_command": str(
+                    row.get("recommended_capability_eval_command", "") or ""
+                ),
+                "success_metric": str(row.get("success_metric", "") or ""),
+                "blocker": str(row.get("blocker", "") or ""),
+                "evidence": str(row.get("evidence", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_lean_candidate_capability_feedback_rows[:4]
+        ],
         "formalizer_lean_candidate_component_gate_feedback_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),

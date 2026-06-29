@@ -12669,6 +12669,102 @@ def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_p
     )
 
 
+def test_runtime_learning_memory_replays_formalizer_capability_feedback_to_prompt(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "capability_id": (
+                    "formalizer_lean_candidate_proof_state_request_routed"
+                ),
+                "next_owner_subsystem": "ProofEngineer",
+                "target_behavior": (
+                    "Route failed Claude-generated Lean candidates into "
+                    "ProofEngineer proof-state requests carrying lean_goal and "
+                    "lean_state_search tool requests."
+                ),
+                "recommended_capability_eval_command": (
+                    "research-agent-runtime --provider anthropic "
+                    "--capability-eval --formalizer-candidate-local-lean"
+                ),
+                "success_metric": (
+                    "n_formalizer_lean_candidate_live_proof_state_requests>0"
+                ),
+                "proof_evidence_status": (
+                    "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "Integrated capability feedback is not source theorem proof."
+                ),
+                "input_summary": {
+                    "trigger": "RUNTIME_CODING_AGENT_CAPABILITY_TABLE",
+                    "capability_id": (
+                        "formalizer_lean_candidate_proof_state_request_routed"
+                    ),
+                    "blocker": "no live proof-state request reached ProofEngineer",
+                    "evidence": (
+                        "n_formalizer_lean_candidate_live_proof_state_requests=0"
+                    ),
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    assert memory["rows"][0]["learning_task"] == (
+        "coding_agent_generated_code_capability_feedback"
+    )
+    assert memory["rows"][0]["capability_id"] == (
+        "formalizer_lean_candidate_proof_state_request_routed"
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_lean_candidate_capability_feedback_available"] is True
+    capability_memory = summary[
+        "formalizer_lean_candidate_capability_feedback_memory"
+    ]
+    assert capability_memory[0]["capability_id"] == (
+        "formalizer_lean_candidate_proof_state_request_routed"
+    )
+    assert "lean_goal" in capability_memory[0]["target_behavior"]
+    assert "research-agent-runtime" in capability_memory[0][
+        "recommended_capability_eval_command"
+    ]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "formalizer_lean_candidate_capability_feedback_memory" in prompt
+    assert "Integrated Formalizer/ProofEngineer capability feedback is active" in prompt
+    assert "proof-state routing" in prompt
+    assert "static replay" in prompt
+    assert "formalizer_lean_candidate_proof_state_request_routed" in prompt
+
+
 def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     tmp_path: Path,
 ) -> None:
@@ -13945,6 +14041,173 @@ def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompt
     assert "not as current-run simulation evidence" in simulation_prompt
     assert "include exactly one safe simulation_code_drafts entry" in simulation_prompt
     assert "live_attempt_failed_then_passed" in simulation_prompt
+
+
+def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "coding_agent_generated_code_capability_feedback",
+            "capability_id": "generated_algorithm_repair_loop_observed",
+            "next_owner_subsystem": "AlgorithmEngineer",
+            "target_behavior": (
+                "Run a Claude-generated algorithm-code fail-then-pass repair loop "
+                "inside the integrated AgentRuntime."
+            ),
+            "recommended_capability_eval_command": (
+                "research-agent-runtime --provider anthropic --capability-eval"
+            ),
+            "success_metric": (
+                "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+            ),
+            "proof_evidence_status": (
+                "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": "Capability feedback is not execution evidence.",
+            "input_summary": {
+                "trigger": "RUNTIME_CODING_AGENT_CAPABILITY_TABLE",
+                "capability_id": "generated_algorithm_repair_loop_observed",
+                "blocker": "only one-shot generated algorithm execution observed",
+                "evidence": (
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences=0"
+                ),
+            },
+        },
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "coding_agent_generated_code_capability_feedback",
+            "capability_id": "generated_simulation_code_executed_locally",
+            "next_owner_subsystem": "SimulationEvaluator",
+            "target_behavior": (
+                "Produce and locally execute generated simulation code inside "
+                "the integrated AgentRuntime."
+            ),
+            "recommended_capability_eval_command": (
+                "research-agent-runtime --provider anthropic --capability-eval"
+            ),
+            "success_metric": "n_generated_simulation_sandbox_executed>0",
+            "proof_evidence_status": (
+                "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": "Capability feedback is not simulation evidence.",
+            "input_summary": {
+                "trigger": "RUNTIME_CODING_AGENT_CAPABILITY_TABLE",
+                "capability_id": "generated_simulation_code_executed_locally",
+                "blocker": "registered simulator satisfied the run",
+                "evidence": "n_generated_simulation_sandbox_executed=0",
+            },
+        },
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "low_priority_noise",
+            "target_behavior": "latest row should not evict pinned capability rows",
+        },
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=2)
+    assert {
+        row["capability_id"]
+        for row in memory["rows"]
+        if row.get("learning_task")
+        == "coding_agent_generated_code_capability_feedback"
+    } == {
+        "generated_algorithm_repair_loop_observed",
+        "generated_simulation_code_executed_locally",
+    }
+
+    algorithm_feedback = _runtime_algorithm_sandbox_feedback_from_learning_memory(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+    simulation_feedback = _runtime_generated_simulation_feedback_from_learning_memory(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+
+    assert algorithm_feedback["feedback_type"] == (
+        "coding_agent_generated_code_capability_feedback"
+    )
+    assert algorithm_feedback["failure_classification"] == (
+        "integrated_coding_agent_capability_gap"
+    )
+    assert algorithm_feedback["target_component"] == "algorithm"
+    assert algorithm_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_algorithm_code": True,
+        "capability_eval_requires_generated_algorithm_repair_loop": True,
+    }
+    assert "fail-then-pass" in algorithm_feedback["required_repair"]
+    assert simulation_feedback["target_component"] == "simulation"
+    assert simulation_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_simulation_code": True
+    }
+    assert "generated simulation code" in simulation_feedback["required_repair"]
+
+    algorithm_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "problem_card": {"estimand": "coverage"},
+            "estimator_specs": [
+                {"id": "custom_conformal", "name": "custom conformal estimator"}
+            ],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "custom_conformal",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        environment_feedback=algorithm_feedback,
+    )
+    simulation_prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "theorem_cards": [],
+            "estimator_specs": [],
+            "simulation_ademp_spec": {"aim": "stress split conformal coverage"},
+        },
+        registered_problem={
+            "problem_class": "conformal_prediction",
+            "estimand": "finite-sample coverage",
+        },
+        registered_procedures=[],
+        n_runs=12,
+        seed=20260629,
+        environment_feedback=simulation_feedback,
+    )
+
+    assert "Integrated coding-agent capability feedback is active" in algorithm_prompt
+    assert "Do not satisfy this with a registered template" in algorithm_prompt
+    assert "Coding-agent component-gate feedback is active" not in algorithm_prompt
+    assert "generated_algorithm_repair_loop_observed" in algorithm_prompt
+    assert "Integrated coding-agent capability feedback is active" in simulation_prompt
+    assert "Do not satisfy this with a registered simulator" in simulation_prompt
+    assert "Coding-agent component-gate feedback is active" not in simulation_prompt
+    assert "generated_simulation_code_executed_locally" in simulation_prompt
 
 
 def test_algorithm_runtime_injects_sandbox_failure_memory_without_current_feedback(

@@ -218,6 +218,19 @@ def build_simulation_engineer_prompt(
         if _feedback_reports_coding_component_gate(payload["runtime_environment_feedback"])
         else ""
     )
+    capability_feedback_instruction = (
+        "Integrated coding-agent capability feedback is active: consume "
+        "runtime_environment_feedback as the current generated-simulation "
+        "capability gap to close. Produce exactly one bounded safe simulation "
+        "run_sandbox draft, expose it through simulation_code_drafts, and let "
+        "AgentRuntime execute and score the draft for this run. Do not satisfy "
+        "this with a registered simulator, static replay, or component-gate "
+        "artifact. "
+        if _feedback_reports_coding_capability_feedback(
+            payload["runtime_environment_feedback"]
+        )
+        else ""
+    )
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Include "
@@ -234,6 +247,7 @@ def build_simulation_engineer_prompt(
         + metric_gate_instruction
         + sandbox_guard_instruction
         + component_gate_instruction
+        + capability_feedback_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
         "draft or metric-gate failure, repair that concrete draft or omit "
         "simulation_code_drafts with a blocker; do not repeat the same unsafe, "
@@ -317,10 +331,22 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             limit=240,
         ),
         "feedback_type": _truncate_text(feedback.get("feedback_type", ""), limit=180),
+        "capability_id": _truncate_text(feedback.get("capability_id", ""), limit=180),
         "target_component": _truncate_text(
             feedback.get("target_component", ""),
             limit=80,
         ),
+        "target_behavior": _truncate_text(
+            feedback.get("target_behavior", ""),
+            limit=360,
+        ),
+        "recommended_capability_eval_command": _truncate_text(
+            feedback.get("recommended_capability_eval_command", ""),
+            limit=360,
+        ),
+        "success_metric": _truncate_text(feedback.get("success_metric", ""), limit=240),
+        "blocker": _truncate_text(feedback.get("blocker", ""), limit=240),
+        "evidence": _truncate_text(feedback.get("evidence", ""), limit=240),
         "component_eval": _truncate_text(feedback.get("component_eval", ""), limit=180),
         "component_eval_manifest_path": _truncate_text(
             feedback.get("component_eval_manifest_path", ""),
@@ -417,6 +443,14 @@ def _feedback_reports_coding_component_gate(feedback: Mapping[str, Any]) -> bool
         return False
     return str(feedback.get("feedback_type", "") or "") == (
         "coding_agent_generated_code_component_gate_feedback"
+    )
+
+
+def _feedback_reports_coding_capability_feedback(feedback: Mapping[str, Any]) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    return str(feedback.get("feedback_type", "") or "") == (
+        "coding_agent_generated_code_capability_feedback"
     )
 
 

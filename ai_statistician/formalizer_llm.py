@@ -3819,6 +3819,31 @@ def _formalizer_mode_specific_instructions(
             "ProofEngineer feedback -> bounded repair -> local Lean/AXLE rerun, "
             "otherwise disclose a FORMAL_GAP."
         )
+    capability_feedback_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_lean_candidate_capability_feedback_memory", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_lean_candidate_capability_feedback_available"
+        )
+        or capability_feedback_memory
+    ):
+        instructions.append(
+            "Integrated Formalizer/ProofEngineer capability feedback is active: "
+            "consume proof_bank_runtime_memory_summary."
+            "formalizer_lean_candidate_capability_feedback_memory as the current "
+            "runtime capability gap to close. If it asks for proof-state routing, "
+            "local Lean tool calls, live prover tool calls, or a fail-then-pass "
+            "Lean-candidate repair loop, emit a bounded source-theorem candidate, "
+            "proof-state request, or formal blocker that drives that exact loop "
+            "inside AgentRuntime. Do not satisfy this with static replay, attached "
+            "component calibration, or a generic proof-bank queue."
+        )
     if feedback_failure == "formalizer_packet_validation_failed":
         packet_attempts = _feedback_int(
             runtime_environment_feedback.get("attempts", 0)
@@ -5363,10 +5388,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_repair_required",
         "formalizer_lean_candidate_proof_state_feedback_available",
         "formalizer_lean_candidate_component_gate_feedback_available",
+        "formalizer_lean_candidate_capability_feedback_available",
         "formalizer_lean_candidate_repair_manifest_paths",
         "formalizer_lean_candidate_repair_memory",
         "formalizer_lean_candidate_proof_state_feedback_memory",
         "formalizer_lean_candidate_component_gate_feedback_memory",
+        "formalizer_lean_candidate_capability_feedback_memory",
         "recommended_source_theorem_integration_action",
         "critic_high_priority_agenda_ids",
     )
