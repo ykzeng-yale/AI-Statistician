@@ -1601,41 +1601,10 @@ def _runtime_theory_trace_feedback_rows(
     )
     if not theory:
         return [], []
-    failure_classifications: list[str] = []
-    if _runtime_safe_int(theory.get("n_theory_derivation_packets", 0)) <= 0:
-        failure_classifications.append("missing_theory_derivation_packet")
-    if (
-        _runtime_safe_int(
-            theory.get("n_theory_derivation_packets_with_contract", 0)
-        )
-        <= 0
-    ):
-        failure_classifications.append("missing_theory_derivation_contract")
-    if _runtime_safe_int(
-        theory.get("n_theory_derivation_packets_with_min_derivation_steps", 0)
-    ) <= 0:
-        failure_classifications.append("insufficient_derivation_steps")
-    if (
-        _runtime_safe_int(
-            theory.get("n_theory_derivation_packets_with_equation_chain", 0)
-        )
-        <= 0
-    ):
-        failure_classifications.append("missing_equation_chain")
-    if _runtime_safe_int(
-        theory.get("n_theory_derivation_packets_with_assumption_ledger", 0)
-    ) <= 0:
-        failure_classifications.append("missing_assumption_ledger")
-    if _runtime_safe_int(
-        theory.get("n_theory_derivation_packets_with_formalization_handoff", 0)
-    ) <= 0:
-        failure_classifications.append("missing_formalization_handoff")
-    if not bool(theory.get("all_required_theory_trace_consumers_observed", False)):
-        failure_classifications.append("downstream_theory_trace_consumption_missing")
-    if not bool(
-        theory.get("all_required_theory_trace_alignment_consumers_observed", False)
-    ):
-        failure_classifications.append("downstream_theory_trace_alignment_missing")
+    failure_classifications = _runtime_theory_trace_failure_classifications_from_summary(
+        theory,
+        include_downstream=True,
+    )
     if not failure_classifications:
         return [], []
 
@@ -2665,14 +2634,29 @@ class ArchitectCoordinatorRuntimeSubsystem:
             "is routing to RetrievalMemory for source and formal context."
         )
         if resume_pending_task_payload:
-            next_task = _merge_resume_task_architect_context(
-                _agent_task_from_runtime_payload(resume_pending_task_payload),
-                context,
+            theory_refresh_task = _architect_resume_theory_refresh_task_if_needed(
+                question=question,
+                architect_task=task,
+                blackboard=blackboard,
+                architect_context=context,
+                resume_pending_task_payload=resume_pending_task_payload,
             )
-            rationale = (
-                "ArchitectCoordinator reviewed the resumed pending task, refreshed "
-                "the evidence contract, and is routing back to the pending subsystem."
-            )
+            if theory_refresh_task is not None:
+                next_task = theory_refresh_task
+                rationale = (
+                    "ArchitectCoordinator reviewed the resumed pending task, "
+                    "detected a weak or missing structured theory trace, and is "
+                    "routing to TheoryDeveloper before returning to downstream work."
+                )
+            else:
+                next_task = _merge_resume_task_architect_context(
+                    _agent_task_from_runtime_payload(resume_pending_task_payload),
+                    context,
+                )
+                rationale = (
+                    "ArchitectCoordinator reviewed the resumed pending task, refreshed "
+                    "the evidence contract, and is routing back to the pending subsystem."
+                )
         return AgentStepResult(
             status="REROUTE",
             rationale=rationale,
@@ -2700,6 +2684,192 @@ class ArchitectCoordinatorRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _latest_runtime_artifact_id_with_prefix(
+    artifacts: Mapping[str, Any],
+    prefix: str,
+) -> str:
+    matching_ids = [
+        str(artifact_id)
+        for artifact_id in artifacts
+        if str(artifact_id).startswith(prefix)
+    ]
+    return matching_ids[-1] if matching_ids else ""
+
+
+def _runtime_theory_trace_failure_classifications_from_summary(
+    theory: Mapping[str, Any],
+    *,
+    include_downstream: bool = True,
+) -> list[str]:
+    failure_classifications: list[str] = []
+    if _runtime_safe_int(theory.get("n_theory_derivation_packets", 0)) <= 0:
+        failure_classifications.append("missing_theory_derivation_packet")
+    if (
+        _runtime_safe_int(
+            theory.get("n_theory_derivation_packets_with_contract", 0)
+        )
+        <= 0
+    ):
+        failure_classifications.append("missing_theory_derivation_contract")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_min_derivation_steps", 0)
+    ) <= 0:
+        failure_classifications.append("insufficient_derivation_steps")
+    if (
+        _runtime_safe_int(
+            theory.get("n_theory_derivation_packets_with_equation_chain", 0)
+        )
+        <= 0
+    ):
+        failure_classifications.append("missing_equation_chain")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_assumption_ledger", 0)
+    ) <= 0:
+        failure_classifications.append("missing_assumption_ledger")
+    if _runtime_safe_int(
+        theory.get("n_theory_derivation_packets_with_formalization_handoff", 0)
+    ) <= 0:
+        failure_classifications.append("missing_formalization_handoff")
+    if include_downstream and not bool(
+        theory.get("all_required_theory_trace_consumers_observed", False)
+    ):
+        failure_classifications.append(
+            "downstream_theory_trace_consumption_missing"
+        )
+    if include_downstream and not bool(
+        theory.get("all_required_theory_trace_alignment_consumers_observed", False)
+    ):
+        failure_classifications.append(
+            "downstream_theory_trace_alignment_missing"
+        )
+    return list(dict.fromkeys(failure_classifications))
+
+
+def _architect_resume_theory_refresh_task_if_needed(
+    *,
+    question: OpenResearchQuestion,
+    architect_task: AgentTask,
+    blackboard: BlackboardState,
+    architect_context: Mapping[str, Any],
+    resume_pending_task_payload: Mapping[str, Any],
+) -> AgentTask | None:
+    pending_owner = str(
+        resume_pending_task_payload.get("owner_subsystem", "") or ""
+    ).strip()
+    if not resume_pending_task_payload or pending_owner == "TheoryDeveloper":
+        return None
+    theory_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": dict(blackboard.artifacts)}}]
+    )["theory"]
+    if bool(theory_summary.get("structured_derivation_trace_observed", False)):
+        return None
+    failures = _runtime_theory_trace_failure_classifications_from_summary(
+        theory_summary,
+        include_downstream=False,
+    )
+    if not failures:
+        return None
+    pending_inputs = (
+        resume_pending_task_payload.get("inputs", {})
+        if isinstance(resume_pending_task_payload.get("inputs", {}), Mapping)
+        else {}
+    )
+    pending_context = (
+        pending_inputs.get("architect_context", {})
+        if isinstance(pending_inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    source_theory_packet_id = str(
+        pending_inputs.get("theory_packet_id", "")
+        or pending_context.get("previous_theory_packet_id", "")
+        or _latest_runtime_artifact_id_with_prefix(
+            blackboard.artifacts,
+            "theory_derivation:",
+        )
+        or ""
+    )
+    feedback = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryTraceRepairFeedback",
+        "feedback_source": "ArchitectCoordinator",
+        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "failure_classification": "runtime_theory_derivation_trace_incomplete",
+        "failure_classifications": list(failures),
+        "question_id": question.id,
+        "source_task_id": architect_task.task_id,
+        "source_owner_subsystem": architect_task.owner_subsystem,
+        "source_theory_packet_id": source_theory_packet_id,
+        "resume_pending_task_id": str(
+            resume_pending_task_payload.get("task_id", "") or ""
+        ),
+        "resume_pending_owner_subsystem": pending_owner,
+        "required_repair": (
+            "TheoryDeveloper must regenerate a structured TheoryDerivationPacket "
+            "with derivation_steps, equation_chain, assumption_ledger, "
+            "formalization_handoff, and stable anchors before the resumed "
+            "downstream subsystem continues."
+        ),
+        "required_revision": (
+            "Refresh the legacy or missing theory spine before reusing the "
+            "pending downstream handoff."
+        ),
+        "acceptance_gate": (
+            "The repaired TheoryDerivationPacket satisfies the derivation "
+            "contract and can be consumed by SimulationEngineer, "
+            "AlgorithmEngineer, and FormalizerProofEngineer before any proof "
+            "claim is made."
+        ),
+        "proof_evidence_status": (
+            "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is Architect resume-routing feedback for LLM theory repair. "
+            "It is not simulation evidence, implementation evidence, or "
+            "Lean/kernel proof evidence."
+        ),
+    }
+    repair_context = dict(architect_context)
+    repair_context["environment_feedback"] = feedback
+    repair_context["runtime_resume_review"] = {
+        **(
+            dict(repair_context.get("runtime_resume_review", {}) or {})
+            if isinstance(repair_context.get("runtime_resume_review", {}), Mapping)
+            else {}
+        ),
+        "theory_refresh_required": True,
+        "theory_refresh_reason": "runtime_theory_derivation_trace_incomplete",
+        "source_theory_packet_id": source_theory_packet_id,
+        "resume_pending_task_after_theory_refresh": dict(
+            resume_pending_task_payload
+        ),
+        "proof_evidence_status": (
+            "ARCHITECT_RESUME_REVIEW_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return AgentTask(
+        task_id=(
+            f"theory-resume-refresh:{question.id}:"
+            f"{stable_hash([architect_task.task_id, source_theory_packet_id, failures])[:8]}"
+        ),
+        owner_subsystem="TheoryDeveloper",
+        objective=(
+            "Refresh the structured theory derivation trace before resuming "
+            "the pending downstream subsystem."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": repair_context,
+            "environment_feedback": feedback,
+        },
+        allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+        expected_artifacts=("theory_derivation_packet",),
+        acceptance_gate=str(feedback["acceptance_gate"]),
+        stop_condition=(
+            "structured theory derivation trace reroutes to downstream gates"
+        ),
+    )
 
 
 class RetrievalMemoryRuntimeSubsystem:

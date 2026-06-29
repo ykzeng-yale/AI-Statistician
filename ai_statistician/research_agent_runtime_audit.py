@@ -2074,7 +2074,11 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         errors.append("runtime trace subsystem order is incomplete or misordered")
     if architect_resume and len(subsystem_sequence) > 1:
         pending_owner = _architect_resume_pending_owner(traces)
-        if pending_owner and subsystem_sequence[1] != pending_owner:
+        if (
+            pending_owner
+            and subsystem_sequence[1] != pending_owner
+            and not _architect_resume_routed_to_theory_refresh(traces)
+        ):
             errors.append(
                 "architect resume review did not route to the original pending subsystem"
             )
@@ -2485,6 +2489,32 @@ def _architect_resume_pending_owner(traces: list[Any]) -> str:
     if not isinstance(pending, Mapping):
         return ""
     return str(pending.get("owner_subsystem", "") or "")
+
+
+def _architect_resume_routed_to_theory_refresh(traces: list[Any]) -> bool:
+    if len(traces) < 2 or not isinstance(traces[1], Mapping):
+        return False
+    second = traces[1]
+    if str(second.get("subsystem", "") or "") != "TheoryDeveloper":
+        return False
+    task = second.get("task", {})
+    if not isinstance(task, Mapping):
+        return False
+    if not str(task.get("task_id", "") or "").startswith("theory-resume-refresh:"):
+        return False
+    inputs = task.get("inputs", {})
+    if not isinstance(inputs, Mapping):
+        return False
+    feedback = (
+        inputs.get("environment_feedback", {})
+        if isinstance(inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    return (
+        str(feedback.get("trigger", "") or "")
+        == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+        and str(feedback.get("feedback_source", "") or "") == "ArchitectCoordinator"
+    )
 
 
 def _runtime_trace_sequence_uses_known_subsystems(

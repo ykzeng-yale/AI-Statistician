@@ -84,6 +84,9 @@ These are hard boundaries for progress claims:
 - `MAX_ITERATIONS_REACHED` with a routeable `pending_next_task` is an
   incomplete continuation state, not an artifact contract error. It is also
   not readiness or proof evidence; the next worker must resume the handoff.
+- Architect resume review may route to `TheoryDeveloper` before the original
+  pending subsystem when the resumed blackboard only has a weak or legacy
+  theory spine. That refresh is required orchestration, not a detour.
 
 ## Capability Ladder
 
@@ -129,6 +132,9 @@ The live runtime has moved beyond static scaffold:
 - Runtime audit now reports budgeted continuations separately: a valid
   `pending_next_task` can make the artifact contract clean while capability
   gaps remain open.
+- Architect resume review now detects weak or missing structured theory traces
+  and routes a `theory-resume-refresh` task before downstream Formalizer/Critic
+  work continues.
 
 The system is still incomplete:
 

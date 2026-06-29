@@ -85,6 +85,7 @@ from ai_statistician.proof_state_feedback import (
 )
 from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
+    ArchitectCoordinatorRuntimeSubsystem,
     FormalizationEvaluatorRuntimeSubsystem,
     ProofEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
@@ -314,6 +315,257 @@ def test_runtime_theory_trace_gate_classifies_legacy_packet() -> None:
             "estimator_specs": [{"id": "component_probe"}],
         }
     )
+
+
+def test_architect_resume_routes_weak_theory_trace_to_theory_refresh() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    weak_packet_id = "theory_derivation:legacy"
+    blackboard = BlackboardState(project_id="architect-resume-weak-theory-test")
+    blackboard.artifacts[weak_packet_id] = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": weak_packet_id,
+        "theory_derivation_packet": {
+            "derivation_summary": "coverage follows from exchangeability",
+            "derivation_steps": [{"id": "rank", "claim": "rank is uniform"}],
+        },
+    }
+    pending_task = {
+        "task_id": "formalize:conformal:pending",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": "Continue formal proof repair.",
+        "inputs": {
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": weak_packet_id,
+            "architect_context": {
+                "previous_theory_packet_id": weak_packet_id,
+            },
+        },
+        "allowed_tools": ["formalizer", "proof_verifier"],
+        "expected_artifacts": ["formalization_manifest"],
+        "acceptance_gate": "formalization manifest records proof boundary",
+        "stop_condition": "formalization repair recorded",
+    }
+    architect_task = AgentTask(
+        task_id="architect-resume:conformal:weak-theory",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Review pending formalization task.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+            "resume_pending_task": pending_task,
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(resume_through_architect=True),
+    )
+
+    result = subsystem.run(architect_task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.task_id.startswith("theory-resume-refresh:")
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    assert feedback["feedback_source"] == "ArchitectCoordinator"
+    assert feedback["source_theory_packet_id"] == weak_packet_id
+    assert feedback["resume_pending_task_id"] == pending_task["task_id"]
+    assert "missing_theory_derivation_contract" in feedback[
+        "failure_classifications"
+    ]
+    assert "missing_equation_chain" in feedback["failure_classifications"]
+    assert feedback["proof_evidence_status"] == (
+        "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    resume_review = result.next_task.inputs["architect_context"][
+        "runtime_resume_review"
+    ]
+    assert resume_review["theory_refresh_required"] is True
+    assert resume_review["resume_pending_task_after_theory_refresh"][
+        "task_id"
+    ] == pending_task["task_id"]
+    assert "detected a weak or missing structured theory trace" in result.rationale
+
+
+def test_runtime_audit_accepts_architect_resume_theory_refresh_route(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "q1_runtime_result.json"
+    trace_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    architect_context = {
+        "architect_runtime_plan": {
+            "problem_analysis": {"theorem_family": "coverage"},
+            "stat_knowledge_bank_plan": {"source_families_to_collect": ["conformal"]},
+            "literature_fair_comparison_plan": [
+                {"candidate_source_family": "split conformal"}
+            ],
+        }
+    }
+    pending_task = {
+        "task_id": "formalize:q1:pending",
+        "owner_subsystem": "FormalizationEvaluator",
+        "inputs": {"question": {"id": "q1"}},
+    }
+    feedback = {
+        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "feedback_source": "ArchitectCoordinator",
+        "source_theory_packet_id": "theory_derivation:legacy",
+    }
+    theory_task = {
+        "task_id": "theory-resume-refresh:q1:abc12345",
+        "owner_subsystem": "TheoryDeveloper",
+        "inputs": {
+            "question": {"id": "q1"},
+            "architect_context": architect_context,
+            "environment_feedback": feedback,
+        },
+    }
+    simulation_task = {
+        "task_id": "simulation:q1:after-refresh",
+        "owner_subsystem": "SimulationEvaluator",
+        "inputs": {"question": {"id": "q1"}},
+    }
+    traces = [
+        {
+            "subsystem": "ArchitectCoordinator",
+            "task": {
+                "task_id": "architect-resume:q1:abc12345",
+                "owner_subsystem": "ArchitectCoordinator",
+                "inputs": {
+                    "question": {"id": "q1"},
+                    "architect_context": architect_context,
+                    "resume_pending_task": pending_task,
+                },
+            },
+            "next_task": theory_task,
+            "next_task_id": theory_task["task_id"],
+        },
+        {
+            "subsystem": "TheoryDeveloper",
+            "task": theory_task,
+            "next_task": simulation_task,
+            "next_task_id": simulation_task["task_id"],
+        },
+    ]
+    trace_path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in traces),
+        encoding="utf-8",
+    )
+    agenda_path.write_text(
+        json.dumps(
+            {
+                "id": "formal_gap:q1",
+                "owner_subsystem": "FormalizationEvaluator",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    learning_path.write_text(
+        json.dumps(
+            {"learning_task": "formal_gap_feedback", "question_id": "q1"},
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = {
+        "status": "MAX_ITERATIONS_REACHED",
+        "blackboard": {
+            "project_id": "project:q1",
+            "artifacts": {
+                "retrieval_memory_manifest:q1": {"artifact_kind": "RetrievalMemoryManifest"},
+                "theory_derivation:structured": _structured_theory_packet_fixture(
+                    "theory_derivation:structured"
+                ),
+                "simulation_manifest:q1": {
+                    "n_generated_simulation_sandbox_executed": 0,
+                    "n_generated_simulation_sandbox_passed": 0,
+                    "n_generated_simulation_sandbox_metric_gate_failed": 0,
+                    "n_unsafe_generated_simulation_code_rejected": 0,
+                },
+                "algorithm_sandbox_manifest:q1": {
+                    "n_executed": 0,
+                    "n_generated_code_executed": 0,
+                    "n_metric_gate_failed": 0,
+                    "n_unsafe_generated_code_rejected": 0,
+                },
+                "formalization_manifest:q1": {
+                    "counts": {"kernel_verified": 0, "formal_gap": 1},
+                    "formal_subclaims": [],
+                },
+                "critic_evaluator_manifest:q1": {
+                    "next_action_agenda": [
+                        {"id": "formal_gap:q1", "owner_subsystem": "FormalizationEvaluator"}
+                    ],
+                    "learning_rows": [
+                        {"learning_task": "formal_gap_feedback", "question_id": "q1"}
+                    ],
+                    "runtime_reroute_decision": {
+                        "reroute_to_theory_developer": False,
+                    },
+                },
+            },
+        },
+        "traces": traces,
+    }
+    result_path.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "runtime_resume_policy": "architect_resume_review",
+        "runtime_resumed_from_pending_task": True,
+        "n_questions": 1,
+        "n_runtime_next_action_items": 1,
+        "n_runtime_learning_rows": 1,
+        "llm_runtime_topology": {
+            "policy_status": "OK",
+            "counts": {
+                "unsupported_generator_backends_enabled": 0,
+                "subsystem_model_tier_policy_mismatches": 0,
+                "enabled_by_provider": {},
+            },
+            "policy": {
+                "resolved_claude_models_by_tier": {
+                    "haiku": "claude-haiku-test",
+                    "sonnet": "claude-sonnet-test",
+                    "opus": "claude-opus-test",
+                }
+            },
+        },
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_traces_jsonl": str(trace_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir)
+
+    assert audit["all_ok"] is True
+    assert audit["result_errors"] == []
+    assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["runtime_architect_control_status"] == "PRESENT"
 
 
 def test_simulation_evaluator_routes_weak_theory_trace_to_theory_developer() -> None:
