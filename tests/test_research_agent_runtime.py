@@ -11628,6 +11628,112 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     assert "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_LEARNING_NOT_PROOF_EVIDENCE" in prompt
 
 
+def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_prompt(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "formalizer_lean_candidate_component_gate_feedback",
+                "next_owner_subsystem": "FormalizationEvaluator",
+                "component_eval": (
+                    "Formalizer/ProofEngineer Lean-candidate repair"
+                ),
+                "component_eval_manifest_path": (
+                    "runs/formalizer_component_gate/"
+                    "formalizer_lean_candidate_repair_eval_manifest.json"
+                ),
+                "provider_name": "anthropic",
+                "model": "claude-sonnet-test",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "capability_evidence_ok": True,
+                "repair_sequences": 1,
+                "local_lean_checked": 1,
+                "local_lean_compiled": 1,
+                "proofengineer_repair_task_observed": True,
+                "prior_feedback_proof_state_rows": 1,
+                "candidate_kernel_verified": True,
+                "source_theorem_kernel_verified": False,
+                "target_behavior": (
+                    "Use the component gate as calibration, not proof."
+                ),
+                "acceptance_gate": (
+                    "Integrated runtime must rerun source-theorem candidates."
+                ),
+                "proof_evidence_status": (
+                    "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": (
+                    "Component-gate feedback is not source theorem proof."
+                ),
+                "input_summary": {
+                    "trigger": "FORMALIZER_LEAN_CANDIDATE_COMPONENT_GATE_ATTACHED",
+                    "component_eval_manifest_path": (
+                        "runs/formalizer_component_gate/"
+                        "formalizer_lean_candidate_repair_eval_manifest.json"
+                    ),
+                    "capability_evidence_ok": True,
+                    "repair_sequences": 1,
+                    "local_lean_checked": 1,
+                    "prior_feedback_proof_state_rows": 1,
+                    "source_theorem_kernel_verified": False,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    assert memory["rows"][0]["learning_task"] == (
+        "formalizer_lean_candidate_component_gate_feedback"
+    )
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert (
+        summary["formalizer_lean_candidate_component_gate_feedback_available"]
+        is True
+    )
+    component_memory = summary[
+        "formalizer_lean_candidate_component_gate_feedback_memory"
+    ]
+    assert component_memory[0]["capability_evidence_ok"] is True
+    assert component_memory[0]["source_theorem_kernel_verified"] is False
+    assert component_memory[0]["prior_feedback_proof_state_rows"] == 1
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "formalizer_lean_candidate_component_gate_feedback_memory" in prompt
+    assert "Formalizer component-gate feedback is active" in prompt
+    assert "synthetic helper repair gate" in prompt
+    assert "not cite that helper as source-theorem proof" in prompt
+    assert (
+        "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+        in prompt
+    )
+
+
 def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     tmp_path: Path,
 ) -> None:
@@ -45639,6 +45745,25 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["n_runtime_coding_agent_capability_learning_rows"] == len(
         coding_feedback_rows
     )
+    component_gate_rows = [
+        row
+        for row in output_learning_rows
+        if row.get("learning_task")
+        == "formalizer_lean_candidate_component_gate_feedback"
+    ]
+    assert len(component_gate_rows) == 1
+    assert manifest["n_runtime_formalizer_component_gate_learning_rows"] == 1
+    assert component_gate_rows[0]["static_or_fixture_only"] is True
+    assert component_gate_rows[0]["capability_evidence_ok"] is False
+    assert component_gate_rows[0]["repair_sequences"] >= 1
+    assert component_gate_rows[0]["prior_feedback_proof_state_rows"] >= 1
+    assert component_gate_rows[0]["source_theorem_kernel_verified"] is False
+    assert component_gate_rows[0]["proof_evidence_status"] == (
+        "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert "not source theorem proof" in component_gate_rows[0][
+        "proof_evidence_boundary"
+    ]
     attached_repair_eval = manifest[
         "internal_coding_agent_generated_code_repair_eval"
     ]

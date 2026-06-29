@@ -427,6 +427,7 @@ from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
+    _runtime_formalizer_component_gate_learning_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
     run_research_agent_runtime,
@@ -947,6 +948,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if learning_task == "formalizer_lean_candidate_component_gate_feedback":
+        return 88
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_exact_semantic_definition_repair_priority(row)
     )
@@ -1145,6 +1148,22 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + failure_scope
         )
+    if learning_task == "formalizer_lean_candidate_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_lean_candidate_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -1195,6 +1214,7 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if learning_task in {
         "source_to_bridge_premise_derivation_feedback",
         "theory_derivation_trace_feedback",
+        "formalizer_lean_candidate_component_gate_feedback",
     }:
         return True
     if trigger in {
@@ -1667,6 +1687,20 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "candidate_materialization_required",
         "candidate_materialization_contract",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
+        "component_eval",
+        "component_eval_manifest_path",
+        "model",
+        "live_generator",
+        "static_or_fixture_only",
+        "capability_evidence_ok",
+        "repair_sequences",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "proofengineer_repair_task_observed",
+        "prior_feedback_proof_state_provider",
+        "prior_feedback_proof_state_rows",
+        "candidate_kernel_verified",
+        "full_frontier_theorem_proved",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
@@ -2005,6 +2039,20 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "n_theory_derivation_packets_with_formalization_handoff",
         "all_required_theory_trace_consumers_observed",
         "all_required_theory_trace_alignment_consumers_observed",
+        "component_eval_manifest_path",
+        "component_eval",
+        "model",
+        "live_generator",
+        "static_or_fixture_only",
+        "capability_evidence_ok",
+        "repair_sequences",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "proofengineer_repair_task_observed",
+        "prior_feedback_proof_state_provider",
+        "prior_feedback_proof_state_rows",
+        "candidate_kernel_verified",
+        "full_frontier_theorem_proved",
     )
     list_keys = (
         "target_ids",
@@ -9477,6 +9525,15 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         "candidate_kernel_verified": bool(
             eval_manifest.get("candidate_kernel_verified", False)
         ),
+        "proofengineer_repair_task_observed": bool(
+            eval_manifest.get("proofengineer_repair_task_observed", False)
+        ),
+        "prior_feedback_proof_state_provider": str(
+            eval_manifest.get("prior_feedback_proof_state_provider", "") or ""
+        ),
+        "prior_feedback_proof_state_rows": int(
+            eval_manifest.get("prior_feedback_proof_state_rows", 0) or 0
+        ),
         "source_theorem_kernel_verified": bool(
             eval_manifest.get("source_theorem_kernel_verified", False)
         ),
@@ -9553,6 +9610,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
         manifest=manifest,
         capability_table=manifest["runtime_coding_agent_capability"],
     )
+    component_gate_learning_rows = _runtime_formalizer_component_gate_learning_rows(
+        manifest
+    )
     artifacts = manifest.setdefault("artifacts", {})
     learning_path_raw = str(artifacts.get("runtime_learning_rows_jsonl", "") or "")
     if learning_path_raw:
@@ -9575,9 +9635,16 @@ def _refresh_runtime_coding_agent_capability_manifest(
         row
         for row in existing_rows
         if row.get("learning_task")
-        != "coding_agent_generated_code_capability_feedback"
+        not in {
+            "coding_agent_generated_code_capability_feedback",
+            "formalizer_lean_candidate_component_gate_feedback",
+        }
     ]
-    refreshed_rows = [*retained_rows, *capability_learning_rows]
+    refreshed_rows = [
+        *retained_rows,
+        *capability_learning_rows,
+        *component_gate_learning_rows,
+    ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
     learning_path.write_text(
         "".join(json.dumps(row, default=str) + "\n" for row in refreshed_rows),
@@ -9585,6 +9652,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
         capability_learning_rows
+    )
+    manifest["n_runtime_formalizer_component_gate_learning_rows"] = len(
+        component_gate_learning_rows
     )
     manifest["n_runtime_learning_rows"] = len(refreshed_rows)
 

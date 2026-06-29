@@ -1394,6 +1394,125 @@ def _runtime_coding_agent_capability_learning_rows(
     return generated_rows
 
 
+def _runtime_formalizer_component_gate_learning_rows(
+    manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Turn an attached Formalizer component gate into bounded prompt memory."""
+
+    attached = manifest.get("internal_formalizer_lean_candidate_repair_eval", {})
+    if not isinstance(attached, Mapping):
+        return []
+    manifest_path = str(attached.get("manifest_path", "") or "").strip()
+    if not manifest_path:
+        return []
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    capability_ok = bool(attached.get("capability_evidence_ok", False))
+    live_generator = bool(attached.get("live_generator", False))
+    static_or_fixture_only = bool(attached.get("static_or_fixture_only", False))
+    repair_sequences = int(attached.get("repair_sequences", 0) or 0)
+    local_lean_checked = int(attached.get("local_lean_checked", 0) or 0)
+    local_lean_compiled = int(attached.get("local_lean_compiled", 0) or 0)
+    proofengineer_repair_task_observed = bool(
+        attached.get("proofengineer_repair_task_observed", False)
+    )
+    prior_feedback_proof_state_rows = int(
+        attached.get("prior_feedback_proof_state_rows", 0) or 0
+    )
+    candidate_kernel_verified = bool(
+        attached.get("candidate_kernel_verified", False)
+    )
+    proof_evidence_status = str(
+        attached.get(
+            "proof_evidence_status",
+            "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE",
+        )
+        or ""
+    )
+    return [
+        {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question_id,
+            "learning_task": "formalizer_lean_candidate_component_gate_feedback",
+            "next_owner_subsystem": "FormalizationEvaluator",
+            "source_manifest_path": manifest_path,
+            "component_eval_manifest_path": manifest_path,
+            "component_eval": "Formalizer/ProofEngineer Lean-candidate repair",
+            "provider_name": str(attached.get("provider_name", "") or ""),
+            "model": str(attached.get("model", "") or ""),
+            "live_generator": live_generator,
+            "static_or_fixture_only": static_or_fixture_only,
+            "capability_evidence_ok": capability_ok,
+            "repair_sequences": repair_sequences,
+            "local_lean_checked": local_lean_checked,
+            "local_lean_compiled": local_lean_compiled,
+            "proofengineer_repair_task_observed": proofengineer_repair_task_observed,
+            "prior_feedback_proof_state_rows": prior_feedback_proof_state_rows,
+            "candidate_kernel_verified": candidate_kernel_verified,
+            "source_theorem_kernel_verified": bool(
+                attached.get("source_theorem_kernel_verified", False)
+            ),
+            "full_frontier_theorem_proved": bool(
+                attached.get("full_frontier_theorem_proved", False)
+            ),
+            "target_behavior": (
+                "Use the attached Formalizer component gate as calibration for "
+                "the prover feedback loop: preserve prior local-Lean/proof-state "
+                "feedback, run a bounded Formalizer/ProofEngineer repair attempt, "
+                "and rerun local Lean on the generated candidate. This component "
+                "gate is synthetic helper evidence and must not be treated as "
+                "source-theorem proof."
+            ),
+            "acceptance_gate": (
+                "A future integrated AgentRuntime turn routes a failed source-"
+                "theorem Lean candidate through ProofEngineer feedback and records "
+                "a local-Lean-checked repair without claiming the attached helper "
+                "as source theorem evidence."
+            ),
+            "input_summary": {
+                "trigger": "FORMALIZER_LEAN_CANDIDATE_COMPONENT_GATE_ATTACHED",
+                "component_eval_manifest_path": manifest_path,
+                "capability_evidence_ok": capability_ok,
+                "live_generator": live_generator,
+                "static_or_fixture_only": static_or_fixture_only,
+                "repair_sequences": repair_sequences,
+                "local_lean_checked": local_lean_checked,
+                "local_lean_compiled": local_lean_compiled,
+                "proofengineer_repair_task_observed": (
+                    proofengineer_repair_task_observed
+                ),
+                "prior_feedback_proof_state_rows": prior_feedback_proof_state_rows,
+                "candidate_kernel_verified": candidate_kernel_verified,
+                "source_theorem_kernel_verified": bool(
+                    attached.get("source_theorem_kernel_verified", False)
+                ),
+                "proof_evidence_status": proof_evidence_status,
+            },
+            "proof_evidence_status": (
+                "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": (
+                "This learning row carries component-gate feedback for the "
+                "Formalizer/ProofEngineer loop. It is not source theorem proof, "
+                "not semantic faithfulness evidence, and not a substitute for "
+                "integrated AgentRuntime proof-state routing."
+            ),
+            "boundary": (
+                "This learning row carries component-gate feedback for the "
+                "Formalizer/ProofEngineer loop. It is not source theorem proof, "
+                "not semantic faithfulness evidence, and not a substitute for "
+                "integrated AgentRuntime proof-state routing."
+            ),
+        }
+    ]
+
+
 def _runtime_evidence_truth_learning_rows(
     *,
     manifest: Mapping[str, Any],
@@ -23785,6 +23904,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
         return 89
+    if learning_task == "formalizer_lean_candidate_component_gate_feedback":
+        return 88
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
             row,
@@ -24024,6 +24145,22 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + str(row.get("source_materialization_manifest_id", "") or "")
         )
+    if learning_task == "formalizer_lean_candidate_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_lean_candidate_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+        )
     if learning_task == "theory_derivation_trace_feedback":
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -24162,6 +24299,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "exact_source_theorem_proof_body_execution_feedback",
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
+        "formalizer_lean_candidate_component_gate_feedback",
         "theory_derivation_trace_feedback",
         "theory_trace_downstream_alignment_feedback",
         "architect_orchestration_feedback",
@@ -32307,6 +32445,115 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return attached Formalizer component-gate feedback from memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    feedback_rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("learning_task", "") or "") != (
+            "formalizer_lean_candidate_component_gate_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        manifest_path = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        key = manifest_path or json.dumps(row, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        feedback_rows.append(
+            {
+                "learning_task": "formalizer_lean_candidate_component_gate_feedback",
+                "component_eval": str(row.get("component_eval", "") or ""),
+                "component_eval_manifest_path": manifest_path,
+                "provider_name": str(row.get("provider_name", "") or ""),
+                "model": str(row.get("model", "") or ""),
+                "live_generator": bool(
+                    row.get("live_generator", False)
+                    or input_summary.get("live_generator", False)
+                ),
+                "static_or_fixture_only": bool(
+                    row.get("static_or_fixture_only", False)
+                    or input_summary.get("static_or_fixture_only", False)
+                ),
+                "capability_evidence_ok": bool(
+                    row.get("capability_evidence_ok", False)
+                    or input_summary.get("capability_evidence_ok", False)
+                ),
+                "repair_sequences": _int_like(
+                    row.get("repair_sequences", input_summary.get("repair_sequences", 0))
+                ),
+                "local_lean_checked": _int_like(
+                    row.get(
+                        "local_lean_checked",
+                        input_summary.get("local_lean_checked", 0),
+                    )
+                ),
+                "local_lean_compiled": _int_like(
+                    row.get(
+                        "local_lean_compiled",
+                        input_summary.get("local_lean_compiled", 0),
+                    )
+                ),
+                "proofengineer_repair_task_observed": bool(
+                    row.get("proofengineer_repair_task_observed", False)
+                    or input_summary.get("proofengineer_repair_task_observed", False)
+                ),
+                "prior_feedback_proof_state_rows": _int_like(
+                    row.get(
+                        "prior_feedback_proof_state_rows",
+                        input_summary.get("prior_feedback_proof_state_rows", 0),
+                    )
+                ),
+                "candidate_kernel_verified": bool(
+                    row.get("candidate_kernel_verified", False)
+                    or input_summary.get("candidate_kernel_verified", False)
+                ),
+                "source_theorem_kernel_verified": bool(
+                    row.get("source_theorem_kernel_verified", False)
+                    or input_summary.get("source_theorem_kernel_verified", False)
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or ""
+                ),
+                "boundary": str(
+                    row.get("boundary", "")
+                    or row.get("proof_evidence_boundary", "")
+                    or ""
+                )[:500],
+            }
+        )
+    return tuple(feedback_rows)
+
+
 def _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -32775,6 +33022,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_lean_candidate_proof_state_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
+            context
+        )
+    )
+    formalizer_lean_candidate_component_gate_feedback_rows = (
+        _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
             context
         )
     )
@@ -34815,9 +35067,52 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_proof_state_feedback_available": bool(
             formalizer_lean_candidate_proof_state_feedback_rows
         ),
+        "formalizer_lean_candidate_component_gate_feedback_available": bool(
+            formalizer_lean_candidate_component_gate_feedback_rows
+        ),
         "formalizer_lean_candidate_repair_manifest_paths": list(
             formalizer_lean_candidate_repair_manifest_paths
         ),
+        "formalizer_lean_candidate_component_gate_feedback_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "component_eval": str(row.get("component_eval", "") or ""),
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "provider_name": str(row.get("provider_name", "") or ""),
+                "model": str(row.get("model", "") or ""),
+                "live_generator": bool(row.get("live_generator", False)),
+                "static_or_fixture_only": bool(
+                    row.get("static_or_fixture_only", False)
+                ),
+                "capability_evidence_ok": bool(
+                    row.get("capability_evidence_ok", False)
+                ),
+                "repair_sequences": _int_like(row.get("repair_sequences", 0)),
+                "local_lean_checked": _int_like(row.get("local_lean_checked", 0)),
+                "local_lean_compiled": _int_like(row.get("local_lean_compiled", 0)),
+                "proofengineer_repair_task_observed": bool(
+                    row.get("proofengineer_repair_task_observed", False)
+                ),
+                "prior_feedback_proof_state_rows": _int_like(
+                    row.get("prior_feedback_proof_state_rows", 0)
+                ),
+                "candidate_kernel_verified": bool(
+                    row.get("candidate_kernel_verified", False)
+                ),
+                "source_theorem_kernel_verified": bool(
+                    row.get("source_theorem_kernel_verified", False)
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_lean_candidate_component_gate_feedback_rows[:3]
+        ],
         "formalizer_lean_candidate_proof_state_feedback_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),

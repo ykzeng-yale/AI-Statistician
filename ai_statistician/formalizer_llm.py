@@ -3469,6 +3469,34 @@ def _formalizer_mode_specific_instructions(
             "or a formal blocker. These rows are repair memory only, not proof "
             "evidence."
         )
+    component_gate_feedback_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_lean_candidate_component_gate_feedback_memory", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_lean_candidate_component_gate_feedback_available"
+        )
+        or component_gate_feedback_memory
+    ):
+        instructions.append(
+            "Formalizer component-gate feedback is active: consume "
+            "proof_bank_runtime_memory_summary."
+            "formalizer_lean_candidate_component_gate_feedback_memory as "
+            "calibration for the expected prover feedback loop. It may show that "
+            "a synthetic helper repair gate injected prior local-Lean/proof-state "
+            "feedback, ran a bounded Formalizer/ProofEngineer repair task, and "
+            "reran local Lean. Do not cite that helper as source-theorem proof or "
+            "semantic faithfulness evidence. For the current source theorem, use "
+            "the same loop shape only when the target artifact is actually the "
+            "current source-theorem candidate: failed Lean diagnostics -> "
+            "ProofEngineer feedback -> bounded repair -> local Lean/AXLE rerun, "
+            "otherwise disclose a FORMAL_GAP."
+        )
     if feedback_failure == "formalizer_packet_validation_failed":
         packet_attempts = _feedback_int(
             runtime_environment_feedback.get("attempts", 0)
@@ -4916,9 +4944,11 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "candidate_definition_request",
         "formalizer_lean_candidate_repair_required",
         "formalizer_lean_candidate_proof_state_feedback_available",
+        "formalizer_lean_candidate_component_gate_feedback_available",
         "formalizer_lean_candidate_repair_manifest_paths",
         "formalizer_lean_candidate_repair_memory",
         "formalizer_lean_candidate_proof_state_feedback_memory",
+        "formalizer_lean_candidate_component_gate_feedback_memory",
         "recommended_source_theorem_integration_action",
         "critic_high_priority_agenda_ids",
     )
@@ -5201,6 +5231,35 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "target_behavior",
                 "acceptance_gate",
                 "proof_evidence_status",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_lean_candidate_component_gate_feedback_memory"),
+        list,
+    ):
+        compact["formalizer_lean_candidate_component_gate_feedback_memory"] = _compact_rows(
+            row.get("formalizer_lean_candidate_component_gate_feedback_memory", []),
+            keys=(
+                "learning_task",
+                "component_eval",
+                "component_eval_manifest_path",
+                "provider_name",
+                "model",
+                "live_generator",
+                "static_or_fixture_only",
+                "capability_evidence_ok",
+                "repair_sequences",
+                "local_lean_checked",
+                "local_lean_compiled",
+                "proofengineer_repair_task_observed",
+                "prior_feedback_proof_state_rows",
+                "candidate_kernel_verified",
+                "source_theorem_kernel_verified",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
+                "boundary",
             ),
             limit=3,
         )
