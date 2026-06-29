@@ -2387,13 +2387,41 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             continue
         break
     passed_levels = [int(row["level"]) for row in levels if row["passed"] is True]
+    max_evidence = max(passed_levels) if passed_levels else -1
+    first_blocking_level = next(
+        (
+            row
+            for row in levels
+            if row["level"] == max_contiguous + 1
+            and row["passed"] is not True
+        ),
+        None,
+    )
+    noncontiguous_evidence = bool(max_evidence > max_contiguous)
     return {
         "artifact_kind": "RuntimeCapabilityLadder",
         "scale": "L0-L8",
         "max_contiguous_level": max_contiguous,
-        "max_evidence_level": max(passed_levels) if passed_levels else -1,
+        "max_contiguous_level_label": (
+            levels[max_contiguous]["label"]
+            if max_contiguous >= 0
+            else "no_contiguous_runtime_contract"
+        ),
+        "max_evidence_level": max_evidence,
+        "max_evidence_level_label": (
+            levels[max_evidence]["label"] if max_evidence >= 0 else "no_runtime_evidence"
+        ),
         "current_level_label": (
             levels[max_contiguous]["label"] if max_contiguous >= 0 else "no_runtime_contract"
+        ),
+        "first_blocking_level": first_blocking_level,
+        "noncontiguous_evidence_observed": noncontiguous_evidence,
+        "noncontiguous_evidence_warning": (
+            "Later capability evidence is present, but earlier runtime contract "
+            "levels failed. Treat the later level as diagnostic progress only, "
+            "not as integrated readiness."
+            if noncontiguous_evidence
+            else ""
         ),
         "levels": levels,
         "boundary": (
@@ -3707,8 +3735,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- capability scorecard: {payload.get('capability_scorecard', {}).get('n_passed')}/"
         f"{payload.get('capability_scorecard', {}).get('n_requirements')} passed",
         f"- capability ladder max contiguous level: {payload.get('capability_ladder', {}).get('max_contiguous_level')}",
+        f"- capability ladder max contiguous label: {payload.get('capability_ladder', {}).get('max_contiguous_level_label')}",
         f"- capability ladder max evidence level: {payload.get('capability_ladder', {}).get('max_evidence_level')}",
+        f"- capability ladder max evidence label: {payload.get('capability_ladder', {}).get('max_evidence_level_label')}",
         f"- capability ladder current label: {payload.get('capability_ladder', {}).get('current_level_label')}",
+        "- capability ladder noncontiguous evidence observed: "
+        f"{payload.get('capability_ladder', {}).get('noncontiguous_evidence_observed')}",
         f"- evidence truth table source theorem kernel verified: {payload.get('evidence_truth_table', {}).get('source_theorem_kernel_verified')}",
         f"- evidence truth table formal gaps open: {payload.get('evidence_truth_table', {}).get('formal_gaps_open')}",
         f"- current exact proof-body blocker: {payload.get('evidence_truth_table', {}).get('current_exact_proof_body_blocker')}",

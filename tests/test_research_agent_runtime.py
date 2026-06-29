@@ -38388,12 +38388,57 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
 
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
     assert ladder["max_contiguous_level"] == 6
+    assert ladder["max_contiguous_level_label"] == (
+        "source_theorem_semantic_primitives_kernel_evidence_available"
+    )
     assert ladder["max_evidence_level"] == 6
+    assert ladder["max_evidence_level_label"] == (
+        "source_theorem_semantic_primitives_kernel_evidence_available"
+    )
+    assert ladder["noncontiguous_evidence_observed"] is False
     assert rows[4]["passed"] is True
     assert rows[5]["passed"] is True
     assert rows[6]["passed"] is True
     assert rows[7]["passed"] is False
     assert "no full source/frontier theorem" in rows[7]["blocker"]
+
+
+def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> None:
+    payload = {
+        "all_ok": False,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": False,
+        "n_algorithm_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 2,
+        "n_llm_formalizer_proof_engineer_proposals": 3,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 4,
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": 2,
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": 0,
+        "n_runtime_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 2,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+
+    assert ladder["max_contiguous_level"] == -1
+    assert ladder["current_level_label"] == "no_runtime_contract"
+    assert ladder["max_contiguous_level_label"] == "no_contiguous_runtime_contract"
+    assert ladder["max_evidence_level"] == 6
+    assert ladder["max_evidence_level_label"] == (
+        "source_theorem_semantic_primitives_kernel_evidence_available"
+    )
+    assert ladder["noncontiguous_evidence_observed"] is True
+    assert "diagnostic progress only" in ladder["noncontiguous_evidence_warning"]
+    assert ladder["first_blocking_level"]["level"] == 0
+    assert "basic audit contract" in ladder["first_blocking_level"]["blocker"]
 
 
 def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -> None:
