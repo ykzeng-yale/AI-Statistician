@@ -25247,11 +25247,21 @@ def _runtime_formalization_gap_planner_execution_context_index(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        context = _runtime_formalization_gap_planner_execution_context(row)
-        if not context:
-            continue
-        for key in _runtime_formalization_gap_planner_context_lookup_keys(context):
-            index.setdefault(key, context)
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        for context in _runtime_formalization_gap_planner_row_contexts(
+            row,
+            input_summary,
+        ):
+            if not context:
+                continue
+            for key in _runtime_formalization_gap_planner_context_lookup_keys(
+                context
+            ):
+                index.setdefault(key, context)
     return index
 
 
@@ -45460,6 +45470,37 @@ def _normalize_environment_feedback_source_to_bridge_contracts(
     return normalized
 
 
+def _runtime_environment_feedback_with_formal_gap_planner_context(
+    environment_feedback: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    feedback = dict(environment_feedback)
+    agenda_rows = [
+        dict(row)
+        for row in feedback.get("high_priority_agenda", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not agenda_rows:
+        return feedback
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context.get("runtime_learning_memory", {}), Mapping)
+        else {}
+    )
+    memory_rows = [
+        row
+        for row in memory.get("rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    context_rows = [*memory_rows, *agenda_rows]
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        agenda_rows,
+        context_rows=context_rows,
+    )
+    feedback["high_priority_agenda"] = agenda_rows
+    return feedback
+
+
 def _runtime_pending_task_with_runtime_learning_memory(
     pending_next_task: Mapping[str, Any],
     memory_context: Mapping[str, Any],
@@ -45495,6 +45536,12 @@ def _runtime_pending_task_with_runtime_learning_memory(
             environment_feedback = (
                 _normalize_environment_feedback_source_to_bridge_contracts(
                     environment_feedback
+                )
+            )
+            environment_feedback = (
+                _runtime_environment_feedback_with_formal_gap_planner_context(
+                    environment_feedback,
+                    architect_context,
                 )
             )
             inputs["environment_feedback"] = environment_feedback
@@ -45616,6 +45663,12 @@ def _runtime_pending_task_with_runtime_learning_memory(
                 environment_feedback
             )
         )
+        environment_feedback = (
+            _runtime_environment_feedback_with_formal_gap_planner_context(
+                environment_feedback,
+                architect_context,
+            )
+        )
         inputs["environment_feedback"] = environment_feedback
         architect_context["environment_feedback"] = environment_feedback
     else:
@@ -45630,6 +45683,12 @@ def _runtime_pending_task_with_runtime_learning_memory(
             environment_feedback = (
                 _normalize_environment_feedback_source_to_bridge_contracts(
                     environment_feedback
+                )
+            )
+            environment_feedback = (
+                _runtime_environment_feedback_with_formal_gap_planner_context(
+                    environment_feedback,
+                    architect_context,
                 )
             )
             inputs["environment_feedback"] = environment_feedback

@@ -3963,6 +3963,130 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert "runs/same-turn-prompt" in direct_prompt
 
 
+def test_pending_task_handoff_enriches_formal_gap_planner_agenda_context() -> None:
+    pending_task = {
+        "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
+        "owner_subsystem": "FormalizerProofEngineer",
+        "objective": "Repair the formal gap using planner context.",
+        "inputs": {
+            "environment_feedback": {
+                "high_priority_agenda": [
+                    {
+                        "id": "formal_gap:gap_planner_handoff",
+                        "owner_subsystem": "FormalizationGapPlanner",
+                        "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                        "action": "stage formalization-gap planner packets",
+                        "acceptance_gate": (
+                            "planner route, source grounding, and target-prover "
+                            "replay preserve proof boundaries"
+                        ),
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                        "formalization_gap_planner_bridge_id": (
+                            "runtime_formalization_gap_planner_bridge:pending"
+                        ),
+                        "standalone_seed_artifact_id": (
+                            "runtime_formalization_gap_planner_standalone_seed:pending"
+                        ),
+                    }
+                ]
+            },
+            "architect_context": {},
+        },
+    }
+    memory_context = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "schema_version": 1,
+                "question_id": "conformal_prediction_coverage",
+                "learning_task": "next_action_routing",
+                "input_summary": {
+                    "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                    "owner_subsystem": "FormalizationGapPlanner",
+                    "agenda_id": "formal_gap:gap_planner_handoff",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "formalization_gap_planner_bridge_id": (
+                        "runtime_formalization_gap_planner_bridge:pending"
+                    ),
+                    "standalone_seed_artifact_id": (
+                        "runtime_formalization_gap_planner_standalone_seed:pending"
+                    ),
+                    "formalization_gap_planner_execution_contexts": [
+                        {
+                            "bridge_id": (
+                                "runtime_formalization_gap_planner_bridge:pending"
+                            ),
+                            "handoff_id": (
+                                "runtime_formalization_gap_planner_handoff:pending"
+                            ),
+                            "standalone_seed_artifact_id": (
+                                "runtime_formalization_gap_planner_standalone_seed:pending"
+                            ),
+                            "standalone_seed_path": "runs/pending-seed.json",
+                            "target_intake_path": "runs/pending-target-intake.json",
+                            "llm_route_planner_prompt_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                "--input runs/pending-seed.json "
+                                "--out runs/pending-prompt"
+                            ),
+                            "llm_route_planner_live_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                "--input runs/pending-seed.json --invoke-provider "
+                                "--out runs/pending-live"
+                            ),
+                            "reuse_smoke_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-reuse-smoke "
+                                "--input runs/pending-target-intake.json "
+                                "--out runs/pending-reuse-smoke"
+                            ),
+                            "execution_plan_stage_ids": [
+                                "standalone_plan",
+                                "llm_route_planner_prompt",
+                                "llm_route_planner_live_optional",
+                                "reuse_smoke",
+                            ],
+                        }
+                    ],
+                },
+                "target_behavior": "stage planner packets before broad theory",
+                "acceptance_gate": "target-prover replay preserves proof boundaries",
+            }
+        ],
+        max_rows=4,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        memory_context,
+    )
+
+    feedback = enriched["inputs"]["environment_feedback"]
+    agenda_row = feedback["high_priority_agenda"][0]
+    assert agenda_row["formalization_gap_planner_handoff_id"] == (
+        "runtime_formalization_gap_planner_handoff:pending"
+    )
+    context = agenda_row["formalization_gap_planner_execution_contexts"][0]
+    assert context["standalone_seed_path"] == "runs/pending-seed.json"
+    assert context["llm_route_planner_prompt_cli"].endswith(
+        "--out runs/pending-prompt"
+    )
+    assert context["reuse_smoke_cli"].endswith("--out runs/pending-reuse-smoke")
+    assert agenda_row["formalization_gap_planner_execution_plan_stage_ids"] == [
+        "standalone_plan",
+        "llm_route_planner_prompt",
+        "llm_route_planner_live_optional",
+        "reuse_smoke",
+    ]
+    assert enriched["inputs"]["architect_context"]["environment_feedback"][
+        "high_priority_agenda"
+    ][0]["formalization_gap_planner_execution_contexts"][0][
+        "llm_route_planner_live_cli"
+    ].endswith("--out runs/pending-live")
+
+
 def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
     tmp_path: Path,
 ) -> None:
