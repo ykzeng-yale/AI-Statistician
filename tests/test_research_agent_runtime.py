@@ -8556,9 +8556,74 @@ def test_formalizer_candidate_materialization_rejects_mathlib_umbrella_import(
     contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
     assert contract["mathlib_import_unavailable"] is True
     assert contract["mathlib_root_import_unavailable"] is True
+    assert contract["verified_narrow_imports"] == [
+        "Mathlib.MeasureTheory.Measure.ProbabilityMeasure"
+    ]
+    assert "verified narrow modules" in contract["verified_narrow_import_rule"]
     assert "blocked_import_prefixes" not in contract
     assert "narrow `Mathlib.*` module imports" in contract["mathlib_repair_rule"]
     assert "Do not use Real" in contract["core_lean_only_helper_rule"]
+
+
+def test_formalizer_candidate_materialization_repair_contract_requires_declaration(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    lean_project = tmp_path / "LeanProject"
+    narrow_module = (
+        lean_project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib"
+        / "MeasureTheory"
+        / "Measure"
+        / "ProbabilityMeasure.olean"
+    )
+    narrow_module.parent.mkdir(parents=True, exist_ok=True)
+    narrow_module.write_text("", encoding="utf-8")
+    task = AgentTask(
+        task_id="task:formalizer_candidate_missing_declaration",
+        owner_subsystem="FormalizationEvaluator",
+        objective="reject Lean candidate with imports but no declaration",
+    )
+
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:missing_declaration",
+            "formal_targets": [
+                {
+                    "id": "missing_declaration",
+                    "lean_statement_sketch": (
+                        "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure\n\n"
+                        "open MeasureTheory\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert "must contain a declaration" in " ".join(row["precheck_errors"])
+    contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
+    assert "lean_candidate_missing_declaration" in contract["diagnostic_classes"]
+    assert contract["declaration_required"] is True
+    assert contract["declaration_required_keywords"] == ["theorem", "lemma"]
+    assert "imports, prose, comments" in contract["declaration_repair_rule"]
 
 
 def test_formalizer_candidate_materialization_rejects_import_without_lean_project(
@@ -8744,6 +8809,56 @@ def test_formalizer_prompt_repair_instructions_handle_import_precheck_failure() 
 
     assert "Mandatory import repair" in prompt
     assert "Do not import guessed Mathlib module paths" in prompt
+
+
+def test_formalizer_prompt_repair_instructions_use_verified_imports_and_declaration_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+            "failure_classification": (
+                "formalizer_lean_candidate_precheck_rejected"
+            ),
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "umbrella_import_no_declaration",
+                    "candidate_kind": "formal_target_lean_statement_sketch",
+                    "source_field": "formal_targets",
+                    "lean_source_excerpt": "import Mathlib\nopen MeasureTheory\n",
+                    "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                    "precheck_errors": [
+                        (
+                            "Lean candidate imports unavailable umbrella module "
+                            "in configured project: Mathlib; import a specific "
+                            "module instead; verified narrow module(s): "
+                            "Mathlib.MeasureTheory.Measure.ProbabilityMeasure, "
+                            "Mathlib.Tactic"
+                        ),
+                        "Lean candidate source must contain a declaration",
+                    ],
+                    "local_lean_attempted": False,
+                    "local_lean_compiled": False,
+                }
+            ],
+        },
+    )
+
+    assert "Mandatory Mathlib-root repair" in prompt
+    assert "Mandatory verified-narrow-import repair" in prompt
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in prompt
+    assert "Do not retry `import Mathlib`" in prompt
+    assert "Mandatory declaration repair" in prompt
+    assert "`theorem` or `lemma`" in prompt
+    assert "verified_narrow_imports" in prompt
+    assert "declaration_required" in prompt
 
 
 def test_formalizer_prompt_repair_instructions_handle_contradiction_shortcuts() -> None:

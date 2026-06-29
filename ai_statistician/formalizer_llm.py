@@ -3309,6 +3309,32 @@ def _formalizer_mode_specific_instructions(
                 "tied to the semantic bridge; this helper is diagnostic only and "
                 "not source-theorem proof evidence."
             )
+        verified_narrow_imports = [
+            str(value).strip()
+            for value in carried_local_lean_repair_contract.get(
+                "verified_narrow_imports",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        if verified_narrow_imports:
+            instructions.append(
+                "Mandatory verified-narrow-import repair: runtime/precheck already "
+                "verified these narrow module imports in the configured Lake project: "
+                + ", ".join(f"`{value}`" for value in verified_narrow_imports[:8])
+                + ". If the repaired candidate needs those APIs, import one of these "
+                "modules exactly; otherwise use no import or emit a FORMAL_GAP. Do not "
+                "retry `import Mathlib`."
+            )
+        if carried_local_lean_repair_contract.get("declaration_required"):
+            instructions.append(
+                "Mandatory declaration repair: the previous Lean source had no "
+                "declaration. The next executable candidate must include one concrete "
+                "`theorem` or `lemma` tied to the theorem/subclaim. "
+                "Do not return only imports, comments, open commands, prose, or an "
+                "empty Lean sketch."
+            )
         if carried_local_lean_repair_contract.get("core_lean_only_helper_rule"):
             instructions.append(
                 "Mandatory core-Lean helper repair: the active import/local Lean "
@@ -3938,6 +3964,35 @@ def _formalizer_mode_specific_instructions(
                         "Prop variables tied to the semantic bridge; this helper is "
                         "diagnostic only and not source-theorem proof evidence."
                     )
+                verified_narrow_imports = [
+                    str(value).strip()
+                    for value in local_lean_repair_contract.get(
+                        "verified_narrow_imports",
+                        [],
+                    )
+                    or []
+                    if str(value).strip()
+                ]
+                if verified_narrow_imports:
+                    instructions.append(
+                        "Mandatory verified-narrow-import repair: runtime/precheck "
+                        "already verified these narrow module imports in the configured "
+                        "Lake project: "
+                        + ", ".join(
+                            f"`{value}`" for value in verified_narrow_imports[:8]
+                        )
+                        + ". If the repaired candidate needs those APIs, import one of "
+                        "these modules exactly; otherwise use no import or emit a "
+                        "FORMAL_GAP. Do not retry `import Mathlib`."
+                    )
+                if local_lean_repair_contract.get("declaration_required"):
+                    instructions.append(
+                        "Mandatory declaration repair: the previous Lean source had no "
+                        "declaration. The next executable candidate must include one "
+                        "concrete `theorem` or `lemma` tied to the "
+                        "theorem/subclaim. Do not return only imports, comments, open "
+                        "commands, prose, or an empty Lean sketch."
+                    )
                 if local_lean_repair_contract.get("core_lean_only_helper_rule"):
                     instructions.append(
                         "Mandatory core-Lean helper repair: the active import/local "
@@ -4564,9 +4619,16 @@ def _feedback_local_lean_repair_contract(
     )
     if not isinstance(candidate_diagnostics, list | tuple):
         return explicit_contract
+    precheck_text = " ".join(
+        str(error)
+        for row in candidate_diagnostics
+        if isinstance(row, Mapping)
+        for error in row.get("precheck_errors", []) or []
+    )
     local_lean_text = " ".join(
         " ".join(
             [
+                precheck_text,
                 str(row.get("local_lean_exit_status", "") or ""),
                 str(row.get("local_lean_stdout_excerpt", "") or ""),
                 str(row.get("local_lean_stderr_excerpt", "") or ""),
@@ -4597,6 +4659,8 @@ def _feedback_local_lean_repair_contract(
         classes.append("lean_unknown_tactic")
     if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
         classes.append("lean_type_mismatch")
+    if "source must contain a declaration" in local_lean_text:
+        classes.append("lean_candidate_missing_declaration")
     candidate_source_text = " ".join(
         str(row.get("lean_source_excerpt", "") or "")
         for row in candidate_diagnostics
@@ -4673,6 +4737,14 @@ def _feedback_local_lean_repair_contract(
             "(hs : support) : target := by\n"
             "  exact h hs"
         )
+    verified_narrow_imports = _feedback_verified_narrow_imports(candidate_diagnostics)
+    if verified_narrow_imports:
+        contract["verified_narrow_imports"] = verified_narrow_imports
+        contract["verified_narrow_import_rule"] = (
+            "If the next candidate needs Mathlib APIs after an umbrella-import "
+            "rejection, import one of these verified narrow modules exactly, and "
+            "only when it matches the dependency. Do not retry `import Mathlib`."
+        )
     unknown_identifiers = _feedback_unknown_identifiers(candidate_diagnostics)
     if unknown_identifiers:
         contract["unknown_identifiers"] = unknown_identifiers
@@ -4699,6 +4771,21 @@ def _feedback_local_lean_repair_contract(
             "(hs : support) : target := by\n"
             "  exact h hs"
         )
+    if "lean_candidate_missing_declaration" in classes:
+        contract["declaration_required"] = True
+        contract["declaration_repair_rule"] = (
+            "The next executable Lean candidate must contain a concrete declaration "
+            "introduced by `theorem` or `lemma`; auxiliary `def`/`example` "
+            "declarations alone do not satisfy a Formalizer capability candidate. "
+            "Do not return only imports, prose, comments, open commands, or an empty "
+            "formal target. If a real theorem/lemma tied to the theorem/subclaim "
+            "cannot be written, emit expected_status=FORMAL_GAP outside Lean source "
+            "and name the blocker."
+        )
+        contract["declaration_required_keywords"] = [
+            "theorem",
+            "lemma",
+        ]
     return _merge_feedback_local_lean_repair_contracts(
         explicit_contract,
         contract,
@@ -4741,7 +4828,12 @@ def _merge_feedback_local_lean_repair_contracts(
     for key, value in derived_contract.items():
         if key == "diagnostic_classes":
             continue
-        if key in {"blocked_import_prefixes", "unknown_identifiers"}:
+        if key in {
+            "blocked_import_prefixes",
+            "unknown_identifiers",
+            "verified_narrow_imports",
+            "declaration_required_keywords",
+        }:
             existing_values = [
                 str(item).strip()
                 for item in merged.get(key, []) or []
@@ -4822,6 +4914,36 @@ def _feedback_diagnostics_import_exact_module(
             if module in modules:
                 return True
     return False
+
+
+def _feedback_verified_narrow_imports(
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    pattern = re.compile(
+        r"verified narrow module\(s\):\s*(?P<modules>[^;\n]+)",
+        re.IGNORECASE,
+    )
+    modules: list[str] = []
+    seen: set[str] = set()
+    for row in diagnostics:
+        text = " ".join(
+            [
+                " ".join(str(error) for error in row.get("precheck_errors", []) or []),
+                str(row.get("local_lean_stdout", "") or ""),
+                str(row.get("local_lean_stderr", "") or ""),
+                str(row.get("local_lean_stdout_excerpt", "") or ""),
+                str(row.get("local_lean_stderr_excerpt", "") or ""),
+            ]
+        )
+        for match in pattern.finditer(text):
+            for module in match.group("modules").split(","):
+                module = module.strip().strip(".")
+                if module and module not in seen:
+                    seen.add(module)
+                    modules.append(module)
+                    if len(modules) >= 8:
+                        return modules
+    return modules
 
 
 def _feedback_unknown_identifiers(
