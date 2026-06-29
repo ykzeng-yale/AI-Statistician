@@ -2671,56 +2671,17 @@ def _runtime_theory_packet_structured_trace_failures(
     return list(dict.fromkeys(failures))
 
 
-def _runtime_mapping_is_theory_trace_repair_signal(row: Mapping[str, Any]) -> bool:
-    input_summary = (
-        row.get("input_summary", {})
-        if isinstance(row.get("input_summary", {}), Mapping)
-        else {}
-    )
-    learning_task = str(
-        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
-    )
-    trigger = str(row.get("trigger", "") or input_summary.get("trigger", "") or "")
-    failure_classification = str(
-        row.get("failure_classification", "")
-        or input_summary.get("failure_classification", "")
-        or ""
-    )
-    return bool(
-        learning_task == "theory_derivation_trace_feedback"
-        or trigger == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
-        or failure_classification == "runtime_theory_derivation_trace_incomplete"
-    )
-
-
-def _runtime_theory_trace_repair_signal_present(
-    *,
-    task: AgentTask,
-    architect_context: Mapping[str, Any],
+def _runtime_theory_packet_requires_structured_trace_gate(
+    packet: Mapping[str, Any],
 ) -> bool:
-    for candidate in (
-        task.inputs.get("environment_feedback", {}),
-        architect_context.get("environment_feedback", {})
-        if isinstance(architect_context, Mapping)
-        else {},
-    ):
-        if isinstance(candidate, Mapping) and _runtime_mapping_is_theory_trace_repair_signal(
-            candidate
-        ):
-            return True
-    memory = (
-        architect_context.get("runtime_learning_memory", {})
-        if isinstance(architect_context, Mapping)
-        else {}
+    artifact_kind = str(packet.get("artifact_kind", "") or "").strip()
+    packet_id = str(packet.get("packet_id", "") or "").strip()
+    return bool(
+        artifact_kind == "TheoryDerivationPacket"
+        or packet_id.startswith("theory_derivation:")
+        or "theory_derivation_packet" in packet
+        or "theory_derivation_contract" in packet
     )
-    if not isinstance(memory, Mapping):
-        return False
-    for row in memory.get("rows", []) or []:
-        if isinstance(row, Mapping) and _runtime_mapping_is_theory_trace_repair_signal(
-            row
-        ):
-            return True
-    return False
 
 
 def _runtime_theory_trace_repair_feedback(
@@ -2779,14 +2740,10 @@ def _runtime_theory_trace_repair_result_if_needed(
     question: OpenResearchQuestion,
     theory_packet_id: str,
     theory_packet: Mapping[str, Any],
-    architect_context: Mapping[str, Any],
 ) -> AgentStepResult | None:
-    if not _runtime_theory_trace_repair_signal_present(
-        task=task,
-        architect_context=architect_context,
-    ):
-        return None
     if not theory_packet_id or not isinstance(theory_packet, Mapping) or not theory_packet:
+        return None
+    if not _runtime_theory_packet_requires_structured_trace_gate(theory_packet):
         return None
     feedback = _runtime_theory_trace_repair_feedback(
         source_subsystem=source_subsystem,
@@ -2797,7 +2754,10 @@ def _runtime_theory_trace_repair_result_if_needed(
     )
     if not feedback:
         return None
-    repair_context = dict(architect_context)
+    raw_architect_context = task.inputs.get("architect_context", {})
+    repair_context = (
+        dict(raw_architect_context) if isinstance(raw_architect_context, Mapping) else {}
+    )
     repair_context["environment_feedback"] = feedback
     next_task = AgentTask(
         task_id=(
@@ -2866,7 +2826,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             question=question,
             theory_packet_id=packet_id,
             theory_packet=packet if isinstance(packet, Mapping) else {},
-            architect_context=context,
         )
         if trace_repair_result is not None:
             return trace_repair_result
@@ -3323,7 +3282,6 @@ class AlgorithmEngineerRuntimeSubsystem:
             question=question,
             theory_packet_id=packet_id,
             theory_packet=packet if isinstance(packet, Mapping) else {},
-            architect_context=context,
         )
         if trace_repair_result is not None:
             return trace_repair_result
@@ -3908,7 +3866,6 @@ class FormalizationEvaluatorRuntimeSubsystem:
             question=question,
             theory_packet_id=packet_id,
             theory_packet=packet if isinstance(packet, Mapping) else {},
-            architect_context=context,
         )
         if trace_repair_result is not None:
             return trace_repair_result

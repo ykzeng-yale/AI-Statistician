@@ -303,6 +303,16 @@ def test_runtime_theory_trace_gate_classifies_legacy_packet() -> None:
         )
         == []
     )
+    assert runtime_module._runtime_theory_packet_requires_structured_trace_gate(
+        legacy_packet
+    )
+    assert not runtime_module._runtime_theory_packet_requires_structured_trace_gate(
+        {
+            "artifact_kind": "TheoryPacketForAlgorithmRepairEval",
+            "packet_id": "theory:component_eval",
+            "estimator_specs": [{"id": "component_probe"}],
+        }
+    )
 
 
 def test_simulation_evaluator_routes_weak_theory_trace_to_theory_developer() -> None:
@@ -324,23 +334,7 @@ def test_simulation_evaluator_routes_weak_theory_trace_to_theory_developer() -> 
         inputs={
             "question": runtime_module._question_to_payload(question),
             "theory_packet_id": weak_packet_id,
-            "architect_context": {
-                "runtime_learning_memory": {
-                    "artifact_kind": "RuntimeLearningMemoryContext",
-                    "rows": [
-                        {
-                            "learning_task": "theory_derivation_trace_feedback",
-                            "question_id": question.id,
-                            "work_order_id": "weak-theory-trace-repair",
-                            "input_summary": {
-                                "trigger": (
-                                    "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
-                                )
-                            },
-                        }
-                    ],
-                }
-            },
+            "architect_context": {},
             "n_runs": 5,
             "seed": 20260629,
         },
@@ -369,20 +363,7 @@ def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     weak_packet_id = "theory_derivation:legacy"
-    memory_context = {
-        "runtime_learning_memory": {
-            "artifact_kind": "RuntimeLearningMemoryContext",
-            "rows": [
-                {
-                    "learning_task": "theory_derivation_trace_feedback",
-                    "question_id": question.id,
-                    "input_summary": {
-                        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
-                    },
-                }
-            ],
-        }
-    }
+    empty_context: dict[str, object] = {}
 
     def blackboard() -> BlackboardState:
         state = BlackboardState(project_id="weak-theory-trace-downstream-test")
@@ -426,7 +407,7 @@ def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
                     "theory_packet_id": weak_packet_id,
                     "simulation_manifest_id": "simulation_manifest:test",
                     "implementation_gaps": [{"gap": "exercise guard"}],
-                    "architect_context": memory_context,
+                    "architect_context": empty_context,
                 },
             ),
         ),
@@ -445,7 +426,7 @@ def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
                     "algorithm_sandbox_manifest_id": (
                         "algorithm_sandbox_manifest:test"
                     ),
-                    "architect_context": memory_context,
+                    "architect_context": empty_context,
                 },
             ),
         ),
@@ -38211,6 +38192,18 @@ def _architect_sample_response() -> dict[str, object]:
 
 def _runtime_sample_response() -> dict[str, object]:
     return {
+        "schema_version": 1,
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:test_fixture_structured",
+        "theory_derivation_contract": {
+            "min_derivation_steps": 3,
+            "min_equation_chain_steps": 2,
+            "n_derivation_steps": 3,
+            "n_equation_chain_steps": 2,
+            "n_assumption_ledger_rows": 3,
+            "has_formalization_handoff": True,
+            "proof_evidence_status": "THEORY_DERIVATION_NOT_PROOF_EVIDENCE",
+        },
         "problem_card": {
             "observed_data": "i.i.d. observations O_i=(X_i,A_i,Y_i)",
             "dgp": "semiparametric observed-data law with binary treatment",
