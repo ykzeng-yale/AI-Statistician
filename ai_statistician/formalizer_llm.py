@@ -13,6 +13,7 @@ from .formalizer_repair_policy import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .theory_derivation_trace import compact_theory_derivation_trace
 
 
 FORMALIZER_SCHEMA_VERSION = 1
@@ -189,7 +190,7 @@ def build_formalizer_prompt(
         if isinstance(raw_theory_derivation_packet, Mapping)
         else {}
     )
-    theory_derivation_trace = _compact_theory_derivation_trace(theory_packet)
+    theory_derivation_trace = compact_theory_derivation_trace(theory_packet)
     runtime_environment_feedback = _compact_formalizer_environment_feedback(
         environment_feedback or {}
     )
@@ -4783,51 +4784,6 @@ def _feedback_unknown_identifiers(
                 seen.add(name)
                 names.append(name)
     return names[:8]
-
-
-def _compact_theory_derivation_trace(
-    theory_packet: Mapping[str, Any],
-) -> dict[str, Any]:
-    if not isinstance(theory_packet, Mapping):
-        return {}
-    raw_derivation = theory_packet.get("theory_derivation_packet", {})
-    if not isinstance(raw_derivation, Mapping):
-        return {}
-    compact = {
-        "derivation_summary": _compact_value(
-            raw_derivation.get("derivation_summary", "")
-        ),
-        "derivation_steps": _compact_rows(
-            raw_derivation.get("derivation_steps", []),
-            keys=(
-                "id",
-                "claim",
-                "equation_or_argument",
-                "depends_on",
-                "formal_goal",
-                "risk",
-            ),
-            limit=5,
-        ),
-        "equation_chain": _compact_rows(
-            raw_derivation.get("equation_chain", []),
-            keys=("step_id", "lhs", "relation", "rhs", "justification", "depends_on"),
-            limit=5,
-        ),
-        "assumption_ledger": _compact_rows(
-            raw_derivation.get("assumption_ledger", []),
-            keys=("assumption", "role", "used_in", "risk_if_dropped"),
-            limit=5,
-        ),
-        "formalization_handoff": _compact_value(
-            raw_derivation.get("formalization_handoff", {})
-        ),
-    }
-    return {
-        key: value
-        for key, value in compact.items()
-        if value not in (None, "", [], {})
-    }
 
 
 def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[str, Any]:

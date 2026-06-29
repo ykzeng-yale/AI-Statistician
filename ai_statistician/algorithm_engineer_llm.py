@@ -10,6 +10,7 @@ from .generated_metric_repair_policy import generated_metric_gate_repair_instruc
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .theory_derivation_trace import compact_theory_derivation_trace
 
 
 ALGORITHM_ENGINEER_SCHEMA_VERSION = 1
@@ -259,6 +260,8 @@ def build_algorithm_engineer_prompt(
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
         "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
+        "Use theory_packet_summary.theory_derivation_trace to align generated code, validation metrics, "
+        "and risk controls with the derivation assumptions and equation-chain quantities. "
         "If runtime_environment_feedback reports rejected or failed sandbox code, repair that concrete "
         "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
         "or non-executable code. "
@@ -313,6 +316,11 @@ def _compact_theory_packet_for_algorithm(theory_packet: Mapping[str, Any]) -> di
             key: _compact_string_list(simulation_spec.get(key, []), limit=2)
             for key in ("methods", "performance_measures", "stress_tests")
         },
+        "theory_derivation_trace": compact_theory_derivation_trace(
+            theory_packet,
+            max_rows=3,
+            text_limit=240,
+        ),
     }
 
 

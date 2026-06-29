@@ -10,6 +10,7 @@ from .generated_metric_repair_policy import generated_metric_gate_repair_instruc
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .theory_derivation_trace import compact_theory_derivation_trace
 
 
 SIMULATION_ENGINEER_SCHEMA_VERSION = 1
@@ -215,7 +216,10 @@ def build_simulation_engineer_prompt(
         "Return ONLY one compact JSON object matching required_output_contract. Include "
         "only the required fields. Keep each list to exactly 1 short object or 1 short "
         "string. You may name one runtime diagnostic, but do not claim that simulations "
-        "were run or passed. Execution is owned by AgentRuntime.\n\n"
+        "were run or passed. Execution is owned by AgentRuntime. Use "
+        "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
+        "metrics, and stress tests with the derivation assumptions and equation-chain "
+        "quantities.\n\n"
         + generated_simulation_instruction
         + metric_gate_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
@@ -267,6 +271,11 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
             key: _compact_string_or_list(simulation_spec.get(key, ""))
             for key in ("aim", "dgps", "methods", "performance_measures", "stress_tests")
         },
+        "theory_derivation_trace": compact_theory_derivation_trace(
+            theory_packet,
+            max_rows=3,
+            text_limit=240,
+        ),
     }
 
 

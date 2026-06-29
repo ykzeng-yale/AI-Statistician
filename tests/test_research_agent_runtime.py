@@ -3333,6 +3333,41 @@ def test_simulation_engineer_prompt_compacts_theory_context() -> None:
                 "dgps": ["nonlinear", "x" * 5000],
                 "methods": ["split conformal", "x" * 5000],
             },
+            "theory_derivation_packet": {
+                "derivation_summary": "derive finite-sample coverage from exchangeability",
+                "derivation_steps": [
+                    {
+                        "id": "exchangeable_scores",
+                        "claim": "Calibration and test scores are exchangeable.",
+                        "equation_or_argument": "rank(score_test) is uniform among calibration ranks",
+                        "depends_on": [],
+                        "formal_goal": "coverage_theorem",
+                        "risk": "exchangeability must match simulation split",
+                    }
+                ],
+                "equation_chain": [
+                    {
+                        "step_id": "coverage_identity",
+                        "lhs": "P(Y_test in C(X_test))",
+                        "relation": ">=",
+                        "rhs": "1-alpha",
+                        "justification": "exchangeable rank argument",
+                        "depends_on": ["exchangeable_scores"],
+                    }
+                ],
+                "assumption_ledger": [
+                    {
+                        "assumption": "exchangeability",
+                        "role": "simulation",
+                        "used_in": ["exchangeable_scores", "coverage_identity"],
+                        "risk_if_dropped": "coverage simulation no longer targets theorem",
+                    }
+                ],
+                "formalization_handoff": {
+                    "source_theorem_target": "coverage_theorem",
+                    "semantic_alignment_constraints": ["preserve split exchangeability"],
+                },
+            },
         },
         registered_problem={"problem_class": "distribution_free_conformal_prediction"},
         registered_procedures=[],
@@ -3360,6 +3395,11 @@ def test_simulation_engineer_prompt_compacts_theory_context() -> None:
     assert '"recommended_research_path":"simulation_first"' in prompt
     assert "finite-n misspecification stress" in prompt
     assert "stress DGPs before proof work" in prompt
+    assert "theory_derivation_trace" in prompt
+    assert "coverage_identity" in prompt
+    assert "exchangeability must match simulation split" in prompt
+    assert "preserve split exchangeability" in prompt
+    assert "align DGPs, estimands, metrics, and stress tests" in prompt
 
 
 def test_simulation_engineer_capability_eval_prompt_requires_generated_code() -> None:
@@ -3452,6 +3492,41 @@ def test_algorithm_engineer_prompt_compacts_theory_and_simulation_context() -> N
                 "performance_measures": [long_text for _ in range(5)],
                 "stress_tests": [long_text for _ in range(5)],
             },
+            "theory_derivation_packet": {
+                "derivation_summary": "map split-conformal interval code to coverage score ranks",
+                "derivation_steps": [
+                    {
+                        "id": "calibrate_quantile",
+                        "claim": "The implementation must compute a calibration residual quantile.",
+                        "equation_or_argument": "q_hat = empirical quantile of calibration residuals",
+                        "depends_on": [],
+                        "formal_goal": "coverage_theorem",
+                        "risk": "off-by-one quantile changes coverage",
+                    }
+                ],
+                "equation_chain": [
+                    {
+                        "step_id": "interval_width",
+                        "lhs": "C_hat(x)",
+                        "relation": "=",
+                        "rhs": "[m_hat(x)-q_hat, m_hat(x)+q_hat]",
+                        "justification": "split conformal interval construction",
+                        "depends_on": ["calibrate_quantile"],
+                    }
+                ],
+                "assumption_ledger": [
+                    {
+                        "assumption": "exchangeability",
+                        "role": "algorithmic",
+                        "used_in": ["calibrate_quantile", "interval_width"],
+                        "risk_if_dropped": "runtime coverage metric targets the wrong claim",
+                    }
+                ],
+                "formalization_handoff": {
+                    "source_theorem_target": "coverage_theorem",
+                    "semantic_alignment_constraints": ["keep rank quantile semantics"],
+                },
+            },
         },
         simulation_manifest={
             "manifest_id": "simulation:test",
@@ -3490,6 +3565,11 @@ def test_algorithm_engineer_prompt_compacts_theory_and_simulation_context() -> N
     assert len(prompt) < 22000
     assert '"recommended_research_path":"simulation_first"' in prompt
     assert "prefer registered implementation template" in prompt
+    assert "theory_derivation_trace" in prompt
+    assert "interval_width" in prompt
+    assert "off-by-one quantile changes coverage" in prompt
+    assert "keep rank quantile semantics" in prompt
+    assert "align generated code, validation metrics" in prompt
 
 
 def test_algorithm_engineer_capability_eval_prompt_requires_generated_code() -> None:
