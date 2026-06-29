@@ -186,6 +186,7 @@ SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
@@ -195,6 +196,7 @@ SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
@@ -225,12 +227,14 @@ SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_n_result_rows",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
 )
 SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
@@ -239,6 +243,7 @@ SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_first_proof_body_goal_excerpt",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
     "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
@@ -19838,6 +19843,59 @@ def run_research_agent_runtime(
             or {}
         ).get("proof_evidence_status", "")
         or ""
+    )
+    source_theorem_exact_semantic_definition_proof_body_recheck_executor_compact_payload = (
+        _executor_manifest_compact_payload(
+            source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification"
+    ] = str(
+        source_theorem_exact_semantic_definition_proof_body_recheck_executor_compact_payload.get(
+            "dominant_failure_classification",
+            "",
+        )
+        or ""
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_by_proof_body_gate_status"
+    ] = dict(
+        source_theorem_exact_semantic_definition_proof_body_recheck_executor_compact_payload.get(
+            "by_proof_body_gate_status",
+            {},
+        )
+        or {}
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows"
+    ] = int(
+        source_theorem_exact_semantic_definition_proof_body_recheck_executor_compact_payload.get(
+            "n_proof_body_goal_excerpt_rows",
+            0,
+        )
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_first_proof_body_goal_excerpt"
+    ] = [
+        str(value)
+        for value in source_theorem_exact_semantic_definition_proof_body_recheck_executor_compact_payload.get(
+            "first_proof_body_goal_excerpt",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ][:8]
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_boundary"
+    ] = (
+        "The exact semantic-definition candidate-synthesis proof-body recheck "
+        "executor is proof evidence only when it reports "
+        "n_source_theorem_kernel_verified > 0 for the exact source theorem. "
+        "Failed or non-kernel rows are ProofEngineer feedback."
+        if source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+        else ""
     )
     exact_semantic_definition_repair_required = bool(
         manifest.get("source_theorem_exact_semantic_definition_repair_required", False)

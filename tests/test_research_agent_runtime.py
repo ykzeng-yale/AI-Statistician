@@ -39441,6 +39441,68 @@ def test_runtime_audit_counts_source_theorem_promotion_kernel_evidence(
     assert "direct=1 source_semantic=1 post_executor=1" in report
 
 
+def test_runtime_audit_counts_candidate_synthesis_recheck_kernel_evidence(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 0,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+        "source_theorem_exact_semantic_definition_candidate_synthesis_n_proof_body_recheck_queue_rows": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran": True,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification": "",
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        ]
+        == 1
+    )
+    assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+    ]["passed"] is True
+    assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "source-theorem kernel verified total: 1" in report
+    assert "candidate-synthesis proof-body recheck: queue_rows=1" in report
+    assert "source_kernel_verified=1" in report
+
+
 def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() -> None:
     payload = {
         "all_ok": True,
@@ -39657,6 +39719,58 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
 
 
+def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_kernel_evidence() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "structured_theory_derivation_trace_observed": True,
+        "n_theory_derivation_packets": 1,
+        "n_theory_derivation_packets_with_contract": 1,
+        "n_theory_derivation_packets_with_min_derivation_steps": 1,
+        "n_theory_derivation_packets_with_equation_chain": 1,
+        "n_theory_derivation_packets_with_assumption_ledger": 1,
+        "n_theory_derivation_packets_with_formalization_handoff": 1,
+        **_scorecard_theory_trace_consumption_payload(),
+        "n_algorithm_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": 2,
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": 0,
+        "n_runtime_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        "n_formal_gaps": 0,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    truth_table = _runtime_evidence_truth_table(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert ladder_rows[7]["passed"] is True
+    assert ladder["max_contiguous_level"] == 7
+    assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    assert truth_table["source_theorem_kernel_verified"] is True
+    assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
+
+
 def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_evidence() -> None:
     payload = {
         "all_ok": True,
@@ -39739,6 +39853,14 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
         not in audit_keys
     )
     assert (
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in raw_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified"
         in raw_keys
     )
@@ -39756,6 +39878,10 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
     )
     assert (
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        not in aggregate_kernel_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
         not in aggregate_kernel_keys
     )
     assert (
@@ -40416,6 +40542,43 @@ def test_runtime_evidence_truth_table_tracks_materialized_review_recheck_attempt
     assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
 
 
+def test_runtime_evidence_truth_table_tracks_candidate_synthesis_recheck_attempt() -> None:
+    truth_table = _runtime_evidence_truth_table_from_manifest(
+        {
+            "n_live_generator_agents_enabled": 6,
+            "architect_coordinator_enabled": True,
+            "n_algorithm_sandbox_executed": 1,
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows": 1,
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification": (
+                "proof_body_incomplete"
+            ),
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_first_proof_body_goal_excerpt": [
+                "hGoodCovered : {ω | rank ω ∈ GoodRanks} ⊆ covered",
+                "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
+            ],
+            "n_formal_gaps": 1,
+        }
+    )
+    rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert truth_table["source_theorem_kernel_verified"] is False
+    assert rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_REACHED_OPEN"
+    )
+    assert rows["exact_source_proof_body_attempt"]["count"] == 1
+    assert rows["exact_source_proof_body_attempt"]["proof_evidence"] is False
+    assert rows["exact_source_proof_body_attempt"]["blocker"] == (
+        "proof_body_incomplete"
+    )
+    assert any(
+        "1 - alpha" in line
+        for line in rows["exact_source_proof_body_attempt"]["goal_excerpt"]
+    )
+    assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
+    assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
+
+
 def test_runtime_evidence_truth_table_counts_post_executor_promotion_source_kernel() -> None:
     truth_table = _runtime_evidence_truth_table_from_manifest(
         {
@@ -41009,6 +41172,50 @@ def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> 
 
     assert rows[
         "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_dropped_candidate_synthesis_recheck_executor() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_candidate_synthesis_n_proof_body_recheck_queue_rows": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran": False,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_skipped_reason": (
+            "proof_body_recheck_executor_disabled"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+    ]["passed"] is False
+    assert (
+        "candidate synthesis produced proof-body recheck rows"
+        in rows[
+            "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+        ]["blocker"]
+    )
+
+    payload[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran"
+    ] = True
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
     ]["passed"] is True
 
 
