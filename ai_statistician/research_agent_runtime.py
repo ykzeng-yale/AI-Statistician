@@ -93,6 +93,8 @@ from .research_architect import (
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+    THEORY_MIN_DERIVATION_STEPS,
+    THEORY_MIN_EQUATION_CHAIN_STEPS,
 )
 from .research_lab import FormalSubclaimProver, ProblemFormalizer, ResearchSimulator, TheoryPlanner
 from .research_knowledge import retrieve_problem_knowledge
@@ -2571,6 +2573,231 @@ class TheoryDeveloperRuntimeSubsystem:
         )
 
 
+def _runtime_theory_packet_structured_trace_failures(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    if not isinstance(packet, Mapping) or not packet:
+        return ["missing_theory_derivation_packet"]
+    failures: list[str] = []
+    contract = (
+        packet.get("theory_derivation_contract", {})
+        if isinstance(packet.get("theory_derivation_contract", {}), Mapping)
+        else {}
+    )
+    derivation = (
+        packet.get("theory_derivation_packet", {})
+        if isinstance(packet.get("theory_derivation_packet", {}), Mapping)
+        else {}
+    )
+    if not contract:
+        failures.append("missing_theory_derivation_contract")
+    n_derivation_steps = _runtime_safe_int(
+        contract.get(
+            "n_derivation_steps",
+            _runtime_safe_list_len(derivation.get("derivation_steps", [])),
+        )
+    )
+    n_equation_chain_steps = _runtime_safe_int(
+        contract.get(
+            "n_equation_chain_steps",
+            _runtime_safe_list_len(derivation.get("equation_chain", [])),
+        )
+    )
+    n_assumption_ledger_rows = _runtime_safe_int(
+        contract.get(
+            "n_assumption_ledger_rows",
+            _runtime_safe_list_len(derivation.get("assumption_ledger", [])),
+        )
+    )
+    has_formalization_handoff = bool(
+        contract.get("has_formalization_handoff", False)
+        or (
+            isinstance(derivation.get("formalization_handoff", {}), Mapping)
+            and derivation.get("formalization_handoff")
+        )
+    )
+    if n_derivation_steps < THEORY_MIN_DERIVATION_STEPS:
+        failures.append("insufficient_derivation_steps")
+    if n_equation_chain_steps < THEORY_MIN_EQUATION_CHAIN_STEPS:
+        failures.append("missing_equation_chain")
+    if n_assumption_ledger_rows <= 0:
+        failures.append("missing_assumption_ledger")
+    if not has_formalization_handoff:
+        failures.append("missing_formalization_handoff")
+    return list(dict.fromkeys(failures))
+
+
+def _runtime_mapping_is_theory_trace_repair_signal(row: Mapping[str, Any]) -> bool:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    trigger = str(row.get("trigger", "") or input_summary.get("trigger", "") or "")
+    failure_classification = str(
+        row.get("failure_classification", "")
+        or input_summary.get("failure_classification", "")
+        or ""
+    )
+    return bool(
+        learning_task == "theory_derivation_trace_feedback"
+        or trigger == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+        or failure_classification == "runtime_theory_derivation_trace_incomplete"
+    )
+
+
+def _runtime_theory_trace_repair_signal_present(
+    *,
+    task: AgentTask,
+    architect_context: Mapping[str, Any],
+) -> bool:
+    for candidate in (
+        task.inputs.get("environment_feedback", {}),
+        architect_context.get("environment_feedback", {})
+        if isinstance(architect_context, Mapping)
+        else {},
+    ):
+        if isinstance(candidate, Mapping) and _runtime_mapping_is_theory_trace_repair_signal(
+            candidate
+        ):
+            return True
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping):
+        return False
+    for row in memory.get("rows", []) or []:
+        if isinstance(row, Mapping) and _runtime_mapping_is_theory_trace_repair_signal(
+            row
+        ):
+            return True
+    return False
+
+
+def _runtime_theory_trace_repair_feedback(
+    *,
+    source_subsystem: str,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    failures = _runtime_theory_packet_structured_trace_failures(theory_packet)
+    if not failures:
+        return {}
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryTraceRepairFeedback",
+        "feedback_source": source_subsystem,
+        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "failure_classification": "runtime_theory_derivation_trace_incomplete",
+        "failure_classifications": failures,
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_owner_subsystem": source_task.owner_subsystem,
+        "source_theory_packet_id": theory_packet_id,
+        "required_repair": (
+            "TheoryDeveloper must regenerate a structured TheoryDerivationPacket "
+            "with derivation_steps, equation_chain, assumption_ledger, "
+            "formalization_handoff, and stable anchors before downstream execution."
+        ),
+        "required_revision": (
+            "Replace the weak or legacy theory derivation trace with a structured "
+            "packet that downstream SimulationEngineer, AlgorithmEngineer, and "
+            "FormalizerProofEngineer can consume and align to."
+        ),
+        "acceptance_gate": (
+            "The repaired TheoryDerivationPacket satisfies the derivation contract: "
+            f"at least {THEORY_MIN_DERIVATION_STEPS} derivation steps, at least "
+            f"{THEORY_MIN_EQUATION_CHAIN_STEPS} equation-chain rows, a non-empty "
+            "assumption ledger, and a formalization handoff."
+        ),
+        "proof_evidence_status": (
+            "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This feedback is an orchestration gate for LLM theory-trace repair. "
+            "It is not simulation evidence, implementation evidence, or "
+            "Lean/kernel proof evidence."
+        ),
+    }
+
+
+def _runtime_theory_trace_repair_result_if_needed(
+    *,
+    source_subsystem: str,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> AgentStepResult | None:
+    if not _runtime_theory_trace_repair_signal_present(
+        task=task,
+        architect_context=architect_context,
+    ):
+        return None
+    if not theory_packet_id or not isinstance(theory_packet, Mapping) or not theory_packet:
+        return None
+    feedback = _runtime_theory_trace_repair_feedback(
+        source_subsystem=source_subsystem,
+        source_task=task,
+        question=question,
+        theory_packet_id=theory_packet_id,
+        theory_packet=theory_packet,
+    )
+    if not feedback:
+        return None
+    repair_context = dict(architect_context)
+    repair_context["environment_feedback"] = feedback
+    next_task = AgentTask(
+        task_id=(
+            f"theory-trace-repair:{question.id}:"
+            f"{stable_hash([task.task_id, theory_packet_id, feedback])[:8]}"
+        ),
+        owner_subsystem="TheoryDeveloper",
+        objective=(
+            "Repair the upstream theory derivation trace before downstream "
+            "simulation, algorithm, or formalization work consumes it."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": repair_context,
+            "environment_feedback": feedback,
+        },
+        allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+        expected_artifacts=("theory_derivation_packet",),
+        acceptance_gate=str(feedback["acceptance_gate"]),
+        stop_condition=(
+            "structured theory derivation trace reroutes to downstream gates"
+        ),
+    )
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            f"{source_subsystem} blocked on an incomplete upstream theory "
+            "derivation trace and routed repair to TheoryDeveloper."
+        ),
+        observations=(
+            EnvironmentObservation(
+                observation_type="runtime_theory_trace_repair_gate",
+                summary=(
+                    "downstream task refused to consume weak theory trace; "
+                    "TheoryDeveloper repair required"
+                ),
+                payload=feedback,
+            ),
+        ),
+        next_task=next_task,
+        failure_classification="runtime_theory_derivation_trace_incomplete",
+    )
+
+
 class SimulationEvaluatorRuntimeSubsystem:
     name = "SimulationEvaluator"
 
@@ -2589,6 +2816,16 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_control = _architect_control_payload(context, "SimulationEvaluator")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
+        trace_repair_result = _runtime_theory_trace_repair_result_if_needed(
+            source_subsystem="SimulationEvaluator",
+            task=task,
+            question=question,
+            theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+            architect_context=context,
+        )
+        if trace_repair_result is not None:
+            return trace_repair_result
         problem = ProblemFormalizer().formalize(question)
         procedures, theorem_goals = TheoryPlanner().plan(problem)
         n_runs = int(task.inputs.get("n_runs", 100))
@@ -3036,6 +3273,16 @@ class AlgorithmEngineerRuntimeSubsystem:
         algorithm_control = _architect_control_payload(context, "AlgorithmEngineer")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
+        trace_repair_result = _runtime_theory_trace_repair_result_if_needed(
+            source_subsystem="AlgorithmEngineer",
+            task=task,
+            question=question,
+            theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+            architect_context=context,
+        )
+        if trace_repair_result is not None:
+            return trace_repair_result
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
         implementation_gaps = [
@@ -3611,6 +3858,16 @@ class FormalizationEvaluatorRuntimeSubsystem:
         formalization_control = _architect_control_payload(context, subsystem_name)
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
+        trace_repair_result = _runtime_theory_trace_repair_result_if_needed(
+            source_subsystem=subsystem_name,
+            task=task,
+            question=question,
+            theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+            architect_context=context,
+        )
+        if trace_repair_result is not None:
+            return trace_repair_result
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         algorithm_sandbox_manifest_id = str(task.inputs.get("algorithm_sandbox_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})

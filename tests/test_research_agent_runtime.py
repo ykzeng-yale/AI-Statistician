@@ -275,6 +275,198 @@ def _structured_theory_packet_fixture(
     }
 
 
+def test_runtime_theory_trace_gate_classifies_legacy_packet() -> None:
+    legacy_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:legacy",
+        "theory_derivation_packet": {
+            "derivation_summary": "coverage follows from exchangeability",
+            "derivation_steps": [
+                {"id": "rank", "claim": "rank is uniform"},
+                {"id": "coverage", "claim": "coverage lower bound"},
+            ],
+        },
+    }
+
+    failures = runtime_module._runtime_theory_packet_structured_trace_failures(
+        legacy_packet
+    )
+
+    assert "missing_theory_derivation_contract" in failures
+    assert "insufficient_derivation_steps" in failures
+    assert "missing_equation_chain" in failures
+    assert "missing_assumption_ledger" in failures
+    assert "missing_formalization_handoff" in failures
+    assert (
+        runtime_module._runtime_theory_packet_structured_trace_failures(
+            _structured_theory_packet_fixture()
+        )
+        == []
+    )
+
+
+def test_simulation_evaluator_routes_weak_theory_trace_to_theory_developer() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    weak_packet_id = "theory_derivation:legacy"
+    blackboard = BlackboardState(project_id="weak-theory-trace-gate-test")
+    blackboard.artifacts[weak_packet_id] = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": weak_packet_id,
+        "theory_derivation_packet": {
+            "derivation_summary": "coverage follows from exchangeability",
+            "derivation_steps": [{"id": "rank", "claim": "rank is uniform"}],
+        },
+    }
+    task = AgentTask(
+        task_id="simulation:conformal_prediction_coverage:legacy",
+        owner_subsystem="SimulationEvaluator",
+        objective="Evaluate a legacy theory packet.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": weak_packet_id,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "learning_task": "theory_derivation_trace_feedback",
+                            "question_id": question.id,
+                            "work_order_id": "weak-theory-trace-repair",
+                            "input_summary": {
+                                "trigger": (
+                                    "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+                                )
+                            },
+                        }
+                    ],
+                }
+            },
+            "n_runs": 5,
+            "seed": 20260629,
+        },
+    )
+
+    result = SimulationEvaluatorRuntimeSubsystem().run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "runtime_theory_derivation_trace_incomplete"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    assert feedback["source_theory_packet_id"] == weak_packet_id
+    assert "missing_equation_chain" in feedback["failure_classifications"]
+    assert feedback["proof_evidence_status"] == (
+        "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert not result.tool_calls
+
+
+def test_algorithm_and_formalization_route_weak_theory_trace_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    weak_packet_id = "theory_derivation:legacy"
+    memory_context = {
+        "runtime_learning_memory": {
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": [
+                {
+                    "learning_task": "theory_derivation_trace_feedback",
+                    "question_id": question.id,
+                    "input_summary": {
+                        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+                    },
+                }
+            ],
+        }
+    }
+
+    def blackboard() -> BlackboardState:
+        state = BlackboardState(project_id="weak-theory-trace-downstream-test")
+        state.artifacts.update(
+            {
+                weak_packet_id: {
+                    "artifact_kind": "TheoryDerivationPacket",
+                    "packet_id": weak_packet_id,
+                    "theory_derivation_packet": {
+                        "derivation_summary": "legacy one-line derivation",
+                        "derivation_steps": [
+                            {"id": "rank", "claim": "rank is uniform"}
+                        ],
+                    },
+                },
+                "simulation_manifest:test": {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "manifest_id": "simulation_manifest:test",
+                },
+                "algorithm_sandbox_manifest:test": {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "manifest_id": "algorithm_sandbox_manifest:test",
+                },
+            }
+        )
+        return state
+
+    cases = [
+        (
+            AlgorithmEngineerRuntimeSubsystem(
+                out_dir=tmp_path / "algorithm",
+                n_runs=5,
+                seed=20260629,
+            ),
+            AgentTask(
+                task_id="algorithm:conformal_prediction_coverage:legacy",
+                owner_subsystem="AlgorithmEngineer",
+                objective="Implement from a legacy theory packet.",
+                inputs={
+                    "question": runtime_module._question_to_payload(question),
+                    "theory_packet_id": weak_packet_id,
+                    "simulation_manifest_id": "simulation_manifest:test",
+                    "implementation_gaps": [{"gap": "exercise guard"}],
+                    "architect_context": memory_context,
+                },
+            ),
+        ),
+        (
+            FormalizationEvaluatorRuntimeSubsystem(
+                proof_verifier=MockProofVerifier(),
+            ),
+            AgentTask(
+                task_id="formalize:conformal_prediction_coverage:legacy",
+                owner_subsystem="FormalizationEvaluator",
+                objective="Formalize from a legacy theory packet.",
+                inputs={
+                    "question": runtime_module._question_to_payload(question),
+                    "theory_packet_id": weak_packet_id,
+                    "simulation_manifest_id": "simulation_manifest:test",
+                    "algorithm_sandbox_manifest_id": (
+                        "algorithm_sandbox_manifest:test"
+                    ),
+                    "architect_context": memory_context,
+                },
+            ),
+        ),
+    ]
+
+    for subsystem, task in cases:
+        result = subsystem.run(task, blackboard())
+
+        assert result.status == "REVISE"
+        assert result.next_task is not None
+        assert result.next_task.owner_subsystem == "TheoryDeveloper"
+        assert result.failure_classification == (
+            "runtime_theory_derivation_trace_incomplete"
+        )
+        feedback = result.next_task.inputs["environment_feedback"]
+        assert feedback["source_theory_packet_id"] == weak_packet_id
+        assert "missing_formalization_handoff" in feedback[
+            "failure_classifications"
+        ]
+
+
 def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     return {
         "all_required_theory_trace_consumers_observed": True,
