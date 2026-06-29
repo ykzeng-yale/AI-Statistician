@@ -5709,8 +5709,23 @@ class FormalizationEvaluatorRuntimeSubsystem:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
         context["runtime_task"] = _runtime_task_prompt_summary(task)
-        if "environment_feedback" in task.inputs:
-            context["environment_feedback"] = task.inputs["environment_feedback"]
+        environment_feedback: Mapping[str, Any] = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        if environment_feedback:
+            context["environment_feedback"] = environment_feedback
+        context = _runtime_context_with_environment_feedback_contract(
+            context,
+            environment_feedback,
+            subsystem=subsystem_name,
+        )
+        context = _runtime_context_with_formalizer_capability_memory_contract(
+            context,
+            question.id,
+            subsystem=subsystem_name,
+        )
         formalization_control = _architect_control_payload(context, subsystem_name)
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
@@ -5826,12 +5841,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     _runtime_environment_feedback_with_architect_directive(
                         context=context,
                         subsystem=subsystem_name,
-                        feedback=task.inputs.get("environment_feedback", {})
-                        if isinstance(
-                            task.inputs.get("environment_feedback", {}),
-                            Mapping,
-                        )
-                        else {},
+                        feedback=environment_feedback,
                     )
                 )
                 environment_feedback = (
@@ -5929,6 +5939,65 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     lean_timeout=self.lean_candidate_lean_timeout,
                 )
             )
+            if (
+                _runtime_context_requires_formalizer_lean_candidate(context)
+                and int(
+                    lean_candidate_materialization.get("n_candidate_sources", 0)
+                    or 0
+                )
+                == 0
+            ):
+                validation_task = AgentTask(
+                    task_id=task.task_id,
+                    owner_subsystem=task.owner_subsystem,
+                    objective=task.objective,
+                    inputs={**task.inputs, "architect_context": context},
+                    allowed_tools=task.allowed_tools,
+                    budget=task.budget,
+                    expected_artifacts=task.expected_artifacts,
+                    acceptance_gate=task.acceptance_gate,
+                    stop_condition=task.stop_condition,
+                )
+                return _formalizer_packet_validation_failure_result(
+                    task=validation_task,
+                    question=question,
+                    theory_packet_id=packet_id,
+                    simulation_manifest_id=simulation_manifest_id,
+                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+                    exc=PacketValidationError(
+                        validation_label=(
+                            "Formalizer capability-eval Lean candidate"
+                        ),
+                        attempts=1,
+                        errors=[
+                            "capability_eval requires at least one Claude/OpenAI-generated "
+                            "Lean statement sketch in formal_targets or "
+                            "source_to_bridge_premise_derivation_candidates"
+                        ],
+                        history=[
+                            {
+                                "packet_id": proposal_id,
+                                "n_candidate_sources": 0,
+                                "runtime_requested_evidence_contract": dict(
+                                    context.get(
+                                        "runtime_requested_evidence_contract",
+                                        {},
+                                    )
+                                    if isinstance(
+                                        context.get(
+                                            "runtime_requested_evidence_contract",
+                                            {},
+                                        ),
+                                        Mapping,
+                                    )
+                                    else {}
+                                ),
+                            }
+                        ],
+                    ),
+                    formal_source_retriever=self.formal_source_retriever,
+                )
             if lean_candidate_materialization["n_candidate_sources"] > 0:
                 produced_artifacts[
                     str(lean_candidate_materialization["manifest_id"])
@@ -28695,18 +28764,9 @@ def _runtime_context_with_environment_feedback_contract(
                     requested_contract[str(key)] = True
     if requested_contract:
         merged["runtime_requested_evidence_contract"] = requested_contract
-    if (
-        str(merged.get("runtime_evaluation_mode", "") or "") == ""
-        and (
-            _runtime_environment_feedback_contract_flag(
-                feedback,
-                flag="capability_eval_requires_generated_algorithm_code",
-            )
-            or _runtime_environment_feedback_contract_flag(
-                feedback,
-                flag="capability_eval_requires_generated_simulation_code",
-            )
-        )
+    if str(merged.get("runtime_evaluation_mode", "") or "") == "" and any(
+        str(key).startswith("capability_eval_requires_") and value is True
+        for key, value in requested_contract.items()
     ):
         merged["runtime_evaluation_mode"] = "capability_eval"
     if subsystem and requested_contract:
@@ -28726,6 +28786,42 @@ def _runtime_context_with_environment_feedback_contract(
             controls[subsystem] = control
             merged["architect_control"] = controls
     return merged
+
+
+def _runtime_context_with_formalizer_capability_memory_contract(
+    context: Mapping[str, Any],
+    question_id: str,
+    *,
+    subsystem: str,
+) -> dict[str, Any]:
+    rows = _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
+        context
+    )
+    if not any(
+        not str(row.get("question_id", "") or "").strip()
+        or str(row.get("question_id", "") or "").strip() == question_id
+        for row in rows
+    ):
+        return dict(context) if isinstance(context, Mapping) else {}
+    return _runtime_context_with_environment_feedback_contract(
+        context,
+        {
+            "feedback_type": "coding_agent_generated_code_capability_feedback",
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_formalizer_lean_candidate": True,
+            },
+            "input_summary": {
+                "trigger": "RUNTIME_FORMALIZER_CAPABILITY_MEMORY_CONTRACT",
+                "question_id": question_id,
+                "n_formalizer_capability_feedback_rows": len(rows),
+            },
+            "boundary": (
+                "Formalizer capability memory is an execution contract for the "
+                "next runtime loop. It is not Lean proof evidence."
+            ),
+        },
+        subsystem=subsystem,
+    )
 
 
 def _runtime_requires_generated_algorithm_code(
@@ -36761,10 +36857,23 @@ def _runtime_context_requires_formalizer_lean_candidate(
 
     if not isinstance(context, Mapping):
         return False
+    flag = "capability_eval_requires_formalizer_lean_candidate"
+    if _runtime_context_contract_flag(
+        context,
+        subsystem="FormalizationEvaluator",
+        flag=flag,
+    ) or _runtime_context_contract_flag(
+        context,
+        subsystem="ProofEngineer",
+        flag=flag,
+    ):
+        return True
+    environment_feedback = context.get("environment_feedback", {})
+    if _runtime_environment_feedback_contract_flag(environment_feedback, flag=flag):
+        return True
     candidate_contracts: list[Any] = [
         context.get("runtime_requested_evidence_contract", {}),
         context.get("architect_evidence_contract", {}),
-        context.get("environment_feedback", {}),
     ]
     plan = context.get("architect_runtime_plan", {})
     if isinstance(plan, Mapping):

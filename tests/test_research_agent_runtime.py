@@ -6915,6 +6915,138 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert "local Lean/AXLE kernel verification" in learning_rows[0]["acceptance_gate"]
 
 
+def test_formalizer_runtime_enforces_lean_candidate_required_from_learning_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    memory = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "capability_id": "formalizer_lean_candidate_checked_locally",
+                "next_owner_subsystem": "FormalizationEvaluator",
+                "target_behavior": (
+                    "Produce a Claude/OpenAI-generated Lean candidate and check it "
+                    "with local Lean/AXLE diagnostics inside AgentRuntime."
+                ),
+                "proof_evidence_status": (
+                    "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+    }
+
+    class NoLeanCandidateFormalizer:
+        def __init__(self) -> None:
+            self.seen_feedback: dict[str, object] = {}
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.seen_feedback = dict(feedback) if isinstance(feedback, dict) else {}
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:no_lean_candidate",
+                "source_agent": "NoLeanCandidateFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "split_conformal_finite_sample_coverage",
+                        "informal_source": "coverage source theorem remains open",
+                        "lean_statement_sketch": "",
+                        "expected_status": "FORMAL_GAP",
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": [],
+                    "known_blockers": ["no Lean candidate emitted"],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    proposal_agent = NoLeanCandidateFormalizer()
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=proposal_agent,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalizer_memory_requires_lean_candidate",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Learning memory requires a live generated Lean candidate.",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {"runtime_learning_memory": memory},
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizerValidationFailure"
+    )
+
+    assert proposal_agent.seen_feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    assert result.status == "REVISE"
+    assert result.failure_classification == "formalizer_packet_validation_failed"
+    assert failure["failure_classification"] == "formalizer_packet_validation_failed"
+    assert any(
+        "capability_eval requires at least one Claude/OpenAI-generated Lean"
+        in error
+        for error in failure["validation_errors"]
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["failure_classification"] == "formalizer_packet_validation_failed"
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert any(
+        row["learning_task"] == "formalizer_packet_validation_feedback"
+        and row["input_summary"]["failure_classification"]
+        == "formalizer_packet_validation_failed"
+        for row in learning_rows
+    )
+
+
 def test_runtime_learning_rows_surface_nested_target_metadata(tmp_path: Path) -> None:
     learning_rows = _runtime_learning_rows(
         [
