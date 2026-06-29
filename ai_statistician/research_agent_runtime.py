@@ -635,6 +635,76 @@ def _runtime_source_theorem_target_names_from_manifest(
         for value in _str_tuple(values):
             add(value)
 
+    def add_from_formal_targets(value: Any) -> None:
+        if isinstance(value, Mapping):
+            add(
+                value.get("id", "")
+                or value.get("target_id", "")
+                or value.get("target_theorem_name", "")
+                or value.get("target_lean_declaration", "")
+                or value.get("source_theorem_target", "")
+            )
+            add_many(value.get("target_ids", []))
+            add_many(value.get("target_theorem_goal_ids", []))
+            add_many(value.get("candidate_lean_targets", []))
+            return
+        add(value)
+
+    def extend_from_target_context(value: Any, *, depth: int = 0) -> None:
+        if depth > 4 or not isinstance(value, Mapping):
+            return
+        for key in (
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "source_theorem_goal_id",
+            "source_theorem_exact_proof_body_repair_target_names",
+            "source_theorem_proof_body_adapter_target_names",
+            "source_theorem_exact_candidate_repair_target_names",
+            "source_theorem_exact_semantic_definition_repair_target_names",
+            "memory_source_theorem_exact_candidate_repair_target_names",
+            "runtime_formalization_gap_planner_target_ids",
+            "runtime_formalization_gap_planner_bridge_target_ids",
+            "runtime_formalization_gap_planner_handoff_target_ids",
+        ):
+            add_many(value.get(key, []))
+        for key in (
+            "target_theorem_name",
+            "source_theorem_target_name",
+            "source_theorem_name",
+            "target_lean_declaration",
+            "source_theorem_target",
+        ):
+            add(value.get(key, ""))
+        for item in value.get("formal_targets", []) or []:
+            add_from_formal_targets(item)
+        add_many(value.get("candidate_lean_targets", []))
+        for nested_key in (
+            "runtime_requested_evidence_contract",
+            "evidence_contract",
+            "architect_runtime_plan",
+            "runtime_architect_control",
+            "retrieval_context",
+            "formalization_handoff",
+            "theory_derivation_packet",
+            "source_theorem_target_context",
+            "source_theorem_target_provenance",
+            "input_summary",
+            "inputs",
+            "architect_context",
+            "runtime_resume_review",
+        ):
+            nested = value.get(nested_key, {})
+            if isinstance(nested, Mapping):
+                extend_from_target_context(nested, depth=depth + 1)
+
+    extend_from_target_context(manifest)
+    pending_task = (
+        manifest.get("incomplete_pending_next_task", {})
+        if isinstance(manifest.get("incomplete_pending_next_task", {}), Mapping)
+        else {}
+    )
+    extend_from_target_context(pending_task)
     for key in (
         "target_theorem_name",
         "source_theorem_target_name",
@@ -1698,6 +1768,10 @@ def _runtime_theory_trace_feedback_target_ids(
             input_summary = row.get("input_summary", {})
             if isinstance(input_summary, Mapping):
                 extend_from_row(input_summary)
+    if not target_ids:
+        for target_id in _runtime_source_theorem_target_names_from_manifest(manifest):
+            if target_id and target_id not in target_ids:
+                target_ids.append(target_id)
     return list(target_ids)
 
 

@@ -15218,6 +15218,87 @@ def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer
     assert "TheoryDerivationPacket" in agenda_row["acceptance_gate"]
 
 
+def test_runtime_feedback_recovers_targets_from_architect_evidence_contract() -> None:
+    formal_targets = ["orthogonal score algebra", "asymptotic CLT subclaims"]
+    manifest = {
+        "question_ids": ["causal_ate_aipw"],
+        "incomplete_pending_next_task": {
+            "task_id": "theory:causal_ate_aipw:pending",
+            "owner_subsystem": "TheoryDeveloper",
+            "inputs": {
+                "architect_context": {
+                    "runtime_requested_evidence_contract": {
+                        "formal_targets": [
+                            "formalize high-value kernels when feasible"
+                        ]
+                    },
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "formal_targets": formal_targets,
+                        }
+                    },
+                }
+            },
+        },
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 0,
+                "n_theory_derivation_packets_with_contract": 0,
+                "n_theory_derivation_packets_with_min_derivation_steps": 0,
+                "n_theory_derivation_packets_with_equation_chain": 0,
+                "n_theory_derivation_packets_with_assumption_ledger": 0,
+                "n_theory_derivation_packets_with_formalization_handoff": 0,
+                "all_required_theory_trace_consumers_observed": False,
+                "all_required_theory_trace_alignment_consumers_observed": False,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [],
+                "structured_theory_trace_aligned_subsystems": [],
+            },
+        },
+        "n_formal_gaps": 2,
+    }
+
+    learning_rows, agenda_rows = _runtime_theory_trace_feedback_rows(
+        manifest=manifest
+    )
+
+    expected_targets = [
+        "formalize high-value kernels when feasible",
+        *formal_targets,
+    ]
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["target_ids"] == expected_targets
+    assert learning_rows[0]["target_theorem_name"] == ""
+    assert learning_rows[0]["input_summary"]["target_ids"] == expected_targets
+    assert len(agenda_rows) == 1
+    assert agenda_rows[0]["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
+    assert agenda_rows[0]["target_ids"] == expected_targets
+    assert agenda_rows[0]["target_theorem_name"] == ""
+
+    truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
+    truth_rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(truth_rows) == 1
+    assert truth_rows[0]["target_ids"] == expected_targets
+    assert truth_rows[0]["target_theorem_goal_ids"] == expected_targets
+    generated_agenda = _append_runtime_generated_next_action_rows(
+        [],
+        truth_rows,
+        queue_name="runtime_evidence_truth_table",
+    )
+    assert len(generated_agenda) == 1
+    assert generated_agenda[0]["trigger"] == "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
+    assert generated_agenda[0]["target_ids"] == expected_targets
+    assert generated_agenda[0]["target_theorem_name"] == ""
+
+
 def test_runtime_theory_trace_feedback_rows_skip_complete_structured_trace() -> None:
     manifest = {
         "question_ids": ["conformal_prediction_coverage"],
@@ -44294,6 +44375,8 @@ def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> No
     assert audit["runtime_evaluation_mode"] == "capability_eval"
     assert audit["capability_scorecard"]["runtime_evaluation_mode"] == "capability_eval"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is True
+    assert audit["n_runtime_route_critical_rows_missing_target_ids"] == 0
+    assert scorecard_rows["route_critical_target_ids_complete"]["passed"] is True
     assert audit["capability_ready_for_full_ai_statistician"] is False
 
 
