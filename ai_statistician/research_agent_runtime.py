@@ -23449,6 +23449,21 @@ def run_research_agent_runtime(
     manifest["n_runtime_formalization_gap_planner_handoffs"] = len(
         gap_planner_handoff_rows
     )
+    _record_post_runtime_exact_semantic_definition_lean_repair_counts(
+        manifest,
+        _source_theorem_exact_semantic_definition_lean_repair_executor_counts(
+            [
+                source_theorem_exact_semantic_definition_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_typechecked_candidate_review_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_manifest,
+                *late_source_theorem_exact_semantic_definition_lean_repair_executor_manifests,
+                *late_source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifests,
+            ]
+        ),
+    )
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
@@ -48958,6 +48973,185 @@ def _runtime_safe_int(value: Any) -> int:
         return 0
 
 
+def _source_theorem_exact_semantic_definition_lean_repair_executor_counts(
+    manifests: Sequence[Mapping[str, Any] | None],
+) -> dict[str, int]:
+    totals = {
+        "n_manifests": 0,
+        "n_results": 0,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+        "n_local_lean_tool_calls": 0,
+        "n_executed_tool_calls": 0,
+    }
+    for manifest in manifests:
+        if not isinstance(manifest, Mapping):
+            continue
+        totals["n_manifests"] += 1
+        totals["n_results"] += _runtime_safe_int(manifest.get("n_results", 0))
+        totals["n_local_lean_checked"] += _runtime_safe_int(
+            manifest.get("n_local_lean_checked", 0)
+        )
+        totals["n_local_lean_compiled"] += _runtime_safe_int(
+            manifest.get("n_local_lean_compiled", 0)
+        )
+        totals["n_local_lean_tool_calls"] += _runtime_safe_int(
+            manifest.get("n_local_lean_tool_calls", 0)
+        )
+        totals["n_executed_tool_calls"] += _runtime_safe_int(
+            manifest.get("n_executed_tool_calls", 0)
+        )
+    return totals
+
+
+_EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS = {
+    "n_manifests": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_manifests"
+    ),
+    "n_results": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_results"
+    ),
+    "n_local_lean_checked": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_checked"
+    ),
+    "n_local_lean_compiled": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_compiled"
+    ),
+    "n_local_lean_tool_calls": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_tool_calls"
+    ),
+    "n_executed_tool_calls": (
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_executed_tool_calls"
+    ),
+}
+
+
+def _add_exact_semantic_definition_lean_repair_counts_to_proof_summary(
+    proof: dict[str, Any],
+    counts: Mapping[str, int],
+) -> None:
+    for count_key, proof_key in (
+        _EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS.items()
+    ):
+        proof[proof_key] = _runtime_safe_int(proof.get(proof_key, 0)) + int(
+            counts.get(count_key, 0) or 0
+        )
+    proof["n_formalizer_lean_candidate_local_lean_checked"] = _runtime_safe_int(
+        proof.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+    ) + int(counts.get("n_local_lean_checked", 0) or 0)
+    proof["n_formalizer_lean_candidate_local_lean_compiled"] = _runtime_safe_int(
+        proof.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
+    ) + int(counts.get("n_local_lean_compiled", 0) or 0)
+    proof["n_formalizer_lean_candidate_local_lean_tool_calls"] = _runtime_safe_int(
+        proof.get("n_formalizer_lean_candidate_local_lean_tool_calls", 0)
+    ) + int(counts.get("n_local_lean_tool_calls", 0) or 0)
+
+
+def _record_post_runtime_exact_semantic_definition_lean_repair_counts(
+    manifest: dict[str, Any],
+    counts: Mapping[str, int],
+) -> None:
+    total_fields = {
+        "manifests": "n_manifests",
+        "results": "n_results",
+        "local_lean_checked": "n_local_lean_checked",
+        "local_lean_compiled": "n_local_lean_compiled",
+        "local_lean_tool_calls": "n_local_lean_tool_calls",
+        "executed_tool_calls": "n_executed_tool_calls",
+    }
+    for suffix, count_key in total_fields.items():
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_total_"
+            + suffix
+        ] = int(counts.get(count_key, 0) or 0)
+    proof_summary = (
+        manifest.get("runtime_evidence_summary", {}).get("proof", {})
+        if isinstance(manifest.get("runtime_evidence_summary", {}), Mapping)
+        and isinstance(
+            manifest.get("runtime_evidence_summary", {}).get("proof", {}),
+            Mapping,
+        )
+        else {}
+    )
+    existing_checked = _runtime_safe_int(
+        proof_summary.get(
+            _EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS[
+                "n_local_lean_checked"
+            ],
+            0,
+        )
+    )
+    existing_compiled = _runtime_safe_int(
+        proof_summary.get(
+            _EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS[
+                "n_local_lean_compiled"
+            ],
+            0,
+        )
+    )
+    existing_tool_calls = _runtime_safe_int(
+        proof_summary.get(
+            _EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS[
+                "n_local_lean_tool_calls"
+            ],
+            0,
+        )
+    )
+    delta_checked = max(
+        0,
+        int(counts.get("n_local_lean_checked", 0) or 0) - existing_checked,
+    )
+    delta_compiled = max(
+        0,
+        int(counts.get("n_local_lean_compiled", 0) or 0) - existing_compiled,
+    )
+    delta_tool_calls = max(
+        0,
+        int(counts.get("n_local_lean_tool_calls", 0) or 0) - existing_tool_calls,
+    )
+    if isinstance(proof_summary, dict):
+        for count_key, proof_key in (
+            _EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_PROOF_COUNT_KEYS.items()
+        ):
+            proof_summary[proof_key] = int(counts.get(count_key, 0) or 0)
+        proof_summary["n_formalizer_lean_candidate_local_lean_checked"] = (
+            _runtime_safe_int(
+                proof_summary.get(
+                    "n_formalizer_lean_candidate_local_lean_checked",
+                    0,
+                )
+            )
+            + delta_checked
+        )
+        proof_summary["n_formalizer_lean_candidate_local_lean_compiled"] = (
+            _runtime_safe_int(
+                proof_summary.get(
+                    "n_formalizer_lean_candidate_local_lean_compiled",
+                    0,
+                )
+            )
+            + delta_compiled
+        )
+        proof_summary["n_formalizer_lean_candidate_local_lean_tool_calls"] = (
+            _runtime_safe_int(
+                proof_summary.get(
+                    "n_formalizer_lean_candidate_local_lean_tool_calls",
+                    0,
+                )
+            )
+            + delta_tool_calls
+        )
+    manifest["n_formalizer_lean_candidate_local_lean_checked"] = _runtime_safe_int(
+        manifest.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+    ) + delta_checked
+    manifest["n_formalizer_lean_candidate_local_lean_compiled"] = _runtime_safe_int(
+        manifest.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
+    ) + delta_compiled
+    manifest["n_formalizer_lean_candidate_local_lean_tool_calls"] = _runtime_safe_int(
+        manifest.get("n_formalizer_lean_candidate_local_lean_tool_calls", 0)
+    ) + delta_tool_calls
+
+
 RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS = (
     "SimulationEngineer",
     "AlgorithmEngineer",
@@ -49058,6 +49252,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_formalizer_lean_candidate_local_lean_tool_calls": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_manifests": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_results": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_checked": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_compiled": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_tool_calls": 0,
+        "n_source_theorem_exact_semantic_definition_lean_repair_executor_executed_tool_calls": 0,
         "n_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "formalizer_lean_candidate_materialization_manifest_paths": [],
@@ -49636,6 +49836,13 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         )
                         or 0
                     ) + 1
+            elif kind == "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest":
+                _add_exact_semantic_definition_lean_repair_counts_to_proof_summary(
+                    proof,
+                    _source_theorem_exact_semantic_definition_lean_repair_executor_counts(
+                        [artifact]
+                    ),
+                )
             elif kind == "RuntimeSimulationManifest":
                 simulation["n_simulation_manifests"] += 1
                 simulation["n_simulation_rows"] += len(artifact.get("simulations", []) or [])

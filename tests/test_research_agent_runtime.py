@@ -50,6 +50,9 @@ from ai_statistician.formalizer_lean_candidate_repair_eval import (
     run_formalizer_lean_candidate_repair_eval,
     write_formalizer_lean_candidate_repair_eval_failure_manifest,
 )
+from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_executor import (
+    run_source_theorem_exact_semantic_definition_lean_repair_executor as run_exact_semantic_definition_lean_repair_executor,
+)
 from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
@@ -16732,6 +16735,58 @@ def test_formalizer_lean_candidate_repair_sequence_ignores_unrelated_pass() -> N
     assert evidence_summary["proof"][
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences"
     ] == 0
+
+
+def test_exact_semantic_definition_lean_repair_tool_calls_feed_formalizer_capability() -> None:
+    artifacts = {
+        "exact_semantic_definition_lean_repair_executor:covered": {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest"
+            ),
+            "n_results": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "n_local_lean_tool_calls": 1,
+            "n_executed_tool_calls": 1,
+            "source_theorem_kernel_verified": False,
+            "semantic_definition_kernel_verified": False,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    proof = evidence_summary["proof"]
+
+    assert (
+        proof[
+            "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_tool_calls"
+        ]
+        == 1
+    )
+    assert proof["n_formalizer_lean_candidate_local_lean_checked"] == 1
+    assert proof["n_formalizer_lean_candidate_local_lean_tool_calls"] == 1
+    table = _runtime_coding_agent_capability_table(
+        {
+            "n_live_generator_agents_enabled": 6,
+            "n_llm_formalizer_proof_engineer_proposals": 1,
+            "n_formalizer_lean_candidate_local_lean_checked": proof[
+                "n_formalizer_lean_candidate_local_lean_checked"
+            ],
+            "n_formalizer_lean_candidate_local_lean_tool_calls": proof[
+                "n_formalizer_lean_candidate_local_lean_tool_calls"
+            ],
+        }
+    )
+    rows = {row["capability_id"]: row for row in table["rows"]}
+
+    assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is True
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
+    assert proof["n_kernel_verified_subclaims"] == 0
+    assert proof["n_full_frontier_theorem_proved"] == 0
 
 
 def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
@@ -46727,6 +46782,82 @@ def test_capability_eval_requires_formalizer_candidate_local_lean() -> None:
     args.formalizer_candidate_lean_project = "/Users/yukang/LeanProjects/LeanPractice"
     errors = _research_agent_runtime_capability_config_errors(args)
     assert errors == []
+
+
+def test_exact_semantic_definition_lean_repair_records_local_tool_trace(
+    tmp_path: Path,
+) -> None:
+    candidate_path = tmp_path / "ExactDefinitionCandidate.lean"
+    candidate_path.write_text(
+        "def exactDefinitionCandidate : Prop := True\n",
+        encoding="utf-8",
+    )
+    tasks_path = tmp_path / "tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionLeanRepairTask"
+                ),
+                "lean_repair_task_id": "exact-definition-task:covered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_coverage"],
+                "placeholder_symbol": "covered",
+                "lean_repair_action": "author_exact_definition",
+                "definition_only_candidate_artifact_path": str(candidate_path),
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('fake Lean diagnostic'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert manifest["n_local_lean_tool_calls"] == 1
+    assert manifest["n_executed_tool_calls"] == 1
+    result_row = json.loads(
+        Path(manifest["execution_results_jsonl"]).read_text(encoding="utf-8")
+    )
+    assert result_row["executed_tools"] == ["local.lake_env_lean"]
+    assert result_row["tool_call_trace"][0]["tool"] == "local.lake_env_lean"
+    assert result_row["tool_call_trace"][0]["returncode"] == 1
+    assert result_row["tool_call_trace"][0]["artifact_path"] == str(candidate_path)
+    assert result_row["tool_call_trace"][0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert result_row["source_theorem_kernel_verified"] is False
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    learning_row = next(
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_lean_repair_execution"
+    )
+    assert learning_row["executed_tools"] == ["local.lake_env_lean"]
+    assert learning_row["tool_call_trace"][0]["tool"] == "local.lake_env_lean"
+    assert learning_row["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    )
 
 
 def test_formalizer_candidate_local_lean_enables_proof_state_provider() -> None:

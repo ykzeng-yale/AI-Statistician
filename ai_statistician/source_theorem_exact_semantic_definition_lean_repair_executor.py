@@ -260,6 +260,14 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
         "n_local_lean_compiled": sum(
             1 for row in results if row.get("local_lean_compiled")
         ),
+        "n_local_lean_tool_calls": sum(
+            1
+            for row in results
+            if "local.lake_env_lean" in set(row.get("executed_tools", []) or [])
+        ),
+        "n_executed_tool_calls": sum(
+            len(row.get("tool_call_trace", []) or []) for row in results
+        ),
         "n_inferred_lean_project_hints": sum(
             1 for row in results if row.get("candidate_lean_project_hint")
         ),
@@ -713,6 +721,32 @@ def _execution_result(
         current_local_lean_checked=checked,
         current_local_lean_compiled=compiled,
     )
+    executed_tools = ["local.lake_env_lean"] if checked else []
+    local_lean_artifact_path = (
+        str(definition_only_candidate_path)
+        if checked
+        and action
+        in {
+            "synthesize_exact_definition",
+            "author_exact_definition",
+            "review_typechecked_exact_definition_candidate",
+        }
+        and definition_only_candidate_raw_path
+        else str(candidate_path)
+        if checked and candidate_raw_path
+        else ""
+    )
+    tool_call_trace = _local_lean_tool_call_trace(
+        checked=checked,
+        compiled=compiled,
+        returncode=returncode,
+        diagnostics=diagnostics,
+        failure_classification=failure_classification,
+        lean_command=effective_lean_command,
+        lean_project=effective_lean_project,
+        lean_timeout=lean_timeout,
+        artifact_path=local_lean_artifact_path,
+    )
     result_id = (
         "source_theorem_exact_semantic_definition_lean_repair_execution:"
         + stable_hash(
@@ -817,6 +851,8 @@ def _execution_result(
         "local_lean_compiled": compiled,
         "local_lean_returncode": int(returncode),
         "local_lean_diagnostics": list(diagnostics[:40]),
+        "executed_tools": executed_tools,
+        "tool_call_trace": tool_call_trace,
         "failure_classification": failure_classification,
         "lean_project": str(effective_lean_project or ""),
         "lean_project_inferred": bool(
@@ -836,6 +872,42 @@ def _execution_result(
         "ok": not errors,
         "errors": errors,
     }
+
+
+def _local_lean_tool_call_trace(
+    *,
+    checked: bool,
+    compiled: bool,
+    returncode: int,
+    diagnostics: Sequence[str],
+    failure_classification: str,
+    lean_command: Sequence[str],
+    lean_project: Path | None,
+    lean_timeout: int,
+    artifact_path: str,
+) -> list[dict[str, Any]]:
+    if not checked:
+        return []
+    status = "local_lean_compiled" if compiled else failure_classification
+    if not status:
+        status = "local_lean_failed"
+    command = [str(part) for part in lean_command]
+    if artifact_path:
+        command = [*command, artifact_path]
+    return [
+        {
+            "tool": "local.lake_env_lean",
+            "status": status,
+            "command": command,
+            "artifact_path": artifact_path,
+            "lean_project": str(lean_project or ""),
+            "returncode": int(returncode),
+            "timeout_seconds": int(lean_timeout),
+            "diagnostics_excerpt": list(diagnostics[:12]),
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": BOUNDARY,
+        }
+    ]
 
 
 def _recommended_next_action(status: str, action: str) -> str:
@@ -2060,6 +2132,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "semantic_import_blocker": str(row.get("semantic_import_blocker", "") or ""),
         "failure_classification": str(row.get("failure_classification", "") or ""),
+        "executed_tools": list(row.get("executed_tools", []) or []),
+        "tool_call_trace": list(row.get("tool_call_trace", []) or []),
         "local_lean_compiled": local_lean_compiled,
         "semantic_definition_import_candidate_ready": import_candidate_ready,
         "semantic_definition_typechecked_candidate_review_ready": (
@@ -2139,6 +2213,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "local_lean_diagnostics": list(
                 row.get("local_lean_diagnostics", []) or []
             )[:12],
+            "executed_tools": list(row.get("executed_tools", []) or []),
+            "tool_call_trace": list(row.get("tool_call_trace", []) or []),
             "failure_classification": str(row.get("failure_classification", "") or ""),
             "semantic_definition_import_candidate_ready": import_candidate_ready,
             "semantic_definition_typechecked_candidate_review_ready": (
