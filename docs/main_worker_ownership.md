@@ -60,6 +60,8 @@ Use the capability ladder from `docs/multi_codex_coordination.md`:
 - L6: ProofEngineer consumes verifier/proof-state traces and repairs.
 - L7: helper or bridge subclaims are kernel verified.
 - L8: the full source theorem is kernel verified.
+- L9: cross-task generalization is demonstrated across multiple statistics
+  problem families.
 
 Do not promote static replay, deterministic templates, retrieval hits, queue
 creation, or broad release audits to capability evidence.

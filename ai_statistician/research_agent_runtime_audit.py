@@ -3291,12 +3291,18 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
         or 0
     )
+    integrated_algorithm_code_executed = int(
+        payload.get("n_generated_code_sandbox_executed", 0) or 0
+    )
     integrated_simulation_repair_sequences = int(
         payload.get(
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
+    )
+    integrated_simulation_code_executed = int(
+        payload.get("n_generated_simulation_sandbox_executed", 0) or 0
     )
     attached_coding_repair_ready = (
         bool(
@@ -3341,12 +3347,20 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_formalizer_candidate_checked = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
+    )
+    integrated_formalizer_proof_state_feedback_rows = int(
+        payload.get("n_formalizer_lean_candidate_proof_state_feedback_rows", 0) or 0
+    )
+    integrated_formalizer_local_lean_tool_calls = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_tool_calls", 0) or 0
+    )
+    integrated_formalizer_lean_lsp_mcp_live_calls = int(
+        payload.get("n_formalizer_lean_candidate_lean_lsp_mcp_live_calls", 0) or 0
+    )
     integrated_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
-    )
-    integrated_deterministic_formalizer_seeds = int(
-        payload.get("n_deterministic_formalizer_work_order_seed_proposals", 0)
-        or 0
     )
     attached_formalizer_repair_ready = (
         bool(
@@ -3388,15 +3402,82 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         integrated_llm_formalizer_proposals > 0
         and integrated_formalizer_repair_sequences > 0
     )
-    generated_code_and_lean_repair_ready = (
+    generated_code_execution_ready = (
+        (
+            (
+                integrated_algorithm_code_executed > 0
+                or integrated_algorithm_repair_sequences > 0
+            )
+            and (
+                integrated_simulation_code_executed > 0
+                or integrated_simulation_repair_sequences > 0
+            )
+        )
+        or attached_coding_repair_ready
+    )
+    generated_code_repair_ready = (
         (
             integrated_algorithm_repair_sequences > 0
             and integrated_simulation_repair_sequences > 0
         )
         or attached_coding_repair_ready
-    ) and (
-        integrated_formalizer_agentic_repair_ready
+    )
+    formalizer_local_check_ready = (
+        integrated_llm_formalizer_proposals > 0
+        and (
+            integrated_formalizer_candidate_checked > 0
+            or integrated_formalizer_repair_sequences > 0
+        )
+    ) or attached_formalizer_repair_ready
+    proofengineer_feedback_repair_ready = (
+        (
+            integrated_formalizer_agentic_repair_ready
+            and (
+                integrated_formalizer_proof_state_feedback_rows > 0
+                or integrated_formalizer_local_lean_tool_calls > 0
+                or integrated_formalizer_lean_lsp_mcp_live_calls > 0
+            )
+        )
         or attached_formalizer_repair_ready
+    )
+    helper_kernel_evidence_ready = (
+        int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
+        or int(payload.get("n_runtime_memory_kernel_verified_proof_obligation_ids", 0) or 0)
+        > 0
+        or int(
+            payload.get(
+                "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                0,
+            )
+            or 0
+        )
+        > 0
+        or int(
+            payload.get(
+                "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                0,
+            )
+            or 0
+        )
+        > 0
+        or int(
+            payload.get("n_real_kernel_verified_source_theorem_semantic_primitive_subclaims", 0)
+            or 0
+        )
+        > 0
+        or int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+        or source_theorem_kernel_count > 0
+    )
+    source_theorem_kernel_ready = (
+        (
+            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            or source_theorem_kernel_count > 0
+        )
+        and int(payload.get("n_formal_gaps", 0) or 0) <= 0
+    )
+    cross_task_generalization_ready = (
+        int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
+        and cross_task_full_theorem_question_count >= 2
     )
     levels = [
         _ladder_level(
@@ -3433,98 +3514,107 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _ladder_level(
             3,
-            "live_generated_code_and_lean_repair_environment_feedback",
-            generated_code_and_lean_repair_ready,
+            "generated_algorithm_and_simulation_code_executed",
+            generated_code_execution_ready,
+            (
+                "integrated_algorithm_code_executed="
+                f"{integrated_algorithm_code_executed} "
+                "integrated_simulation_code_executed="
+                f"{integrated_simulation_code_executed} "
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences} "
+                "attached_coding_repair_ready="
+                f"{attached_coding_repair_ready}"
+            ),
+            (
+                "no live generated AlgorithmEngineer and SimulationEngineer "
+                "code execution was observed; registered templates or static "
+                "fixtures do not demonstrate coding-agent execution"
+            ),
+        ),
+        _ladder_level(
+            4,
+            "generated_code_failed_then_passed_repair_observed",
+            generated_code_repair_ready,
             (
                 "integrated_algorithm_repair_sequences="
                 f"{integrated_algorithm_repair_sequences} "
                 "integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
-                "integrated_formalizer_repair_sequences="
-                f"{integrated_formalizer_repair_sequences} "
+                "attached_coding_repair_ready="
+                f"{attached_coding_repair_ready}"
+            ),
+            (
+                "no generated algorithm and simulation failure diagnostics were "
+                "followed by passing LLM-authored repairs"
+            ),
+        ),
+        _ladder_level(
+            5,
+            "formalizer_candidate_local_lean_checked",
+            formalizer_local_check_ready,
+            (
                 "integrated_llm_formalizer_proposals="
                 f"{integrated_llm_formalizer_proposals} "
-                "integrated_deterministic_formalizer_seeds="
-                f"{integrated_deterministic_formalizer_seeds} "
-                "attached_coding_repair_ready="
-                f"{attached_coding_repair_ready} "
+                "formalizer_candidate_checked="
+                f"{integrated_formalizer_candidate_checked} "
+                "integrated_formalizer_repair_sequences="
+                f"{integrated_formalizer_repair_sequences} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
             (
-                "no live generated-code Algorithm/Simulation repair gate plus "
-                "generated Lean-candidate repair gate was observed; registered "
-                "templates, one-shot sandbox execution, and static fixtures do "
-                "not demonstrate coding-agent environment iteration"
+                "no live Formalizer/ProofEngineer Lean candidate was "
+                "materialized and checked by local Lean"
             ),
-        ),
-        _ladder_level(
-            4,
-            "bridge_subclaim_kernel_evidence_available",
-            int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
-            or int(payload.get("n_runtime_memory_kernel_verified_proof_obligation_ids", 0) or 0)
-            > 0,
-            (
-                f"runtime_real_kernel={payload.get('n_real_kernel_verified_subclaims')} "
-                "memory_kernel_proof_obligations="
-                f"{payload.get('n_runtime_memory_kernel_verified_proof_obligation_ids')}"
-            ),
-            "no local Lean/AXLE kernel-verified bridge subclaim was produced or consumed",
-        ),
-        _ladder_level(
-            5,
-            "theorem_reduction_closure_kernel_evidence_available",
-            int(
-                payload.get(
-                    "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids",
-                    0,
-                )
-                or 0
-            )
-            > 0,
-            (
-                "memory_kernel_theorem_closure_goals="
-                f"{payload.get('n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids')} "
-                "runtime_work_orders="
-                f"{payload.get('n_runtime_theorem_reduction_closure_work_orders')}"
-            ),
-            "no kernel-verified theorem-reduction closure was consumed by this runtime",
         ),
         _ladder_level(
             6,
-            "source_theorem_semantic_primitives_kernel_evidence_available",
-            int(
-                payload.get(
-                    "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids",
-                    0,
-                )
-                or 0
-            )
-            > 0
-            or int(
-                payload.get(
-                    "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims",
-                    0,
-                )
-                or 0
-            )
-            > 0,
+            "proofengineer_verifier_trace_repair_observed",
+            proofengineer_feedback_repair_ready,
             (
-                "memory_semantic_primitives="
-                f"{payload.get('n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids')} "
-                "runtime_semantic_primitives="
-                f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')}"
+                "integrated_formalizer_repair_sequences="
+                f"{integrated_formalizer_repair_sequences} "
+                "proof_state_feedback_rows="
+                f"{integrated_formalizer_proof_state_feedback_rows} "
+                "local_lean_tool_calls="
+                f"{integrated_formalizer_local_lean_tool_calls} "
+                "lean_lsp_mcp_live_calls="
+                f"{integrated_formalizer_lean_lsp_mcp_live_calls} "
+                "attached_formalizer_repair_ready="
+                f"{attached_formalizer_repair_ready}"
             ),
-            "no kernel-verified source-theorem semantic primitive was produced or consumed",
+            (
+                "no ProofEngineer repair loop consumed verifier/proof-state "
+                "tool traces and produced a repaired Lean candidate"
+            ),
         ),
         _ladder_level(
             7,
-            "full_source_theorem_kernel_verified",
+            "helper_or_bridge_subclaim_kernel_verified",
+            helper_kernel_evidence_ready,
             (
-                int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
-                or source_theorem_kernel_count > 0
-            )
-            and int(payload.get("n_formal_gaps", 0) or 0) <= 0,
+                "runtime_real_kernel="
+                f"{payload.get('n_real_kernel_verified_subclaims')} "
+                "memory_kernel_proof_obligations="
+                f"{payload.get('n_runtime_memory_kernel_verified_proof_obligation_ids')} "
+                "memory_kernel_theorem_closure_goals="
+                f"{payload.get('n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids')} "
+                "memory_semantic_primitives="
+                f"{payload.get('n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids')} "
+                "runtime_semantic_primitives="
+                f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')} "
+                "source_theorem_kernel="
+                f"{source_theorem_kernel_count} "
+            ),
+            "no local Lean/AXLE kernel-verified helper or bridge subclaim was available",
+        ),
+        _ladder_level(
+            8,
+            "full_source_theorem_kernel_verified",
+            source_theorem_kernel_ready,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
                 "proof_body_source_kernel="
@@ -3534,10 +3624,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "no full source/frontier theorem was kernel-verified with formal gaps closed",
         ),
         _ladder_level(
-            8,
+            9,
             "cross_task_generalization_demonstrated",
-            int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
-            and cross_task_full_theorem_question_count >= 2,
+            cross_task_generalization_ready,
             (
                 f"n_distinct_question_ids={payload.get('n_distinct_question_ids')} "
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
@@ -3570,7 +3659,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     noncontiguous_evidence = bool(max_evidence > max_contiguous)
     return {
         "artifact_kind": "RuntimeCapabilityLadder",
-        "scale": "L0-L8",
+        "scale": "L0-L9",
         "max_contiguous_level": max_contiguous,
         "max_contiguous_level_label": (
             levels[max_contiguous]["label"]
@@ -3597,8 +3686,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         "boundary": (
             "This ladder is descriptive evidence, not a proof gate. LLM routing, "
             "simulation, retrieval, and consumed runtime memory are separated from "
-            "kernel-verified theorem evidence; L7 is required before claiming a full "
-            "source theorem proof, and L8 is required before claiming cross-task generalization."
+            "kernel-verified theorem evidence; L8 is required before claiming a full "
+            "source theorem proof, and L9 is required before claiming cross-task generalization."
         ),
     }
 

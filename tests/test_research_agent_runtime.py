@@ -42367,6 +42367,8 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
@@ -42383,20 +42385,23 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
     rows = {row["level"]: row for row in ladder["levels"]}
 
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
-    assert ladder["max_contiguous_level"] == 6
+    assert ladder["scale"] == "L0-L9"
+    assert ladder["max_contiguous_level"] == 7
     assert ladder["max_contiguous_level_label"] == (
-        "source_theorem_semantic_primitives_kernel_evidence_available"
+        "helper_or_bridge_subclaim_kernel_verified"
     )
-    assert ladder["max_evidence_level"] == 6
+    assert ladder["max_evidence_level"] == 7
     assert ladder["max_evidence_level_label"] == (
-        "source_theorem_semantic_primitives_kernel_evidence_available"
+        "helper_or_bridge_subclaim_kernel_verified"
     )
     assert ladder["noncontiguous_evidence_observed"] is False
+    assert rows[3]["passed"] is True
     assert rows[4]["passed"] is True
     assert rows[5]["passed"] is True
     assert rows[6]["passed"] is True
-    assert rows[7]["passed"] is False
-    assert "no full source/frontier theorem" in rows[7]["blocker"]
+    assert rows[7]["passed"] is True
+    assert rows[8]["passed"] is False
+    assert "no full source/frontier theorem" in rows[8]["blocker"]
 
 
 def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> None:
@@ -42427,9 +42432,9 @@ def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> Non
     assert ladder["max_contiguous_level"] == -1
     assert ladder["current_level_label"] == "no_runtime_contract"
     assert ladder["max_contiguous_level_label"] == "no_contiguous_runtime_contract"
-    assert ladder["max_evidence_level"] == 6
+    assert ladder["max_evidence_level"] == 7
     assert ladder["max_evidence_level_label"] == (
-        "source_theorem_semantic_primitives_kernel_evidence_available"
+        "helper_or_bridge_subclaim_kernel_verified"
     )
     assert ladder["noncontiguous_evidence_observed"] is True
     assert "diagnostic progress only" in ladder["noncontiguous_evidence_warning"]
@@ -42448,6 +42453,8 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
@@ -42465,7 +42472,8 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
     rows = {row["level"]: row for row in ladder["levels"]}
 
     assert rows[7]["passed"] is True
-    assert ladder["max_contiguous_level"] == 7
+    assert rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
 
 
 def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evidence() -> None:
@@ -42490,6 +42498,8 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -42514,7 +42524,8 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert ladder_rows[7]["passed"] is True
-    assert ladder["max_contiguous_level"] == 7
+    assert ladder_rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert truth_table["source_theorem_kernel_verified"] is True
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
@@ -42542,6 +42553,8 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -42566,7 +42579,8 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert ladder_rows[7]["passed"] is True
-    assert ladder["max_contiguous_level"] == 7
+    assert ladder_rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert truth_table["source_theorem_kernel_verified"] is True
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
@@ -42594,6 +42608,8 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -42618,7 +42634,8 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert ladder_rows[7]["passed"] is True
-    assert ladder["max_contiguous_level"] == 7
+    assert ladder_rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert truth_table["source_theorem_kernel_verified"] is True
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
@@ -42646,6 +42663,8 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -42670,7 +42689,8 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert ladder_rows[7]["passed"] is True
-    assert ladder["max_contiguous_level"] == 7
+    assert ladder_rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert truth_table["source_theorem_kernel_verified"] is True
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
@@ -43320,10 +43340,14 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     payload["n_question_ids_with_full_frontier_theorem_proved"] = 2
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
 
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is True
+    assert ladder["scale"] == "L0-L9"
+    assert ladder_rows[9]["passed"] is True
 
 
 def test_late_typechecked_candidate_review_unresolved_state_advances_after_recheck() -> None:
