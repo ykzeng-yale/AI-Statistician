@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-06-26
+Updated: 2026-06-29
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -44,6 +44,10 @@ Reach a live, GitHub-reviewable AI Statistician capability milestone:
    do not prove the source theorem.
 7. Add a second task-family capability run beyond conformal prediction before
    claiming generality.
+8. Keep current runtime handoffs target-complete: route-critical proof/formal
+   agenda rows and bounded pending-task memory must carry explicit
+   `target_ids`, and missing explicit artifact ids must route back to the
+   producing subsystem.
 
 ## Evidence Gates
 
@@ -59,6 +63,15 @@ Use the capability ladder from `docs/multi_codex_coordination.md`:
 
 Do not promote static replay, deterministic templates, retrieval hits, queue
 creation, or broad release audits to capability evidence.
+
+Two current audit gates are especially important for parallel workers:
+
+- `explicit_handoff_artifacts_available`: downstream tasks cannot substitute a
+  latest blackboard artifact for a missing explicit simulation, algorithm, or
+  formalization handoff id.
+- `route_critical_target_ids_complete`: current proof/formal agenda rows and
+  bounded pending-task memory must preserve source-theorem target identity
+  before being reused as repair context.
 
 ## Collaboration Protocol
 

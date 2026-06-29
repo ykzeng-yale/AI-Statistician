@@ -1,6 +1,6 @@
 # Multi-Codex Coordination Blueprint
 
-Updated: 2026-06-25
+Updated: 2026-06-29
 
 This document is the handoff contract for multiple Codex sessions working on
 AI Statistician at the same time. It is intentionally operational: future
@@ -75,6 +75,12 @@ These are hard boundaries for progress claims:
 - Registered helper lemmas and bridge closures are proof evidence only for
   those helper claims. They do not prove the source theorem unless the exact
   source theorem is kernel-verified.
+- Route-critical proof/formal agenda rows and bounded pending-task runtime
+  memory must carry explicit `target_ids`; targetless rows are orchestration
+  context only and should not steer source-theorem repair.
+- Explicit subsystem handoff artifact ids must resolve to the requested
+  artifact kind or route back to the producer subsystem. Falling back to the
+  latest blackboard artifact is not end-to-end handoff evidence.
 
 ## Capability Ladder
 
@@ -113,6 +119,10 @@ The live runtime has moved beyond static scaffold:
   `tool_call_trace`.
 - An opt-in Lean LSP MCP provider exists for materialized Formalizer
   candidates through `--formalizer-candidate-lean-lsp-mcp`.
+- Runtime audit scorecards now include explicit-handoff and route-critical
+  target-identity gates. A live run can have useful Lean/code evidence and
+  still fail readiness if current pending memory or agenda rows lose their
+  artifact or theorem target identity.
 
 The system is still incomplete:
 

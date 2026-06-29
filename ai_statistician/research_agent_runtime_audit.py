@@ -5057,6 +5057,25 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
+        "",
+        "## Runtime Handoff Identity",
+        f"- pending task memory rows: {payload.get('n_runtime_pending_task_memory_rows')}",
+        "- route-critical target identity rows / missing target_ids: "
+        f"{payload.get('n_runtime_route_critical_target_identity_rows')} / "
+        f"{payload.get('n_runtime_route_critical_rows_missing_target_ids')}",
+        "- route-critical target identity channels: "
+        f"{payload.get('runtime_route_critical_target_identity_channels')}",
+        "- route-critical target identity missing sample: "
+        f"{payload.get('runtime_route_critical_rows_missing_target_ids')}",
+        "- missing handoff artifact feedback rows / learning / agenda: "
+        f"{payload.get('n_runtime_handoff_artifact_missing_feedback_rows')} / "
+        f"{payload.get('n_runtime_handoff_artifact_missing_learning_rows')} / "
+        f"{payload.get('n_runtime_handoff_artifact_missing_agenda_rows')}",
+        "- missing handoff artifact ids / roles / owners: "
+        f"{payload.get('runtime_handoff_artifact_missing_ids')} / "
+        f"{payload.get('runtime_handoff_artifact_missing_roles')} / "
+        f"{payload.get('runtime_handoff_artifact_missing_owner_subsystems')}",
+        "",
         f"- live generator agents enabled: {payload.get('n_live_generator_agents_enabled')}",
         f"- ArchitectCoordinator trace executed: {payload.get('architect_coordinator_enabled')}",
         f"- Architect control status: {payload.get('runtime_architect_control_status')}",

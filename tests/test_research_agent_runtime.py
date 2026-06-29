@@ -1088,6 +1088,99 @@ def test_runtime_target_identity_audit_prefers_pending_memory_over_history() -> 
     ]
 
 
+def test_runtime_audit_markdown_reports_current_handoff_identity(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    pending_task = runtime_dir / "runtime_pending_next_task.json"
+    traces.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    agenda.write_text(
+        json.dumps(
+            {
+                "agenda_item_id": "formal_gap:source_theorem_repair",
+                "owner_subsystem": "FormalizationEvaluator",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    pending_task.write_text(
+        json.dumps(
+            {
+                "pending_next_task_id": "formalize:targeted",
+                "pending_next_task": {
+                    "task_id": "formalize:targeted",
+                    "owner_subsystem": "FormalizationEvaluator",
+                    "inputs": {
+                        "architect_context": {
+                            "runtime_learning_memory": {
+                                "artifact_kind": "RuntimeLearningMemoryContext",
+                                "rows": [
+                                    {
+                                        "learning_task": (
+                                            "source_to_bridge_premise_derivation_feedback"
+                                        ),
+                                        "runtime_learning_row_id": (
+                                            "proof_feedback:current"
+                                        ),
+                                        "target_theorem_name": (
+                                            "split_conformal_finite_sample_coverage"
+                                        ),
+                                        "target_ids": [
+                                            "split_conformal_finite_sample_coverage"
+                                        ],
+                                    }
+                                ],
+                            }
+                        }
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "n_runtime_next_action_items": 1,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+            "runtime_pending_next_task_json": str(pending_task),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert audit["n_runtime_pending_task_memory_rows"] == 1
+    assert audit["n_runtime_route_critical_target_identity_rows"] == 2
+    assert audit["n_runtime_route_critical_rows_missing_target_ids"] == 0
+    assert "## Runtime Handoff Identity" in report
+    assert "pending task memory rows: 1" in report
+    assert "route-critical target identity rows / missing target_ids: 2 / 0" in report
+    assert "missing handoff artifact feedback rows / learning / agenda: 0 / 0 / 0" in report
+
+
 def test_runtime_capability_scorecard_flags_route_critical_targetless_rows() -> None:
     clean_payload = _scorecard_theory_trace_consumption_payload()
     clean_scorecard = _runtime_capability_scorecard(clean_payload)
