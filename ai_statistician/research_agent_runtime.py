@@ -25370,6 +25370,57 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
             for value in lookup_values
             if value in context_index
         ]
+        if not contexts:
+            row_target_ids = set(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "target_ids",
+                    "target_id",
+                    "target_theorem_goal_ids",
+                    "formal_gap_target_ids",
+                    "target_theorem_name",
+                )
+            )
+            matched_contexts: list[dict[str, Any]] = []
+            for context_row in context_rows:
+                if not isinstance(context_row, Mapping):
+                    continue
+                context_input_summary = (
+                    context_row.get("input_summary", {})
+                    if isinstance(context_row.get("input_summary", {}), Mapping)
+                    else {}
+                )
+                if (
+                    _runtime_learning_memory_formal_gap_next_action_stage(
+                        context_row,
+                        context_input_summary,
+                    )
+                    != "gap_planner_handoff"
+                ):
+                    continue
+                context_target_ids = set(
+                    _runtime_learning_row_string_values(
+                        context_row,
+                        context_input_summary,
+                        "target_ids",
+                        "target_id",
+                        "target_theorem_goal_ids",
+                        "formal_gap_target_ids",
+                        "target_theorem_name",
+                    )
+                )
+                if row_target_ids and context_target_ids and not (
+                    row_target_ids & context_target_ids
+                ):
+                    continue
+                matched_contexts.extend(
+                    _runtime_formalization_gap_planner_row_contexts(
+                        context_row,
+                        context_input_summary,
+                    )
+                )
+            contexts = matched_contexts
         if not contexts and len(fallback_contexts) == 1:
             contexts = fallback_contexts
         if not contexts:

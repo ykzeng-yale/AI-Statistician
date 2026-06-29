@@ -1838,6 +1838,60 @@ def test_runtime_capability_scorecard_flags_source_to_bridge_feedback_contract_g
     assert "premise_candidate_declaration_name" in contract_score["blocker"]
 
 
+def test_runtime_capability_scorecard_flags_formal_gap_planner_handoff_context_gap() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows[
+        "formal_gap_planner_executable_handoff_context_complete"
+    ]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "n_runtime_formal_gap_planner_handoff_rows": 3,
+            "n_runtime_formal_gap_planner_handoff_rows_with_execution_context": 2,
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 1,
+            "n_runtime_formal_gap_planner_handoff_execution_contexts": 2,
+            "n_formal_gap_planner_handoff_agenda_rows": 1,
+            "n_formal_gap_planner_handoff_agenda_rows_with_execution_context": 1,
+            "n_formal_gap_planner_handoff_learning_rows": 1,
+            "n_formal_gap_planner_handoff_learning_rows_with_execution_context": 1,
+            "n_pending_formal_gap_planner_handoff_agenda_rows": 1,
+            "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context": 0,
+            "n_pending_formal_gap_planner_handoff_memory_rows": 0,
+            "n_pending_formal_gap_planner_handoff_memory_rows_with_execution_context": 0,
+            "runtime_formal_gap_planner_handoff_context_channels": [
+                "runtime_next_action_agenda",
+                "runtime_learning_rows",
+                "runtime_pending_task_environment_feedback",
+            ],
+            "runtime_formal_gap_planner_handoff_rows_missing_execution_context": [
+                {
+                    "channel": "runtime_pending_task_environment_feedback",
+                    "row_id": "formal_gap:gap_planner_handoff",
+                    "missing_fields": [
+                        "formalization_gap_planner_execution_contexts",
+                    ],
+                }
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    handoff_score = rows[
+        "formal_gap_planner_executable_handoff_context_complete"
+    ]
+
+    assert handoff_score["passed"] is False
+    assert "runtime_pending_task_environment_feedback" in handoff_score["evidence"]
+    assert "executable CLI/path context" in handoff_score["blocker"]
+    assert handoff_score["next_owner_subsystem"] == "FormalizationEvaluator"
+
+
 def test_runtime_audit_markdown_reports_current_handoff_identity(
     tmp_path: Path,
 ) -> None:
@@ -4085,6 +4139,127 @@ def test_pending_task_handoff_enriches_formal_gap_planner_agenda_context() -> No
     ][0]["formalization_gap_planner_execution_contexts"][0][
         "llm_route_planner_live_cli"
     ].endswith("--out runs/pending-live")
+
+
+def test_pending_task_handoff_enriches_generic_formal_gap_agenda_with_matching_contexts() -> None:
+    pending_task = {
+        "task_id": "formalize-critic-repair:causal_ate_aipw:next",
+        "owner_subsystem": "FormalizerProofEngineer",
+        "objective": "Repair the formal gap using planner context.",
+        "inputs": {
+            "environment_feedback": {
+                "high_priority_agenda": [
+                    {
+                        "id": "formal_gap:gap_planner_handoff",
+                        "owner_subsystem": "FormalizationGapPlanner",
+                        "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                        "action": "stage formalization-gap planner packets",
+                        "target_ids": [
+                            "causal_identification",
+                            "aipw_double_robustness",
+                        ],
+                    }
+                ]
+            },
+            "architect_context": {},
+        },
+    }
+
+    memory_rows = []
+    for suffix, target_id in (
+        ("one", "causal_identification"),
+        ("two", "aipw_double_robustness"),
+    ):
+        memory_rows.append(
+            {
+                "schema_version": 1,
+                "question_id": "causal_ate_aipw",
+                "learning_task": "next_action_routing",
+                "target_ids": [target_id],
+                "input_summary": {
+                    "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                    "owner_subsystem": "FormalizationGapPlanner",
+                    "agenda_id": "formal_gap:gap_planner_handoff",
+                    "target_ids": [target_id],
+                    "formalization_gap_planner_execution_contexts": [
+                        {
+                            "bridge_id": (
+                                "runtime_formalization_gap_planner_bridge:"
+                                f"{suffix}"
+                            ),
+                            "handoff_id": (
+                                "runtime_formalization_gap_planner_handoff:"
+                                f"{suffix}"
+                            ),
+                            "standalone_seed_artifact_id": (
+                                "runtime_formalization_gap_planner_standalone_seed:"
+                                f"{suffix}"
+                            ),
+                            "standalone_seed_path": f"runs/{suffix}-seed.json",
+                            "target_intake_path": (
+                                f"runs/{suffix}-target-intake.json"
+                            ),
+                            "llm_route_planner_prompt_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                f"--input runs/{suffix}-seed.json "
+                                f"--out runs/{suffix}-prompt"
+                            ),
+                            "llm_route_planner_live_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                f"--input runs/{suffix}-seed.json "
+                                "--invoke-provider "
+                                f"--out runs/{suffix}-live"
+                            ),
+                            "reuse_smoke_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-reuse-smoke "
+                                f"--input runs/{suffix}-target-intake.json "
+                                f"--out runs/{suffix}-reuse-smoke"
+                            ),
+                            "execution_plan_stage_ids": [
+                                "standalone_plan",
+                                "llm_route_planner_prompt",
+                                "llm_route_planner_live_optional",
+                                "reuse_smoke",
+                            ],
+                        }
+                    ],
+                },
+                "target_behavior": "stage planner packets before broad theory",
+                "acceptance_gate": "target-prover replay preserves proof boundaries",
+            }
+        )
+    memory_context = runtime_module._runtime_learning_memory_context_from_rows(
+        memory_rows,
+        max_rows=4,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    enriched = runtime_module._runtime_pending_task_with_runtime_learning_memory(
+        pending_task,
+        memory_context,
+    )
+
+    feedback = enriched["inputs"]["environment_feedback"]
+    contexts = feedback["high_priority_agenda"][0][
+        "formalization_gap_planner_execution_contexts"
+    ]
+    assert {
+        context["handoff_id"] for context in contexts
+    } == {
+        "runtime_formalization_gap_planner_handoff:one",
+        "runtime_formalization_gap_planner_handoff:two",
+    }
+    assert all(
+        context["proof_evidence_status"]
+        == runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        for context in contexts
+    )
+    assert enriched["inputs"]["architect_context"]["environment_feedback"][
+        "high_priority_agenda"
+    ][0]["formalization_gap_planner_execution_contexts"] == contexts
 
 
 def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
@@ -45270,6 +45445,40 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
     assert scorecard_rows["live_lean_lsp_mcp_called"]["passed"] is False
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is False
+    assert (
+        scorecard_rows[
+            "formal_gap_planner_executable_handoff_context_complete"
+        ]["passed"]
+        is True
+    )
+    assert audit["n_runtime_formal_gap_planner_handoff_rows"] >= 3
+    assert (
+        audit[
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+        ]
+        == 0
+    )
+    assert audit["n_formal_gap_planner_handoff_agenda_rows"] >= 1
+    assert (
+        audit["n_formal_gap_planner_handoff_agenda_rows"]
+        == audit[
+            "n_formal_gap_planner_handoff_agenda_rows_with_execution_context"
+        ]
+    )
+    assert audit["n_formal_gap_planner_handoff_learning_rows"] >= 1
+    assert (
+        audit["n_formal_gap_planner_handoff_learning_rows"]
+        == audit[
+            "n_formal_gap_planner_handoff_learning_rows_with_execution_context"
+        ]
+    )
+    assert audit["n_pending_formal_gap_planner_handoff_agenda_rows"] >= 1
+    assert (
+        audit["n_pending_formal_gap_planner_handoff_agenda_rows"]
+        == audit[
+            "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context"
+        ]
+    )
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
     assert "Lean LSP/MCP was not called live for proof-state diagnostics" in audit["capability_gaps"]
     assert "no full frontier theorem was kernel-proved" in audit["capability_gaps"]

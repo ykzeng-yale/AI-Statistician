@@ -12,6 +12,8 @@ from .fingerprint import stable_hash
 from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
+    RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
@@ -53,6 +55,32 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
     "proof_state_feedback_manifest:",
     "formalizer_lean_candidate_proof_state_feedback_manifest:",
 )
+FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
+FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
+FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES = {
+    "handoff_id": (
+        "handoff_id",
+        "formalization_gap_planner_handoff_id",
+    ),
+    "standalone_seed_path": (
+        "standalone_seed_path",
+        "standalone_seed_artifact_path",
+    ),
+    "target_intake_path": ("target_intake_path",),
+    "llm_route_planner_prompt_cli": (
+        "llm_route_planner_prompt_cli",
+        "next_llm_route_planner_prompt_cli",
+    ),
+    "llm_route_planner_live_cli": (
+        "llm_route_planner_live_cli",
+        "next_llm_route_planner_live_cli",
+    ),
+    "reuse_smoke_cli": (
+        "reuse_smoke_cli",
+        "next_reuse_smoke_cli",
+    ),
+    "proof_evidence_status": ("proof_evidence_status",),
+}
 
 
 def _compact_string_list(values: Any) -> list[str]:
@@ -365,6 +393,22 @@ def audit_research_agent_runtime(
                 else None
             ),
             learning_rows=learning_rows,
+        )
+    )
+    runtime_formal_gap_planner_handoff_context_summary = (
+        _runtime_formal_gap_planner_handoff_context_audit_summary(
+            pending_task_payload=(
+                pending_task_payload
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            pending_memory_rows=(
+                runtime_pending_task_memory_rows
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
         )
     )
     result_errors = [
@@ -697,6 +741,91 @@ def audit_research_agent_runtime(
         "runtime_source_to_bridge_feedback_contract_boundary": str(
             runtime_source_to_bridge_feedback_contract_summary[
                 "runtime_source_to_bridge_feedback_contract_boundary"
+            ]
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_runtime_formal_gap_planner_handoff_rows"
+            ]
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_runtime_formal_gap_planner_handoff_rows_with_execution_context"
+            ]
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+            ]
+        ),
+        "n_runtime_formal_gap_planner_handoff_execution_contexts": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_runtime_formal_gap_planner_handoff_execution_contexts"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_agenda_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_agenda_rows"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_agenda_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_agenda_rows_with_execution_context"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_learning_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_learning_rows"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_learning_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_learning_rows_with_execution_context"
+            ]
+        ),
+        "n_pending_formal_gap_planner_handoff_agenda_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_pending_formal_gap_planner_handoff_agenda_rows"
+            ]
+        ),
+        "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context"
+            ]
+        ),
+        "n_pending_formal_gap_planner_handoff_memory_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_pending_formal_gap_planner_handoff_memory_rows"
+            ]
+        ),
+        "n_pending_formal_gap_planner_handoff_memory_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_pending_formal_gap_planner_handoff_memory_rows_with_execution_context"
+            ]
+        ),
+        "runtime_formal_gap_planner_handoff_context_channels": list(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "runtime_formal_gap_planner_handoff_context_channels"
+            ]
+        ),
+        "runtime_formal_gap_planner_handoff_context_channel_counts": dict(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "runtime_formal_gap_planner_handoff_context_channel_counts"
+            ]
+        ),
+        "runtime_formal_gap_planner_handoff_context_channel_rows_with_execution_context": dict(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "runtime_formal_gap_planner_handoff_context_channel_rows_with_execution_context"
+            ]
+        ),
+        "runtime_formal_gap_planner_handoff_rows_missing_execution_context": list(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+            ]
+        ),
+        "runtime_formal_gap_planner_handoff_context_boundary": str(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "runtime_formal_gap_planner_handoff_context_boundary"
             ]
         ),
         "n_runtime_theorem_reduction_closure_work_orders": int(
@@ -3586,6 +3715,417 @@ def _runtime_source_to_bridge_contract_text(
     ).strip()
 
 
+def _runtime_formal_gap_planner_handoff_context_audit_summary(
+    *,
+    agenda_rows: list[Any],
+    learning_rows: list[Any],
+    pending_task_payload: Mapping[str, Any] | None = None,
+    pending_memory_rows: list[Any] | None = None,
+) -> dict[str, Any]:
+    missing_rows: list[dict[str, Any]] = []
+    channels: set[str] = set()
+    channel_counts: Counter[str] = Counter()
+    channel_context_counts: Counter[str] = Counter()
+    row_sources: list[tuple[str, list[Any]]] = [
+        ("runtime_next_action_agenda", agenda_rows),
+        ("runtime_learning_rows", learning_rows or []),
+    ]
+    if isinstance(pending_task_payload, Mapping) and pending_task_payload:
+        row_sources.extend(
+            _runtime_pending_task_formal_gap_planner_handoff_row_sources(
+                pending_task_payload
+            )
+        )
+    if pending_memory_rows is not None:
+        row_sources.append(("runtime_pending_task_memory", pending_memory_rows))
+
+    handoff_rows = 0
+    rows_with_context = 0
+    execution_contexts = 0
+    for channel, rows in row_sources:
+        for index, row in enumerate(rows):
+            if not _runtime_formal_gap_planner_handoff_row(row):
+                continue
+            handoff_rows += 1
+            channels.add(channel)
+            channel_counts[channel] += 1
+            contexts = _runtime_formal_gap_planner_execution_contexts_for_row(row)
+            valid_contexts = [
+                context
+                for context in contexts
+                if not _runtime_formal_gap_planner_context_missing_fields(context)
+            ]
+            execution_contexts += len(contexts)
+            if valid_contexts:
+                rows_with_context += 1
+                channel_context_counts[channel] += 1
+                continue
+            missing_fields = ["formalization_gap_planner_execution_contexts"]
+            if contexts:
+                missing_fields = _runtime_formal_gap_planner_context_missing_fields(
+                    contexts[0]
+                )
+            missing_rows.append(
+                {
+                    "channel": channel,
+                    "index": str(index),
+                    "row_id": _runtime_route_row_identifier(row),
+                    "agenda_id": _runtime_formal_gap_planner_row_agenda_id(row),
+                    "trigger": _runtime_route_row_trigger_value(row),
+                    "owner_subsystem": _runtime_route_row_field(
+                        row,
+                        "owner_subsystem",
+                        "next_owner_subsystem",
+                    ),
+                    "missing_fields": missing_fields,
+                }
+            )
+
+    pending_agenda_channels = (
+        "runtime_pending_task_environment_feedback",
+        "runtime_pending_task_architect_context_environment_feedback",
+    )
+    pending_agenda_rows = sum(
+        channel_counts[channel] for channel in pending_agenda_channels
+    )
+    pending_agenda_rows_with_context = sum(
+        channel_context_counts[channel] for channel in pending_agenda_channels
+    )
+    return {
+        "n_runtime_formal_gap_planner_handoff_rows": handoff_rows,
+        "n_runtime_formal_gap_planner_handoff_rows_with_execution_context": (
+            rows_with_context
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": len(
+            missing_rows
+        ),
+        "n_runtime_formal_gap_planner_handoff_execution_contexts": (
+            execution_contexts
+        ),
+        "n_formal_gap_planner_handoff_agenda_rows": channel_counts[
+            "runtime_next_action_agenda"
+        ],
+        "n_formal_gap_planner_handoff_agenda_rows_with_execution_context": (
+            channel_context_counts["runtime_next_action_agenda"]
+        ),
+        "n_formal_gap_planner_handoff_learning_rows": channel_counts[
+            "runtime_learning_rows"
+        ],
+        "n_formal_gap_planner_handoff_learning_rows_with_execution_context": (
+            channel_context_counts["runtime_learning_rows"]
+        ),
+        "n_pending_formal_gap_planner_handoff_agenda_rows": pending_agenda_rows,
+        "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context": (
+            pending_agenda_rows_with_context
+        ),
+        "n_pending_formal_gap_planner_handoff_memory_rows": channel_counts[
+            "runtime_pending_task_memory"
+        ],
+        "n_pending_formal_gap_planner_handoff_memory_rows_with_execution_context": (
+            channel_context_counts["runtime_pending_task_memory"]
+        ),
+        "runtime_formal_gap_planner_handoff_context_channels": sorted(channels),
+        "runtime_formal_gap_planner_handoff_context_channel_counts": dict(
+            sorted(channel_counts.items())
+        ),
+        "runtime_formal_gap_planner_handoff_context_channel_rows_with_execution_context": dict(
+            sorted(channel_context_counts.items())
+        ),
+        "runtime_formal_gap_planner_handoff_rows_missing_execution_context": (
+            missing_rows[:25]
+        ),
+        "runtime_formal_gap_planner_handoff_context_boundary": (
+            "formal-gap planner handoffs are executable routing instructions for "
+            "target-intake, LLM route-planner, and reuse-smoke infrastructure. "
+            "They must preserve CLI/path context and the not-proof-evidence "
+            "boundary before they are reused as AgentRuntime memory."
+        ),
+    }
+
+
+def _runtime_pending_task_formal_gap_planner_handoff_row_sources(
+    payload: Mapping[str, Any],
+) -> list[tuple[str, list[Any]]]:
+    pending_task = (
+        payload.get("pending_next_task", {})
+        if isinstance(payload.get("pending_next_task", {}), Mapping)
+        else {}
+    )
+    inputs = (
+        pending_task.get("inputs", {})
+        if isinstance(pending_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    row_sources: list[tuple[str, list[Any]]] = []
+    for channel, feedback in (
+        ("runtime_pending_task_environment_feedback", inputs.get("environment_feedback")),
+        (
+            "runtime_pending_task_architect_context_environment_feedback",
+            architect_context.get("environment_feedback"),
+        ),
+    ):
+        if not isinstance(feedback, Mapping):
+            continue
+        rows = _runtime_environment_feedback_high_priority_agenda_rows(feedback)
+        if rows:
+            row_sources.append((channel, rows))
+    return row_sources
+
+
+def _runtime_environment_feedback_high_priority_agenda_rows(
+    feedback: Mapping[str, Any],
+) -> list[Any]:
+    rows: list[Any] = []
+    input_summary = (
+        feedback.get("input_summary", {})
+        if isinstance(feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for candidate in (
+        feedback.get("high_priority_agenda", []),
+        input_summary.get("high_priority_agenda", []),
+    ):
+        if isinstance(candidate, list):
+            rows.extend(row for row in candidate if isinstance(row, Mapping))
+    unique_rows: list[Any] = []
+    seen: set[str] = set()
+    for row in rows:
+        key = stable_hash(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_rows.append(row)
+    return unique_rows
+
+
+def _runtime_formal_gap_planner_handoff_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    if _runtime_formal_gap_planner_row_agenda_id(row) == (
+        FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID
+    ):
+        return True
+    trigger = _runtime_route_row_trigger_value(row)
+    marker_values: list[str] = []
+    for source in (row, input_summary):
+        for key in (
+            "formalization_gap_planner_handoff_id",
+            "handoff_id",
+            "formalization_gap_planner_bridge_id",
+            "bridge_id",
+            "standalone_seed_artifact_id",
+            "formalization_gap_planner_execution_contexts",
+        ):
+            value = source.get(key)
+            if isinstance(value, list) and value:
+                marker_values.append(key)
+            elif str(value or "").strip():
+                marker_values.append(str(value))
+    if trigger == FORMAL_GAP_PLANNER_HANDOFF_TRIGGER and marker_values:
+        return True
+    return any(
+        "runtime_formalization_gap_planner_handoff:" in value
+        for value in marker_values
+    )
+
+
+def _runtime_formal_gap_planner_row_agenda_id(row: Mapping[str, Any]) -> str:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for source in (row, input_summary):
+        for key in ("id", "agenda_id", "agenda_item_id", "work_order_id"):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
+    return ""
+
+
+def _runtime_formal_gap_planner_execution_contexts_for_row(
+    row: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    fallback = _runtime_formal_gap_planner_scalar_context(row, input_summary)
+    contexts: list[Mapping[str, Any]] = []
+    for source in (row, input_summary):
+        raw_contexts = source.get("formalization_gap_planner_execution_contexts", [])
+        if not isinstance(raw_contexts, list):
+            continue
+        for raw_context in raw_contexts:
+            if not isinstance(raw_context, Mapping):
+                contexts.append({})
+                continue
+            contexts.append({**fallback, **dict(raw_context)})
+    if not contexts and _runtime_formal_gap_planner_scalar_context_is_executable(
+        fallback
+    ):
+        contexts.append(fallback)
+    unique_contexts: list[Mapping[str, Any]] = []
+    seen: set[str] = set()
+    for context in contexts:
+        key = stable_hash(context)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_contexts.append(context)
+    return unique_contexts
+
+
+def _runtime_formal_gap_planner_scalar_context(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    for (
+        canonical,
+        aliases,
+    ) in FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES.items():
+        value = _runtime_formal_gap_planner_first_text(row, input_summary, *aliases)
+        if value:
+            context[canonical] = value
+    for canonical, aliases in (
+        (
+            "bridge_id",
+            (
+                "bridge_id",
+                "formalization_gap_planner_bridge_id",
+            ),
+        ),
+        (
+            "standalone_seed_artifact_id",
+            (
+                "standalone_seed_artifact_id",
+                "formalization_gap_planner_standalone_seed_artifact_id",
+            ),
+        ),
+        (
+            "execution_plan_stage_ids",
+            (
+                "execution_plan_stage_ids",
+                "formalization_gap_planner_execution_plan_stage_ids",
+            ),
+        ),
+        ("proof_evidence_boundary", ("proof_evidence_boundary",)),
+    ):
+        value = _runtime_formal_gap_planner_first_value(row, input_summary, *aliases)
+        if value not in ("", [], {}):
+            context[canonical] = value
+    return context
+
+
+def _runtime_formal_gap_planner_first_text(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    *keys: str,
+) -> str:
+    value = _runtime_formal_gap_planner_first_value(row, input_summary, *keys)
+    if isinstance(value, list):
+        return " ".join(str(item).strip() for item in value if str(item).strip())
+    return str(value or "").strip()
+
+
+def _runtime_formal_gap_planner_first_value(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    *keys: str,
+) -> Any:
+    for source in (row, input_summary):
+        for key in keys:
+            value = source.get(key)
+            if isinstance(value, str):
+                value = value.strip()
+            if value not in (None, "", [], {}):
+                return value
+    return ""
+
+
+def _runtime_formal_gap_planner_scalar_context_is_executable(
+    context: Mapping[str, Any],
+) -> bool:
+    return any(
+        str(context.get(key, "") or "").strip()
+        for key in (
+            "standalone_seed_path",
+            "target_intake_path",
+            "llm_route_planner_prompt_cli",
+            "llm_route_planner_live_cli",
+            "reuse_smoke_cli",
+        )
+    )
+
+
+def _runtime_formal_gap_planner_context_missing_fields(
+    context: Mapping[str, Any],
+) -> list[str]:
+    if not isinstance(context, Mapping):
+        return ["context_not_object"]
+    missing: list[str] = []
+    for (
+        canonical,
+        aliases,
+    ) in FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES.items():
+        value = _runtime_formal_gap_planner_context_text(context, *aliases)
+        if not value:
+            missing.append(canonical)
+    proof_evidence_status = _runtime_formal_gap_planner_context_text(
+        context,
+        "proof_evidence_status",
+    )
+    if proof_evidence_status and proof_evidence_status != (
+        RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+    ):
+        missing.append("proof_evidence_status_not_runtime_gap_planner_boundary")
+    if not proof_evidence_status:
+        missing.append("proof_evidence_status")
+    proof_boundary = _runtime_formal_gap_planner_context_text(
+        context,
+        "proof_evidence_boundary",
+    )
+    if not proof_boundary:
+        missing.append("proof_evidence_boundary")
+    elif proof_boundary != RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY:
+        missing.append("proof_evidence_boundary_not_runtime_gap_planner_boundary")
+    live_cli = _runtime_formal_gap_planner_context_text(
+        context,
+        "llm_route_planner_live_cli",
+        "next_llm_route_planner_live_cli",
+    )
+    if live_cli and "--invoke-provider" not in live_cli:
+        missing.append("llm_route_planner_live_cli_missing_invoke_provider")
+    return list(dict.fromkeys(missing))
+
+
+def _runtime_formal_gap_planner_context_text(
+    context: Mapping[str, Any],
+    *keys: str,
+) -> str:
+    for key in keys:
+        value = context.get(key)
+        if isinstance(value, list):
+            text = " ".join(str(item).strip() for item in value if str(item).strip())
+        else:
+            text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
 def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
     pending_task = (
         payload.get("pending_next_task", {})
@@ -4541,6 +5081,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_formal_gap_planner_handoff_missing_context_count = int(
+        payload.get(
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_required = bool(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
@@ -4936,6 +5483,54 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "premise_candidate_declaration_name contracts; downstream "
                 "Formalizer/ProofEngineer turns must not guess the Lean declaration "
                 "name from stale or null request metadata"
+            ),
+        ),
+        _scorecard_row(
+            "formal_gap_planner_executable_handoff_context_complete",
+            runtime_formal_gap_planner_handoff_missing_context_count <= 0,
+            (
+                "handoff_rows="
+                f"{payload.get('n_runtime_formal_gap_planner_handoff_rows')} "
+                "with_execution_context="
+                f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_with_execution_context')} "
+                "execution_contexts="
+                f"{payload.get('n_runtime_formal_gap_planner_handoff_execution_contexts')} "
+                "agenda_rows="
+                f"{payload.get('n_formal_gap_planner_handoff_agenda_rows')}/"
+                f"{payload.get('n_formal_gap_planner_handoff_agenda_rows_with_execution_context')} "
+                "learning_rows="
+                f"{payload.get('n_formal_gap_planner_handoff_learning_rows')}/"
+                f"{payload.get('n_formal_gap_planner_handoff_learning_rows_with_execution_context')} "
+                "pending_agenda_rows="
+                f"{payload.get('n_pending_formal_gap_planner_handoff_agenda_rows')}/"
+                f"{payload.get('n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context')} "
+                "pending_memory_rows="
+                f"{payload.get('n_pending_formal_gap_planner_handoff_memory_rows')}/"
+                f"{payload.get('n_pending_formal_gap_planner_handoff_memory_rows_with_execution_context')} "
+                "channels="
+                f"{payload.get('runtime_formal_gap_planner_handoff_context_channels')} "
+                "missing="
+                f"{payload.get('runtime_formal_gap_planner_handoff_rows_missing_execution_context')}"
+            ),
+            (
+                "formal-gap planner handoff rows are being reused without "
+                "executable CLI/path context for target intake, LLM route planning, "
+                "and reuse smoke; preserve the mature planner infrastructure "
+                "handoff while keeping it marked as not proof evidence"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Rehydrate formal_gap:gap_planner_handoff agenda, learning, "
+                    "and pending-task rows from the RuntimeFormalizationGapPlannerHandoff "
+                    "so each row carries standalone_seed_path, target_intake_path, "
+                    "LLM route-planner CLI, live provider CLI, reuse-smoke CLI, "
+                    "handoff id, and the not-proof-evidence boundary."
+                ),
+                success_metric=(
+                    "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context=0"
+                ),
             ),
         ),
         _scorecard_row(
