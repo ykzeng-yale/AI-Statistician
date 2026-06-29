@@ -5686,6 +5686,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_local_lean: bool = False,
         lean_candidate_lean_project: Path | None = None,
         lean_candidate_lean_timeout: int = 30,
+        architect_coordinator_available: bool = False,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.proof_state_provider = proof_state_provider
@@ -5693,6 +5694,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.lean_candidate_local_lean = lean_candidate_local_lean
         self.lean_candidate_lean_project = lean_candidate_lean_project
         self.lean_candidate_lean_timeout = lean_candidate_lean_timeout
+        self.architect_coordinator_available = architect_coordinator_available
         self.formal_source_retriever = formal_source_retriever
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
@@ -5824,6 +5826,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         formalizer_theory_trace_contract: dict[str, Any] = {}
         formalizer_theory_trace_alignment_contract: dict[str, Any] = {}
         lean_candidate_repair_feedback: dict[str, Any] | None = None
+        lean_candidate_materialization: dict[str, Any] | None = None
         candidate_proof_state_manifest: dict[str, Any] | None = None
         candidate_proof_state_evidence: EvidenceLedgerEntry | None = None
         if _should_emit_deterministic_theorem_closure_packet(
@@ -6292,6 +6295,31 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "theory_trace_alignment_contract": formalizer_theory_trace_alignment_contract,
                 },
             )
+            contract_failure_result = (
+                _formalizer_runtime_capability_contract_failure_result_if_needed(
+                    task=task,
+                    question=question,
+                    context=context,
+                    theory_packet_id=packet_id,
+                    simulation_manifest_id=simulation_manifest_id,
+                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                    lean_candidate_materialization=lean_candidate_materialization,
+                    candidate_proof_state_manifest=candidate_proof_state_manifest,
+                    proof_state_provider=self.proof_state_provider,
+                    lean_candidate_local_lean=self.lean_candidate_local_lean,
+                    architect_coordinator_available=(
+                        self.architect_coordinator_available
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=observations,
+                    evidence_entries=(
+                        proposal_evidence,
+                        candidate_proof_state_evidence,
+                    ),
+                )
+            )
+            if contract_failure_result is not None:
+                return contract_failure_result
         subclaims = asyncio.run(
             self.prover.prove(
                 problem,
@@ -7513,6 +7541,458 @@ def _formalizer_packet_validation_repair_directives(
 ) -> list[str]:
     """Convert local packet validation failures into concrete LLM repair directives."""
     return formalizer_validation_repair_directives(validation_errors)
+
+
+def _formalizer_runtime_capability_contract_failure_result_if_needed(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    lean_candidate_materialization: Mapping[str, Any] | None,
+    candidate_proof_state_manifest: Mapping[str, Any] | None,
+    proof_state_provider: ProofStateFeedbackProvider | None,
+    lean_candidate_local_lean: bool,
+    architect_coordinator_available: bool,
+    produced_artifacts: Mapping[str, Any],
+    observations: Sequence[EnvironmentObservation],
+    evidence_entries: Sequence[EvidenceLedgerEntry | None],
+) -> AgentStepResult | None:
+    """Fail closed when memory-derived capability contracts need missing tools."""
+
+    if lean_candidate_materialization is None:
+        return None
+    requested_contract = (
+        dict(context.get("runtime_requested_evidence_contract", {}))
+        if isinstance(context.get("runtime_requested_evidence_contract", {}), Mapping)
+        else {}
+    )
+    if not any(
+        str(key).startswith("capability_eval_requires_formalizer_") and value is True
+        for key, value in requested_contract.items()
+    ):
+        return None
+
+    missing_contracts: list[dict[str, Any]] = []
+    config_failure = False
+
+    def add_missing(
+        *,
+        flag: str,
+        classification: str,
+        reason: str,
+        next_owner_subsystem: str,
+        required_configuration: Sequence[str] = (),
+        required_behavior: Sequence[str] = (),
+        is_config_failure: bool = False,
+    ) -> None:
+        nonlocal config_failure
+        config_failure = config_failure or is_config_failure
+        missing_contracts.append(
+            {
+                "flag": flag,
+                "failure_classification": classification,
+                "reason": reason,
+                "next_owner_subsystem": next_owner_subsystem,
+                "required_configuration": list(required_configuration),
+                "required_behavior": list(required_behavior),
+            }
+        )
+
+    if (
+        _runtime_context_requires_formalizer_local_lean_check(context)
+        and not lean_candidate_local_lean
+    ):
+        add_missing(
+            flag="capability_eval_requires_formalizer_local_lean_check",
+            classification=(
+                "formalizer_capability_contract_missing_local_lean_configuration"
+            ),
+            reason=(
+                "runtime learning memory requires a local Lean check of the "
+                "generated Formalizer candidate, but "
+                "formalizer_candidate_local_lean is disabled"
+            ),
+            next_owner_subsystem="ArchitectCoordinator",
+            required_configuration=(
+                "--formalizer-candidate-local-lean",
+                "--formalizer-candidate-lean-project or --lean-project",
+            ),
+            is_config_failure=True,
+        )
+
+    if _runtime_context_requires_formalizer_proof_state_request(context) and (
+        int(lean_candidate_materialization.get("n_live_proof_state_requests", 0) or 0)
+        <= 0
+        or int(
+            lean_candidate_materialization.get("n_lean_lsp_mcp_ready_requests", 0)
+            or 0
+        )
+        <= 0
+    ):
+        add_missing(
+            flag="capability_eval_requires_formalizer_proof_state_request",
+            classification=(
+                "formalizer_capability_contract_missing_proof_state_request"
+            ),
+            reason=(
+                "runtime learning memory requires an LSP/MCP-ready proof-state "
+                "request for the materialized Lean candidate, but the "
+                "candidate manifest did not contain one"
+            ),
+            next_owner_subsystem="FormalizationEvaluator",
+            required_behavior=(
+                "emit a theorem/lemma/def Lean declaration with a concrete target line",
+                "preserve candidate metadata needed for proof-state request routing",
+            ),
+        )
+
+    proof_state_required = (
+        _runtime_context_requires_formalizer_proof_state_feedback(context)
+        or _runtime_context_requires_formalizer_local_lean_tool_call(context)
+        or _runtime_context_requires_formalizer_live_prover_tool_call(context)
+    )
+    if proof_state_required and proof_state_provider is None:
+        add_missing(
+            flag="capability_eval_requires_formalizer_proof_state_feedback",
+            classification=(
+                "formalizer_capability_contract_missing_proof_state_provider"
+            ),
+            reason=(
+                "runtime learning memory requires ProofEngineer proof-state/tool "
+                "feedback, but no proof_state_provider is configured"
+            ),
+            next_owner_subsystem="ArchitectCoordinator",
+            required_configuration=(
+                "--formalizer-candidate-local-lean",
+                "--formalizer-candidate-lean-lsp-mcp when live prover calls are required",
+                "--formalizer-candidate-lean-project or --lean-project",
+            ),
+            is_config_failure=True,
+        )
+
+    if (
+        _runtime_context_requires_formalizer_proof_state_feedback(context)
+        and proof_state_provider is not None
+        and candidate_proof_state_manifest is None
+    ):
+        add_missing(
+            flag="capability_eval_requires_formalizer_proof_state_feedback",
+            classification=(
+                "formalizer_capability_contract_missing_proof_state_feedback"
+            ),
+            reason=(
+                "runtime learning memory requires candidate proof-state feedback "
+                "rows, but no RuntimeFormalizerLeanCandidateProofStateFeedbackManifest "
+                "was produced"
+            ),
+            next_owner_subsystem="ProofEngineer",
+            required_behavior=(
+                "route failed generated Lean candidates through ProofStateFeedbackProvider.inspect",
+                "record residual goals, diagnostics, requested tools, and executed tools",
+            ),
+        )
+
+    proof_state_counts = (
+        candidate_proof_state_manifest.get("counts", {})
+        if isinstance(candidate_proof_state_manifest, Mapping)
+        and isinstance(candidate_proof_state_manifest.get("counts", {}), Mapping)
+        else {}
+    )
+    if (
+        _runtime_context_requires_formalizer_local_lean_tool_call(context)
+        and proof_state_provider is not None
+        and int(proof_state_counts.get("local_lean_tool_calls", 0) or 0) <= 0
+    ):
+        add_missing(
+            flag="capability_eval_requires_formalizer_local_lean_tool_call",
+            classification=(
+                "formalizer_capability_contract_missing_local_lean_tool_call"
+            ),
+            reason=(
+                "runtime learning memory requires a recorded local Lean tool call "
+                "inside candidate proof-state feedback, but no local.lake_env_lean "
+                "execution trace was recorded"
+            ),
+            next_owner_subsystem="ProofEngineer",
+            required_behavior=(
+                "run the candidate proof-state feedback provider through local Lean",
+                "record local.lake_env_lean in executed_tools/tool_call_trace",
+            ),
+        )
+
+    if _runtime_context_requires_formalizer_live_prover_tool_call(context):
+        live_called = (
+            bool(candidate_proof_state_manifest.get("lean_lsp_mcp_live_called", False))
+            if isinstance(candidate_proof_state_manifest, Mapping)
+            else False
+        )
+        if proof_state_provider is None:
+            pass
+        elif not live_called:
+            provider_name = str(getattr(proof_state_provider, "name", "") or "")
+            add_missing(
+                flag="capability_eval_requires_formalizer_live_prover_tool_call",
+                classification=(
+                    "formalizer_capability_contract_missing_live_prover_tool_call"
+                ),
+                reason=(
+                    "runtime learning memory requires an integrated Lean LSP/MCP "
+                    "live prover call, but candidate proof-state feedback did not "
+                    "record one"
+                ),
+                next_owner_subsystem=(
+                    "ArchitectCoordinator"
+                    if "lean_lsp_mcp" not in provider_name
+                    else "ProofEngineer"
+                ),
+                required_configuration=(
+                    ("--formalizer-candidate-lean-lsp-mcp",)
+                    if "lean_lsp_mcp" not in provider_name
+                    else ()
+                ),
+                required_behavior=(
+                    "execute a Lean LSP/MCP proof-state tool call from the materialized candidate",
+                    "record lean_lsp_mcp.* in executed_tools/tool_call_trace",
+                ),
+                is_config_failure="lean_lsp_mcp" not in provider_name,
+            )
+
+    if not missing_contracts:
+        return None
+
+    primary = missing_contracts[0]
+    semantic_owner = str(primary.get("next_owner_subsystem", "") or "")
+    next_owner = (
+        "ArchitectCoordinator"
+        if semantic_owner == "ArchitectCoordinator" and architect_coordinator_available
+        else task.owner_subsystem
+    )
+    failure_classification = str(
+        primary.get("failure_classification", "")
+        or "formalizer_capability_contract_failed"
+    )
+    failure_id = "formalizer_runtime_capability_contract_failure:" + stable_hash(
+        [
+            task.task_id,
+            question.id,
+            requested_contract,
+            missing_contracts,
+            lean_candidate_materialization.get("manifest_id", ""),
+            (
+                candidate_proof_state_manifest.get("manifest_id", "")
+                if isinstance(candidate_proof_state_manifest, Mapping)
+                else ""
+            ),
+        ]
+    )[:20]
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": question.id,
+        "learning_task": "formalizer_runtime_capability_contract_feedback",
+        "source_artifact_kind": "RuntimeFormalizerCapabilityContractFailure",
+        "source_failure_id": failure_id,
+        "source_materialization_manifest_id": str(
+            lean_candidate_materialization.get("manifest_id", "") or ""
+        ),
+        "next_owner_subsystem": semantic_owner or "FormalizationEvaluator",
+        "input_summary": {
+            "trigger": "RUNTIME_FORMALIZER_CAPABILITY_CONTRACT_FAILED",
+            "failure_classification": failure_classification,
+            "missing_contracts": missing_contracts,
+            "runtime_requested_evidence_contract": requested_contract,
+            "formalizer_candidate_local_lean": bool(lean_candidate_local_lean),
+            "proof_state_provider": (
+                str(getattr(proof_state_provider, "name", "") or "")
+                if proof_state_provider is not None
+                else ""
+            ),
+            "n_candidate_sources": int(
+                lean_candidate_materialization.get("n_candidate_sources", 0) or 0
+            ),
+            "n_local_lean_checked": int(
+                lean_candidate_materialization.get("n_local_lean_checked", 0) or 0
+            ),
+            "n_live_proof_state_requests": int(
+                lean_candidate_materialization.get("n_live_proof_state_requests", 0)
+                or 0
+            ),
+            "n_lean_lsp_mcp_ready_requests": int(
+                lean_candidate_materialization.get(
+                    "n_lean_lsp_mcp_ready_requests",
+                    0,
+                )
+                or 0
+            ),
+            "candidate_proof_state_manifest_id": (
+                str(candidate_proof_state_manifest.get("manifest_id", "") or "")
+                if isinstance(candidate_proof_state_manifest, Mapping)
+                else ""
+            ),
+            "candidate_proof_state_counts": dict(proof_state_counts),
+        },
+        "target_behavior": (
+            "Rerun the Formalizer/ProofEngineer capability path with the required "
+            "runtime Lean/proof-state tools configured, or emit a candidate shape "
+            "that can be routed into those tools. Do not count prompt-only feedback "
+            "or materialized Lean text as satisfying tool-call capability gates."
+        ),
+        "acceptance_gate": (
+            "The next integrated runtime pass records the requested Formalizer "
+            "candidate, local Lean/proof-state feedback, and live tool-call counters "
+            "named in runtime_requested_evidence_contract."
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    failure_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizerCapabilityContractFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "theory_packet_id": theory_packet_id,
+        "simulation_manifest_id": simulation_manifest_id,
+        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        "failure_classification": failure_classification,
+        "missing_contracts": missing_contracts,
+        "config_failure": bool(config_failure),
+        "runtime_requested_evidence_contract": requested_contract,
+        "formalizer_candidate_local_lean": bool(lean_candidate_local_lean),
+        "proof_state_provider": (
+            str(getattr(proof_state_provider, "name", "") or "")
+            if proof_state_provider is not None
+            else ""
+        ),
+        "source_materialization_manifest_id": str(
+            lean_candidate_materialization.get("manifest_id", "") or ""
+        ),
+        "candidate_proof_state_manifest_id": (
+            str(candidate_proof_state_manifest.get("manifest_id", "") or "")
+            if isinstance(candidate_proof_state_manifest, Mapping)
+            else ""
+        ),
+        "learning_rows": [learning_row],
+        "recommended_next_action": learning_row["target_behavior"],
+        "proof_evidence_status": (
+            "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This artifact records an unmet runtime capability contract for "
+            "Formalizer/ProofEngineer tooling. It is orchestration feedback, not "
+            "Lean proof evidence."
+        ),
+    }
+    repair_feedback = {
+        "feedback_type": "formalizer_runtime_capability_contract_feedback",
+        "failure_classification": failure_classification,
+        "missing_contracts": missing_contracts,
+        "runtime_requested_evidence_contract": requested_contract,
+        "required_runtime_configuration": [
+            value
+            for row in missing_contracts
+            for value in row.get("required_configuration", []) or []
+        ],
+        "required_formalizer_behavior": [
+            value
+            for row in missing_contracts
+            for value in row.get("required_behavior", []) or []
+        ],
+        "source_failure_id": failure_id,
+        "source_materialization_manifest_id": str(
+            lean_candidate_materialization.get("manifest_id", "") or ""
+        ),
+        "repair_owner_agent": semantic_owner or task.owner_subsystem,
+        "proof_evidence_status": (
+            "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    next_inputs = dict(task.inputs)
+    next_inputs["architect_context"] = dict(context)
+    next_inputs["environment_feedback"] = repair_feedback
+    next_task = AgentTask(
+        task_id=(
+            f"formalizer-capability-contract-repair:{question.id}:"
+            f"{stable_hash([failure_id, next_owner])[:8]}"
+        ),
+        owner_subsystem=next_owner,
+        objective=(
+            "Repair the unmet Formalizer/ProofEngineer runtime capability contract "
+            "before routing to CriticEvaluator."
+        ),
+        inputs=next_inputs,
+        allowed_tools=tuple(
+            dict.fromkeys(
+                (
+                    *task.allowed_tools,
+                    "runtime_config",
+                    "local_lean",
+                    "lean_lsp_mcp",
+                    "proof_search",
+                    "formal_source_retrieval",
+                )
+            )
+        ),
+        expected_artifacts=task.expected_artifacts,
+        acceptance_gate=(
+            "runtime contract flags are satisfied by concrete local Lean/proof-state "
+            "tool evidence, or a precise blocker is recorded without capability claims"
+        ),
+        stop_condition="Formalizer capability contract satisfied or explicitly blocked",
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="formalizer_runtime_capability_contract_failure",
+        status="RUNTIME_CAPABILITY_CONTRACT_FAILED_NOT_PROOF_EVIDENCE",
+        boundary=FORMALIZER_BOUNDARY,
+        payload={
+            "failure_classification": failure_classification,
+            "missing_contracts": missing_contracts,
+            "config_failure": bool(config_failure),
+            "proof_evidence_status": (
+                "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    )
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            "Formalizer/ProofEngineer runtime capability contract was not satisfied; "
+            "structured orchestration feedback was recorded before CriticEvaluator "
+            "could treat the turn as ordinary progress."
+        ),
+        produced_artifacts={**dict(produced_artifacts), failure_id: failure_artifact},
+        observations=tuple(observations)
+        + (
+            EnvironmentObservation(
+                observation_type="formalizer_runtime_capability_contract_failure",
+                summary=failure_classification,
+                payload={
+                    "failure_id": failure_id,
+                    "missing_contracts": missing_contracts,
+                    "config_failure": bool(config_failure),
+                    "proof_evidence_status": (
+                        "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            ),
+        ),
+        evidence_entries=tuple(
+            row for row in (*evidence_entries, evidence) if row is not None
+        ),
+        next_task=next_task,
+        failure_classification=failure_classification,
+    )
 
 
 def _formalizer_next_action_reference_contract_from_validation_errors(
@@ -12016,6 +12496,7 @@ def run_research_agent_runtime(
                 else None
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
+            architect_coordinator_available=architect_coordinator is not None,
         )
         proofengineer_subsystem = ProofEngineerRuntimeSubsystem(
             proposal_agent=formalizer,
@@ -12032,6 +12513,7 @@ def run_research_agent_runtime(
                 else None
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
+            architect_coordinator_available=architect_coordinator is not None,
         )
         subsystems: dict[str, Any] = {
             "RetrievalMemory": RetrievalMemoryRuntimeSubsystem(
@@ -24924,6 +25406,30 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             "formalizer_lean_candidate_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "formalizer_runtime_capability_contract_feedback":
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        missing_flags = ",".join(
+            _sorted_str_tuple(
+                item.get("flag", "")
+                for item in input_summary.get("missing_contracts", []) or []
+                if isinstance(item, Mapping)
+            )
+        )
+        source_failure_id = str(
+            row.get("source_failure_id", "")
+            or input_summary.get("source_failure_id", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_runtime_capability_contract_feedback:"
+            + target_scope
+            + ":"
+            + (missing_flags or failure_classification or source_failure_id)
+        )
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         component_manifest = str(
             row.get("component_eval_manifest_path", "")
@@ -25101,6 +25607,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
+        "formalizer_runtime_capability_contract_feedback",
         "coding_agent_generated_code_component_gate_feedback",
         "coding_agent_generated_code_capability_feedback",
         "theory_derivation_trace_feedback",
@@ -28794,26 +29301,35 @@ def _runtime_context_with_formalizer_capability_memory_contract(
     *,
     subsystem: str,
 ) -> dict[str, Any]:
-    rows = _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
+    contract = _runtime_formalizer_capability_memory_contract(
         context
+        if isinstance(context, Mapping)
+        else {},
+        question_id,
     )
-    if not any(
-        not str(row.get("question_id", "") or "").strip()
-        or str(row.get("question_id", "") or "").strip() == question_id
-        for row in rows
-    ):
+    if not contract:
         return dict(context) if isinstance(context, Mapping) else {}
+    capability_ids = list(
+        contract.get("capability_eval_formalizer_capability_memory_ids", [])
+        or []
+    )
+    capability_row_count = int(
+        contract.get(
+            "capability_eval_formalizer_capability_memory_rows",
+            len(capability_ids),
+        )
+        or 0
+    )
     return _runtime_context_with_environment_feedback_contract(
         context,
         {
             "feedback_type": "coding_agent_generated_code_capability_feedback",
-            "runtime_requested_evidence_contract": {
-                "capability_eval_requires_formalizer_lean_candidate": True,
-            },
+            "runtime_requested_evidence_contract": contract,
             "input_summary": {
                 "trigger": "RUNTIME_FORMALIZER_CAPABILITY_MEMORY_CONTRACT",
                 "question_id": question_id,
-                "n_formalizer_capability_feedback_rows": len(rows),
+                "n_formalizer_capability_feedback_rows": capability_row_count,
+                "capability_ids": capability_ids,
             },
             "boundary": (
                 "Formalizer capability memory is an execution contract for the "
@@ -28822,6 +29338,72 @@ def _runtime_context_with_formalizer_capability_memory_contract(
         },
         subsystem=subsystem,
     )
+
+
+def _runtime_formalizer_capability_memory_contract(
+    context: Mapping[str, Any],
+    question_id: str,
+) -> dict[str, Any]:
+    """Translate integrated Formalizer capability memory into runtime flags."""
+
+    rows = _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
+        context
+    )
+    matching_rows = [
+        row
+        for row in rows
+        if not str(row.get("question_id", "") or "").strip()
+        or str(row.get("question_id", "") or "").strip() == question_id
+    ]
+    if not matching_rows:
+        return {}
+    capability_ids = sorted(
+        {
+            str(row.get("capability_id", "") or "").strip()
+            for row in matching_rows
+            if str(row.get("capability_id", "") or "").strip()
+        }
+    )
+    contract: dict[str, Any] = {
+        "capability_eval_requires_formalizer_lean_candidate": True,
+        "capability_eval_formalizer_capability_memory_ids": capability_ids,
+        "capability_eval_formalizer_capability_memory_rows": len(matching_rows),
+    }
+    local_check_ids = {
+        "formalizer_lean_candidate_checked_locally",
+        "formalizer_local_lean_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
+    }
+    proof_state_request_ids = {
+        "formalizer_lean_candidate_proof_state_request_routed",
+        "formalizer_lean_candidate_proof_state_feedback_recorded",
+        "formalizer_local_lean_tool_call_observed",
+        "formalizer_live_prover_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
+    }
+    proof_state_feedback_ids = {
+        "formalizer_lean_candidate_proof_state_feedback_recorded",
+        "formalizer_local_lean_tool_call_observed",
+        "formalizer_live_prover_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
+    }
+    if any(capability_id in local_check_ids for capability_id in capability_ids):
+        contract["capability_eval_requires_formalizer_local_lean_check"] = True
+    if any(
+        capability_id in proof_state_request_ids for capability_id in capability_ids
+    ):
+        contract["capability_eval_requires_formalizer_proof_state_request"] = True
+    if any(
+        capability_id in proof_state_feedback_ids for capability_id in capability_ids
+    ):
+        contract["capability_eval_requires_formalizer_proof_state_feedback"] = True
+    if "formalizer_local_lean_tool_call_observed" in capability_ids:
+        contract["capability_eval_requires_formalizer_local_lean_tool_call"] = True
+    if "formalizer_live_prover_tool_call_observed" in capability_ids:
+        contract["capability_eval_requires_formalizer_live_prover_tool_call"] = True
+    if "formalizer_lean_candidate_repair_loop_observed" in capability_ids:
+        contract["capability_eval_requires_formalizer_repair_loop"] = True
+    return contract
 
 
 def _runtime_requires_generated_algorithm_code(
@@ -36850,14 +37432,12 @@ def _should_emit_deterministic_theorem_closure_packet(
     )
 
 
-def _runtime_context_requires_formalizer_lean_candidate(
+def _runtime_context_requires_formalizer_contract_flag(
     context: Mapping[str, Any],
+    flag: str,
 ) -> bool:
-    """Return whether the current runtime contract requires live Formalizer output."""
-
     if not isinstance(context, Mapping):
         return False
-    flag = "capability_eval_requires_formalizer_lean_candidate"
     if _runtime_context_contract_flag(
         context,
         subsystem="FormalizationEvaluator",
@@ -36879,13 +37459,65 @@ def _runtime_context_requires_formalizer_lean_candidate(
     if isinstance(plan, Mapping):
         candidate_contracts.append(plan.get("evidence_contract", {}))
     for contract in candidate_contracts:
-        if (
-            isinstance(contract, Mapping)
-            and contract.get("capability_eval_requires_formalizer_lean_candidate")
-            is True
-        ):
+        if isinstance(contract, Mapping) and contract.get(flag) is True:
             return True
     return False
+
+
+def _runtime_context_requires_formalizer_lean_candidate(
+    context: Mapping[str, Any],
+) -> bool:
+    """Return whether the current runtime contract requires live Formalizer output."""
+
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_lean_candidate",
+    )
+
+
+def _runtime_context_requires_formalizer_local_lean_check(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_local_lean_check",
+    )
+
+
+def _runtime_context_requires_formalizer_proof_state_request(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_proof_state_request",
+    )
+
+
+def _runtime_context_requires_formalizer_proof_state_feedback(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_proof_state_feedback",
+    )
+
+
+def _runtime_context_requires_formalizer_local_lean_tool_call(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_local_lean_tool_call",
+    )
+
+
+def _runtime_context_requires_formalizer_live_prover_tool_call(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_live_prover_tool_call",
+    )
 
 
 def _deterministic_theorem_closure_proposal_packet(
@@ -41104,6 +41736,7 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 "RuntimeCriticEvaluatorManifest",
                 "RuntimeFormalizationManifest",
                 "RuntimeFormalizerValidationFailure",
+                "RuntimeFormalizerCapabilityContractFailure",
                 "RuntimeFormalizerLeanCandidateMaterialization",
                 "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
                 "RuntimeAlgorithmSandboxManifest",
