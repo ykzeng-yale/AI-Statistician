@@ -39060,6 +39060,7 @@ def _formalizer_source_theorem_exact_semantic_definition_work_orders(
             "must replace/import reviewed semantics and pass local Lean/AXLE before "
             "proof-body search resumes."
         )
+        _normalize_exact_semantic_work_order_status_from_local_definition(row)
     return rows
 
 
@@ -46275,89 +46276,91 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
             if key in seen:
                 continue
             seen.add(key)
-            rows.append(
-                {
-                    "schema_version": RUNTIME_SCHEMA_VERSION,
-                    "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
-                    "work_order_id": work_order_id,
-                    "source_materialization_seed_id": str(
-                        item.get("materialization_seed_id", "") or ""
-                    ),
-                    "source_theorem_promotion_work_order_id": str(
-                        item.get("source_theorem_promotion_work_order_id", "") or ""
-                    ),
-                    "question_id": str(item.get("question_id", "") or ""),
-                    "question_title": str(item.get("question_title", "") or ""),
-                    "target_theorem_name": target_theorem_name,
-                    "target_ids": target_ids,
-                    "target_theorem_goal_ids": list(
-                        item.get("target_theorem_goal_ids", []) or target_ids
-                    ),
-                    "source_theorem_target_provenance": source_target_provenance,
-                    "source_theorem_target_identity_status": (
-                        source_theorem_target_identity_status
-                    ),
-                    "semantic_alignment_constraints": semantic_alignment_constraints,
-                    "semantic_alignment_blockers": semantic_alignment_blockers,
-                    "placeholder_symbol": symbol,
-                    "replacement_strategy": str(
-                        plan.get("replacement_strategy", "") or ""
-                    ),
-                    "search_targets": list(plan.get("search_targets", []) or []),
-                    "candidate_registered_obligation_ids": list(
-                        plan.get("candidate_registered_obligation_ids", []) or []
-                    ),
-                    "source_theorem_exact_semantic_definition_typechecked_candidate": (
-                        typechecked_candidate
-                    ),
-                    "definition_only_candidate_artifact_path": str(
-                        typechecked_candidate.get(
-                            "definition_only_candidate_artifact_path", ""
-                        )
-                        or ""
-                    ),
-                    "candidate_artifact_path": str(
-                        typechecked_candidate.get("candidate_artifact_path", "") or ""
-                    ),
-                    "local_definition_lean_compiled": bool(
-                        typechecked_candidate.get(
-                            "local_definition_lean_compiled", False
-                        )
-                    ),
-                    "local_definition_lean_checked": bool(
-                        typechecked_candidate.get(
-                            "local_definition_lean_checked", False
-                        )
-                    ),
-                    "semantic_definition_typecheck_evidence_status": str(
-                        typechecked_candidate.get(
-                            "semantic_definition_typecheck_evidence_status", ""
-                        )
-                        or ""
-                    ),
-                    **_runtime_exact_semantic_definition_context(item),
-                    "kernel_verified_source_theorem_semantic_support_obligation_ids": support_ids,
-                    "kernel_verified_source_theorem_semantic_definition_ids": [],
-                    "semantic_closure_status": str(
-                        item.get("semantic_closure_status", "") or ""
-                    ),
-                    "placeholder_definition_status": str(
-                        item.get("placeholder_definition_status", "") or ""
-                    ),
-                    "source_theorem_ready_for_exact_proof_body": False,
-                    "source_theorem_semantic_support_only": True,
-                    "owner_agent": "Formalizer/ProofEngineer/LeanProver",
-                    "action_type": "formalize_reviewed_exact_semantic_definition",
-                    "acceptance_gate": (
-                        "AXLE/local Lean verifies the reviewed exact semantic "
-                        "definition or source import that replaces the placeholder; "
-                        "registered bridge support remains support-only until this "
-                        "definition is closed."
-                    ),
-                    "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
-                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-                }
+            work_order = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+                "work_order_id": work_order_id,
+                "source_materialization_seed_id": str(
+                    item.get("materialization_seed_id", "") or ""
+                ),
+                "source_theorem_promotion_work_order_id": str(
+                    item.get("source_theorem_promotion_work_order_id", "") or ""
+                ),
+                "question_id": str(item.get("question_id", "") or ""),
+                "question_title": str(item.get("question_title", "") or ""),
+                "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
+                "target_theorem_goal_ids": list(
+                    item.get("target_theorem_goal_ids", []) or target_ids
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "source_theorem_target_identity_status": (
+                    source_theorem_target_identity_status
+                ),
+                "semantic_alignment_constraints": semantic_alignment_constraints,
+                "semantic_alignment_blockers": semantic_alignment_blockers,
+                "placeholder_symbol": symbol,
+                "replacement_strategy": str(
+                    plan.get("replacement_strategy", "") or ""
+                ),
+                "search_targets": list(plan.get("search_targets", []) or []),
+                "candidate_registered_obligation_ids": list(
+                    plan.get("candidate_registered_obligation_ids", []) or []
+                ),
+                "source_theorem_exact_semantic_definition_typechecked_candidate": (
+                    typechecked_candidate
+                ),
+                "definition_only_candidate_artifact_path": str(
+                    typechecked_candidate.get(
+                        "definition_only_candidate_artifact_path", ""
+                    )
+                    or ""
+                ),
+                "candidate_artifact_path": str(
+                    typechecked_candidate.get("candidate_artifact_path", "") or ""
+                ),
+                "local_definition_lean_compiled": bool(
+                    typechecked_candidate.get(
+                        "local_definition_lean_compiled", False
+                    )
+                ),
+                "local_definition_lean_checked": bool(
+                    typechecked_candidate.get(
+                        "local_definition_lean_checked", False
+                    )
+                ),
+                "semantic_definition_typecheck_evidence_status": str(
+                    typechecked_candidate.get(
+                        "semantic_definition_typecheck_evidence_status", ""
+                    )
+                    or ""
+                ),
+                **_runtime_exact_semantic_definition_context(item),
+                "kernel_verified_source_theorem_semantic_support_obligation_ids": support_ids,
+                "kernel_verified_source_theorem_semantic_definition_ids": [],
+                "semantic_closure_status": str(
+                    item.get("semantic_closure_status", "") or ""
+                ),
+                "placeholder_definition_status": str(
+                    item.get("placeholder_definition_status", "") or ""
+                ),
+                "source_theorem_ready_for_exact_proof_body": False,
+                "source_theorem_semantic_support_only": True,
+                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                "action_type": "formalize_reviewed_exact_semantic_definition",
+                "acceptance_gate": (
+                    "AXLE/local Lean verifies the reviewed exact semantic "
+                    "definition or source import that replaces the placeholder; "
+                    "registered bridge support remains support-only until this "
+                    "definition is closed."
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+            _normalize_exact_semantic_work_order_status_from_local_definition(
+                work_order
             )
+            rows.append(work_order)
     return rows
 
 
@@ -46697,7 +46700,124 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
 def _normalize_exact_semantic_work_order_status_from_local_definition(
     row: dict[str, Any],
 ) -> None:
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if isinstance(typechecked_candidate, Mapping):
+        candidate = dict(typechecked_candidate)
+    else:
+        candidate = {}
+    row_candidate_evidence_fields = (
+        "definition_only_candidate_artifact_path",
+        "candidate_artifact_path",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
+        "semantic_definition_typecheck_evidence_status",
+    )
+    row_candidate_fields = (
+        "target_theorem_name",
+        "target_ids",
+        "placeholder_symbol",
+        "definition_only_candidate_artifact_path",
+        "candidate_artifact_path",
+        "local_definition_lean_checked",
+        "local_definition_lean_compiled",
+        "semantic_definition_typecheck_evidence_status",
+        "runtime_queue_status",
+        "runtime_queue_boundary",
+        "acceptance_gate",
+        "proof_body_gate_status",
+    )
+    has_candidate_evidence = bool(candidate) or any(
+        row.get(key) not in (None, "", [], {}, False)
+        for key in row_candidate_evidence_fields
+    )
+    if has_candidate_evidence:
+        for key in row_candidate_fields:
+            value = row.get(key)
+            if isinstance(value, bool):
+                if value:
+                    candidate[key] = True
+            elif value not in (None, "", [], {}) and not candidate.get(key):
+                candidate[key] = value
+        if candidate:
+            _normalize_exact_semantic_compiled_candidate_review_status(candidate)
+            for key in (
+                "definition_only_candidate_artifact_path",
+                "candidate_artifact_path",
+                "runtime_queue_boundary",
+                "acceptance_gate",
+                "proof_body_gate_status",
+            ):
+                if candidate.get(key) and not row.get(key):
+                    row[key] = candidate[key]
+            for key in (
+                "local_definition_lean_checked",
+                "local_definition_lean_compiled",
+            ):
+                if candidate.get(key) is True:
+                    row[key] = True
+            candidate_status = str(
+                candidate.get("semantic_definition_typecheck_evidence_status", "")
+                or ""
+            ).strip()
+            row_status = str(
+                row.get("semantic_definition_typecheck_evidence_status", "") or ""
+            ).strip()
+            if candidate_status and (
+                not row_status
+                or _runtime_exact_semantic_definition_status_rank(candidate_status)
+                > _runtime_exact_semantic_definition_status_rank(row_status)
+            ):
+                row["semantic_definition_typecheck_evidence_status"] = (
+                    candidate_status
+                )
+            candidate_queue = str(
+                candidate.get("runtime_queue_status", "") or ""
+            ).strip()
+            row_queue = str(row.get("runtime_queue_status", "") or "").strip()
+            if candidate_queue and (
+                not row_queue
+                or _runtime_exact_semantic_definition_status_rank(candidate_queue)
+                > _runtime_exact_semantic_definition_status_rank(row_queue)
+            ):
+                row["runtime_queue_status"] = candidate_queue
     _normalize_exact_semantic_compiled_candidate_review_status(row)
+    if candidate:
+        for key in row_candidate_fields:
+            value = row.get(key)
+            if isinstance(value, bool):
+                if value:
+                    candidate[key] = True
+            elif value not in (None, "", [], {}):
+                if key == "semantic_definition_typecheck_evidence_status":
+                    candidate_status = str(candidate.get(key, "") or "").strip()
+                    row_status = str(value or "").strip()
+                    if row_status and (
+                        not candidate_status
+                        or _runtime_exact_semantic_definition_status_rank(row_status)
+                        > _runtime_exact_semantic_definition_status_rank(
+                            candidate_status
+                        )
+                    ):
+                        candidate[key] = value
+                elif key == "runtime_queue_status":
+                    candidate_queue = str(candidate.get(key, "") or "").strip()
+                    row_queue = str(value or "").strip()
+                    if row_queue and (
+                        not candidate_queue
+                        or _runtime_exact_semantic_definition_status_rank(row_queue)
+                        > _runtime_exact_semantic_definition_status_rank(
+                            candidate_queue
+                        )
+                    ):
+                        candidate[key] = value
+                else:
+                    candidate.setdefault(key, value)
+        row[
+            "source_theorem_exact_semantic_definition_typechecked_candidate"
+        ] = candidate
 
 
 def _merge_exact_semantic_definition_executor_results_into_work_orders(
@@ -46908,225 +47028,225 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                 "semantic_definition_typecheck_evidence_status",
                 semantic_definition_typecheck_evidence_status,
             )
-        rows.append(
-            {
-                "schema_version": RUNTIME_SCHEMA_VERSION,
-                "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
-                "work_order_id": str(
-                    row.get("work_order_id", "")
-                    or input_summary.get("work_order_id", "")
-                    or (
-                        "source_theorem_exact_semantic_definition_work_order:"
-                        + stable_hash([target, symbol, candidate_ids, environment_stage])[:20]
+        work_order = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+            "work_order_id": str(
+                row.get("work_order_id", "")
+                or input_summary.get("work_order_id", "")
+                or (
+                    "source_theorem_exact_semantic_definition_work_order:"
+                    + stable_hash([target, symbol, candidate_ids, environment_stage])[:20]
+                )
+            ),
+            "source_materialization_seed_id": str(
+                row.get("source_materialization_seed_id", "")
+                or input_summary.get("source_materialization_seed_id", "")
+                or ""
+            ),
+            "source_theorem_promotion_work_order_id": str(
+                row.get("source_theorem_promotion_work_order_id", "")
+                or input_summary.get("source_theorem_promotion_work_order_id", "")
+                or ""
+            ),
+            "question_id": str(
+                row.get("question_id", "")
+                or input_summary.get("question_id", "")
+                or source_target_provenance.get("question_id", "")
+                or source_target_provenance.get("source_theorem_question_id", "")
+                or ""
+            ),
+            "question_title": str(
+                row.get("question_title", "")
+                or input_summary.get("question_title", "")
+                or ""
+            ),
+            "target_theorem_name": target,
+            "target_ids": target_ids,
+            "target_theorem_goal_ids": list(
+                _str_tuple(
+                    row.get("target_theorem_goal_ids", [])
+                    or input_summary.get("target_theorem_goal_ids", [])
+                    or input_summary.get("target_ids", [])
+                    or target_ids
+                    or []
+                )
+            ),
+            "source_theorem_target_provenance": source_target_provenance,
+            "source_theorem_target_identity_status": str(
+                row.get("source_theorem_target_identity_status", "")
+                or input_summary.get("source_theorem_target_identity_status", "")
+                or source_target_provenance.get(
+                    "source_theorem_target_identity_status", ""
+                )
+                or ""
+            ),
+            "semantic_alignment_constraints": list(
+                _str_tuple(
+                    row.get("semantic_alignment_constraints", [])
+                    or input_summary.get("semantic_alignment_constraints", [])
+                    or []
+                )
+            ),
+            "semantic_alignment_blockers": list(
+                _str_tuple(
+                    row.get("semantic_alignment_blockers", [])
+                    or input_summary.get("semantic_alignment_blockers", [])
+                    or []
+                )
+            ),
+            "placeholder_symbol": symbol,
+            "replacement_strategy": str(
+                row.get("replacement_strategy", "")
+                or input_summary.get("replacement_strategy", "")
+                or ""
+            ),
+            "search_targets": list(
+                _str_tuple(
+                    row.get("search_targets", [])
+                    or input_summary.get("search_targets", [])
+                    or []
+                )
+            ),
+            "candidate_registered_obligation_ids": list(candidate_ids),
+            "source_theorem_exact_semantic_definition_typechecked_candidate": (
+                typechecked_candidate
+            ),
+            "definition_only_candidate_artifact_path": (
+                definition_only_candidate_artifact_path
+            ),
+            "candidate_artifact_path": candidate_artifact_path,
+            "local_definition_lean_checked": local_definition_lean_checked,
+            "local_definition_lean_compiled": local_definition_lean_compiled,
+            "semantic_definition_typecheck_evidence_status": (
+                semantic_definition_typecheck_evidence_status
+            ),
+            "source_runtime_learning_task": learning_task,
+            "source_environment_repair_task_id": str(
+                row.get("source_environment_repair_task_id", "")
+                or input_summary.get("source_environment_repair_task_id", "")
+                or ""
+            ),
+            "environment_repair_status": environment_repair_status,
+            "candidate_lean_project_hint": str(
+                row.get("candidate_lean_project_hint", "")
+                or input_summary.get("candidate_lean_project_hint", "")
+                or ""
+            ),
+            "candidate_source_file": str(
+                row.get("candidate_source_file", "")
+                or input_summary.get("candidate_source_file", "")
+                or ""
+            ),
+            "unavailable_module_prefix": str(
+                row.get("unavailable_module_prefix", "")
+                or input_summary.get("unavailable_module_prefix", "")
+                or ""
+            ),
+            "dependency_fetch_required": bool(
+                row.get("dependency_fetch_required", False)
+                or input_summary.get("dependency_fetch_required", False)
+            ),
+            "ready_to_rerun_lean_repair": bool(
+                row.get("ready_to_rerun_lean_repair", False)
+                or input_summary.get("ready_to_rerun_lean_repair", False)
+            ),
+            "recommended_commands": list(
+                _str_tuple(
+                    row.get("recommended_commands", [])
+                    or input_summary.get("recommended_commands", [])
+                    or []
+                )
+            ),
+            "recommended_next_action": str(
+                row.get("recommended_next_action", "")
+                or input_summary.get("recommended_next_action", "")
+                or ""
+            ),
+            "local_lean_diagnostics": list(
+                _str_tuple(
+                    row.get("local_lean_diagnostics", [])
+                    or input_summary.get("local_lean_diagnostics", [])
+                    or []
+                )
+            ),
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+                _str_tuple(
+                    row.get(
+                        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                        [],
                     )
-                ),
-                "source_materialization_seed_id": str(
-                    row.get("source_materialization_seed_id", "")
-                    or input_summary.get("source_materialization_seed_id", "")
-                    or ""
-                ),
-                "source_theorem_promotion_work_order_id": str(
-                    row.get("source_theorem_promotion_work_order_id", "")
-                    or input_summary.get("source_theorem_promotion_work_order_id", "")
-                    or ""
-                ),
-                "question_id": str(
-                    row.get("question_id", "")
-                    or input_summary.get("question_id", "")
-                    or source_target_provenance.get("question_id", "")
-                    or source_target_provenance.get("source_theorem_question_id", "")
-                    or ""
-                ),
-                "question_title": str(
-                    row.get("question_title", "")
-                    or input_summary.get("question_title", "")
-                    or ""
-                ),
-                "target_theorem_name": target,
-                "target_ids": target_ids,
-                "target_theorem_goal_ids": list(
-                    _str_tuple(
-                        row.get("target_theorem_goal_ids", [])
-                        or input_summary.get("target_theorem_goal_ids", [])
-                        or input_summary.get("target_ids", [])
-                        or target_ids
-                        or []
+                    or input_summary.get(
+                        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                        [],
                     )
-                ),
-                "source_theorem_target_provenance": source_target_provenance,
-                "source_theorem_target_identity_status": str(
-                    row.get("source_theorem_target_identity_status", "")
-                    or input_summary.get("source_theorem_target_identity_status", "")
-                    or source_target_provenance.get(
-                        "source_theorem_target_identity_status", ""
+                    or row.get(
+                        "kernel_verified_source_theorem_semantic_primitive_ids",
+                        [],
                     )
-                    or ""
-                ),
-                "semantic_alignment_constraints": list(
-                    _str_tuple(
-                        row.get("semantic_alignment_constraints", [])
-                        or input_summary.get("semantic_alignment_constraints", [])
-                        or []
+                    or input_summary.get(
+                        "kernel_verified_source_theorem_semantic_primitive_ids",
+                        [],
                     )
-                ),
-                "semantic_alignment_blockers": list(
-                    _str_tuple(
-                        row.get("semantic_alignment_blockers", [])
-                        or input_summary.get("semantic_alignment_blockers", [])
-                        or []
+                    or []
+                )
+            ),
+            "kernel_verified_source_theorem_semantic_definition_ids": list(
+                _str_tuple(
+                    row.get(
+                        "kernel_verified_source_theorem_semantic_definition_ids",
+                        [],
                     )
-                ),
-                "placeholder_symbol": symbol,
-                "replacement_strategy": str(
-                    row.get("replacement_strategy", "")
-                    or input_summary.get("replacement_strategy", "")
-                    or ""
-                ),
-                "search_targets": list(
-                    _str_tuple(
-                        row.get("search_targets", [])
-                        or input_summary.get("search_targets", [])
-                        or []
+                    or input_summary.get(
+                        "kernel_verified_source_theorem_semantic_definition_ids",
+                        [],
                     )
-                ),
-                "candidate_registered_obligation_ids": list(candidate_ids),
-                "source_theorem_exact_semantic_definition_typechecked_candidate": (
-                    typechecked_candidate
-                ),
-                "definition_only_candidate_artifact_path": (
-                    definition_only_candidate_artifact_path
-                ),
-                "candidate_artifact_path": candidate_artifact_path,
-                "local_definition_lean_checked": local_definition_lean_checked,
-                "local_definition_lean_compiled": local_definition_lean_compiled,
-                "semantic_definition_typecheck_evidence_status": (
-                    semantic_definition_typecheck_evidence_status
-                ),
-                "source_runtime_learning_task": learning_task,
-                "source_environment_repair_task_id": str(
-                    row.get("source_environment_repair_task_id", "")
-                    or input_summary.get("source_environment_repair_task_id", "")
-                    or ""
-                ),
-                "environment_repair_status": environment_repair_status,
-                "candidate_lean_project_hint": str(
-                    row.get("candidate_lean_project_hint", "")
-                    or input_summary.get("candidate_lean_project_hint", "")
-                    or ""
-                ),
-                "candidate_source_file": str(
-                    row.get("candidate_source_file", "")
-                    or input_summary.get("candidate_source_file", "")
-                    or ""
-                ),
-                "unavailable_module_prefix": str(
-                    row.get("unavailable_module_prefix", "")
-                    or input_summary.get("unavailable_module_prefix", "")
-                    or ""
-                ),
-                "dependency_fetch_required": bool(
-                    row.get("dependency_fetch_required", False)
-                    or input_summary.get("dependency_fetch_required", False)
-                ),
-                "ready_to_rerun_lean_repair": bool(
-                    row.get("ready_to_rerun_lean_repair", False)
-                    or input_summary.get("ready_to_rerun_lean_repair", False)
-                ),
-                "recommended_commands": list(
-                    _str_tuple(
-                        row.get("recommended_commands", [])
-                        or input_summary.get("recommended_commands", [])
-                        or []
-                    )
-                ),
-                "recommended_next_action": str(
-                    row.get("recommended_next_action", "")
-                    or input_summary.get("recommended_next_action", "")
-                    or ""
-                ),
-                "local_lean_diagnostics": list(
-                    _str_tuple(
-                        row.get("local_lean_diagnostics", [])
-                        or input_summary.get("local_lean_diagnostics", [])
-                        or []
-                    )
-                ),
-                "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
-                    _str_tuple(
-                        row.get(
-                            "kernel_verified_source_theorem_semantic_support_obligation_ids",
-                            [],
-                        )
-                        or input_summary.get(
-                            "kernel_verified_source_theorem_semantic_support_obligation_ids",
-                            [],
-                        )
-                        or row.get(
-                            "kernel_verified_source_theorem_semantic_primitive_ids",
-                            [],
-                        )
-                        or input_summary.get(
-                            "kernel_verified_source_theorem_semantic_primitive_ids",
-                            [],
-                        )
-                        or []
-                    )
-                ),
-                "kernel_verified_source_theorem_semantic_definition_ids": list(
-                    _str_tuple(
-                        row.get(
-                            "kernel_verified_source_theorem_semantic_definition_ids",
-                            [],
-                        )
-                        or input_summary.get(
-                            "kernel_verified_source_theorem_semantic_definition_ids",
-                            [],
-                        )
-                        or []
-                    )
-                ),
-                "semantic_closure_status": str(
-                    row.get("semantic_closure_status", "")
-                    or input_summary.get("semantic_closure_status", "")
-                    or ""
-                ),
-                "placeholder_definition_status": str(
-                    row.get("placeholder_definition_status", "")
-                    or input_summary.get("placeholder_definition_status", "")
-                    or ""
-                ),
-                "source_theorem_ready_for_exact_proof_body": False,
-                "source_theorem_semantic_support_only": True,
-                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
-                "action_type": "formalize_reviewed_exact_semantic_definition",
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "")
-                    or input_summary.get("runtime_queue_status", "")
-                    or _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
-                ),
-                "runtime_queue_boundary": str(
-                    row.get("runtime_queue_boundary", "")
-                    or input_summary.get("runtime_queue_boundary", "")
-                    or (
-                        "This runtime memory exact semantic-definition work order "
-                        "is not proof evidence; it only routes review/import/formalization "
-                        "of a named source-theorem placeholder."
-                    )
-                ),
-                "acceptance_gate": str(
-                    row.get("acceptance_gate", "")
-                    or input_summary.get("acceptance_gate", "")
-                    or (
-                        "AXLE/local Lean verifies the reviewed exact semantic "
-                        "definition or source import that replaces the placeholder; "
-                        "registered bridge support remains support-only until this "
-                        "definition is closed."
-                    )
-                ),
-                "proof_evidence_status": "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE",
-                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-            }
-        )
+                    or []
+                )
+            ),
+            "semantic_closure_status": str(
+                row.get("semantic_closure_status", "")
+                or input_summary.get("semantic_closure_status", "")
+                or ""
+            ),
+            "placeholder_definition_status": str(
+                row.get("placeholder_definition_status", "")
+                or input_summary.get("placeholder_definition_status", "")
+                or ""
+            ),
+            "source_theorem_ready_for_exact_proof_body": False,
+            "source_theorem_semantic_support_only": True,
+            "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+            "action_type": "formalize_reviewed_exact_semantic_definition",
+            "runtime_queue_status": str(
+                row.get("runtime_queue_status", "")
+                or input_summary.get("runtime_queue_status", "")
+                or _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
+            ),
+            "runtime_queue_boundary": str(
+                row.get("runtime_queue_boundary", "")
+                or input_summary.get("runtime_queue_boundary", "")
+                or (
+                    "This runtime memory exact semantic-definition work order "
+                    "is not proof evidence; it only routes review/import/formalization "
+                    "of a named source-theorem placeholder."
+                )
+            ),
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or input_summary.get("acceptance_gate", "")
+                or (
+                    "AXLE/local Lean verifies the reviewed exact semantic "
+                    "definition or source import that replaces the placeholder; "
+                    "registered bridge support remains support-only until this "
+                    "definition is closed."
+                )
+            ),
+            "proof_evidence_status": "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        _normalize_exact_semantic_work_order_status_from_local_definition(work_order)
+        rows.append(work_order)
     return rows
 
 
@@ -47876,6 +47996,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             "not proof evidence; the next worker must review/import exact "
             "semantics and pass local Lean/AXLE before proof-body search resumes."
         )
+        _normalize_exact_semantic_work_order_status_from_local_definition(row)
     return rows
 
 
@@ -47914,6 +48035,8 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
     for item in work_order_rows:
         if not isinstance(item, Mapping):
             continue
+        item = dict(item)
+        _normalize_exact_semantic_work_order_status_from_local_definition(item)
         support_ids = [
             str(value).strip()
             for value in item.get(
@@ -48031,6 +48154,15 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                 "semantic_definition_typecheck_evidence_status": str(
                     item.get("semantic_definition_typecheck_evidence_status", "") or ""
                 ),
+                "runtime_queue_status": str(
+                    item.get("runtime_queue_status", "") or ""
+                ),
+                "runtime_queue_boundary": str(
+                    item.get("runtime_queue_boundary", "") or ""
+                ),
+                "proof_body_gate_status": str(
+                    item.get("proof_body_gate_status", "") or ""
+                ),
                 **_runtime_exact_semantic_definition_context(item),
                 "input_summary": {
                     "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER",
@@ -48099,6 +48231,15 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                             "",
                         )
                         or ""
+                    ),
+                    "runtime_queue_status": str(
+                        item.get("runtime_queue_status", "") or ""
+                    ),
+                    "runtime_queue_boundary": str(
+                        item.get("runtime_queue_boundary", "") or ""
+                    ),
+                    "proof_body_gate_status": str(
+                        item.get("proof_body_gate_status", "") or ""
                     ),
                     "source_theorem_target_provenance": dict(
                         item.get("source_theorem_target_provenance", {}) or {}

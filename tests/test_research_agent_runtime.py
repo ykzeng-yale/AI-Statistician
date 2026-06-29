@@ -19914,7 +19914,10 @@ def test_formalizer_semantic_definition_repair_target_exports_work_order() -> No
     )
     assert (
         row["runtime_queue_status"]
-        == "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+        == "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
     assert row["source_formalizer_packet_id"] == "formalizer:semantic-repair"
@@ -19927,7 +19930,7 @@ def test_formalizer_semantic_definition_repair_target_exports_work_order() -> No
     assert row["candidate_artifact_path"] == "runs/candidate_attempt.lean"
     assert row["local_definition_lean_compiled"] is True
     assert row["semantic_definition_typecheck_evidence_status"] == (
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
     )
     assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
         "proof_evidence_status"
@@ -20744,6 +20747,122 @@ def test_exact_semantic_executor_results_strengthen_work_order_feedback() -> Non
     ]
     assert feedback["proof_evidence_status"] == (
         "RUNTIME_EXACT_SEMANTIC_DEFINITION_WORK_ORDER_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_exact_semantic_work_orders_export_review_gate_to_learning_rows() -> None:
+    seed_rows = [
+        {
+            "schema_version": 1,
+            "materialization_seed_id": "runtime_source_theorem_seed:coverage",
+            "materialization_seed_status": (
+                "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            ),
+            "source_theorem_promotion_work_order_id": "promotion:coverage",
+            "question_id": "conformal_prediction_coverage",
+            "question_title": "Split conformal prediction interval coverage",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            "source_theorem_target_provenance": {
+                "source_theorem_target_known": True,
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+            },
+            "source_theorem_exact_candidate_placeholder_resolution_plan": [
+                {
+                    "placeholder_symbol": "coverage_event",
+                    "replacement_strategy": (
+                        "review the exact coverage-event definition"
+                    ),
+                    "search_targets": ["coverage_event"],
+                }
+            ],
+            "source_theorem_exact_semantic_definition_typechecked_candidates": [
+                {
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "placeholder_symbol": "coverage_event",
+                    "definition_only_candidate_artifact_path": (
+                        "runs/current/coverage_event_definition_only.lean"
+                    ),
+                    "local_definition_lean_checked": True,
+                    "local_definition_lean_compiled": True,
+                    "semantic_definition_typecheck_evidence_status": (
+                        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+                    ),
+                    "runtime_queue_status": (
+                        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                    ),
+                    "proof_evidence_status": (
+                        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ],
+        }
+    ]
+
+    work_orders = (
+        runtime_module._runtime_source_theorem_exact_semantic_definition_work_order_rows(
+            seed_rows
+        )
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert work_order["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert work_order["semantic_definition_typecheck_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    nested_candidate = work_order[
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ]
+    assert nested_candidate["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert nested_candidate["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+
+    learning_rows = (
+        runtime_module._runtime_source_theorem_exact_semantic_definition_learning_rows(
+            work_orders
+        )
+    )
+    learning_row = learning_rows[0]
+    assert learning_row["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert learning_row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert learning_row["input_summary"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert learning_row["input_summary"]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert learning_row[
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+
+    replayed_rows = (
+        runtime_module._runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
+            learning_rows
+        )
+    )
+    assert replayed_rows[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert replayed_rows[0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
 
 
@@ -23053,7 +23172,13 @@ def test_exact_semantic_definition_work_orders_from_typechecked_candidate_synthe
     assert row["local_definition_lean_checked"] is True
     assert row["local_definition_lean_compiled"] is True
     assert row["semantic_definition_typecheck_evidence_status"] == (
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert row["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
     assert row["source_theorem_exact_semantic_definition_typechecked_candidate"][
         "definition_only_candidate_artifact_path"
@@ -23076,7 +23201,15 @@ def test_exact_semantic_definition_work_orders_from_typechecked_candidate_synthe
     )
     assert replay_rows[0]["input_summary"][
         "semantic_definition_typecheck_evidence_status"
-    ] == "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+    ] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert replay_rows[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert replay_rows[0]["input_summary"]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
 
 
 def test_exact_semantic_definition_work_orders_from_materialized_review_next_action() -> None:
@@ -23128,14 +23261,17 @@ def test_exact_semantic_definition_work_orders_from_materialized_review_next_act
     assert row["target_theorem_name"] == "split_conformal_coverage"
     assert row["placeholder_symbol"] == "orderStat"
     assert row["runtime_queue_status"] == (
-        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
     assert row["definition_only_candidate_artifact_path"] == (
         "runs/materialized_orderStat_definition.lean"
     )
     assert row["local_definition_lean_compiled"] is True
     assert row["semantic_definition_typecheck_evidence_status"] == (
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
     assert row["source_theorem_ready_for_exact_proof_body"] is False
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
@@ -23181,11 +23317,14 @@ def test_exact_semantic_definition_work_orders_from_late_materialized_review_nex
     assert row["target_theorem_name"] == "split_conformal_coverage"
     assert row["placeholder_symbol"] == "covered"
     assert row["runtime_queue_status"] == (
-        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
     assert row["local_definition_lean_compiled"] is True
     assert row["semantic_definition_typecheck_evidence_status"] == (
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
     assert row["source_theorem_ready_for_exact_proof_body"] is False
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
@@ -28826,7 +28965,15 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     assert replayed_typechecked_row["local_definition_lean_compiled"] is True
     assert replayed_typechecked_row[
         "semantic_definition_typecheck_evidence_status"
-    ] == "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+    ] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+    )
+    assert replayed_typechecked_row["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert replayed_typechecked_row["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
     assert replayed_typechecked_row[
         "source_theorem_exact_semantic_definition_typechecked_candidate"
     ]["proof_evidence_status"] == (
