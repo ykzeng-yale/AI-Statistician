@@ -13366,6 +13366,120 @@ def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() ->
     assert "not execution or proof evidence" in theory["boundary"]
 
 
+def test_runtime_audit_recomputes_theory_trace_counts_from_results(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "question_result.json"
+    (runtime_dir / "runtime_traces.jsonl").write_text("", encoding="utf-8")
+    (runtime_dir / "runtime_next_action_agenda.jsonl").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (runtime_dir / "runtime_learning_rows.jsonl").write_text("", encoding="utf-8")
+
+    weak_theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:legacy",
+        "theory_derivation_packet": {
+            "derivation_summary": "coverage follows from exchangeability",
+            "derivation_steps": [
+                {"id": "rank", "claim": "rank is uniform"},
+                {"id": "coverage", "claim": "coverage lower bound"},
+            ],
+        },
+    }
+    result = {
+        "status": "MAX_ITERATIONS_REACHED",
+        "final_task_id": "critic:test",
+        "blackboard": {
+            "project_id": "test",
+            "artifacts": {
+                "retrieval_memory_manifest:test": {
+                    "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                },
+                "theory_derivation:legacy": weak_theory_packet,
+                "simulation_manifest:test": {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                },
+                "algorithm_sandbox_manifest:test": {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "n_executed": 0,
+                    "n_generated_code_executed": 0,
+                    "n_metric_gate_failed": 0,
+                    "n_unsafe_generated_code_rejected": 0,
+                },
+                "formalization_manifest:test": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "counts": {
+                        "proved": 0,
+                        "kernel_verified": 0,
+                        "formal_gap": 1,
+                        "failed": 0,
+                    },
+                    "formal_subclaims": [],
+                    "registered_proof_bank_obligation_catalog": [],
+                    "proof_obligation_control": {},
+                    "proof_bank_runtime_memory_summary": {},
+                },
+                "critic_evaluator_manifest:test": {
+                    "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                    "next_action_agenda": [],
+                    "learning_rows": [],
+                    "runtime_reroute_decision": {},
+                },
+            },
+        },
+        "traces": [],
+    }
+    result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 1,
+        "artifacts": {
+            "per_question_results": [str(result_path.name)],
+            "runtime_traces_jsonl": "runtime_traces.jsonl",
+            "runtime_next_action_agenda_jsonl": "runtime_next_action_agenda.jsonl",
+            "runtime_learning_rows_jsonl": "runtime_learning_rows.jsonl",
+        },
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 0,
+                "structured_derivation_trace_observed": False,
+            },
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir)
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert audit["n_theory_derivation_packets"] == 1
+    assert audit["n_theory_derivation_packets_with_contract"] == 0
+    assert audit["n_theory_derivation_packets_with_min_derivation_steps"] == 0
+    assert audit["structured_theory_derivation_trace_observed"] is False
+    assert (
+        scorecard_rows["theory_derivation_trace_contract_observed"]["passed"]
+        is False
+    )
+    assert "theory_packets=1" in scorecard_rows[
+        "theory_derivation_trace_contract_observed"
+    ]["evidence"]
+
+
 def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -> None:
     artifacts = {
         "formalizer_lean_candidate_materialization:fail": {

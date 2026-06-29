@@ -16,6 +16,7 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
+    _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_manifest_int_sum,
 )
@@ -195,6 +196,10 @@ def audit_research_agent_runtime(
         dict(runtime_evidence_summary.get("theory", {}) or {})
         if isinstance(runtime_evidence_summary.get("theory", {}), Mapping)
         else {}
+    )
+    runtime_theory_summary = _merge_runtime_theory_summaries(
+        runtime_theory_summary,
+        _runtime_theory_summary_from_result_paths(result_paths),
     )
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
@@ -4218,6 +4223,104 @@ def _formalizer_lean_candidate_repair_sequences_from_result_paths(
             continue
         total += _formalizer_lean_candidate_repair_sequence_count(artifacts)
     return total
+
+
+def _runtime_theory_summary_from_result_paths(
+    result_paths: list[Path],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            results.append(payload)
+    if not results:
+        return {}
+    summary = _runtime_evidence_summary(results)
+    theory = summary.get("theory", {}) if isinstance(summary, Mapping) else {}
+    return dict(theory) if isinstance(theory, Mapping) else {}
+
+
+def _merge_runtime_theory_summaries(
+    manifest_summary: Mapping[str, Any],
+    derived_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged: dict[str, Any] = dict(manifest_summary)
+    integer_keys = (
+        "n_theory_derivation_packets",
+        "n_theory_derivation_packets_with_contract",
+        "n_theory_derivation_packets_with_min_derivation_steps",
+        "n_theory_derivation_packets_with_equation_chain",
+        "n_theory_derivation_packets_with_assumption_ledger",
+        "n_theory_derivation_packets_with_formalization_handoff",
+        "n_theory_trace_consumption_contracts",
+        "n_theory_trace_consumption_contracts_with_trace",
+        "n_theory_trace_consumption_contracts_with_equation_chain",
+        "n_theory_trace_consumption_contracts_with_assumption_ledger",
+        "n_theory_trace_consumption_contracts_with_formalization_handoff",
+        "n_theory_trace_alignment_contracts",
+        "n_theory_trace_alignment_contracts_with_llm_alignment",
+        "n_structured_theory_trace_alignment_contracts",
+        "n_theory_trace_alignment_contracts_with_unsupported_anchors",
+        "max_derivation_steps",
+        "max_equation_chain_steps",
+        "max_assumption_ledger_rows",
+    )
+    for key in integer_keys:
+        merged[key] = max(
+            _safe_int(merged.get(key, 0)),
+            _safe_int(derived_summary.get(key, 0)),
+        )
+
+    list_keys = (
+        "theory_trace_consuming_subsystems",
+        "structured_theory_trace_consuming_subsystems",
+        "required_theory_trace_consumers",
+        "theory_trace_aligned_subsystems",
+        "structured_theory_trace_aligned_subsystems",
+    )
+    for key in list_keys:
+        merged[key] = sorted(
+            {
+                str(value)
+                for source in (merged.get(key, []), derived_summary.get(key, []))
+                if isinstance(source, list)
+                for value in source
+                if str(value).strip()
+            }
+        )
+
+    boolean_keys = (
+        "all_required_theory_trace_consumers_observed",
+        "all_required_theory_trace_alignment_consumers_observed",
+        "structured_derivation_trace_observed",
+    )
+    for key in boolean_keys:
+        merged[key] = bool(merged.get(key, False)) or bool(
+            derived_summary.get(key, False)
+        )
+
+    for key in (
+        "theory_trace_consumption_boundary",
+        "theory_trace_alignment_boundary",
+        "boundary",
+    ):
+        if not str(merged.get(key, "") or "").strip():
+            value = str(derived_summary.get(key, "") or "").strip()
+            if value:
+                merged[key] = value
+    return merged
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _artifacts_with_prefix(artifacts: Mapping[str, Any], prefix: str) -> list[dict[str, Any]]:
