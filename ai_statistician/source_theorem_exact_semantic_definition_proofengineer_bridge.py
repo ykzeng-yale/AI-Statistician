@@ -122,6 +122,26 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
             if row.get("repair_strategy")
             == "review_typechecked_exact_definition_candidate"
         ),
+        "n_review_packets_with_semantic_review_decision": sum(
+            1
+            for row in repair_packets
+            if _semantic_review_decision_reported(row)
+        ),
+        "n_review_typechecked_candidate_packets_with_semantic_review_decision": sum(
+            1
+            for row in repair_packets
+            if row.get("repair_strategy")
+            == "review_typechecked_exact_definition_candidate"
+            and _semantic_review_decision_reported(row)
+        ),
+        "n_review_typechecked_candidate_packets_llm_approved": sum(
+            1
+            for row in repair_packets
+            if row.get("repair_strategy")
+            == "review_typechecked_exact_definition_candidate"
+            and str(row.get("semantic_review_decision", "") or "")
+            == "approved_definition_candidate"
+        ),
         "n_lean_review_typechecked_candidate_tasks": sum(
             1
             for row in lean_repair_tasks
@@ -372,6 +392,27 @@ def _repair_packet(row: Mapping[str, Any], *, question_id: str = "") -> dict[str
         "semantic_definition_typecheck_evidence_status": str(
             row.get("semantic_definition_typecheck_evidence_status", "") or ""
         ),
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or ""
+        ),
+        "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
+        "semantic_review_evidence": list(row.get("semantic_review_evidence", []) or []),
+        "semantic_review_required_before_proof_body": bool(
+            row.get("semantic_review_required_before_proof_body", False)
+        ),
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
+        ),
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
+        "source_execution_status": str(row.get("source_execution_status", "") or ""),
+        "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(row.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            row.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(row.get("source_repair_strategy", "") or ""),
         **_exact_semantic_definition_context(row),
         "required_next_checks": required_next_checks,
         "local_lean_required_before_proof_body": True,
@@ -559,6 +600,38 @@ def _lean_repair_task(repair_packet: Mapping[str, Any]) -> dict[str, Any]:
         "semantic_definition_typecheck_evidence_status": str(
             repair_packet.get("semantic_definition_typecheck_evidence_status", "") or ""
         ),
+        "semantic_review_decision": str(
+            repair_packet.get("semantic_review_decision", "") or ""
+        ),
+        "semantic_review_status": str(
+            repair_packet.get("semantic_review_status", "") or ""
+        ),
+        "semantic_review_evidence": list(
+            repair_packet.get("semantic_review_evidence", []) or []
+        ),
+        "semantic_review_required_before_proof_body": bool(
+            repair_packet.get("semantic_review_required_before_proof_body", False)
+        ),
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            repair_packet.get(
+                "llm_claimed_source_theorem_ready_for_exact_proof_body",
+                False,
+            )
+        ),
+        "candidate_repair_feedback": dict(
+            repair_packet.get("candidate_repair_feedback", {}) or {}
+        ),
+        "source_execution_status": str(
+            repair_packet.get("source_execution_status", "") or ""
+        ),
+        "authoring_trigger": str(repair_packet.get("authoring_trigger", "") or ""),
+        "authoring_mode": str(repair_packet.get("authoring_mode", "") or ""),
+        "source_lean_repair_action": str(
+            repair_packet.get("source_lean_repair_action", "") or ""
+        ),
+        "source_repair_strategy": str(
+            repair_packet.get("source_repair_strategy", "") or ""
+        ),
         **_exact_semantic_definition_context(repair_packet),
         "required_next_checks": list(
             repair_packet.get("required_next_checks", []) or []
@@ -642,6 +715,24 @@ def _learning_row(
                 repair_packet.get("semantic_definition_typecheck_evidence_status", "")
                 or ""
             ),
+            "semantic_review_decision": str(
+                repair_packet.get("semantic_review_decision", "") or ""
+            ),
+            "semantic_review_status": str(
+                repair_packet.get("semantic_review_status", "") or ""
+            ),
+            "semantic_review_evidence": list(
+                repair_packet.get("semantic_review_evidence", []) or []
+            ),
+            "semantic_review_required_before_proof_body": bool(
+                repair_packet.get("semantic_review_required_before_proof_body", False)
+            ),
+            "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+                repair_packet.get(
+                    "llm_claimed_source_theorem_ready_for_exact_proof_body",
+                    False,
+                )
+            ),
             **_exact_semantic_definition_context(repair_packet),
             "required_next_checks": list(
                 repair_packet.get("required_next_checks", []) or []
@@ -687,6 +778,13 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
     return context
+
+
+def _semantic_review_decision_reported(row: Mapping[str, Any]) -> bool:
+    return str(row.get("semantic_review_decision", "") or "").strip() not in {
+        "",
+        "not_reported",
+    }
 
 
 def _target_ids_from_row(

@@ -355,7 +355,23 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
         "candidate_definition_request": {
             "semantic_intent": "exact source coverage event tied to hC",
         },
+        "semantic_review_decision": "approved_definition_candidate",
+        "semantic_review_status": (
+            "llm_semantic_review_approved_definition_candidate_not_proof"
+        ),
+        "semantic_review_evidence": [
+            "checked covered candidate against hC and q_hat binders"
+        ],
         "semantic_review_required_before_proof_body": True,
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": True,
+        "candidate_repair_feedback": {
+            "failure_classification": "semantic_definition_review_blocked"
+        },
+        "source_execution_status": (
+            "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+        ),
+        "authoring_mode": "repair_typechecked_semantic_definition_candidate",
+        "source_repair_strategy": "review_typechecked_exact_definition_candidate",
         "source_theorem_ready_for_exact_proof_body": False,
         "source_theorem_kernel_verified": False,
         "proof_evidence_status": (
@@ -394,6 +410,12 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
 
     assert manifest["n_review_packets"] == 1
     assert manifest["n_review_typechecked_candidate_packets"] == 1
+    assert manifest["n_review_packets_with_semantic_review_decision"] == 1
+    assert (
+        manifest["n_review_typechecked_candidate_packets_with_semantic_review_decision"]
+        == 1
+    )
+    assert manifest["n_review_typechecked_candidate_packets_llm_approved"] == 1
     assert manifest["n_lean_review_typechecked_candidate_tasks"] == 1
     packets = [
         json.loads(line)
@@ -411,6 +433,24 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
         "runs/candidate_artifacts/covered_defs_only.lean"
     )
     assert packet["local_definition_lean_compiled"] is True
+    assert packet["semantic_review_decision"] == "approved_definition_candidate"
+    assert packet["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+    assert packet["semantic_review_evidence"] == [
+        "checked covered candidate against hC and q_hat binders"
+    ]
+    assert packet["semantic_review_required_before_proof_body"] is True
+    assert packet["llm_claimed_source_theorem_ready_for_exact_proof_body"] is True
+    assert packet["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert packet["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert packet["source_repair_strategy"] == (
+        "review_typechecked_exact_definition_candidate"
+    )
     assert packet["source_theorem_kernel_evidence_eligible"] is False
     tasks = [
         json.loads(line)
@@ -426,10 +466,46 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     assert task["definition_only_candidate_artifact_path"] == (
         "runs/candidate_artifacts/covered_defs_only.lean"
     )
+    assert task["semantic_review_decision"] == "approved_definition_candidate"
+    assert task["semantic_review_status"] == (
+        "llm_semantic_review_approved_definition_candidate_not_proof"
+    )
+    assert task["semantic_review_evidence"] == [
+        "checked covered candidate against hC and q_hat binders"
+    ]
+    assert task["semantic_review_required_before_proof_body"] is True
+    assert task["llm_claimed_source_theorem_ready_for_exact_proof_body"] is True
+    assert task["candidate_repair_feedback"]["failure_classification"] == (
+        "semantic_definition_review_blocked"
+    )
+    assert task["source_execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
+    )
+    assert task["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate"
+    )
+    assert task["source_repair_strategy"] == (
+        "review_typechecked_exact_definition_candidate"
+    )
     assert task["local_lean_kernel_verified"] is False
     assert task["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
     )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text()
+        .splitlines()
+    ]
+    assert learning_rows[0]["input_summary"]["semantic_review_decision"] == (
+        "approved_definition_candidate"
+    )
+    assert learning_rows[0]["input_summary"][
+        "llm_claimed_source_theorem_ready_for_exact_proof_body"
+    ] is True
+    assert learning_rows[0]["input_summary"][
+        "source_theorem_kernel_evidence_eligible"
+    ] is False
 
 
 def test_exact_semantic_definition_proofengineer_bridge_consumes_repair_queue(
