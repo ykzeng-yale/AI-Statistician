@@ -7201,6 +7201,202 @@ def test_formalizer_runtime_reports_memory_required_local_lean_config_gap(
     )
 
 
+def test_runtime_learning_memory_replays_formalizer_contract_failure_to_prompt_and_runtime(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "formalizer_runtime_capability_contract_feedback",
+                "source_failure_id": (
+                    "formalizer_runtime_capability_contract_failure:local"
+                ),
+                "source_materialization_manifest_id": (
+                    "formalizer_lean_candidate_materialization:local"
+                ),
+                "next_owner_subsystem": "ArchitectCoordinator",
+                "input_summary": {
+                    "trigger": "RUNTIME_FORMALIZER_CAPABILITY_CONTRACT_FAILED",
+                    "failure_classification": (
+                        "formalizer_capability_contract_missing_local_lean_configuration"
+                    ),
+                    "missing_contracts": [
+                        {
+                            "flag": (
+                                "capability_eval_requires_formalizer_local_lean_check"
+                            ),
+                            "failure_classification": (
+                                "formalizer_capability_contract_missing_local_lean_configuration"
+                            ),
+                            "next_owner_subsystem": "ArchitectCoordinator",
+                            "required_configuration": [
+                                "--formalizer-candidate-local-lean",
+                                "--formalizer-candidate-lean-project or --lean-project",
+                            ],
+                            "reason": "local Lean was disabled",
+                        }
+                    ],
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_formalizer_lean_candidate": True,
+                        "capability_eval_requires_formalizer_local_lean_check": True,
+                    },
+                    "formalizer_candidate_local_lean": False,
+                    "proof_state_provider": "",
+                    "n_candidate_sources": 1,
+                    "n_local_lean_checked": 0,
+                },
+                "target_behavior": (
+                    "Rerun the Formalizer capability path with local Lean enabled."
+                ),
+                "acceptance_gate": (
+                    "The next integrated runtime pass records local Lean diagnostics."
+                ),
+                "proof_evidence_status": (
+                    "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "not proof evidence",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary[
+        "formalizer_runtime_capability_contract_feedback_available"
+    ] is True
+    contract_memory = summary[
+        "formalizer_runtime_capability_contract_feedback_memory"
+    ]
+    assert contract_memory[0]["failure_classification"] == (
+        "formalizer_capability_contract_missing_local_lean_configuration"
+    )
+    assert contract_memory[0]["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_local_lean_check"
+    ] is True
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "formalizer_runtime_capability_contract_feedback_memory" in prompt
+    assert "Prior Formalizer runtime capability-contract feedback is active" in prompt
+    assert "formalizer_capability_contract_missing_local_lean_configuration" in prompt
+    assert "--formalizer-candidate-local-lean" in prompt
+    assert "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE" in prompt
+
+    class ContractFeedbackFormalizer:
+        def __init__(self) -> None:
+            self.seen_feedback: dict[str, object] = {}
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.seen_feedback = dict(feedback) if isinstance(feedback, dict) else {}
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:contract_feedback",
+                "source_agent": "ContractFeedbackFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "contract_feedback_candidate",
+                        "informal_source": "candidate should rerun local Lean",
+                        "lean_statement_sketch": (
+                            "theorem contract_feedback_candidate (n : Nat) : "
+                            "n = n := by\n"
+                            "  rfl\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["run local Lean"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    proposal_agent = ContractFeedbackFormalizer()
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=proposal_agent,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=False,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalizer_contract_feedback_rehydrates",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Saved contract feedback requires local Lean.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {"runtime_learning_memory": memory},
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert proposal_agent.seen_feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_local_lean_check"
+    ] is True
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalizer_capability_contract_missing_local_lean_configuration"
+    )
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeFormalizerCapabilityContractFailure"
+        for artifact in result.produced_artifacts.values()
+    )
+
+
 def test_runtime_learning_rows_surface_nested_target_metadata(tmp_path: Path) -> None:
     learning_rows = _runtime_learning_rows(
         [

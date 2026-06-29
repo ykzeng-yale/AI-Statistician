@@ -3844,6 +3844,35 @@ def _formalizer_mode_specific_instructions(
             "inside AgentRuntime. Do not satisfy this with static replay, attached "
             "component calibration, or a generic proof-bank queue."
         )
+    runtime_contract_feedback_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_runtime_capability_contract_feedback_memory", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_runtime_capability_contract_feedback_available"
+        )
+        or runtime_contract_feedback_memory
+    ):
+        instructions.append(
+            "Prior Formalizer runtime capability-contract feedback is active: "
+            "consume proof_bank_runtime_memory_summary."
+            "formalizer_runtime_capability_contract_feedback_memory before "
+            "proposing the next packet. These rows identify unmet AgentRuntime "
+            "tool/evidence contracts, not theorem proof failures. If the row "
+            "requires runtime configuration such as local Lean or Lean-LSP/MCP, "
+            "do not claim the gap is closed with Lean text alone; emit a bounded "
+            "candidate or explicit formal blocker that lets AgentRuntime rerun "
+            "the requested tool path. If the row requires Formalizer behavior "
+            "such as a concrete theorem/lemma/def declaration or proof-state "
+            "request metadata, preserve the listed runtime_requested_evidence_contract "
+            "flags and drive exactly those counters. These rows are not proof "
+            "evidence."
+        )
     if feedback_failure == "formalizer_packet_validation_failed":
         packet_attempts = _feedback_int(
             runtime_environment_feedback.get("attempts", 0)
@@ -5389,11 +5418,13 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_proof_state_feedback_available",
         "formalizer_lean_candidate_component_gate_feedback_available",
         "formalizer_lean_candidate_capability_feedback_available",
+        "formalizer_runtime_capability_contract_feedback_available",
         "formalizer_lean_candidate_repair_manifest_paths",
         "formalizer_lean_candidate_repair_memory",
         "formalizer_lean_candidate_proof_state_feedback_memory",
         "formalizer_lean_candidate_component_gate_feedback_memory",
         "formalizer_lean_candidate_capability_feedback_memory",
+        "formalizer_runtime_capability_contract_feedback_memory",
         "recommended_source_theorem_integration_action",
         "critic_high_priority_agenda_ids",
     )
@@ -5705,6 +5736,35 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "acceptance_gate",
                 "proof_evidence_status",
                 "boundary",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_runtime_capability_contract_feedback_memory"),
+        list,
+    ):
+        compact["formalizer_runtime_capability_contract_feedback_memory"] = _compact_rows(
+            row.get("formalizer_runtime_capability_contract_feedback_memory", []),
+            keys=(
+                "learning_task",
+                "source_failure_id",
+                "source_materialization_manifest_id",
+                "next_owner_subsystem",
+                "failure_classification",
+                "missing_contracts",
+                "runtime_requested_evidence_contract",
+                "required_runtime_configuration",
+                "required_formalizer_behavior",
+                "formalizer_candidate_local_lean",
+                "proof_state_provider",
+                "n_candidate_sources",
+                "n_local_lean_checked",
+                "n_live_proof_state_requests",
+                "n_lean_lsp_mcp_ready_requests",
+                "candidate_proof_state_manifest_id",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
             ),
             limit=3,
         )

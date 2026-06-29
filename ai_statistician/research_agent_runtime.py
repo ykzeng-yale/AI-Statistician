@@ -29349,13 +29349,24 @@ def _runtime_formalizer_capability_memory_contract(
     rows = _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
         context
     )
+    contract_feedback_rows = (
+        _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
+            context
+        )
+    )
     matching_rows = [
         row
         for row in rows
         if not str(row.get("question_id", "") or "").strip()
         or str(row.get("question_id", "") or "").strip() == question_id
     ]
-    if not matching_rows:
+    matching_contract_feedback_rows = [
+        row
+        for row in contract_feedback_rows
+        if not str(row.get("question_id", "") or "").strip()
+        or str(row.get("question_id", "") or "").strip() == question_id
+    ]
+    if not matching_rows and not matching_contract_feedback_rows:
         return {}
     capability_ids = sorted(
         {
@@ -29369,6 +29380,21 @@ def _runtime_formalizer_capability_memory_contract(
         "capability_eval_formalizer_capability_memory_ids": capability_ids,
         "capability_eval_formalizer_capability_memory_rows": len(matching_rows),
     }
+    if matching_contract_feedback_rows:
+        contract[
+            "capability_eval_formalizer_runtime_contract_failure_rows"
+        ] = len(matching_contract_feedback_rows)
+        for row in matching_contract_feedback_rows:
+            requested_contract = row.get("runtime_requested_evidence_contract", {})
+            if not isinstance(requested_contract, Mapping):
+                continue
+            for key, value in requested_contract.items():
+                if (
+                    str(key).startswith("capability_eval_requires_formalizer_")
+                    and value is True
+                ):
+                    contract[str(key)] = True
+        contract["capability_eval_requires_formalizer_lean_candidate"] = True
     local_check_ids = {
         "formalizer_lean_candidate_checked_locally",
         "formalizer_local_lean_tool_call_observed",
@@ -34574,6 +34600,139 @@ def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return unmet Formalizer runtime capability-contract rows from memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    feedback_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("learning_task", "") or "") != (
+            "formalizer_runtime_capability_contract_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        source_failure_id = str(
+            row.get("source_failure_id", "")
+            or input_summary.get("source_failure_id", "")
+            or ""
+        ).strip()
+        key = (question_id, failure_classification, source_failure_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        requested_contract = row.get("runtime_requested_evidence_contract", {})
+        if not isinstance(requested_contract, Mapping) or not requested_contract:
+            requested_contract = input_summary.get(
+                "runtime_requested_evidence_contract",
+                {},
+            )
+        if not isinstance(requested_contract, Mapping):
+            requested_contract = {}
+        missing_contracts = [
+            dict(item)
+            for item in input_summary.get("missing_contracts", [])
+            or row.get("missing_contracts", [])
+            or []
+            if isinstance(item, Mapping)
+        ]
+        feedback_rows.append(
+            {
+                "learning_task": (
+                    "formalizer_runtime_capability_contract_feedback"
+                ),
+                "question_id": question_id,
+                "source_failure_id": source_failure_id,
+                "source_materialization_manifest_id": str(
+                    row.get("source_materialization_manifest_id", "")
+                    or input_summary.get("source_materialization_manifest_id", "")
+                    or ""
+                ),
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "")
+                    or input_summary.get("next_owner_subsystem", "")
+                    or ""
+                ),
+                "failure_classification": failure_classification,
+                "missing_contracts": missing_contracts,
+                "runtime_requested_evidence_contract": dict(requested_contract),
+                "required_runtime_configuration": [
+                    str(value)
+                    for item in missing_contracts
+                    for value in item.get("required_configuration", []) or []
+                    if str(value).strip()
+                ][:12],
+                "required_formalizer_behavior": [
+                    str(value)
+                    for item in missing_contracts
+                    for value in item.get("required_behavior", []) or []
+                    if str(value).strip()
+                ][:12],
+                "formalizer_candidate_local_lean": bool(
+                    input_summary.get("formalizer_candidate_local_lean", False)
+                ),
+                "proof_state_provider": str(
+                    input_summary.get("proof_state_provider", "") or ""
+                ),
+                "n_candidate_sources": _int_like(
+                    input_summary.get("n_candidate_sources", 0)
+                ),
+                "n_local_lean_checked": _int_like(
+                    input_summary.get("n_local_lean_checked", 0)
+                ),
+                "n_live_proof_state_requests": _int_like(
+                    input_summary.get("n_live_proof_state_requests", 0)
+                ),
+                "n_lean_lsp_mcp_ready_requests": _int_like(
+                    input_summary.get("n_lean_lsp_mcp_ready_requests", 0)
+                ),
+                "candidate_proof_state_manifest_id": str(
+                    input_summary.get("candidate_proof_state_manifest_id", "")
+                    or ""
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or ""
+                ),
+                "boundary": str(
+                    row.get("boundary", "")
+                    or row.get("proof_evidence_boundary", "")
+                    or ""
+                )[:500],
+            }
+        )
+    return tuple(feedback_rows)
+
+
 def _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -35055,6 +35214,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_lean_candidate_capability_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
+            context
+        )
+    )
+    formalizer_runtime_capability_contract_feedback_rows = (
+        _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
             context
         )
     )
@@ -37113,9 +37277,75 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_capability_feedback_available": bool(
             formalizer_lean_candidate_capability_feedback_rows
         ),
+        "formalizer_runtime_capability_contract_feedback_available": bool(
+            formalizer_runtime_capability_contract_feedback_rows
+        ),
         "formalizer_lean_candidate_repair_manifest_paths": list(
             formalizer_lean_candidate_repair_manifest_paths
         ),
+        "formalizer_runtime_capability_contract_feedback_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
+                "source_failure_id": str(row.get("source_failure_id", "") or ""),
+                "source_materialization_manifest_id": str(
+                    row.get("source_materialization_manifest_id", "") or ""
+                ),
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "") or ""
+                ),
+                "failure_classification": str(
+                    row.get("failure_classification", "") or ""
+                ),
+                "missing_contracts": [
+                    dict(item)
+                    for item in row.get("missing_contracts", []) or []
+                    if isinstance(item, Mapping)
+                ][:6],
+                "runtime_requested_evidence_contract": dict(
+                    row.get("runtime_requested_evidence_contract", {}) or {}
+                )
+                if isinstance(
+                    row.get("runtime_requested_evidence_contract", {}),
+                    Mapping,
+                )
+                else {},
+                "required_runtime_configuration": list(
+                    row.get("required_runtime_configuration", []) or []
+                )[:12],
+                "required_formalizer_behavior": list(
+                    row.get("required_formalizer_behavior", []) or []
+                )[:12],
+                "formalizer_candidate_local_lean": bool(
+                    row.get("formalizer_candidate_local_lean", False)
+                ),
+                "proof_state_provider": str(
+                    row.get("proof_state_provider", "") or ""
+                ),
+                "n_candidate_sources": _int_like(
+                    row.get("n_candidate_sources", 0)
+                ),
+                "n_local_lean_checked": _int_like(
+                    row.get("n_local_lean_checked", 0)
+                ),
+                "n_live_proof_state_requests": _int_like(
+                    row.get("n_live_proof_state_requests", 0)
+                ),
+                "n_lean_lsp_mcp_ready_requests": _int_like(
+                    row.get("n_lean_lsp_mcp_ready_requests", 0)
+                ),
+                "candidate_proof_state_manifest_id": str(
+                    row.get("candidate_proof_state_manifest_id", "") or ""
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_runtime_capability_contract_feedback_rows[:4]
+        ],
         "formalizer_lean_candidate_capability_feedback_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),

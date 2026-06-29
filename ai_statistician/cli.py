@@ -1025,6 +1025,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if learning_task == "formalizer_runtime_capability_contract_feedback":
+        return 90
     if learning_task == "coding_agent_generated_code_capability_feedback":
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
@@ -1245,6 +1247,33 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "formalizer_lean_candidate_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
+    if learning_task == "formalizer_runtime_capability_contract_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        missing_flags = ",".join(
+            sorted(
+                str(item.get("flag", "") or "")
+                for item in input_summary.get("missing_contracts", []) or []
+                if isinstance(item, Mapping) and str(item.get("flag", "") or "")
+            )
+        )
+        source_failure_id = str(
+            row.get("source_failure_id", "")
+            or input_summary.get("source_failure_id", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_runtime_capability_contract_feedback:"
+            + (question_id or "global")
+            + ":"
+            + (missing_flags or failure_classification or source_failure_id)
+        )
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         component_manifest = str(
             row.get("component_eval_manifest_path", "")
@@ -1333,6 +1362,7 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if learning_task in {
         "source_to_bridge_premise_derivation_feedback",
         "theory_derivation_trace_feedback",
+        "formalizer_runtime_capability_contract_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "coding_agent_generated_code_component_gate_feedback",
         "coding_agent_generated_code_capability_feedback",
@@ -1653,6 +1683,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "next_owner_subsystem",
         "source_manifest_id",
         "source_materialization_manifest_id",
+        "source_failure_id",
         "source_manifest_path",
         "source_formalizer_packet_id",
         "feedback_type",
@@ -1768,6 +1799,14 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "metadata_authoring_status",
         "request_complete",
         "failure_classification",
+        "runtime_requested_evidence_contract",
+        "formalizer_candidate_local_lean",
+        "proof_state_provider",
+        "n_candidate_sources",
+        "n_local_lean_checked",
+        "n_live_proof_state_requests",
+        "n_lean_lsp_mcp_ready_requests",
+        "candidate_proof_state_manifest_id",
         "candidate_artifact_path",
         "source_candidate_artifact_path",
         "adapter_candidate_artifact_path",
@@ -1835,6 +1874,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "autonomous_live_failed_then_passed_repair_observed",
         "capability_evidence_scope",
         "target_component",
+        "missing_contracts",
+        "required_runtime_configuration",
+        "required_formalizer_behavior",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
@@ -2165,6 +2207,16 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "semantic_anchor_reference_gate",
         "candidate_materialization_required",
         "candidate_materialization_contract",
+        "runtime_requested_evidence_contract",
+        "source_failure_id",
+        "source_materialization_manifest_id",
+        "formalizer_candidate_local_lean",
+        "proof_state_provider",
+        "n_candidate_sources",
+        "n_local_lean_checked",
+        "n_live_proof_state_requests",
+        "n_lean_lsp_mcp_ready_requests",
+        "candidate_proof_state_manifest_id",
         "n_theory_derivation_packets",
         "n_theory_derivation_packets_with_contract",
         "n_theory_derivation_packets_with_min_derivation_steps",
@@ -2269,10 +2321,14 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
+        "missing_contracts",
+        "required_runtime_configuration",
+        "required_formalizer_behavior",
     )
     mapping_keys = (
         "formalization_counts",
         "retrieval_counts",
+        "runtime_requested_evidence_contract",
         "source_theorem_target_provenance",
         "definition_contract",
         "candidate_definition_request",
