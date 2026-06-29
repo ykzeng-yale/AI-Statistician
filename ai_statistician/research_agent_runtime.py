@@ -1689,6 +1689,12 @@ def _runtime_theory_trace_feedback_rows(
     )
     if not failure_classifications:
         return [], []
+    structural_failures = (
+        _runtime_theory_trace_failure_classifications_from_summary(
+            theory,
+            include_downstream=False,
+        )
+    )
 
     question_ids = [
         str(value)
@@ -1706,6 +1712,12 @@ def _runtime_theory_trace_feedback_rows(
         for value in theory.get("theory_trace_consuming_subsystems", []) or []
         if str(value).strip()
     ]
+    structured_consuming_subsystems = [
+        str(value)
+        for value in theory.get("structured_theory_trace_consuming_subsystems", [])
+        or []
+        if str(value).strip()
+    ]
     aligned_subsystems = [
         str(value)
         for value in theory.get("structured_theory_trace_aligned_subsystems", []) or []
@@ -1713,6 +1725,17 @@ def _runtime_theory_trace_feedback_rows(
     ]
     target_ids = _runtime_theory_trace_feedback_target_ids(manifest)
     target_theorem_name = target_ids[0] if len(target_ids) == 1 else ""
+    if not structural_failures:
+        return _runtime_downstream_theory_trace_alignment_feedback_rows(
+            question_id=question_id,
+            theory=theory,
+            required_consumers=required_consumers,
+            consuming_subsystems=consuming_subsystems,
+            structured_consuming_subsystems=structured_consuming_subsystems,
+            aligned_subsystems=aligned_subsystems,
+            target_ids=target_ids,
+            target_theorem_name=target_theorem_name,
+        )
     work_order_id = stable_hash(
         {
             "learning_task": "theory_derivation_trace_feedback",
@@ -1776,6 +1799,7 @@ def _runtime_theory_trace_feedback_rows(
             ),
             "required_theory_trace_consumers": required_consumers,
             "theory_trace_consuming_subsystems": consuming_subsystems,
+            "structured_theory_trace_consuming_subsystems": structured_consuming_subsystems,
             "structured_theory_trace_aligned_subsystems": aligned_subsystems,
             "target_ids": list(target_ids),
             "target_theorem_name": target_theorem_name,
@@ -1819,6 +1843,163 @@ def _runtime_theory_trace_feedback_rows(
         ),
     }
     return [learning_row], [agenda_row]
+
+
+def _runtime_theory_trace_alignment_owner(consumer_subsystem: str) -> str:
+    return {
+        "SimulationEngineer": "SimulationEvaluator",
+        "AlgorithmEngineer": "AlgorithmEngineer",
+        "FormalizerProofEngineer": "FormalizationEvaluator",
+    }.get(consumer_subsystem, consumer_subsystem)
+
+
+def _runtime_downstream_theory_trace_alignment_feedback_rows(
+    *,
+    question_id: str,
+    theory: Mapping[str, Any],
+    required_consumers: Sequence[str],
+    consuming_subsystems: Sequence[str],
+    structured_consuming_subsystems: Sequence[str],
+    aligned_subsystems: Sequence[str],
+    target_ids: Sequence[str],
+    target_theorem_name: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    required = [
+        str(value)
+        for value in (
+            required_consumers or RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS
+        )
+        if str(value).strip()
+    ]
+    structured_consuming = {str(value) for value in structured_consuming_subsystems}
+    aligned = {str(value) for value in aligned_subsystems}
+    missing_consumption = [value for value in required if value not in structured_consuming]
+    missing_alignment = [value for value in required if value not in aligned]
+    target_consumers = list(dict.fromkeys([*missing_consumption, *missing_alignment]))
+    if not target_consumers:
+        return [], []
+
+    learning_rows: list[dict[str, Any]] = []
+    agenda_rows: list[dict[str, Any]] = []
+    for consumer in target_consumers:
+        owner = _runtime_theory_trace_alignment_owner(consumer)
+        classifications = []
+        if consumer in missing_consumption:
+            classifications.append("downstream_theory_trace_consumption_missing")
+        if consumer in missing_alignment:
+            classifications.append("downstream_theory_trace_alignment_missing")
+        classifications = list(dict.fromkeys(classifications))
+        work_order_id = stable_hash(
+            {
+                "learning_task": "theory_trace_downstream_alignment_feedback",
+                "question_id": question_id,
+                "consumer_subsystem": consumer,
+                "owner_subsystem": owner,
+                "failure_classifications": classifications,
+                "target_ids": list(target_ids),
+            }
+        )[:16]
+        target_behavior = (
+            f"Route to {owner} so the {consumer} proposal artifact consumes the "
+            "structured TheoryDerivationPacket and emits theory_trace_alignment "
+            "references to exact derivation/equation/assumption/formalization "
+            "anchors before downstream claims are evaluated."
+        )
+        acceptance_gate = (
+            f"{consumer} records a theory_trace_consumption_contract and a "
+            "theory_trace_alignment_contract with llm_alignment_claimed=true, "
+            "structured_alignment_observed=true, and "
+            "n_unsupported_anchor_references=0. This is proposal provenance only, "
+            "not simulation, code-execution, or Lean/kernel proof evidence."
+        )
+        input_summary = {
+            "trigger": "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
+            "target_consumer_subsystem": consumer,
+            "owner_subsystem": owner,
+            "required_theory_trace_consumers": list(required),
+            "theory_trace_consuming_subsystems": list(consuming_subsystems),
+            "structured_theory_trace_consuming_subsystems": list(
+                structured_consuming_subsystems
+            ),
+            "structured_theory_trace_aligned_subsystems": list(aligned_subsystems),
+            "n_theory_trace_consumption_contracts": _runtime_safe_int(
+                theory.get("n_theory_trace_consumption_contracts", 0)
+            ),
+            "n_theory_trace_alignment_contracts": _runtime_safe_int(
+                theory.get("n_theory_trace_alignment_contracts", 0)
+            ),
+            "n_theory_trace_alignment_contracts_with_llm_alignment": _runtime_safe_int(
+                theory.get(
+                    "n_theory_trace_alignment_contracts_with_llm_alignment",
+                    0,
+                )
+            ),
+            "n_structured_theory_trace_alignment_contracts": _runtime_safe_int(
+                theory.get("n_structured_theory_trace_alignment_contracts", 0)
+            ),
+            "n_theory_trace_alignment_contracts_with_unsupported_anchors": (
+                _runtime_safe_int(
+                    theory.get(
+                        "n_theory_trace_alignment_contracts_with_unsupported_anchors",
+                        0,
+                    )
+                )
+            ),
+            "target_ids": list(target_ids),
+            "target_theorem_name": target_theorem_name,
+            "failure_classifications": list(classifications),
+        }
+        learning_row = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question_id,
+            "learning_task": "theory_trace_downstream_alignment_feedback",
+            "work_order_id": work_order_id,
+            "next_owner_subsystem": owner,
+            "target_consumer_subsystem": consumer,
+            "failure_classifications": list(classifications),
+            "target_ids": list(target_ids),
+            "target_theorem_name": target_theorem_name,
+            "input_summary": input_summary,
+            "target_behavior": target_behavior,
+            "acceptance_gate": acceptance_gate,
+            "proof_evidence_status": (
+                "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "This row routes missing downstream LLM trace-alignment provenance. "
+                "It is not simulation evidence, code evidence, or Lean/kernel proof."
+            ),
+        }
+        agenda_rows.append(
+            {
+                "id": (
+                    "theory:downstream_trace_alignment:"
+                    f"{consumer}:{work_order_id}"
+                ),
+                "question_id": question_id,
+                "owner_subsystem": owner,
+                "target_consumer_subsystem": consumer,
+                "trigger": "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
+                "action": target_behavior,
+                "acceptance_gate": acceptance_gate,
+                "work_order_id": work_order_id,
+                "failure_classifications": list(classifications),
+                "required_theory_trace_consumers": list(required),
+                "target_ids": list(target_ids),
+                "target_theorem_name": target_theorem_name,
+                "priority": "high",
+                "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                "boundary": (
+                    "This agenda row asks the downstream LLM worker to bind its "
+                    "proposal to existing theory-trace anchors. It does not promote "
+                    "that proposal to execution or proof evidence."
+                ),
+            }
+        )
+        learning_rows.append(learning_row)
+    return learning_rows, agenda_rows
 
 
 def _runtime_handoff_artifact_missing_feedback_rows(
@@ -23448,6 +23629,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 92
     if learning_task == "theory_derivation_trace_feedback":
         return 91
+    if learning_task == "theory_trace_downstream_alignment_feedback":
+        return 91
     if learning_task == "architect_orchestration_feedback":
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
@@ -23716,6 +23899,38 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + failure_scope
         )
+    if learning_task == "theory_trace_downstream_alignment_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        consumer = str(
+            row.get("target_consumer_subsystem", "")
+            or input_summary.get("target_consumer_subsystem", "")
+            or ""
+        ).strip()
+        failure_scope = ",".join(
+            _sorted_str_tuple(
+                row.get(
+                    "failure_classifications",
+                    input_summary.get("failure_classifications", []),
+                )
+            )
+        )
+        return (
+            "theory_trace_downstream_alignment_feedback:"
+            + question_id
+            + ":"
+            + consumer
+            + ":"
+            + work_order_id
+            + ":"
+            + failure_scope
+        )
     if learning_task == "architect_orchestration_feedback":
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -23798,6 +24013,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
         "theory_derivation_trace_feedback",
+        "theory_trace_downstream_alignment_feedback",
         "architect_orchestration_feedback",
         "runtime_handoff_artifact_missing_feedback",
     }

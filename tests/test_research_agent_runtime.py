@@ -15252,6 +15252,112 @@ def test_runtime_theory_trace_feedback_rows_skip_complete_structured_trace() -> 
     assert _runtime_theory_trace_feedback_rows(manifest=manifest) == ([], [])
 
 
+def test_runtime_theory_trace_feedback_routes_alignment_only_gap_downstream() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "incomplete_pending_next_task": {
+            "task_id": "formalize:conformal:pending",
+            "owner_subsystem": "FormalizationEvaluator",
+            "inputs": {
+                "architect_context": {
+                    "runtime_learning_memory": {
+                        "rows": [
+                            {
+                                "learning_task": (
+                                    "source_theorem_truth_table_feedback"
+                                ),
+                                "target_ids": [
+                                    "split_conformal_finite_sample_coverage"
+                                ],
+                                "target_theorem_name": (
+                                    "split_conformal_finite_sample_coverage"
+                                ),
+                            }
+                        ]
+                    }
+                }
+            },
+        },
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 1,
+                "n_theory_derivation_packets_with_contract": 1,
+                "n_theory_derivation_packets_with_min_derivation_steps": 1,
+                "n_theory_derivation_packets_with_equation_chain": 1,
+                "n_theory_derivation_packets_with_assumption_ledger": 1,
+                "n_theory_derivation_packets_with_formalization_handoff": 1,
+                "n_theory_trace_consumption_contracts": 3,
+                "n_theory_trace_alignment_contracts": 0,
+                "n_theory_trace_alignment_contracts_with_llm_alignment": 0,
+                "n_structured_theory_trace_alignment_contracts": 0,
+                "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
+                "all_required_theory_trace_consumers_observed": True,
+                "all_required_theory_trace_alignment_consumers_observed": False,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "structured_theory_trace_consuming_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "structured_theory_trace_aligned_subsystems": [],
+            },
+        },
+    }
+
+    learning_rows, agenda_rows = _runtime_theory_trace_feedback_rows(
+        manifest=manifest
+    )
+
+    assert len(learning_rows) == 3
+    assert len(agenda_rows) == 3
+    assert {row["learning_task"] for row in learning_rows} == {
+        "theory_trace_downstream_alignment_feedback"
+    }
+    assert {row["next_owner_subsystem"] for row in learning_rows} == {
+        "SimulationEvaluator",
+        "AlgorithmEngineer",
+        "FormalizationEvaluator",
+    }
+    assert {row["target_consumer_subsystem"] for row in learning_rows} == {
+        "SimulationEngineer",
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+    }
+    assert all(
+        row["target_ids"] == ["split_conformal_finite_sample_coverage"]
+        for row in learning_rows
+    )
+    assert all(
+        row["input_summary"]["trigger"]
+        == "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+        for row in learning_rows
+    )
+    assert all(
+        row["proof_evidence_status"]
+        == "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+        for row in learning_rows
+    )
+    assert all(
+        runtime_module._runtime_learning_memory_should_pin_context_row(row)
+        for row in learning_rows
+    )
+    assert all(
+        row["trigger"] == "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+        and row["owner_subsystem"] != "TheoryDeveloper"
+        and "does not promote" in row["boundary"]
+        for row in agenda_rows
+    )
+
+
 def test_runtime_handoff_artifact_missing_feedback_rows_route_to_producer() -> None:
     results = [
         {
