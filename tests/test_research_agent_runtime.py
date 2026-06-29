@@ -196,6 +196,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
     _runtime_evidence_truth_table,
+    _runtime_target_identity_audit_summary,
     _resolve_manifest_paths,
     audit_research_agent_runtime,
 )
@@ -1017,6 +1018,115 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
     assert "simulation_manifest:missing" in handoff_score["evidence"]
     assert "SimulationEvaluator" in handoff_score["evidence"]
     assert "rerun or rehydrate" in handoff_score["blocker"]
+
+
+def test_runtime_target_identity_audit_flags_route_critical_targetless_rows() -> None:
+    summary = _runtime_target_identity_audit_summary(
+        learning_rows=[
+            {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "runtime_learning_row_id": "proof_feedback:targetless",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "input_summary": {
+                    "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK"
+                },
+            },
+            {
+                "learning_task": "algorithm_sandbox_feedback",
+                "runtime_learning_row_id": "algorithm_feedback:without-target",
+            },
+            {
+                "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                "runtime_learning_row_id": "formalizer_helper:diagnostic",
+                "target_lean_declaration": "diagnostic_helper",
+                "source_theorem_target_known": False,
+            },
+        ],
+        agenda_rows=[
+            {
+                "agenda_item_id": "formal_gap:source_theorem_repair",
+                "owner_subsystem": "FormalizationEvaluator",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        ],
+    )
+
+    assert summary["n_runtime_route_critical_target_identity_rows"] == 2
+    assert summary["n_runtime_route_critical_rows_missing_target_ids"] == 1
+    missing = summary["runtime_route_critical_rows_missing_target_ids"][0]
+    assert missing["channel"] == "runtime_learning_rows"
+    assert missing["row_id"] == "proof_feedback:targetless"
+    assert missing["target_hint"] == (
+        "target_theorem_name=split_conformal_finite_sample_coverage"
+    )
+
+
+def test_runtime_target_identity_audit_prefers_pending_memory_over_history() -> None:
+    summary = _runtime_target_identity_audit_summary(
+        pending_memory_rows=[
+            {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "runtime_learning_row_id": "proof_feedback:current",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        ],
+        learning_rows=[
+            {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "runtime_learning_row_id": "proof_feedback:historical-targetless",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+            }
+        ],
+        agenda_rows=[],
+    )
+
+    assert summary["n_runtime_route_critical_target_identity_rows"] == 1
+    assert summary["n_runtime_route_critical_rows_missing_target_ids"] == 0
+    assert summary["runtime_route_critical_target_identity_channels"] == [
+        "runtime_pending_task_memory"
+    ]
+
+
+def test_runtime_capability_scorecard_flags_route_critical_targetless_rows() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows["route_critical_target_ids_complete"]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "n_runtime_route_critical_target_identity_rows": 2,
+            "n_runtime_route_critical_rows_missing_target_ids": 1,
+            "runtime_route_critical_target_identity_channels": [
+                "runtime_learning_rows"
+            ],
+            "runtime_route_critical_rows_missing_target_ids": [
+                {
+                    "channel": "runtime_learning_rows",
+                    "row_id": "proof_feedback:targetless",
+                    "learning_task": (
+                        "source_to_bridge_premise_derivation_feedback"
+                    ),
+                    "target_hint": (
+                        "target_theorem_name="
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                }
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    target_score = rows["route_critical_target_ids_complete"]
+
+    assert target_score["passed"] is False
+    assert "proof_feedback:targetless" in target_score["evidence"]
+    assert "top-level target_ids" in target_score["blocker"]
 
 
 def _structured_theory_trace_alignment_fixture() -> dict[str, object]:

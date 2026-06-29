@@ -134,6 +134,15 @@ def audit_research_agent_runtime(
     progress_path = _resolve_path(runtime_dir, artifacts.get("runtime_progress_jsonl", ""))
     agenda_path = _resolve_path(runtime_dir, artifacts.get("runtime_next_action_agenda_jsonl", ""))
     learning_path = _resolve_path(runtime_dir, artifacts.get("runtime_learning_rows_jsonl", ""))
+    pending_task_raw_path = artifacts.get("runtime_pending_next_task_json", "")
+    pending_task_payload = (
+        _load_json(_resolve_path(runtime_dir, pending_task_raw_path), errors)
+        if str(pending_task_raw_path or "").strip()
+        else {}
+    )
+    runtime_pending_task_memory_rows = _runtime_pending_task_memory_rows(
+        pending_task_payload
+    )
     trace_rows = _load_jsonl(trace_path, errors, required=True)
     progress_rows = _load_jsonl(
         progress_path,
@@ -178,6 +187,15 @@ def audit_research_agent_runtime(
             learning_rows=learning_rows,
             agenda_rows=agenda_rows,
         )
+    )
+    runtime_target_identity_summary = _runtime_target_identity_audit_summary(
+        pending_memory_rows=(
+            runtime_pending_task_memory_rows
+            if str(pending_task_raw_path or "").strip()
+            else None
+        ),
+        learning_rows=learning_rows,
+        agenda_rows=agenda_rows,
     )
     result_errors = [
         {
@@ -300,6 +318,7 @@ def audit_research_agent_runtime(
         "n_runtime_traces": len(trace_rows),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_runtime_pending_task_memory_rows": len(runtime_pending_task_memory_rows),
         "n_runtime_handoff_artifact_missing_feedback_rows": int(
             runtime_handoff_artifact_missing_summary[
                 "n_runtime_handoff_artifact_missing_feedback_rows"
@@ -333,6 +352,31 @@ def audit_research_agent_runtime(
         "runtime_handoff_artifact_missing_boundary": str(
             runtime_handoff_artifact_missing_summary[
                 "runtime_handoff_artifact_missing_boundary"
+            ]
+        ),
+        "n_runtime_route_critical_target_identity_rows": int(
+            runtime_target_identity_summary[
+                "n_runtime_route_critical_target_identity_rows"
+            ]
+        ),
+        "n_runtime_route_critical_rows_missing_target_ids": int(
+            runtime_target_identity_summary[
+                "n_runtime_route_critical_rows_missing_target_ids"
+            ]
+        ),
+        "runtime_route_critical_rows_missing_target_ids": list(
+            runtime_target_identity_summary[
+                "runtime_route_critical_rows_missing_target_ids"
+            ]
+        ),
+        "runtime_route_critical_target_identity_channels": list(
+            runtime_target_identity_summary[
+                "runtime_route_critical_target_identity_channels"
+            ]
+        ),
+        "runtime_route_critical_target_identity_boundary": str(
+            runtime_target_identity_summary[
+                "runtime_route_critical_target_identity_boundary"
             ]
         ),
         "n_runtime_theorem_reduction_closure_work_orders": int(
@@ -2633,6 +2677,286 @@ def _sorted_row_values(rows: list[Any], *keys: str) -> list[str]:
     return sorted(values)
 
 
+def _runtime_target_identity_audit_summary(
+    *,
+    agenda_rows: list[Any],
+    pending_memory_rows: list[Any] | None = None,
+    learning_rows: list[Any] | None = None,
+) -> dict[str, Any]:
+    missing_rows: list[dict[str, str]] = []
+    route_critical_rows = 0
+    channels: set[str] = set()
+    row_sources: list[tuple[str, list[Any]]] = []
+    if pending_memory_rows is not None:
+        row_sources.append(("runtime_pending_task_memory", pending_memory_rows))
+    else:
+        row_sources.append(("runtime_learning_rows", learning_rows or []))
+    row_sources.append(("runtime_next_action_agenda", agenda_rows))
+    for channel, rows in row_sources:
+        for index, row in enumerate(rows):
+            if not _runtime_route_row_requires_target_identity(row):
+                continue
+            if (
+                channel in {"runtime_learning_rows", "runtime_pending_task_memory"}
+                and not _runtime_route_row_has_target_identity_hint(row)
+            ):
+                continue
+            route_critical_rows += 1
+            channels.add(channel)
+            if _runtime_route_row_has_top_level_target_ids(row):
+                continue
+            missing_rows.append(
+                {
+                    "channel": channel,
+                    "index": str(index),
+                    "row_id": _runtime_route_row_identifier(row),
+                    "learning_task": _runtime_route_row_field(row, "learning_task"),
+                    "trigger": _runtime_route_row_trigger_value(row),
+                    "owner_subsystem": _runtime_route_row_field(
+                        row,
+                        "owner_subsystem",
+                        "next_owner_subsystem",
+                    ),
+                    "target_hint": _runtime_route_row_target_hint(row),
+                }
+            )
+    return {
+        "n_runtime_route_critical_target_identity_rows": route_critical_rows,
+        "n_runtime_route_critical_rows_missing_target_ids": len(missing_rows),
+        "runtime_route_critical_rows_missing_target_ids": missing_rows[:25],
+        "runtime_route_critical_target_identity_channels": sorted(channels),
+        "runtime_route_critical_target_identity_boundary": (
+            "route-critical proof/formal agenda and learning rows must carry "
+            "top-level target_ids before they are reused as AgentRuntime memory "
+            "or handoff instructions; targetless rows are orchestration context "
+            "only and cannot justify source-theorem proof progress"
+        ),
+    }
+
+
+def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
+    pending_task = (
+        payload.get("pending_next_task", {})
+        if isinstance(payload.get("pending_next_task", {}), Mapping)
+        else {}
+    )
+    inputs = (
+        pending_task.get("inputs", {})
+        if isinstance(pending_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    memory = (
+        context.get("runtime_learning_memory", {})
+        if isinstance(context.get("runtime_learning_memory", {}), Mapping)
+        else {}
+    )
+    rows = memory.get("rows", [])
+    return list(rows) if isinstance(rows, list) else []
+
+
+def _runtime_route_row_requires_target_identity(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    text = " ".join(
+        str(value)
+        for value in (
+            row.get("learning_task", ""),
+            row.get("trigger", ""),
+            row.get("id", ""),
+            row.get("agenda_item_id", ""),
+            row.get("work_order_id", ""),
+            row.get("gap_id", ""),
+            row.get("route_reason", ""),
+            row.get("target_behavior", ""),
+            row.get("acceptance_gate", ""),
+            row.get("runtime_queue_status", ""),
+            row.get("proof_evidence_status", ""),
+            row.get("owner_subsystem", ""),
+            row.get("next_owner_subsystem", ""),
+        )
+        if str(value).strip()
+    ).lower()
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    text += " " + " ".join(
+        str(input_summary.get(key, ""))
+        for key in (
+            "trigger",
+            "learning_task",
+            "runtime_queue_status",
+            "proof_evidence_status",
+            "target_behavior",
+            "acceptance_gate",
+        )
+        if str(input_summary.get(key, "")).strip()
+    ).lower()
+    target_identity_markers = (
+        "source_theorem",
+        "source-to-bridge",
+        "source_to_bridge",
+        "formalizer",
+        "formalization",
+        "formal_gap",
+        "proof_body",
+        "proof-bank",
+        "proof_bank",
+        "semantic_definition",
+        "semantic-definition",
+        "semantic_primitive",
+        "semantic-primitive",
+        "theorem_reduction",
+        "lean_candidate",
+        "lean-candidate",
+        "proof_feedback",
+    )
+    if any(marker in text for marker in target_identity_markers):
+        return True
+    for key in (
+        "target_theorem_name",
+        "target_lean_declaration",
+        "source_theorem_goal_id",
+        "source_theorem_target_provenance",
+        "target_theorem_goal_ids",
+        "candidate_definition_request",
+        "source_to_bridge_premise_derivation_candidate_request",
+        "placeholder_symbol",
+        "premise_name",
+        "proof_body_gate_status",
+    ):
+        value = row.get(key)
+        if value not in (None, "", [], {}):
+            return True
+    return False
+
+
+def _runtime_route_row_has_top_level_target_ids(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    return any(str(value).strip() for value in row.get("target_ids", []) or [])
+
+
+def _runtime_route_row_has_target_identity_hint(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    learning_task = str(row.get("learning_task", "") or "").strip()
+    formalizer_candidate_feedback = learning_task in {
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
+    }
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    if formalizer_candidate_feedback:
+        for source in (row, input_summary, provenance):
+            for key in ("target_theorem_goal_ids", "target_ids"):
+                if any(str(value).strip() for value in source.get(key, []) or []):
+                    return True
+            for key in ("source_theorem_goal_id", "target_id", "target_theorem_name"):
+                if str(source.get(key, "") or "").strip():
+                    return True
+        return bool(row.get("source_theorem_target_known")) and bool(
+            str(row.get("target_lean_declaration", "") or "").strip()
+        )
+    for source in (row, input_summary, provenance):
+        for key in (
+            "target_theorem_name",
+            "target_lean_declaration",
+            "source_theorem_goal_id",
+            "target_id",
+        ):
+            if str(source.get(key, "") or "").strip():
+                return True
+        for key in ("target_theorem_goal_ids", "target_ids"):
+            if any(str(value).strip() for value in source.get(key, []) or []):
+                return True
+    return False
+
+
+def _runtime_route_row_identifier(row: Any) -> str:
+    return _runtime_route_row_field(
+        row,
+        "runtime_learning_row_id",
+        "learning_row_id",
+        "agenda_item_id",
+        "work_order_id",
+        "id",
+        "gap_id",
+    )
+
+
+def _runtime_route_row_field(row: Any, *keys: str) -> str:
+    if not isinstance(row, Mapping):
+        return ""
+    for key in keys:
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _runtime_route_row_trigger_value(row: Any) -> str:
+    trigger = _runtime_route_row_field(row, "trigger")
+    if trigger:
+        return trigger
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row, Mapping)
+        and isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    return str(input_summary.get("trigger", "") or "").strip()
+
+
+def _runtime_route_row_target_hint(row: Any) -> str:
+    if not isinstance(row, Mapping):
+        return ""
+    values: list[str] = []
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    for source in (row, input_summary, provenance):
+        for key in (
+            "target_theorem_name",
+            "target_lean_declaration",
+            "source_theorem_goal_id",
+            "target_id",
+        ):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                values.append(f"{key}={value}")
+        for key in ("target_theorem_goal_ids", "target_ids"):
+            row_values = [
+                str(value).strip()
+                for value in source.get(key, []) or []
+                if str(value).strip()
+            ]
+            if row_values:
+                values.append(f"{key}={row_values}")
+    return " ".join(dict.fromkeys(values))
+
+
 def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]:
     proof_obligation_ids: list[str] = []
     source_semantic_ids: list[str] = []
@@ -3239,6 +3563,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
+    runtime_route_missing_target_ids_count = int(
+        payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
+    )
     primary_typechecked_review_required = bool(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
@@ -3474,6 +3801,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "did not all bind their proposal artifacts to supported theory "
                 "derivation anchors; supplied context is not yet auditable as a "
                 "theory-to-artifact handoff"
+            ),
+        ),
+        _scorecard_row(
+            "route_critical_target_ids_complete",
+            runtime_route_missing_target_ids_count <= 0,
+            (
+                "route_critical_rows="
+                f"{payload.get('n_runtime_route_critical_target_identity_rows')} "
+                "missing_target_ids="
+                f"{payload.get('n_runtime_route_critical_rows_missing_target_ids')} "
+                "channels="
+                f"{payload.get('runtime_route_critical_target_identity_channels')} "
+                "sample_missing="
+                f"{payload.get('runtime_route_critical_rows_missing_target_ids')}"
+            ),
+            (
+                "route-critical proof/formal agenda or learning rows lacked "
+                "top-level target_ids; preserve source-theorem target identity "
+                "before reusing runtime memory or handoff instructions"
             ),
         ),
         _scorecard_row(
