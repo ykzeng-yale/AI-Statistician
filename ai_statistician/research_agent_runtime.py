@@ -1761,6 +1761,177 @@ def _runtime_theory_trace_feedback_rows(
     return [learning_row], [agenda_row]
 
 
+def _runtime_handoff_artifact_missing_feedback_rows(
+    *,
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    learning_rows: list[dict[str, Any]] = []
+    agenda_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for result in results:
+        traces = result.get("traces", [])
+        if not isinstance(traces, list):
+            continue
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            for observation in trace.get("observations", []) or []:
+                if not isinstance(observation, Mapping):
+                    continue
+                if (
+                    str(observation.get("observation_type", "") or "")
+                    != "runtime_handoff_artifact_missing"
+                ):
+                    continue
+                feedback = (
+                    observation.get("payload", {})
+                    if isinstance(observation.get("payload", {}), Mapping)
+                    else {}
+                )
+                if (
+                    str(feedback.get("artifact_kind", "") or "")
+                    != "RuntimeHandoffArtifactMissingFeedback"
+                ):
+                    continue
+                result_question = (
+                    result.get("question", {})
+                    if isinstance(result.get("question", {}), Mapping)
+                    else {}
+                )
+                trace_task = (
+                    trace.get("task", {})
+                    if isinstance(trace.get("task", {}), Mapping)
+                    else {}
+                )
+                question_id = str(
+                    feedback.get("question_id", "")
+                    or result_question.get("id", "")
+                    or ""
+                ).strip()
+                missing_artifact_id = str(
+                    feedback.get("missing_artifact_id", "") or ""
+                ).strip()
+                missing_role = str(
+                    feedback.get("missing_artifact_role", "") or ""
+                ).strip()
+                repair_owner = str(
+                    feedback.get("repair_owner_agent", "")
+                    or feedback.get("next_owner_subsystem", "")
+                    or ""
+                ).strip()
+                if not missing_artifact_id or not repair_owner:
+                    continue
+                key = (
+                    question_id,
+                    missing_artifact_id,
+                    missing_role,
+                    repair_owner,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                failure_classifications = [
+                    str(value)
+                    for value in feedback.get("failure_classifications", []) or []
+                    if str(value).strip()
+                ]
+                if not failure_classifications and missing_role:
+                    failure_classifications = [f"missing_{missing_role}"]
+                work_order_id = stable_hash(
+                    {
+                        "learning_task": "runtime_handoff_artifact_missing_feedback",
+                        "question_id": question_id,
+                        "missing_artifact_id": missing_artifact_id,
+                        "missing_artifact_role": missing_role,
+                        "repair_owner_agent": repair_owner,
+                    }
+                )[:16]
+                target_behavior = (
+                    str(feedback.get("required_repair", "") or "").strip()
+                    or (
+                        f"{repair_owner} must regenerate or rehydrate "
+                        f"{missing_artifact_id} before downstream work resumes."
+                    )
+                )
+                acceptance_gate = str(
+                    feedback.get("acceptance_gate", "") or ""
+                ).strip() or (
+                    "The requested upstream runtime artifact is present in the "
+                    "blackboard and the downstream task consumes that exact id."
+                )
+                input_summary = {
+                    "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+                    "source_subsystem": str(
+                        feedback.get("feedback_source", "")
+                        or trace.get("subsystem", "")
+                        or ""
+                    ),
+                    "source_task_id": str(
+                        feedback.get("source_task_id", "")
+                        or trace_task.get("task_id", "")
+                        or ""
+                    ),
+                    "missing_artifact_id": missing_artifact_id,
+                    "missing_artifact_role": missing_role,
+                    "expected_artifact_kind": str(
+                        feedback.get("expected_artifact_kind", "") or ""
+                    ),
+                    "repair_owner_agent": repair_owner,
+                    "failure_classifications": list(failure_classifications),
+                }
+                learning_row = {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "RuntimeLearningRow",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "question_id": question_id,
+                    "learning_task": "runtime_handoff_artifact_missing_feedback",
+                    "work_order_id": work_order_id,
+                    "next_owner_subsystem": repair_owner,
+                    "missing_artifact_id": missing_artifact_id,
+                    "missing_artifact_role": missing_role,
+                    "expected_artifact_kind": str(
+                        feedback.get("expected_artifact_kind", "") or ""
+                    ),
+                    "failure_classifications": list(failure_classifications),
+                    "input_summary": input_summary,
+                    "target_behavior": target_behavior,
+                    "acceptance_gate": acceptance_gate,
+                    "proof_evidence_status": (
+                        "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "boundary": (
+                        "This row is runtime handoff-recovery memory. It is not "
+                        "simulation evidence, code execution evidence, formalization "
+                        "evidence, or Lean/kernel theorem proof."
+                    ),
+                }
+                agenda_row = {
+                    "id": f"runtime_handoff_missing:{work_order_id}",
+                    "question_id": question_id,
+                    "owner_subsystem": repair_owner,
+                    "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+                    "action": target_behavior,
+                    "acceptance_gate": acceptance_gate,
+                    "work_order_id": work_order_id,
+                    "missing_artifact_id": missing_artifact_id,
+                    "missing_artifact_role": missing_role,
+                    "expected_artifact_kind": str(
+                        feedback.get("expected_artifact_kind", "") or ""
+                    ),
+                    "failure_classifications": list(failure_classifications),
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                    "boundary": (
+                        "This agenda row routes an AgentRuntime handoff recovery. "
+                        "It cannot prove a theorem or promote a missing artifact "
+                        "to evidence."
+                    ),
+                }
+                learning_rows.append(learning_row)
+                agenda_rows.append(agenda_row)
+    return learning_rows, agenda_rows
+
+
 def _runtime_research_acceptance_contract_from_manifest(
     manifest: Mapping[str, Any],
     *,
@@ -22110,6 +22281,15 @@ def run_research_agent_runtime(
     if theory_trace_feedback_agenda_rows:
         agenda_rows.extend(theory_trace_feedback_agenda_rows)
         generated_next_action_rows.extend(theory_trace_feedback_agenda_rows)
+    (
+        handoff_artifact_feedback_learning_rows,
+        handoff_artifact_feedback_agenda_rows,
+    ) = _runtime_handoff_artifact_missing_feedback_rows(results=results)
+    if handoff_artifact_feedback_learning_rows:
+        learning_rows.extend(handoff_artifact_feedback_learning_rows)
+    if handoff_artifact_feedback_agenda_rows:
+        agenda_rows.extend(handoff_artifact_feedback_agenda_rows)
+        generated_next_action_rows.extend(handoff_artifact_feedback_agenda_rows)
     architect_recommended_formal_verification_policy = (
         _runtime_architect_recommended_formal_verification_policy(results)
     )
@@ -22281,6 +22461,12 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_theory_trace_feedback_next_action_rows"] = len(
         theory_trace_feedback_agenda_rows
+    )
+    manifest["n_runtime_handoff_artifact_feedback_learning_rows"] = len(
+        handoff_artifact_feedback_learning_rows
+    )
+    manifest["n_runtime_handoff_artifact_feedback_next_action_rows"] = len(
+        handoff_artifact_feedback_agenda_rows
     )
     manifest["n_runtime_architect_orchestration_feedback_learning_rows"] = len(
         architect_orchestration_feedback_learning_rows
@@ -22920,6 +23106,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 91
     if learning_task == "architect_orchestration_feedback":
         return 90
+    if learning_task == "runtime_handoff_artifact_missing_feedback":
+        return 89
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
             row,
@@ -23213,6 +23401,36 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + architect_status
         )
+    if learning_task == "runtime_handoff_artifact_missing_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        missing_artifact_id = str(
+            row.get("missing_artifact_id", "")
+            or input_summary.get("missing_artifact_id", "")
+            or ""
+        ).strip()
+        repair_owner = str(
+            row.get("next_owner_subsystem", "")
+            or row.get("repair_owner_agent", "")
+            or input_summary.get("repair_owner_agent", "")
+            or ""
+        ).strip()
+        return (
+            "runtime_handoff_artifact_missing_feedback:"
+            + question_id
+            + ":"
+            + missing_artifact_id
+            + ":"
+            + repair_owner
+            + ":"
+            + work_order_id
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -23237,6 +23455,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "formalizer_lean_candidate_proof_state_feedback",
         "theory_derivation_trace_feedback",
         "architect_orchestration_feedback",
+        "runtime_handoff_artifact_missing_feedback",
     }
     route_critical_triggers = {
         "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
@@ -23247,6 +23466,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
         "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
         "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
+        "RUNTIME_HANDOFF_ARTIFACT_MISSING",
     }
     if learning_task in route_critical_learning_tasks:
         return True

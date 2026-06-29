@@ -3075,6 +3075,52 @@ def test_runtime_learning_memory_pins_architect_orchestration_feedback() -> None
     )
 
 
+def test_runtime_learning_memory_pins_handoff_artifact_feedback() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "runtime_handoff_artifact_missing_feedback",
+            "work_order_id": "handoff-work-order",
+            "next_owner_subsystem": "SimulationEvaluator",
+            "missing_artifact_id": "simulation_manifest:missing",
+            "missing_artifact_role": "simulation_manifest",
+            "input_summary": {
+                "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+                "missing_artifact_id": "simulation_manifest:missing",
+                "repair_owner_agent": "SimulationEvaluator",
+            },
+            "proof_evidence_status": (
+                "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "generic_runtime_note",
+            "input_summary": {"trigger": "LOW_PRIORITY_NOTE"},
+        },
+    ]
+
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        rows,
+        max_rows=1,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == "runtime_handoff_artifact_missing_feedback"
+    assert retained["next_owner_subsystem"] == "SimulationEvaluator"
+    assert retained["missing_artifact_id"] == "simulation_manifest:missing"
+    assert retained["proof_evidence_status"] == (
+        "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_repairs() -> None:
     pending_task = {
         "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
@@ -14346,6 +14392,87 @@ def test_runtime_theory_trace_feedback_rows_skip_complete_structured_trace() -> 
     }
 
     assert _runtime_theory_trace_feedback_rows(manifest=manifest) == ([], [])
+
+
+def test_runtime_handoff_artifact_missing_feedback_rows_route_to_producer() -> None:
+    results = [
+        {
+            "question": {"id": "conformal_prediction_coverage"},
+            "traces": [
+                {
+                    "subsystem": "AlgorithmEngineer",
+                    "task": {"task_id": "algorithm:missing-simulation"},
+                    "observations": [
+                        {
+                            "observation_type": (
+                                "runtime_handoff_artifact_missing"
+                            ),
+                            "payload": {
+                                "artifact_kind": (
+                                    "RuntimeHandoffArtifactMissingFeedback"
+                                ),
+                                "feedback_source": "AlgorithmEngineer",
+                                "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+                                "question_id": (
+                                    "conformal_prediction_coverage"
+                                ),
+                                "source_task_id": (
+                                    "algorithm:missing-simulation"
+                                ),
+                                "missing_artifact_id": (
+                                    "simulation_manifest:missing"
+                                ),
+                                "missing_artifact_role": "simulation_manifest",
+                                "expected_artifact_kind": (
+                                    "RuntimeSimulationManifest"
+                                ),
+                                "repair_owner_agent": "SimulationEvaluator",
+                                "failure_classifications": [
+                                    "missing_simulation_manifest"
+                                ],
+                                "required_repair": (
+                                    "SimulationEvaluator must regenerate the "
+                                    "missing simulation handoff."
+                                ),
+                                "acceptance_gate": (
+                                    "requested simulation manifest is present"
+                                ),
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    learning_rows, agenda_rows = (
+        runtime_module._runtime_handoff_artifact_missing_feedback_rows(
+            results=results
+        )
+    )
+
+    assert len(learning_rows) == 1
+    learning_row = learning_rows[0]
+    assert learning_row["learning_task"] == (
+        "runtime_handoff_artifact_missing_feedback"
+    )
+    assert learning_row["next_owner_subsystem"] == "SimulationEvaluator"
+    assert learning_row["missing_artifact_id"] == "simulation_manifest:missing"
+    assert learning_row["missing_artifact_role"] == "simulation_manifest"
+    assert learning_row["input_summary"]["trigger"] == (
+        "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+    )
+    assert learning_row["proof_evidence_status"] == (
+        "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+    assert len(agenda_rows) == 1
+    agenda_row = agenda_rows[0]
+    assert agenda_row["owner_subsystem"] == "SimulationEvaluator"
+    assert agenda_row["trigger"] == "RUNTIME_HANDOFF_ARTIFACT_MISSING"
+    assert agenda_row["work_order_id"] == learning_row["work_order_id"]
+    assert agenda_row["missing_artifact_id"] == "simulation_manifest:missing"
+    assert "cannot prove a theorem" in agenda_row["boundary"]
 
 
 def test_runtime_architect_orchestration_feedback_rows_route_resume_review() -> None:
