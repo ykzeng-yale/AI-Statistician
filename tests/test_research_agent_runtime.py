@@ -3629,6 +3629,37 @@ def test_runtime_learning_memory_pins_formal_gap_planner_routing(
                 "standalone_seed_artifact_id": (
                     "runtime_formalization_gap_planner_standalone_seed:one"
                 ),
+                "formalization_gap_planner_handoff_id": (
+                    "runtime_formalization_gap_planner_handoff:one"
+                ),
+                "formalization_gap_planner_execution_contexts": [
+                    {
+                        "bridge_id": "runtime_formalization_gap_planner_bridge:one",
+                        "handoff_id": "runtime_formalization_gap_planner_handoff:one",
+                        "standalone_seed_artifact_id": (
+                            "runtime_formalization_gap_planner_standalone_seed:one"
+                        ),
+                        "standalone_seed_path": "runs/seed-one.json",
+                        "target_intake_path": "runs/target-intake-one.json",
+                        "llm_route_planner_prompt_cli": (
+                            "python3 -m ai_statistician.cli "
+                            "formalization-gap-planner-llm-route-planner "
+                            "--input runs/seed-one.json --out runs/prompt-one"
+                        ),
+                        "llm_route_planner_live_cli": (
+                            "python3 -m ai_statistician.cli "
+                            "formalization-gap-planner-llm-route-planner "
+                            "--input runs/seed-one.json --invoke-provider "
+                            "--out runs/live-one"
+                        ),
+                        "reuse_smoke_cli": (
+                            "python3 -m ai_statistician.cli "
+                            "formalization-gap-planner-reuse-smoke "
+                            "--input runs/target-intake-one.json "
+                            "--out runs/reuse-smoke-one"
+                        ),
+                    }
+                ],
             },
             "target_behavior": "stage planner packets before broad theory expansion",
             "acceptance_gate": (
@@ -3668,6 +3699,12 @@ def test_runtime_learning_memory_pins_formal_gap_planner_routing(
     assert planner_row["input_summary"]["standalone_seed_artifact_id"] == (
         "runtime_formalization_gap_planner_standalone_seed:one"
     )
+    assert planner_row["input_summary"]["formalization_gap_planner_handoff_id"] == (
+        "runtime_formalization_gap_planner_handoff:one"
+    )
+    assert planner_row["input_summary"][
+        "formalization_gap_planner_execution_contexts"
+    ][0]["llm_route_planner_prompt_cli"].endswith("--out runs/prompt-one")
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
@@ -3691,6 +3728,58 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
                     "standalone_seed_artifact_id": (
                         "runtime_formalization_gap_planner_standalone_seed:one"
                     ),
+                    "formalization_gap_planner_handoff_id": (
+                        "runtime_formalization_gap_planner_handoff:one"
+                    ),
+                    "formalization_gap_planner_execution_contexts": [
+                        {
+                            "bridge_id": (
+                                "runtime_formalization_gap_planner_bridge:one"
+                            ),
+                            "handoff_id": (
+                                "runtime_formalization_gap_planner_handoff:one"
+                            ),
+                            "standalone_seed_artifact_id": (
+                                "runtime_formalization_gap_planner_standalone_seed:one"
+                            ),
+                            "standalone_seed_path": "runs/seed-one.json",
+                            "target_intake_path": "runs/target-intake-one.json",
+                            "standalone_plan_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-standalone-plan "
+                                "--input runs/seed-one.json --out runs/standalone-one"
+                            ),
+                            "target_intake_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-target-intake "
+                                "--input runs/target-intake-one.json "
+                                "--out runs/target-intake-one"
+                            ),
+                            "llm_route_planner_prompt_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                "--input runs/seed-one.json --out runs/prompt-one"
+                            ),
+                            "llm_route_planner_live_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-llm-route-planner "
+                                "--input runs/seed-one.json --invoke-provider "
+                                "--out runs/live-one"
+                            ),
+                            "reuse_smoke_cli": (
+                                "python3 -m ai_statistician.cli "
+                                "formalization-gap-planner-reuse-smoke "
+                                "--input runs/target-intake-one.json "
+                                "--out runs/reuse-smoke-one"
+                            ),
+                            "execution_plan_stage_ids": [
+                                "standalone_plan",
+                                "llm_route_planner_prompt",
+                                "llm_route_planner_live_optional",
+                                "reuse_smoke",
+                            ],
+                        }
+                    ],
                 },
                 "target_behavior": (
                     "stage planner packets before broad theory expansion"
@@ -3722,9 +3811,21 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
     assert summary["formalization_gap_planner_standalone_seed_artifact_ids"] == [
         "runtime_formalization_gap_planner_standalone_seed:one"
     ]
+    assert summary["formalization_gap_planner_handoff_ids"] == [
+        "runtime_formalization_gap_planner_handoff:one"
+    ]
+    assert summary["formalization_gap_planner_execution_contexts"][0][
+        "llm_route_planner_prompt_cli"
+    ].endswith("--out runs/prompt-one")
+    assert "llm_route_planner_prompt" in summary[
+        "formalization_gap_planner_execution_plan_stage_ids"
+    ]
     assert summary["formal_gap_next_action_contract"]["proof_evidence_status"] == (
         "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE"
     )
+    assert summary["formal_gap_next_action_contract"][
+        "formalization_gap_planner_execution_contexts"
+    ][0]["reuse_smoke_cli"].endswith("--out runs/reuse-smoke-one")
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -3740,6 +3841,8 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
     assert "Formal-gap next-action routing is active" in prompt
     assert "runtime_formalization_gap_planner_bridge:one" in prompt
     assert "runtime_formalization_gap_planner_standalone_seed:one" in prompt
+    assert "formalization-gap-planner-llm-route-planner" in prompt
+    assert "formalization-gap-planner-reuse-smoke" in prompt
     assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
     assert "target-prover replay preserve proof boundaries" in prompt
 
@@ -3764,6 +3867,36 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
                 "standalone_seed_artifact_id": (
                     "runtime_formalization_gap_planner_standalone_seed:same_turn"
                 ),
+                "formalization_gap_planner_handoff_id": (
+                    "runtime_formalization_gap_planner_handoff:same_turn"
+                ),
+                "formalization_gap_planner_execution_contexts": [
+                    {
+                        "bridge_id": (
+                            "runtime_formalization_gap_planner_bridge:same_turn"
+                        ),
+                        "handoff_id": (
+                            "runtime_formalization_gap_planner_handoff:same_turn"
+                        ),
+                        "standalone_seed_artifact_id": (
+                            "runtime_formalization_gap_planner_standalone_seed:same_turn"
+                        ),
+                        "standalone_seed_path": "runs/same-turn-seed.json",
+                        "target_intake_path": "runs/same-turn-target-intake.json",
+                        "llm_route_planner_prompt_cli": (
+                            "python3 -m ai_statistician.cli "
+                            "formalization-gap-planner-llm-route-planner "
+                            "--input runs/same-turn-seed.json "
+                            "--out runs/same-turn-prompt"
+                        ),
+                        "reuse_smoke_cli": (
+                            "python3 -m ai_statistician.cli "
+                            "formalization-gap-planner-reuse-smoke "
+                            "--input runs/same-turn-target-intake.json "
+                            "--out runs/same-turn-reuse-smoke"
+                        ),
+                    }
+                ],
                 "proof_boundary": (
                     runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
                 ),
@@ -3790,6 +3923,9 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert summary["formal_gap_next_action_diagnostics"][0][
         "proof_evidence_status"
     ] == "FORMAL_GAP_NEXT_ACTION_AGENDA_NOT_PROOF_EVIDENCE"
+    assert summary["formal_gap_next_action_diagnostics"][0][
+        "formalization_gap_planner_execution_contexts"
+    ][0]["standalone_seed_path"] == "runs/same-turn-seed.json"
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -3806,6 +3942,8 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert "Formal-gap next-action routing is active" in prompt
     assert "runtime_formalization_gap_planner_bridge:same_turn" in prompt
     assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in prompt
+    assert "runs/same-turn-prompt" in prompt
+    assert "formalization-gap-planner-reuse-smoke" in prompt
     assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
 
     direct_prompt = build_formalizer_prompt(
@@ -3822,6 +3960,7 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert "Formal-gap next-action routing is active" in direct_prompt
     assert "runtime_formalization_gap_planner_bridge:same_turn" in direct_prompt
     assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in direct_prompt
+    assert "runs/same-turn-prompt" in direct_prompt
 
 
 def test_runtime_learning_memory_loader_prioritizes_verified_adapter_feedback(
@@ -44887,6 +45026,68 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "formal_gap:gap_planner_handoff" in agenda_ids
     assert "proof_feedback:kernel_rerun" in agenda_ids
     assert "algorithm:prototype_review" in agenda_ids
+    runtime_agenda_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    runtime_gap_planner_agenda = next(
+        row
+        for row in runtime_agenda_rows
+        if row["id"] == "formal_gap:gap_planner_handoff"
+    )
+    runtime_gap_planner_agenda_context = next(
+        context
+        for context in runtime_gap_planner_agenda[
+            "formalization_gap_planner_execution_contexts"
+        ]
+        if context["handoff_id"] == handoff["handoff_id"]
+    )
+    assert runtime_gap_planner_agenda_context[
+        "llm_route_planner_prompt_cli"
+    ] == handoff["llm_route_planner_prompt_cli"]
+    assert runtime_gap_planner_agenda_context["reuse_smoke_cli"] == handoff[
+        "reuse_smoke_cli"
+    ]
+    assert runtime_gap_planner_agenda[
+        "formalization_gap_planner_execution_plan_stage_ids"
+    ] == [
+        "standalone_plan",
+        "target_intake",
+        "component_resource_registry",
+        "llm_route_planner_prompt",
+        "llm_route_planner_live_optional",
+        "reuse_smoke",
+    ]
+    runtime_learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    runtime_gap_planner_learning = next(
+        row
+        for row in runtime_learning_rows
+        if row.get("learning_task") == "next_action_routing"
+        and row.get("input_summary", {}).get("agenda_id")
+        == "formal_gap:gap_planner_handoff"
+    )
+    runtime_gap_planner_learning_context = next(
+        context
+        for context in runtime_gap_planner_learning["input_summary"][
+            "formalization_gap_planner_execution_contexts"
+        ]
+        if context["handoff_id"] == handoff["handoff_id"]
+    )
+    assert runtime_gap_planner_learning_context["target_intake_path"] == handoff[
+        "target_intake_path"
+    ]
+    assert runtime_gap_planner_learning_context[
+        "llm_route_planner_live_cli"
+    ] == handoff["llm_route_planner_live_cli"]
     assert critic_manifest["learning_rows"]
     feedback_memory = next(
         row

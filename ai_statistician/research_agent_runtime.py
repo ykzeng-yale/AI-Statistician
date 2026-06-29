@@ -14022,10 +14022,22 @@ def run_research_agent_runtime(
         gap_planner_bridge_rows,
         runtime_out_dir=out_dir,
     )
+    gap_planner_execution_context_rows = [
+        *gap_planner_bridge_rows,
+        *gap_planner_handoff_rows,
+    ]
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        agenda_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        learning_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
     gap_planner_target_ids = list(
         dict.fromkeys(
             target_id
-            for row in [*gap_planner_bridge_rows, *gap_planner_handoff_rows]
+            for row in gap_planner_execution_context_rows
             for target_id in _runtime_formalization_gap_planner_bridge_target_ids(row)
             if target_id
         )
@@ -24514,7 +24526,23 @@ def run_research_agent_runtime(
         [*stale_gap_pruning_evidence_rows, *generated_next_action_rows],
         generated_routing_only=True,
     )
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        agenda_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        learning_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        generated_next_action_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
     agenda_rows[:] = _dedupe_runtime_next_action_agenda_rows(agenda_rows)
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        agenda_rows,
+        context_rows=gap_planner_execution_context_rows,
+    )
     _write_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     manifest.setdefault(
@@ -25047,6 +25075,353 @@ def _runtime_learning_row_string_values(
     values.extend(_runtime_row_string_values(row, *keys))
     values.extend(_runtime_row_string_values(input_summary, *keys))
     return tuple(dict.fromkeys(value for value in values if value))
+
+
+_FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS = (
+    "bridge_id",
+    "formalization_gap_planner_bridge_id",
+    "handoff_id",
+    "formalization_gap_planner_handoff_id",
+    "standalone_seed_artifact_id",
+    "formalization_gap_planner_standalone_seed_artifact_id",
+    "standalone_seed_path",
+    "standalone_seed_artifact_path",
+    "target_intake_path",
+    "target_intake_dir",
+    "target_intake_cli",
+    "component_resource_registry_dir",
+    "component_resource_registry_cli",
+    "standalone_plan_dir",
+    "standalone_plan_cli",
+    "llm_route_planner_prompt_cli",
+    "next_llm_route_planner_prompt_cli",
+    "llm_route_planner_live_cli",
+    "next_llm_route_planner_live_cli",
+    "reuse_smoke_cli",
+    "next_reuse_smoke_cli",
+    "execution_plan_stage_ids",
+    "formalization_gap_planner_execution_plan_stage_ids",
+    "recommended_llm_provider",
+    "recommended_model_tier",
+    "target_prover_family",
+    "library_snapshot_ref",
+    "proof_evidence_status",
+    "proof_evidence_boundary",
+)
+
+
+def _runtime_formalization_gap_planner_execution_plan_context(
+    execution_plan: Any,
+) -> dict[str, Any]:
+    if not isinstance(execution_plan, Mapping):
+        return {}
+    stages: list[dict[str, Any]] = []
+    for stage in execution_plan.get("stages", []) or []:
+        if not isinstance(stage, Mapping):
+            continue
+        stage_context = {
+            "stage_id": str(stage.get("stage_id", "") or ""),
+            "command": str(stage.get("command", "") or ""),
+            "cli": str(stage.get("cli", "") or ""),
+            "requires_live_llm": bool(stage.get("requires_live_llm", False)),
+            "required_inputs": list(_runtime_row_string_values(stage, "required_inputs")),
+            "expected_outputs": list(_runtime_row_string_values(stage, "expected_outputs")),
+            "proof_evidence_status": str(stage.get("proof_evidence_status", "") or ""),
+        }
+        stages.append(
+            {
+                key: value
+                for key, value in stage_context.items()
+                if value not in ("", [], {})
+            }
+        )
+    plan_context = {
+        "plan_kind": str(execution_plan.get("plan_kind", "") or ""),
+        "stage_count": int(execution_plan.get("stage_count", 0) or len(stages)),
+        "stages": stages[:8],
+        "cost_control_boundary": str(
+            execution_plan.get("cost_control_boundary", "") or ""
+        ),
+        "proof_evidence_status": str(
+            execution_plan.get("proof_evidence_status", "") or ""
+        ),
+        "proof_evidence_boundary": str(
+            execution_plan.get("proof_evidence_boundary", "") or ""
+        ),
+    }
+    return {
+        key: value
+        for key, value in plan_context.items()
+        if value not in ("", [], {})
+    }
+
+
+def _runtime_formalization_gap_planner_execution_context(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    context: dict[str, Any] = {}
+    for source in (input_summary, row):
+        for key in _FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS:
+            value = source.get(key)
+            if value is None:
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    continue
+            if key == "formalization_gap_planner_bridge_id":
+                context.setdefault("bridge_id", value)
+            elif key == "formalization_gap_planner_handoff_id":
+                context.setdefault("handoff_id", value)
+            elif key == "formalization_gap_planner_standalone_seed_artifact_id":
+                context.setdefault("standalone_seed_artifact_id", value)
+            elif key == "standalone_seed_artifact_path":
+                context.setdefault("standalone_seed_path", value)
+            elif key == "next_llm_route_planner_prompt_cli":
+                context.setdefault("llm_route_planner_prompt_cli", value)
+            elif key == "next_llm_route_planner_live_cli":
+                context.setdefault("llm_route_planner_live_cli", value)
+            elif key == "next_reuse_smoke_cli":
+                context.setdefault("reuse_smoke_cli", value)
+            elif key == "formalization_gap_planner_execution_plan_stage_ids":
+                context.setdefault("execution_plan_stage_ids", value)
+            else:
+                context.setdefault(key, value)
+    execution_plan = (
+        row.get("execution_plan")
+        if isinstance(row.get("execution_plan"), Mapping)
+        else input_summary.get("execution_plan")
+    )
+    plan_context = _runtime_formalization_gap_planner_execution_plan_context(
+        execution_plan
+    )
+    if plan_context:
+        context["execution_plan"] = plan_context
+        context["execution_plan_stage_ids"] = [
+            str(stage.get("stage_id", "") or "")
+            for stage in plan_context.get("stages", [])
+            if str(stage.get("stage_id", "") or "")
+        ]
+    if "proof_evidence_status" not in context:
+        context["proof_evidence_status"] = (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        )
+    if "proof_evidence_boundary" not in context:
+        context["proof_evidence_boundary"] = (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+        )
+    return {
+        key: value
+        for key, value in context.items()
+        if value not in ("", [], {})
+    }
+
+
+def _runtime_formalization_gap_planner_context_lookup_keys(
+    context: Mapping[str, Any],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            str(context.get(key, "") or "").strip()
+            for key in (
+                "bridge_id",
+                "handoff_id",
+                "standalone_seed_artifact_id",
+                "standalone_seed_path",
+                "target_intake_path",
+            )
+            if str(context.get(key, "") or "").strip()
+        )
+    )
+
+
+def _runtime_formalization_gap_planner_execution_context_index(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        context = _runtime_formalization_gap_planner_execution_context(row)
+        if not context:
+            continue
+        for key in _runtime_formalization_gap_planner_context_lookup_keys(context):
+            index.setdefault(key, context)
+    return index
+
+
+def _runtime_formalization_gap_planner_row_contexts(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    contexts: list[dict[str, Any]] = []
+    for source in (row, input_summary):
+        raw_contexts = source.get("formalization_gap_planner_execution_contexts", [])
+        if isinstance(raw_contexts, Mapping):
+            raw_contexts = [raw_contexts]
+        for raw_context in raw_contexts or []:
+            if isinstance(raw_context, Mapping):
+                context = _runtime_formalization_gap_planner_execution_context(
+                    raw_context
+                )
+                if context:
+                    contexts.append(context)
+    direct_context = _runtime_formalization_gap_planner_execution_context(row)
+    if direct_context and any(
+        direct_context.get(key)
+        for key in (
+            "llm_route_planner_prompt_cli",
+            "standalone_plan_cli",
+            "target_intake_cli",
+            "reuse_smoke_cli",
+            "standalone_seed_path",
+            "target_intake_path",
+        )
+    ):
+        contexts.append(direct_context)
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for context in contexts:
+        key = stable_hash(context)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(context)
+    return tuple(deduped)
+
+
+def _runtime_formalization_gap_planner_enrich_next_action_rows(
+    rows: list[dict[str, Any]],
+    *,
+    context_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    context_index = _runtime_formalization_gap_planner_execution_context_index(
+        context_rows
+    )
+    if not context_index:
+        return
+    fallback_contexts = list(
+        {
+            stable_hash(context): context
+            for context in context_index.values()
+        }.values()
+    )
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        agenda_id = str(
+            row.get("agenda_id", "")
+            or row.get("id", "")
+            or input_summary.get("agenda_id", "")
+            or ""
+        ).strip()
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        is_formal_gap_next_action = (
+            _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+                row,
+                input_summary,
+            )
+            or agenda_id in _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+            or trigger in _FORMAL_GAP_NEXT_ACTION_TRIGGERS
+        )
+        if not is_formal_gap_next_action:
+            continue
+        if (
+            _runtime_learning_memory_formal_gap_next_action_stage(row, input_summary)
+            != "gap_planner_handoff"
+        ):
+            continue
+        lookup_values = list(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "formalization_gap_planner_bridge_id",
+                "supporting_formalization_gap_planner_bridge_ids",
+                "formalization_gap_planner_handoff_id",
+                "supporting_formalization_gap_planner_handoff_ids",
+                "standalone_seed_artifact_id",
+                "supporting_standalone_seed_artifact_ids",
+                "standalone_seed_path",
+                "target_intake_path",
+            )
+        )
+        contexts = [
+            context_index[value]
+            for value in lookup_values
+            if value in context_index
+        ]
+        if not contexts and len(fallback_contexts) == 1:
+            contexts = fallback_contexts
+        if not contexts:
+            continue
+        deduped_contexts = list(
+            {
+                stable_hash(context): context
+                for context in contexts
+            }.values()
+        )
+        existing_contexts = list(
+            _runtime_formalization_gap_planner_row_contexts(row, input_summary)
+        )
+        merged_contexts = list(
+            {
+                stable_hash(context): context
+                for context in [*existing_contexts, *deduped_contexts]
+            }.values()
+        )
+        if not merged_contexts:
+            continue
+        first = merged_contexts[0]
+        row["formalization_gap_planner_execution_contexts"] = merged_contexts
+        mutable_input_summary = dict(input_summary)
+        mutable_input_summary["formalization_gap_planner_execution_contexts"] = (
+            merged_contexts
+        )
+        scalar_mappings = {
+            "bridge_id": "formalization_gap_planner_bridge_id",
+            "handoff_id": "formalization_gap_planner_handoff_id",
+            "standalone_seed_artifact_id": "standalone_seed_artifact_id",
+            "standalone_seed_path": "standalone_seed_path",
+            "target_intake_path": "target_intake_path",
+            "target_intake_cli": "target_intake_cli",
+            "component_resource_registry_cli": "component_resource_registry_cli",
+            "standalone_plan_cli": "standalone_plan_cli",
+            "llm_route_planner_prompt_cli": "llm_route_planner_prompt_cli",
+            "llm_route_planner_live_cli": "llm_route_planner_live_cli",
+            "reuse_smoke_cli": "reuse_smoke_cli",
+            "recommended_llm_provider": "recommended_llm_provider",
+            "recommended_model_tier": "recommended_model_tier",
+            "target_prover_family": "target_prover_family",
+        }
+        for source_key, dest_key in scalar_mappings.items():
+            value = first.get(source_key)
+            if value not in (None, "", [], {}):
+                row.setdefault(dest_key, value)
+                mutable_input_summary.setdefault(dest_key, value)
+        stage_ids = list(
+            dict.fromkeys(
+                str(stage_id).strip()
+                for context in merged_contexts
+                for stage_id in context.get("execution_plan_stage_ids", []) or []
+                if str(stage_id).strip()
+            )
+        )
+        if stage_ids:
+            row["formalization_gap_planner_execution_plan_stage_ids"] = stage_ids
+            mutable_input_summary[
+                "formalization_gap_planner_execution_plan_stage_ids"
+            ] = stage_ids
+        row["input_summary"] = mutable_input_summary
 
 
 def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
@@ -35249,6 +35624,21 @@ def _runtime_formal_gap_next_action_agenda_memory_row(
         "supporting_formalization_gap_planner_bridge_ids",
         "standalone_seed_artifact_id",
         "supporting_standalone_seed_artifact_ids",
+        "formalization_gap_planner_handoff_id",
+        "supporting_formalization_gap_planner_handoff_ids",
+        "formalization_gap_planner_execution_contexts",
+        "formalization_gap_planner_execution_plan_stage_ids",
+        "standalone_seed_path",
+        "target_intake_path",
+        "target_intake_cli",
+        "component_resource_registry_cli",
+        "standalone_plan_cli",
+        "llm_route_planner_prompt_cli",
+        "llm_route_planner_live_cli",
+        "reuse_smoke_cli",
+        "recommended_llm_provider",
+        "recommended_model_tier",
+        "target_prover_family",
         "failure_classifications",
         "proof_boundary",
         "boundary",
@@ -35352,12 +35742,24 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
             "standalone_seed_artifact_id",
             "supporting_standalone_seed_artifact_ids",
         )
+        handoff_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "formalization_gap_planner_handoff_id",
+            "supporting_formalization_gap_planner_handoff_ids",
+            "handoff_id",
+        )
+        execution_contexts = list(
+            _runtime_formalization_gap_planner_row_contexts(row, input_summary)
+        )
         key = (
             agenda_id,
             trigger,
             ",".join(target_ids),
             ",".join(bridge_ids),
             ",".join(seed_ids),
+            ",".join(handoff_ids),
+            stable_hash(execution_contexts) if execution_contexts else "",
         )
         if key in seen:
             continue
@@ -35385,7 +35787,19 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                 ),
                 "target_ids": list(target_ids),
                 "formalization_gap_planner_bridge_ids": list(bridge_ids),
+                "formalization_gap_planner_handoff_ids": list(handoff_ids),
                 "standalone_seed_artifact_ids": list(seed_ids),
+                "formalization_gap_planner_execution_contexts": execution_contexts,
+                "formalization_gap_planner_execution_plan_stage_ids": list(
+                    dict.fromkeys(
+                        str(stage_id).strip()
+                        for context in execution_contexts
+                        for stage_id in (
+                            context.get("execution_plan_stage_ids", []) or []
+                        )
+                        if str(stage_id).strip()
+                    )
+                ),
                 "failure_classifications": list(
                     _runtime_learning_row_string_values(
                         row,
@@ -36368,12 +36782,44 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(value).strip()
         )
     )
+    formalization_gap_planner_handoff_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formalization_gap_planner_routing_rows
+            for value in row.get("formalization_gap_planner_handoff_ids", []) or []
+            if str(value).strip()
+        )
+    )
     formalization_gap_planner_seed_ids = tuple(
         dict.fromkeys(
             str(value).strip()
             for row in formalization_gap_planner_routing_rows
             for value in row.get("standalone_seed_artifact_ids", []) or []
             if str(value).strip()
+        )
+    )
+    formalization_gap_planner_execution_contexts = tuple(
+        {
+            stable_hash(context): context
+            for row in formalization_gap_planner_routing_rows
+            for context in row.get(
+                "formalization_gap_planner_execution_contexts",
+                [],
+            )
+            or []
+            if isinstance(context, Mapping)
+        }.values()
+    )
+    formalization_gap_planner_execution_plan_stage_ids = tuple(
+        dict.fromkeys(
+            str(stage_id).strip()
+            for row in formalization_gap_planner_routing_rows
+            for stage_id in row.get(
+                "formalization_gap_planner_execution_plan_stage_ids",
+                [],
+            )
+            or []
+            if str(stage_id).strip()
         )
     )
     formal_gap_next_action_acceptance_gates = tuple(
@@ -36397,7 +36843,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "formalization_gap_planner_bridge_ids": list(
                 formalization_gap_planner_bridge_ids
             ),
+            "formalization_gap_planner_handoff_ids": list(
+                formalization_gap_planner_handoff_ids
+            ),
             "standalone_seed_artifact_ids": list(formalization_gap_planner_seed_ids),
+            "formalization_gap_planner_execution_plan_stage_ids": list(
+                formalization_gap_planner_execution_plan_stage_ids
+            ),
+            "formalization_gap_planner_execution_contexts": list(
+                formalization_gap_planner_execution_contexts
+            )[:4],
             "acceptance_gates": list(formal_gap_next_action_acceptance_gates),
             "required_execution_order": [
                 "reuse retrieved formal-source/prover context",
@@ -36942,9 +37397,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalization_gap_planner_bridge_ids": list(
             formalization_gap_planner_bridge_ids
         ),
+        "formalization_gap_planner_handoff_ids": list(
+            formalization_gap_planner_handoff_ids
+        ),
         "formalization_gap_planner_standalone_seed_artifact_ids": list(
             formalization_gap_planner_seed_ids
         ),
+        "formalization_gap_planner_execution_plan_stage_ids": list(
+            formalization_gap_planner_execution_plan_stage_ids
+        ),
+        "formalization_gap_planner_execution_contexts": list(
+            formalization_gap_planner_execution_contexts
+        )[:4],
         "formal_gap_next_action_acceptance_gates": list(
             formal_gap_next_action_acceptance_gates
         ),
@@ -36959,9 +37423,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "formalization_gap_planner_bridge_ids": list(
                     row.get("formalization_gap_planner_bridge_ids", []) or []
                 ),
+                "formalization_gap_planner_handoff_ids": list(
+                    row.get("formalization_gap_planner_handoff_ids", []) or []
+                ),
                 "standalone_seed_artifact_ids": list(
                     row.get("standalone_seed_artifact_ids", []) or []
                 ),
+                "formalization_gap_planner_execution_plan_stage_ids": list(
+                    row.get(
+                        "formalization_gap_planner_execution_plan_stage_ids",
+                        [],
+                    )
+                    or []
+                ),
+                "formalization_gap_planner_execution_contexts": list(
+                    row.get("formalization_gap_planner_execution_contexts", []) or []
+                )[:2],
                 "target_behavior": str(row.get("target_behavior", "") or ""),
                 "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
                 "proof_boundary": str(row.get("proof_boundary", "") or ""),
@@ -41347,6 +41824,21 @@ def _critic_learning_rows(
             "supporting_formalization_gap_planner_bridge_ids",
             "standalone_seed_artifact_id",
             "supporting_standalone_seed_artifact_ids",
+            "formalization_gap_planner_handoff_id",
+            "supporting_formalization_gap_planner_handoff_ids",
+            "formalization_gap_planner_execution_contexts",
+            "formalization_gap_planner_execution_plan_stage_ids",
+            "standalone_seed_path",
+            "target_intake_path",
+            "target_intake_cli",
+            "component_resource_registry_cli",
+            "standalone_plan_cli",
+            "llm_route_planner_prompt_cli",
+            "llm_route_planner_live_cli",
+            "reuse_smoke_cli",
+            "recommended_llm_provider",
+            "recommended_model_tier",
+            "target_prover_family",
             "failure_classifications",
             "proof_boundary",
             "boundary",
@@ -41802,11 +42294,32 @@ def _merge_runtime_next_action_agenda_row(
         "premise_target_types",
         "kernel_verified_source_to_bridge_premise_derivation_ids",
         "recommended_commands",
+        "formalization_gap_planner_execution_plan_stage_ids",
     ):
         merged = _agenda_string_values(existing.get(key, []))
         merged.extend(_agenda_string_values(incoming.get(key, [])))
         if merged:
             existing[key] = list(dict.fromkeys(merged))
+
+    for key in ("formalization_gap_planner_execution_contexts",):
+        merged_contexts: list[dict[str, Any]] = []
+        for value in (existing.get(key, []), incoming.get(key, [])):
+            if isinstance(value, Mapping):
+                value = [value]
+            for context in value or []:
+                if isinstance(context, Mapping):
+                    normalized = _runtime_formalization_gap_planner_execution_context(
+                        context
+                    )
+                    if normalized:
+                        merged_contexts.append(normalized)
+        if merged_contexts:
+            existing[key] = list(
+                {
+                    stable_hash(context): context
+                    for context in merged_contexts
+                }.values()
+            )
 
     for source_key, support_key in (
         (
@@ -41814,6 +42327,10 @@ def _merge_runtime_next_action_agenda_row(
             "supporting_formalization_gap_planner_bridge_ids",
         ),
         ("standalone_seed_artifact_id", "supporting_standalone_seed_artifact_ids"),
+        (
+            "formalization_gap_planner_handoff_id",
+            "supporting_formalization_gap_planner_handoff_ids",
+        ),
         ("work_order_id", "supporting_work_order_ids"),
         ("source_manifest_path", "supporting_source_manifest_paths"),
     ):
@@ -42482,6 +42999,25 @@ def _runtime_generated_next_action_learning_rows(
                 "supporting_standalone_seed_artifact_ids",
             )
         )
+        formalization_gap_planner_handoff_ids = list(
+            _runtime_row_string_values(
+                row,
+                "formalization_gap_planner_handoff_id",
+                "supporting_formalization_gap_planner_handoff_ids",
+                "handoff_id",
+            )
+        )
+        formalization_gap_planner_execution_contexts = list(
+            _runtime_formalization_gap_planner_row_contexts(row, {})
+        )
+        formalization_gap_planner_execution_plan_stage_ids = list(
+            dict.fromkeys(
+                str(stage_id).strip()
+                for context in formalization_gap_planner_execution_contexts
+                for stage_id in context.get("execution_plan_stage_ids", []) or []
+                if str(stage_id).strip()
+            )
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -42505,6 +43041,33 @@ def _runtime_generated_next_action_learning_rows(
                         )
                     }
                     if standalone_seed_artifact_ids
+                    else {}
+                ),
+                **(
+                    {
+                        "supporting_formalization_gap_planner_handoff_ids": (
+                            formalization_gap_planner_handoff_ids
+                        )
+                    }
+                    if formalization_gap_planner_handoff_ids
+                    else {}
+                ),
+                **(
+                    {
+                        "formalization_gap_planner_execution_contexts": (
+                            formalization_gap_planner_execution_contexts
+                        )
+                    }
+                    if formalization_gap_planner_execution_contexts
+                    else {}
+                ),
+                **(
+                    {
+                        "formalization_gap_planner_execution_plan_stage_ids": (
+                            formalization_gap_planner_execution_plan_stage_ids
+                        )
+                    }
+                    if formalization_gap_planner_execution_plan_stage_ids
                     else {}
                 ),
                 "learning_task": "generated_next_action_routing",
@@ -42591,6 +43154,20 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "supporting_standalone_seed_artifact_ids": (
                         standalone_seed_artifact_ids
+                    ),
+                    "formalization_gap_planner_handoff_id": str(
+                        row.get("formalization_gap_planner_handoff_id", "")
+                        or row.get("handoff_id", "")
+                        or ""
+                    ),
+                    "supporting_formalization_gap_planner_handoff_ids": (
+                        formalization_gap_planner_handoff_ids
+                    ),
+                    "formalization_gap_planner_execution_contexts": (
+                        formalization_gap_planner_execution_contexts
+                    ),
+                    "formalization_gap_planner_execution_plan_stage_ids": (
+                        formalization_gap_planner_execution_plan_stage_ids
                     ),
                     "failure_classifications": list(
                         _runtime_row_string_values(row, "failure_classifications")

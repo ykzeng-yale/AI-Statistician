@@ -1329,6 +1329,12 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "standalone_seed_artifact_id",
             "supporting_standalone_seed_artifact_ids",
         )
+        handoff_ids = _runtime_learning_memory_string_values(
+            row,
+            "formalization_gap_planner_handoff_id",
+            "supporting_formalization_gap_planner_handoff_ids",
+            "handoff_id",
+        )
         return (
             "formal_gap_next_action_routing:"
             + (question_id or "global")
@@ -1339,7 +1345,7 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + (target_scope or target)
             + ":"
-            + (",".join(bridge_ids) or ",".join(seed_ids))
+            + (",".join(bridge_ids) or ",".join(seed_ids) or ",".join(handoff_ids))
         )
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         component_manifest = str(
@@ -1887,6 +1893,21 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "priority",
         "formalization_gap_planner_bridge_id",
         "standalone_seed_artifact_id",
+        "formalization_gap_planner_handoff_id",
+        "handoff_id",
+        "formalization_gap_planner_execution_contexts",
+        "formalization_gap_planner_execution_plan_stage_ids",
+        "standalone_seed_path",
+        "target_intake_path",
+        "target_intake_cli",
+        "component_resource_registry_cli",
+        "standalone_plan_cli",
+        "llm_route_planner_prompt_cli",
+        "llm_route_planner_live_cli",
+        "reuse_smoke_cli",
+        "recommended_llm_provider",
+        "recommended_model_tier",
+        "target_prover_family",
         "memory_status",
         "next_owner_agent",
         "next_action",
@@ -2057,6 +2078,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_to_bridge_metadata_blocker_helper_candidate_ids",
         "supporting_formalization_gap_planner_bridge_ids",
         "supporting_standalone_seed_artifact_ids",
+        "supporting_formalization_gap_planner_handoff_ids",
         "target_theorem_goal_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
@@ -2219,6 +2241,21 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "agenda_id",
         "formalization_gap_planner_bridge_id",
         "standalone_seed_artifact_id",
+        "formalization_gap_planner_handoff_id",
+        "handoff_id",
+        "formalization_gap_planner_execution_contexts",
+        "formalization_gap_planner_execution_plan_stage_ids",
+        "standalone_seed_path",
+        "target_intake_path",
+        "target_intake_cli",
+        "component_resource_registry_cli",
+        "standalone_plan_cli",
+        "llm_route_planner_prompt_cli",
+        "llm_route_planner_live_cli",
+        "reuse_smoke_cli",
+        "recommended_llm_provider",
+        "recommended_model_tier",
+        "target_prover_family",
         "proof_boundary",
         "boundary",
         "priority",
@@ -2436,6 +2473,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_metadata_blocker_helper_candidate_ids",
         "supporting_formalization_gap_planner_bridge_ids",
         "supporting_standalone_seed_artifact_ids",
+        "supporting_formalization_gap_planner_handoff_ids",
         "missing_required_metadata_fields",
         "required_candidate_fields",
         "candidate_materialization_statuses",
@@ -2636,7 +2674,58 @@ def _compact_runtime_learning_value(value: object) -> object:
     return str(value)[:320]
 
 
+def _compact_formalization_gap_planner_execution_context(value: object) -> object:
+    context_keys = (
+        "bridge_id",
+        "formalization_gap_planner_bridge_id",
+        "handoff_id",
+        "formalization_gap_planner_handoff_id",
+        "standalone_seed_artifact_id",
+        "standalone_seed_path",
+        "target_intake_path",
+        "target_intake_dir",
+        "target_intake_cli",
+        "component_resource_registry_dir",
+        "component_resource_registry_cli",
+        "standalone_plan_dir",
+        "standalone_plan_cli",
+        "llm_route_planner_prompt_cli",
+        "llm_route_planner_live_cli",
+        "reuse_smoke_cli",
+        "execution_plan_stage_ids",
+        "formalization_gap_planner_execution_plan_stage_ids",
+        "recommended_llm_provider",
+        "recommended_model_tier",
+        "target_prover_family",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    if isinstance(value, list):
+        return [
+            _compact_formalization_gap_planner_execution_context(item)
+            for item in value[:4]
+        ]
+    if not isinstance(value, Mapping):
+        return _compact_runtime_learning_value(value)
+    compact: dict[str, object] = {}
+    for key in context_keys:
+        child = value.get(key)
+        if child in (None, "", [], {}):
+            continue
+        if isinstance(child, str) and (
+            _runtime_learning_key_is_path_like(key) or key.endswith("_cli")
+        ):
+            compact[key] = child
+        elif isinstance(child, list):
+            compact[key] = [_compact_runtime_learning_value(item) for item in child[:8]]
+        else:
+            compact[key] = _compact_runtime_learning_value(child)
+    return compact
+
+
 def _compact_runtime_learning_field_value(key: str, value: object) -> object:
+    if key == "formalization_gap_planner_execution_contexts":
+        return _compact_formalization_gap_planner_execution_context(value)
     if isinstance(value, str) and _runtime_learning_key_is_path_like(key):
         return value
     return _compact_runtime_learning_value(value)
@@ -2653,6 +2742,7 @@ def _runtime_learning_key_is_path_like(key: str) -> bool:
             "_dir",
             "_file",
             "_root",
+            "_cli",
         )
     )
 

@@ -3570,6 +3570,97 @@ def _formalizer_mode_specific_instructions(
             if seed_id:
                 seed_ids.append(seed_id)
         seed_ids = list(dict.fromkeys(seed_ids))[:4]
+        handoff_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formalization_gap_planner_handoff_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:4]
+        for row in formal_gap_next_action_agenda_rows:
+            handoff_ids.extend(
+                str(value).strip()
+                for value in (
+                    row.get(
+                        "supporting_formalization_gap_planner_handoff_ids",
+                        [],
+                    )
+                    or []
+                )
+                if str(value).strip()
+            )
+            handoff_id = str(
+                row.get("formalization_gap_planner_handoff_id", "")
+                or row.get("handoff_id", "")
+                or ""
+            ).strip()
+            if handoff_id:
+                handoff_ids.append(handoff_id)
+        handoff_ids = list(dict.fromkeys(handoff_ids))[:4]
+        execution_contexts: list[Mapping[str, Any]] = []
+
+        def _add_execution_contexts(value: Any) -> None:
+            if isinstance(value, Mapping):
+                value = [value]
+            for item in value or []:
+                if isinstance(item, Mapping):
+                    execution_contexts.append(item)
+
+        _add_execution_contexts(
+            proof_memory_summary.get(
+                "formalization_gap_planner_execution_contexts",
+                [],
+            )
+        )
+        contract = proof_memory_summary.get("formal_gap_next_action_contract", {})
+        if isinstance(contract, Mapping):
+            _add_execution_contexts(
+                contract.get("formalization_gap_planner_execution_contexts", [])
+            )
+        for row in proof_memory_summary.get(
+            "formal_gap_next_action_diagnostics",
+            [],
+        ) or []:
+            if isinstance(row, Mapping):
+                _add_execution_contexts(
+                    row.get("formalization_gap_planner_execution_contexts", [])
+                )
+        for row in formal_gap_next_action_agenda_rows:
+            _add_execution_contexts(
+                row.get("formalization_gap_planner_execution_contexts", [])
+            )
+            scalar_context = {
+                key: row.get(key)
+                for key in (
+                    "formalization_gap_planner_bridge_id",
+                    "formalization_gap_planner_handoff_id",
+                    "standalone_seed_artifact_id",
+                    "standalone_seed_path",
+                    "target_intake_path",
+                    "target_intake_cli",
+                    "component_resource_registry_cli",
+                    "standalone_plan_cli",
+                    "llm_route_planner_prompt_cli",
+                    "llm_route_planner_live_cli",
+                    "reuse_smoke_cli",
+                    "recommended_llm_provider",
+                    "recommended_model_tier",
+                    "target_prover_family",
+                    "proof_evidence_status",
+                    "proof_evidence_boundary",
+                )
+                if row.get(key)
+            }
+            if scalar_context:
+                _add_execution_contexts(scalar_context)
+        execution_contexts = list(
+            {
+                stable_hash(context): context
+                for context in execution_contexts
+            }.values()
+        )[:3]
         acceptance_gates = [
             str(value).strip()
             for value in proof_memory_summary.get(
@@ -3604,6 +3695,36 @@ def _formalizer_mode_specific_instructions(
             instruction += " Gap-planner bridge(s): " + ", ".join(bridge_ids) + "."
         if seed_ids:
             instruction += " Standalone seed(s): " + ", ".join(seed_ids) + "."
+        if handoff_ids:
+            instruction += " Gap-planner handoff(s): " + ", ".join(handoff_ids) + "."
+        if execution_contexts:
+            context_snippets = []
+            for context in execution_contexts[:2]:
+                parts = []
+                for label, key in (
+                    ("seed path", "standalone_seed_path"),
+                    ("target intake", "target_intake_path"),
+                    ("standalone plan CLI", "standalone_plan_cli"),
+                    ("target-intake CLI", "target_intake_cli"),
+                    (
+                        "component-resource CLI",
+                        "component_resource_registry_cli",
+                    ),
+                    ("offline LLM route-planner CLI", "llm_route_planner_prompt_cli"),
+                    ("reuse-smoke CLI", "reuse_smoke_cli"),
+                    ("optional live LLM CLI", "llm_route_planner_live_cli"),
+                ):
+                    value = str(context.get(key, "") or "").strip()
+                    if value:
+                        parts.append(f"{label}: {value}")
+                if parts:
+                    context_snippets.append("; ".join(parts))
+            if context_snippets:
+                instruction += (
+                    " Gap-planner execution context(s): "
+                    + " | ".join(context_snippets)
+                    + "."
+                )
         if acceptance_gates:
             instruction += " Acceptance gate(s): " + "; ".join(acceptance_gates) + "."
         instructions.append(instruction)
@@ -4912,6 +5033,21 @@ def _compact_formalizer_environment_feedback(
                 "supporting_formalization_gap_planner_bridge_ids",
                 "standalone_seed_artifact_id",
                 "supporting_standalone_seed_artifact_ids",
+                "formalization_gap_planner_handoff_id",
+                "supporting_formalization_gap_planner_handoff_ids",
+                "formalization_gap_planner_execution_contexts",
+                "formalization_gap_planner_execution_plan_stage_ids",
+                "standalone_seed_path",
+                "target_intake_path",
+                "target_intake_cli",
+                "component_resource_registry_cli",
+                "standalone_plan_cli",
+                "llm_route_planner_prompt_cli",
+                "llm_route_planner_live_cli",
+                "reuse_smoke_cli",
+                "recommended_llm_provider",
+                "recommended_model_tier",
+                "target_prover_family",
                 "candidate_materialization_statuses",
                 "failure_classifications",
                 "recommended_formalizer_target_mode",
@@ -5622,7 +5758,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formal_gap_proof_bank_expansion_required",
         "formalization_gap_planner_handoff_required",
         "formalization_gap_planner_bridge_ids",
+        "formalization_gap_planner_handoff_ids",
         "formalization_gap_planner_standalone_seed_artifact_ids",
+        "formalization_gap_planner_execution_plan_stage_ids",
+        "formalization_gap_planner_execution_contexts",
         "formal_gap_next_action_acceptance_gates",
         "formal_gap_next_action_contract",
         "formal_gap_next_action_diagnostics",
@@ -5785,7 +5924,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "owner_subsystem",
                 "target_ids",
                 "formalization_gap_planner_bridge_ids",
+                "formalization_gap_planner_handoff_ids",
                 "standalone_seed_artifact_ids",
+                "formalization_gap_planner_execution_plan_stage_ids",
+                "formalization_gap_planner_execution_contexts",
                 "target_behavior",
                 "acceptance_gate",
                 "proof_boundary",
