@@ -22098,6 +22098,10 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 94
     if learning_task == "source_theorem_proof_body_adapter_feedback":
         return 93
+    if learning_task == "source_to_bridge_premise_derivation_feedback":
+        return 92
+    if learning_task == "theory_derivation_trace_feedback":
+        return 91
     exact_semantic_definition_repair_priority = (
         _runtime_learning_memory_context_exact_semantic_definition_repair_priority(
             row,
@@ -22337,6 +22341,31 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + str(row.get("source_materialization_manifest_id", "") or "")
         )
+    if learning_task == "theory_derivation_trace_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        failure_scope = ",".join(
+            _sorted_str_tuple(
+                row.get(
+                    "failure_classifications",
+                    input_summary.get("failure_classifications", []),
+                )
+            )
+        )
+        return (
+            "theory_derivation_trace_feedback:"
+            + question_id
+            + ":"
+            + work_order_id
+            + ":"
+            + failure_scope
+        )
     if bool(row.get("candidate_materialization_required", False)) or bool(
         input_summary.get("candidate_materialization_required", False)
     ):
@@ -22359,6 +22388,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "exact_source_theorem_proof_body_execution_feedback",
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
+        "theory_derivation_trace_feedback",
     }
     route_critical_triggers = {
         "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
@@ -22366,6 +22396,7 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
     }
     if learning_task in route_critical_learning_tasks:
         return True

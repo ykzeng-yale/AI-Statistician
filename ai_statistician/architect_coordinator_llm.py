@@ -204,6 +204,13 @@ def build_architect_coordinator_prompt(
         "blockers upstream to TheoryDeveloper/Formalizer before another exact source theorem "
         "retry. Do not broaden retrieval or mark the agenda accepted while this source theorem "
         "truth-table feedback is open. "
+        "If runtime learning memory reports learning_task=theory_derivation_trace_feedback "
+        "or trigger=RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE, route back to "
+        "TheoryDeveloper for a structured TheoryDerivationPacket with equation_chain, "
+        "assumption_ledger, formalization_handoff, and stable anchor ids before "
+        "asking SimulationEngineer, AlgorithmEngineer, or FormalizerProofEngineer to "
+        "consume the trace. Treat this as orchestration repair memory only, not proof "
+        "evidence. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )

@@ -2333,6 +2333,55 @@ def test_pending_next_task_handoff_receives_same_run_verified_adapter_memory() -
     assert "orchestration memory only" in memory["handoff_boundary"]
 
 
+def test_runtime_learning_memory_pins_theory_trace_feedback() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "theory_derivation_trace_feedback",
+            "work_order_id": "theory-trace-work-order",
+            "next_owner_subsystem": "TheoryDeveloper",
+            "failure_classifications": [
+                "missing_theory_derivation_contract",
+                "missing_equation_chain",
+                "missing_assumption_ledger",
+                "missing_formalization_handoff",
+            ],
+            "input_summary": {
+                "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+                "n_theory_derivation_packets": 2,
+                "n_theory_derivation_packets_with_contract": 0,
+            },
+            "proof_evidence_status": (
+                "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "conformal_prediction_coverage",
+            "learning_task": "generic_runtime_note",
+            "input_summary": {"trigger": "LOW_PRIORITY_NOTE"},
+        },
+    ]
+
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        rows,
+        max_rows=1,
+        source_paths=["runs/current/runtime_learning_rows.jsonl"],
+    )
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == "theory_derivation_trace_feedback"
+    assert retained["next_owner_subsystem"] == "TheoryDeveloper"
+    assert retained["proof_evidence_status"] == (
+        "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_pending_next_task_handoff_dedupes_adapter_and_keeps_untyped_semantic_repairs() -> None:
     pending_task = {
         "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",
@@ -3102,7 +3151,22 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
                         "target_behavior": (
                             "route exact source proof-body blocker before broadening retrieval"
                         ),
-                    }
+                    },
+                    {
+                        "learning_task": "theory_derivation_trace_feedback",
+                        "next_owner_subsystem": "TheoryDeveloper",
+                        "input_summary": {
+                            "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+                            "n_theory_derivation_packets": 2,
+                            "n_theory_derivation_packets_with_contract": 0,
+                            "failure_classifications": [
+                                "missing_theory_derivation_contract",
+                                "missing_equation_chain",
+                                "missing_assumption_ledger",
+                                "missing_formalization_handoff",
+                            ],
+                        },
+                    },
                 ]
             }
         },
@@ -3136,6 +3200,12 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert "RUNTIME_EVIDENCE_TRUTH_TABLE" in prompt
     assert "source_theorem_kernel_verified=false" in prompt
     assert "Do not broaden retrieval" in prompt
+    assert "theory_derivation_trace_feedback" in prompt
+    assert "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE" in prompt
+    assert "structured TheoryDerivationPacket" in prompt
+    assert "equation_chain" in prompt
+    assert "assumption_ledger" in prompt
+    assert "formalization_handoff" in prompt
 
 
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
