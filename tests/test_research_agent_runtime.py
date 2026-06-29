@@ -14839,6 +14839,146 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
 
 
+def test_algorithm_runtime_enforces_generated_code_required_from_learning_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:conformal"
+    simulation_manifest_id = "simulation:conformal"
+    memory = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "capability_id": "generated_algorithm_code_executed_locally",
+                "next_owner_subsystem": "AlgorithmEngineer",
+                "target_behavior": (
+                    "Produce and locally execute generated algorithm code inside "
+                    "the integrated AgentRuntime."
+                ),
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_algorithm_code": True,
+                },
+                "proof_evidence_status": (
+                    "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+    }
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "E1",
+                        "name": "Split conformal prediction interval",
+                        "algorithm_sketch": "Use calibration residual quantile.",
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+        },
+    )
+
+    class TemplateOnlyAlgorithmEngineer:
+        def __init__(self) -> None:
+            self.seen_feedback: dict[str, object] = {}
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.seen_feedback = dict(feedback) if isinstance(feedback, dict) else {}
+            return {
+                "packet_id": "algorithm_engineer_proposal:template_only",
+                "implementation_targets": [
+                    {
+                        "estimator_id": "E1",
+                        "registered_template_hint": "split_conformal_interval",
+                    }
+                ],
+                "sandbox_code_drafts": [],
+            }
+
+    proposal_agent = TemplateOnlyAlgorithmEngineer()
+    subsystem = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=12,
+        seed=20260607,
+        proposal_agent=proposal_agent,  # type: ignore[arg-type]
+        timeout_s=20,
+    )
+    task = AgentTask(
+        task_id="algorithm:memory-required-generated",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Learning memory requires generated code, not template evidence.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {
+                    "estimator_id": "E1",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                }
+            ],
+            "architect_context": {"runtime_learning_memory": memory},
+        },
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("algorithm_sandbox_manifest:")
+    )
+
+    assert proposal_agent.seen_feedback["feedback_type"] == (
+        "coding_agent_generated_code_capability_feedback"
+    )
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "generated_algorithm_sandbox_required_not_executed"
+    )
+    assert manifest["n_executed"] == 0
+    assert manifest["n_generated_code_executed"] == 0
+    assert manifest["prototypes"][0]["prototype_status"] == (
+        "GENERATED_CODE_REQUIRED_BUT_MISSING"
+    )
+    assert manifest["prototypes"][0]["executor"] == "generated_python_sandbox"
+    assert not any(
+        row.tool_name == "python.split_conformal_interval_sandbox"
+        for row in result.tool_calls
+    )
+    assert result.next_task is not None
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_algorithm_code"
+    ] is True
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert any(
+        row["learning_task"] == "algorithm_sandbox_execution_feedback"
+        and row["failure_classification"]
+        == "generated_algorithm_sandbox_required_not_executed"
+        for row in learning_rows
+    )
+
+
 def test_algorithm_engineer_revises_after_nonexecutable_llm_code(tmp_path: Path) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     theory_packet_id = "theory:custom"
@@ -15467,12 +15607,151 @@ def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
         if key.startswith("simulation_manifest:")
     )
 
-    assert manifest["n_generated_simulation_sandbox_prototypes"] == 0
+    assert manifest["n_generated_simulation_sandbox_prototypes"] == 1
     assert manifest["n_generated_simulation_sandbox_executed"] == 0
+    assert manifest["generated_simulation_sandbox_prototypes"][0][
+        "prototype_status"
+    ] == "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
     assert result.status == "REVISE"
     assert result.failure_classification == "generated_simulation_sandbox_no_executable_draft"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "SimulationEvaluator"
+
+
+def test_simulation_runtime_enforces_generated_code_required_from_learning_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-memory-required"
+    memory = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "capability_id": "generated_simulation_code_executed_locally",
+                "next_owner_subsystem": "SimulationEvaluator",
+                "target_behavior": (
+                    "Produce and locally execute generated simulation code inside "
+                    "the integrated AgentRuntime."
+                ),
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_simulation_code": True,
+                },
+                "proof_evidence_status": (
+                    "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+    }
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {
+                    "aim": "require generated simulation draft from memory"
+                },
+            }
+        },
+    )
+
+    class NoDraftSimulationEngineer:
+        def __init__(self) -> None:
+            self.seen_feedback: dict[str, object] = {}
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.seen_feedback = dict(feedback) if isinstance(feedback, dict) else {}
+            return {
+                "packet_id": "simulation_engineer_proposal:no_memory_draft",
+                "simulation_targets": [
+                    {
+                        "procedure_id": "split_conformal_interval",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260619,
+                },
+                "critic_findings": [],
+                "next_actions": [],
+                "simulation_code_drafts": [],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    proposal_agent = NoDraftSimulationEngineer()
+    subsystem = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=proposal_agent,  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "generated_simulation_sandbox",
+    )
+    task = AgentTask(
+        task_id="simulation:memory-required-generated",
+        owner_subsystem="SimulationEvaluator",
+        objective="Learning memory requires generated simulation code.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 12,
+            "seed": 20260619,
+            "architect_context": {"runtime_learning_memory": memory},
+        },
+        expected_artifacts=("simulation_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("simulation_manifest:")
+    )
+
+    assert proposal_agent.seen_feedback["feedback_type"] == (
+        "coding_agent_generated_code_capability_feedback"
+    )
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "generated_simulation_sandbox_no_executable_draft"
+    )
+    assert manifest["n_generated_simulation_sandbox_prototypes"] == 1
+    assert manifest["n_generated_simulation_sandbox_executed"] == 0
+    prototype = manifest["generated_simulation_sandbox_prototypes"][0]
+    assert prototype["prototype_status"] == (
+        "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
+    )
+    assert prototype["executor"] == "generated_simulation_sandbox"
+    assert result.next_task is not None
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_simulation_code"
+    ] is True
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert any(
+        row["learning_task"] == "generated_simulation_sandbox_execution_feedback"
+        and row["failure_classification"]
+        == "generated_simulation_sandbox_no_executable_draft"
+        and row["generated_simulation_prototypes"][0]["prototype_status"]
+        == "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
+        for row in learning_rows
+    )
 
 
 def test_simulation_evaluator_executes_safe_generated_simulation_code(tmp_path: Path) -> None:

@@ -4592,6 +4592,16 @@ class SimulationEvaluatorRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        environment_feedback: Mapping[str, Any] = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        effective_context = _runtime_context_with_environment_feedback_contract(
+            context,
+            environment_feedback,
+            subsystem="SimulationEvaluator",
+        )
         simulation_control = _architect_control_payload(context, "SimulationEvaluator")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
@@ -4630,11 +4640,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
         ]
         if self.proposal_agent is not None:
-            environment_feedback = (
-                task.inputs.get("environment_feedback", {})
-                if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
-                else {}
-            )
             if not environment_feedback:
                 environment_feedback = (
                     _runtime_generated_simulation_feedback_from_learning_memory(
@@ -4642,6 +4647,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                         question.id,
                     )
                 )
+            effective_context = _runtime_context_with_environment_feedback_contract(
+                context,
+                environment_feedback,
+                subsystem="SimulationEvaluator",
+            )
             proposal_packet = self.proposal_agent.propose(
                 question=question,
                 theory_packet=packet if isinstance(packet, Mapping) else {},
@@ -4651,7 +4661,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 seed=seed,
                 environment_feedback=(
                     _runtime_environment_feedback_with_architect_directive(
-                        context=context,
+                        context=effective_context,
                         subsystem="SimulationEvaluator",
                         feedback=environment_feedback,
                     )
@@ -4722,7 +4732,35 @@ class SimulationEvaluatorRuntimeSubsystem:
             / _safe_identifier(question.id)
             / stable_hash([task.task_id, packet_id])[:12]
         )
-        for draft in _simulation_code_drafts(proposal_packet):
+        requires_generated_simulation_code = _runtime_requires_generated_simulation_code(
+            effective_context,
+            environment_feedback,
+        )
+        simulation_code_drafts = _simulation_code_drafts(proposal_packet)
+        if (
+            requires_generated_simulation_code
+            and self.proposal_agent is not None
+            and proposal_packet is not None
+            and not simulation_code_drafts
+        ):
+            generated_simulation_rows.append(
+                {
+                    "simulation_id": "generated_simulation_required",
+                    "prototype_status": "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
+                    "executor": "generated_simulation_sandbox",
+                    "reason": (
+                        "Capability evaluation requires a Claude/OpenAI-generated "
+                        "simulation_code_drafts entry. Registered simulators are "
+                        "baselines and were not accepted for this capability gate."
+                    ),
+                    "smoke_passed": False,
+                    "execution_smoke_passed": False,
+                    "simulation_evidence_status": (
+                        "GENERATED_SIMULATION_SANDBOX_EXECUTION_MISSING"
+                    ),
+                }
+            )
+        for draft in simulation_code_drafts:
             simulation_id = str(draft.get("simulation_id", "") or "simulation_draft")
             prototype, tool_call = _run_generated_simulation_sandbox(
                 sandbox_dir=generated_simulation_dir,
@@ -4731,7 +4769,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                 proposal_packet=proposal_packet or {},
                 validation_context={
                     "question": _question_to_payload(question),
-                    "architect_context": context,
+                    "architect_context": effective_context,
+                    "environment_feedback": dict(environment_feedback),
                 },
                 n_runs=n_runs,
                 seed=seed,
@@ -4756,9 +4795,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             1
             for row in generated_simulation_rows
             if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
-        )
-        requires_generated_simulation_code = _runtime_requires_generated_simulation_code(
-            context
         )
         generated_simulation_revision_required = bool(
             self.proposal_agent is not None
@@ -4869,7 +4905,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 boundary=SIMULATION_NOT_PROOF_BOUNDARY,
                 failure_classification=generated_simulation_failure_classification,
             )
-            revision_context = dict(context)
+            revision_context = dict(effective_context)
             revision_context["previous_simulation_manifest_id"] = manifest_id
             next_task = AgentTask(
                 task_id=f"simulation-revise:{question.id}:{stable_hash(feedback)[:8]}",
@@ -4945,16 +4981,16 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "implementation_gaps": implementation_gaps,
                         "n_runs": n_runs,
                         "seed": seed,
-                        "architect_context": context,
+                        "architect_context": effective_context,
                     },
                     allowed_tools=("python", "filesystem_sandbox"),
                     expected_artifacts=_architect_expected_artifacts(
-                        context,
+                        effective_context,
                         "AlgorithmEngineer",
                         ("algorithm_sandbox_manifest",),
                     ),
                     acceptance_gate=_architect_acceptance_gate(
-                        context,
+                        effective_context,
                         "AlgorithmEngineer",
                         "sandbox prototype executed or explicit unsupported-prototype gap recorded",
                     ),
@@ -4965,7 +5001,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     question=question,
                     packet_id=packet_id,
                     simulation_manifest_id=manifest_id,
-                    architect_context=context,
+                    architect_context=effective_context,
                 )
             return AgentStepResult(
                 status="REROUTE",
@@ -5056,6 +5092,16 @@ class AlgorithmEngineerRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        environment_feedback: Mapping[str, Any] = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        effective_context = _runtime_context_with_environment_feedback_contract(
+            context,
+            environment_feedback,
+            subsystem="AlgorithmEngineer",
+        )
         algorithm_control = _architect_control_payload(context, "AlgorithmEngineer")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
@@ -5101,11 +5147,6 @@ class AlgorithmEngineerRuntimeSubsystem:
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None and implementation_gaps:
             try:
-                environment_feedback = (
-                    task.inputs.get("environment_feedback", {})
-                    if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
-                    else {}
-                )
                 if not environment_feedback:
                     environment_feedback = (
                         _runtime_algorithm_sandbox_feedback_from_learning_memory(
@@ -5113,6 +5154,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                             question.id,
                         )
                     )
+                effective_context = _runtime_context_with_environment_feedback_contract(
+                    context,
+                    environment_feedback,
+                    subsystem="AlgorithmEngineer",
+                )
                 proposal_packet = self.proposal_agent.propose(
                     question=question,
                     theory_packet=packet if isinstance(packet, Mapping) else {},
@@ -5120,7 +5166,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     implementation_gaps=implementation_gaps,
                     environment_feedback=(
                         _runtime_environment_feedback_with_architect_directive(
-                            context=context,
+                            context=effective_context,
                             subsystem="AlgorithmEngineer",
                             feedback=environment_feedback,
                         )
@@ -5133,7 +5179,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     theory_packet_id=packet_id,
                     simulation_manifest_id=simulation_manifest_id,
                     implementation_gaps=implementation_gaps,
-                    context=context,
+                    context=effective_context,
                     exc=exc,
                 )
             proposal_id = str(proposal_packet["packet_id"])
@@ -5195,7 +5241,8 @@ class AlgorithmEngineerRuntimeSubsystem:
         prototype_rows: list[dict[str, Any]] = []
         tool_calls: list[ToolCallRecord] = []
         requires_generated_algorithm_code = _runtime_requires_generated_algorithm_code(
-            context
+            effective_context,
+            environment_feedback,
         )
         for gap in implementation_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
@@ -5215,7 +5262,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                     code_draft=code_draft,
                     validation_context={
                         "question": _question_to_payload(question),
-                        "architect_context": context,
+                        "architect_context": effective_context,
+                        "environment_feedback": dict(environment_feedback),
                         "implementation_gap": dict(gap),
                     },
                     n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
@@ -5382,7 +5430,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 boundary=str(manifest["boundary"]),
                 failure_classification=revision_failure_classification,
             )
-            revision_context = dict(context)
+            revision_context = dict(effective_context)
             revision_context["previous_algorithm_sandbox_manifest_id"] = manifest_id
             next_task = AgentTask(
                 task_id=f"algorithm-revise:{question.id}:{stable_hash(feedback)[:8]}",
@@ -5420,7 +5468,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 packet_id=packet_id,
                 simulation_manifest_id=simulation_manifest_id,
                 algorithm_sandbox_manifest_id=manifest_id,
-                architect_context=context,
+                architect_context=effective_context,
             )
         observations.append(
             EnvironmentObservation(
@@ -28591,22 +28639,119 @@ def _runtime_context_contract_flag(
     )
 
 
+def _runtime_environment_feedback_contract_flag(
+    feedback: Mapping[str, Any] | None,
+    *,
+    flag: str,
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    sources: list[Mapping[str, Any]] = [feedback]
+    input_summary = feedback.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        sources.append(input_summary)
+    architect_context = feedback.get("architect_context", {})
+    if isinstance(architect_context, Mapping):
+        sources.append(architect_context)
+    for source in sources:
+        for contract_key in (
+            "runtime_requested_evidence_contract",
+            "architect_evidence_contract",
+        ):
+            contract = source.get(contract_key, {})
+            if isinstance(contract, Mapping) and contract.get(flag) is True:
+                return True
+    return False
+
+
+def _runtime_context_with_environment_feedback_contract(
+    context: Mapping[str, Any],
+    feedback: Mapping[str, Any] | None,
+    *,
+    subsystem: str,
+) -> dict[str, Any]:
+    merged = dict(context) if isinstance(context, Mapping) else {}
+    if not isinstance(feedback, Mapping):
+        return merged
+    requested_contract = (
+        dict(merged.get("runtime_requested_evidence_contract", {}))
+        if isinstance(merged.get("runtime_requested_evidence_contract", {}), Mapping)
+        else {}
+    )
+    feedback_sources: list[Mapping[str, Any]] = [feedback]
+    input_summary = feedback.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        feedback_sources.append(input_summary)
+    for source in feedback_sources:
+        for contract_key in (
+            "runtime_requested_evidence_contract",
+            "architect_evidence_contract",
+        ):
+            contract = source.get(contract_key, {})
+            if not isinstance(contract, Mapping):
+                continue
+            for key, value in contract.items():
+                if str(key).startswith("capability_eval_requires_") and value is True:
+                    requested_contract[str(key)] = True
+    if requested_contract:
+        merged["runtime_requested_evidence_contract"] = requested_contract
+    if (
+        str(merged.get("runtime_evaluation_mode", "") or "") == ""
+        and (
+            _runtime_environment_feedback_contract_flag(
+                feedback,
+                flag="capability_eval_requires_generated_algorithm_code",
+            )
+            or _runtime_environment_feedback_contract_flag(
+                feedback,
+                flag="capability_eval_requires_generated_simulation_code",
+            )
+        )
+    ):
+        merged["runtime_evaluation_mode"] = "capability_eval"
+    if subsystem and requested_contract:
+        control = _architect_control_payload(merged, subsystem)
+        evidence_contract = (
+            dict(control.get("evidence_contract", {}))
+            if isinstance(control.get("evidence_contract", {}), Mapping)
+            else {}
+        )
+        for key, value in requested_contract.items():
+            if str(key).startswith("capability_eval_requires_") and value is True:
+                evidence_contract.setdefault(str(key), True)
+        if evidence_contract:
+            control = dict(control)
+            control["evidence_contract"] = evidence_contract
+            controls = dict(merged.get("architect_control", {})) if isinstance(merged.get("architect_control", {}), Mapping) else {}
+            controls[subsystem] = control
+            merged["architect_control"] = controls
+    return merged
+
+
 def _runtime_requires_generated_algorithm_code(
     context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> bool:
     return _runtime_context_contract_flag(
         context,
         subsystem="AlgorithmEngineer",
+        flag="capability_eval_requires_generated_algorithm_code",
+    ) or _runtime_environment_feedback_contract_flag(
+        environment_feedback,
         flag="capability_eval_requires_generated_algorithm_code",
     )
 
 
 def _runtime_requires_generated_simulation_code(
     context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> bool:
     return _runtime_context_contract_flag(
         context,
         subsystem="SimulationEvaluator",
+        flag="capability_eval_requires_generated_simulation_code",
+    ) or _runtime_environment_feedback_contract_flag(
+        environment_feedback,
         flag="capability_eval_requires_generated_simulation_code",
     )
 
@@ -41052,6 +41197,7 @@ def _generated_simulation_feedback_learning_rows(
     failure_statuses = {
         "FAILED",
         "FAILED_METRIC_GATE",
+        "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
         "REJECTED_UNSAFE_GENERATED_CODE",
     }
     needs_repair = any(
@@ -49429,7 +49575,7 @@ def _generated_simulation_repair_sequences(
         manifests,
         prototype_key="generated_simulation_sandbox_prototypes",
         generated_executor="generated_simulation_sandbox",
-        missing_statuses=set(),
+        missing_statuses={"GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"},
     )
 
 
@@ -49469,6 +49615,7 @@ def _generated_sandbox_repair_sequences(
                     "FAILED",
                     "FAILED_METRIC_GATE",
                     "GENERATED_CODE_REQUIRED_BUT_MISSING",
+                    "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
                     "REJECTED_UNSAFE_GENERATED_CODE",
                 }
                 or smoke_passed is False
