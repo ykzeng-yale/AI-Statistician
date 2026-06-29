@@ -253,6 +253,19 @@ def build_algorithm_engineer_prompt(
         )
         else ""
     )
+    theory_trace_alignment_instruction = (
+        "Runtime theory-trace downstream alignment feedback is active: treat "
+        "runtime_environment_feedback.theory_trace_downstream_alignment_feedback "
+        "as a hard proposal-provenance repair contract. The AlgorithmEngineer "
+        "artifact must populate theory_trace_alignment with exact derivation, "
+        "equation, assumption, and formalization anchors from the supplied "
+        "TheoryDerivationPacket before code or adapter claims are evaluated. "
+        "This alignment is not code execution evidence or theorem proof. "
+        if _feedback_reports_theory_trace_downstream_alignment(
+            payload["runtime_environment_feedback"]
+        )
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep each list to "
@@ -262,6 +275,7 @@ def build_algorithm_engineer_prompt(
         + sandbox_guard_instruction
         + component_gate_instruction
         + capability_feedback_instruction
+        + theory_trace_alignment_instruction
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
@@ -367,6 +381,9 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
     prototype_rows = feedback.get("prototypes", [])
     if not isinstance(prototype_rows, list):
         prototype_rows = []
+    theory_alignment_feedback = _compact_theory_trace_downstream_alignment_feedback(
+        feedback
+    )
     return {
         "architect_evidence_contract": _compact_architect_evidence_contract(
             feedback.get("architect_evidence_contract", {})
@@ -437,6 +454,7 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             feedback.get("proof_evidence_boundary", ""),
             limit=240,
         ),
+        "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
         "algorithm_sandbox_manifest_id": _truncate_text(
             feedback.get("algorithm_sandbox_manifest_id", ""),
             limit=180,
@@ -508,6 +526,96 @@ def _feedback_reports_coding_capability_feedback(feedback: Mapping[str, Any]) ->
     return str(feedback.get("feedback_type", "") or "") == (
         "coding_agent_generated_code_capability_feedback"
     )
+
+
+def _compact_theory_trace_downstream_alignment_feedback(
+    feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(feedback, Mapping):
+        return {}
+    if str(feedback.get("feedback_type", "") or "") == (
+        "theory_trace_downstream_alignment_feedback"
+    ):
+        source: Mapping[str, Any] = feedback
+    else:
+        nested = feedback.get("theory_trace_downstream_alignment_feedback", {})
+        source = nested if isinstance(nested, Mapping) else {}
+    if not source:
+        return {}
+    input_summary = (
+        source.get("input_summary", {})
+        if isinstance(source.get("input_summary", {}), Mapping)
+        else {}
+    )
+    contract = (
+        source.get("theory_trace_downstream_alignment_contract", {})
+        if isinstance(
+            source.get("theory_trace_downstream_alignment_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    return {
+        "feedback_type": "theory_trace_downstream_alignment_feedback",
+        "trigger": _truncate_text(
+            input_summary.get("trigger", "")
+            or contract.get("trigger", "")
+            or "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
+            limit=140,
+        ),
+        "target_consumer_subsystem": _truncate_text(
+            source.get("target_consumer_subsystem", "")
+            or input_summary.get("target_consumer_subsystem", "")
+            or contract.get("target_consumer_subsystem", ""),
+            limit=120,
+        ),
+        "failure_classifications": _compact_string_list(
+            source.get(
+                "failure_classifications",
+                input_summary.get(
+                    "failure_classifications",
+                    contract.get("failure_classifications", []),
+                ),
+            ),
+            limit=4,
+            char_limit=180,
+        ),
+        "target_ids": _compact_string_list(
+            source.get(
+                "target_ids",
+                input_summary.get("target_ids", contract.get("target_ids", [])),
+            ),
+            limit=5,
+            char_limit=160,
+        ),
+        "required_repair": _truncate_text(
+            source.get("required_repair", "") or source.get("target_behavior", ""),
+            limit=360,
+        ),
+        "acceptance_gate": _truncate_text(
+            source.get("acceptance_gate", "") or contract.get("acceptance_gate", ""),
+            limit=360,
+        ),
+        "proof_evidence_status": _truncate_text(
+            source.get("proof_evidence_status", "")
+            or contract.get("proof_evidence_status", ""),
+            limit=180,
+        ),
+        "boundary": _truncate_text(source.get("boundary", ""), limit=240),
+    }
+
+
+def _feedback_reports_theory_trace_downstream_alignment(
+    feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    if str(feedback.get("feedback_type", "") or "") == (
+        "theory_trace_downstream_alignment_feedback"
+    ):
+        return True
+    nested = feedback.get("theory_trace_downstream_alignment_feedback", {})
+    return isinstance(nested, Mapping) and bool(nested)
 
 
 def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:

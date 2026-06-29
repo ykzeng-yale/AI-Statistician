@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-06-27",
+  "updated_at": "2026-06-29",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1538,6 +1538,8 @@
     "deterministic replay over runs/main_worker_critic_after_agenda_candidate_review_live/runtime_source_theorem_exact_semantic_definition_work_orders.jsonl through patched _runtime_exact_semantic_definition_work_order_feedback_from_work_orders # proof_body_gate_statuses=[SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY], runtime_queue_statuses=[PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW, PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR]; compiled placeholders keep candidate-review gate and C_n stays repair/import blocker",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 374 passed in 152.05s after exact-semantic work-order feedback proof-body-gate patch",
     "Exact-semantic canonical artifact gate patch # compiled definition-only candidates now carry PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW plus SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY directly on RuntimeSourceTheoremExactSemanticDefinitionWorkOrder rows, nested typechecked candidates, exported runtime learning rows, and replayed memory rows; proof_evidence_status remains non-proof.",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 482 passed in 191.56s after exact-semantic canonical artifact gate patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 482 passed in 191.56s after exact-semantic canonical artifact gate patch",
+    "Theory-trace downstream alignment replay patch # pinned theory_trace_downstream_alignment_feedback rows now replay from compact runtime memory into SimulationEngineer, AlgorithmEngineer, and FormalizerProofEngineer environment_feedback, preserving existing sandbox/prover feedback while forcing proposal artifacts to bind generated code, simulations, and Lean/formal targets back to TheoryDerivationPacket anchors; feedback remains non-proof provenance memory.",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 483 passed in 190.02s after theory-trace downstream alignment replay patch"
   ]
 }

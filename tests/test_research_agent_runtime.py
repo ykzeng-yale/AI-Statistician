@@ -17871,6 +17871,179 @@ def test_runtime_theory_trace_feedback_routes_alignment_only_gap_downstream() ->
     )
 
 
+def test_downstream_theory_trace_alignment_memory_replays_to_worker_prompts(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    manifest = {
+        "question_ids": [question.id],
+        "incomplete_pending_next_task": {
+            "task_id": f"algorithm:{question.id}:pending",
+            "owner_subsystem": "AlgorithmEngineer",
+            "inputs": {
+                "architect_context": {
+                    "runtime_learning_memory": {
+                        "rows": [
+                            {
+                                "learning_task": "source_theorem_truth_table_feedback",
+                                "target_ids": ["aipw_asymptotic_normality"],
+                                "target_theorem_name": "aipw_asymptotic_normality",
+                            }
+                        ]
+                    }
+                }
+            },
+        },
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 1,
+                "n_theory_derivation_packets_with_contract": 1,
+                "n_theory_derivation_packets_with_min_derivation_steps": 1,
+                "n_theory_derivation_packets_with_equation_chain": 1,
+                "n_theory_derivation_packets_with_assumption_ledger": 1,
+                "n_theory_derivation_packets_with_formalization_handoff": 1,
+                "n_theory_trace_consumption_contracts": 3,
+                "n_theory_trace_alignment_contracts": 0,
+                "n_theory_trace_alignment_contracts_with_llm_alignment": 0,
+                "n_structured_theory_trace_alignment_contracts": 0,
+                "n_theory_trace_alignment_contracts_with_unsupported_anchors": 0,
+                "all_required_theory_trace_consumers_observed": True,
+                "all_required_theory_trace_alignment_consumers_observed": False,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "structured_theory_trace_consuming_subsystems": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "structured_theory_trace_aligned_subsystems": [],
+            },
+        },
+    }
+    learning_rows, _agenda_rows = _runtime_theory_trace_feedback_rows(
+        manifest=manifest
+    )
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in learning_rows) + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path], max_rows=3)
+    context = {"runtime_learning_memory": memory}
+
+    algorithm_feedback = _runtime_algorithm_sandbox_feedback_from_learning_memory(
+        context,
+        question.id,
+    )
+    simulation_feedback = _runtime_generated_simulation_feedback_from_learning_memory(
+        context,
+        question.id,
+    )
+    formalizer_feedback = (
+        runtime_module._runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            {},
+            context,
+            question.id,
+            target_consumer_subsystem="FormalizerProofEngineer",
+        )
+    )
+
+    assert algorithm_feedback["feedback_type"] == (
+        "theory_trace_downstream_alignment_feedback"
+    )
+    assert algorithm_feedback["target_consumer_subsystem"] == "AlgorithmEngineer"
+    assert simulation_feedback["target_consumer_subsystem"] == "SimulationEngineer"
+    assert (
+        formalizer_feedback["target_consumer_subsystem"]
+        == "FormalizerProofEngineer"
+    )
+    assert algorithm_feedback["theory_trace_downstream_alignment_contract"][
+        "trigger"
+    ] == "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+    assert algorithm_feedback["proof_evidence_status"] == (
+        "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+    merged_feedback = (
+        runtime_module._runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            {
+                "feedback_type": "algorithm_sandbox_execution_feedback",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_algorithm_code": True
+                },
+            },
+            context,
+            question.id,
+            target_consumer_subsystem="AlgorithmEngineer",
+        )
+    )
+    assert merged_feedback["feedback_type"] == "algorithm_sandbox_execution_feedback"
+    assert merged_feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_algorithm_code"
+    ] is True
+    assert merged_feedback["theory_trace_downstream_alignment_feedback"][
+        "target_consumer_subsystem"
+    ] == "AlgorithmEngineer"
+    assert merged_feedback["additional_runtime_feedback"][0]["feedback_type"] == (
+        "theory_trace_downstream_alignment_feedback"
+    )
+
+    theory_packet = _runtime_sample_response()
+    algorithm_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest={
+            "manifest_id": "simulation_manifest:test",
+            "simulation_passed": True,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "crossfit_aipw",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        environment_feedback=algorithm_feedback,
+    )
+    simulation_prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        registered_problem={"question_id": question.id, "problem_class": "causal"},
+        registered_procedures=[],
+        n_runs=12,
+        seed=20260629,
+        environment_feedback=simulation_feedback,
+    )
+    formalizer_prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "causal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=formalizer_feedback,
+    )
+
+    for prompt in (algorithm_prompt, simulation_prompt, formalizer_prompt):
+        assert "Runtime theory-trace downstream alignment feedback is active" in prompt
+        assert "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING" in prompt
+        assert "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
+        assert "aipw_asymptotic_normality" in prompt
+        assert "theory_trace_alignment" in prompt
+
+
 def test_runtime_handoff_artifact_missing_feedback_rows_route_to_producer() -> None:
     results = [
         {

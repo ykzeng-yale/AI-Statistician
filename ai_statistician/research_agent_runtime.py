@@ -2388,6 +2388,15 @@ def _runtime_theory_trace_alignment_owner(consumer_subsystem: str) -> str:
     }.get(consumer_subsystem, consumer_subsystem)
 
 
+def _runtime_theory_trace_alignment_consumer_from_owner(owner_subsystem: str) -> str:
+    return {
+        "SimulationEvaluator": "SimulationEngineer",
+        "AlgorithmEngineer": "AlgorithmEngineer",
+        "FormalizationEvaluator": "FormalizerProofEngineer",
+        "ProofEngineer": "FormalizerProofEngineer",
+    }.get(owner_subsystem, owner_subsystem)
+
+
 def _runtime_downstream_theory_trace_alignment_feedback_rows(
     *,
     question_id: str,
@@ -4647,6 +4656,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                         question.id,
                     )
                 )
+            environment_feedback = (
+                _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+                    environment_feedback,
+                    context,
+                    question.id,
+                    target_consumer_subsystem="SimulationEngineer",
+                )
+            )
             effective_context = _runtime_context_with_environment_feedback_contract(
                 context,
                 environment_feedback,
@@ -5154,6 +5171,14 @@ class AlgorithmEngineerRuntimeSubsystem:
                             question.id,
                         )
                     )
+                environment_feedback = (
+                    _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+                        environment_feedback,
+                        context,
+                        question.id,
+                        target_consumer_subsystem="AlgorithmEngineer",
+                    )
+                )
                 effective_context = _runtime_context_with_environment_feedback_contract(
                     context,
                     environment_feedback,
@@ -5715,6 +5740,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
+        )
+        environment_feedback = (
+            _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+                environment_feedback,
+                context,
+                question.id,
+                target_consumer_subsystem="FormalizerProofEngineer",
+            )
         )
         if environment_feedback:
             context["environment_feedback"] = environment_feedback
@@ -28958,7 +28991,12 @@ def _runtime_algorithm_sandbox_feedback_from_learning_memory(
         feedback_type="algorithm_sandbox_execution_feedback",
     )
     if feedback:
-        return feedback
+        return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            feedback,
+            architect_context,
+            question_id,
+            target_consumer_subsystem="AlgorithmEngineer",
+        )
     feedback = _runtime_coding_agent_capability_feedback_from_learning_memory(
         architect_context,
         question_id,
@@ -28969,11 +29007,22 @@ def _runtime_algorithm_sandbox_feedback_from_learning_memory(
         ),
     )
     if feedback:
-        return feedback
-    return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
+        return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            feedback,
+            architect_context,
+            question_id,
+            target_consumer_subsystem="AlgorithmEngineer",
+        )
+    feedback = _runtime_coding_agent_component_gate_feedback_from_learning_memory(
         architect_context,
         question_id,
         target_component="algorithm",
+    )
+    return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+        feedback,
+        architect_context,
+        question_id,
+        target_consumer_subsystem="AlgorithmEngineer",
     )
 
 
@@ -28988,7 +29037,12 @@ def _runtime_generated_simulation_feedback_from_learning_memory(
         feedback_type="generated_simulation_sandbox_execution_feedback",
     )
     if feedback:
-        return feedback
+        return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            feedback,
+            architect_context,
+            question_id,
+            target_consumer_subsystem="SimulationEngineer",
+        )
     feedback = _runtime_coding_agent_capability_feedback_from_learning_memory(
         architect_context,
         question_id,
@@ -28999,12 +29053,195 @@ def _runtime_generated_simulation_feedback_from_learning_memory(
         ),
     )
     if feedback:
-        return feedback
-    return _runtime_coding_agent_component_gate_feedback_from_learning_memory(
+        return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+            feedback,
+            architect_context,
+            question_id,
+            target_consumer_subsystem="SimulationEngineer",
+        )
+    feedback = _runtime_coding_agent_component_gate_feedback_from_learning_memory(
         architect_context,
         question_id,
         target_component="simulation",
     )
+    return _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+        feedback,
+        architect_context,
+        question_id,
+        target_consumer_subsystem="SimulationEngineer",
+    )
+
+
+def _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    *,
+    target_consumer_subsystem: str,
+) -> dict[str, Any]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return {}
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    wanted_consumer = str(target_consumer_subsystem or "").strip()
+    for row in reversed(rows):
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("learning_task", "") or "") != (
+            "theory_trace_downstream_alignment_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        row_question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        )
+        if row_question_id and question_id and row_question_id != question_id:
+            continue
+        row_consumer = str(
+            row.get("target_consumer_subsystem", "")
+            or input_summary.get("target_consumer_subsystem", "")
+            or ""
+        ).strip()
+        if not row_consumer:
+            row_consumer = _runtime_theory_trace_alignment_consumer_from_owner(
+                str(
+                    row.get("next_owner_subsystem", "")
+                    or input_summary.get("owner_subsystem", "")
+                    or ""
+                ).strip()
+            )
+        if wanted_consumer and row_consumer and row_consumer != wanted_consumer:
+            continue
+        if wanted_consumer and not row_consumer:
+            continue
+        feedback = dict(row)
+        classifications = [
+            str(value).strip()
+            for value in (
+                row.get(
+                    "failure_classifications",
+                    input_summary.get("failure_classifications", []),
+                )
+                or []
+            )
+            if str(value).strip()
+        ]
+        feedback["feedback_type"] = "theory_trace_downstream_alignment_feedback"
+        feedback["failure_classification"] = (
+            classifications[0]
+            if classifications
+            else "downstream_theory_trace_alignment_missing"
+        )
+        feedback["target_consumer_subsystem"] = row_consumer or wanted_consumer
+        feedback["required_repair"] = (
+            str(row.get("target_behavior", "") or "").strip()
+            or (
+                "Emit theory_trace_alignment references to exact derivation, "
+                "equation, assumption, and formalization anchors before the "
+                "downstream proposal is evaluated."
+            )
+        )
+        feedback["theory_trace_downstream_alignment_contract"] = {
+            "trigger": "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
+            "target_consumer_subsystem": row_consumer or wanted_consumer,
+            "required_theory_trace_consumers": [
+                str(value)
+                for value in input_summary.get("required_theory_trace_consumers", [])
+                or []
+                if str(value).strip()
+            ],
+            "structured_theory_trace_consuming_subsystems": [
+                str(value)
+                for value in input_summary.get(
+                    "structured_theory_trace_consuming_subsystems",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ],
+            "structured_theory_trace_aligned_subsystems": [
+                str(value)
+                for value in input_summary.get(
+                    "structured_theory_trace_aligned_subsystems",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ],
+            "target_ids": _source_theorem_target_ids_from_row(row),
+            "failure_classifications": classifications,
+            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "proof_evidence_status": str(
+                row.get("proof_evidence_status", "")
+                or "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        feedback.setdefault(
+            "boundary",
+            (
+                "Theory-trace downstream alignment feedback is prompt memory only. "
+                "It asks the LLM worker to bind its proposal to structured theory "
+                "anchors; it is not simulation evidence, code execution evidence, "
+                "or Lean/kernel proof evidence."
+            ),
+        )
+        return feedback
+    return {}
+
+
+def _runtime_environment_feedback_with_theory_trace_downstream_alignment(
+    feedback: Mapping[str, Any] | None,
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    *,
+    target_consumer_subsystem: str,
+) -> dict[str, Any]:
+    alignment_feedback = (
+        _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
+            architect_context,
+            question_id,
+            target_consumer_subsystem=target_consumer_subsystem,
+        )
+    )
+    base = dict(feedback) if isinstance(feedback, Mapping) else {}
+    if not alignment_feedback:
+        return base
+    if str(base.get("feedback_type", "") or "") == (
+        "theory_trace_downstream_alignment_feedback"
+    ):
+        return base
+    if not base:
+        return alignment_feedback
+    base.setdefault(
+        "theory_trace_downstream_alignment_feedback",
+        alignment_feedback,
+    )
+    additional_feedback = (
+        list(base.get("additional_runtime_feedback", []))
+        if isinstance(base.get("additional_runtime_feedback", []), list)
+        else []
+    )
+    alignment_fingerprint = stable_hash(alignment_feedback)
+    existing_fingerprints = {
+        stable_hash(row)
+        for row in additional_feedback
+        if isinstance(row, Mapping)
+    }
+    if alignment_fingerprint not in existing_fingerprints:
+        additional_feedback.append(alignment_feedback)
+    if additional_feedback:
+        base["additional_runtime_feedback"] = additional_feedback
+    return base
 
 
 def _runtime_coding_agent_capability_feedback_from_learning_memory(

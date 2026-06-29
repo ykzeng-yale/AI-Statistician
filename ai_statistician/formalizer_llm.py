@@ -3397,6 +3397,9 @@ def _formalizer_mode_specific_instructions(
         for row in runtime_environment_feedback.get("high_priority_agenda", []) or []
         if isinstance(row, Mapping)
     ]
+    theory_trace_downstream_alignment_feedback = (
+        _theory_trace_downstream_alignment_feedback(runtime_environment_feedback)
+    )
     materialization_agenda_rows = [
         row
         for row in high_priority_agenda
@@ -3469,6 +3472,18 @@ def _formalizer_mode_specific_instructions(
             "Lean candidate that reuses an unresolved API, import, semantic definition, or "
             "proof-search blocker; if the request cannot be resolved, keep the affected "
             "source theorem as FORMAL_GAP and name the exact missing resource."
+        )
+    if theory_trace_downstream_alignment_feedback:
+        instructions.append(
+            "Runtime theory-trace downstream alignment feedback is active: treat "
+            "runtime_environment_feedback.theory_trace_downstream_alignment_feedback "
+            "as a hard proposal-provenance repair contract. The Formalizer/"
+            "ProofEngineer packet must populate theory_trace_alignment with exact "
+            "derivation, equation, assumption, and formalization anchors from the "
+            "supplied TheoryDerivationPacket before any Lean target, proof-bank "
+            "request, or gap taxonomy is evaluated. This alignment is not Lean/"
+            "kernel proof evidence; every formal claim still needs local Lean/AXLE "
+            "verification."
         )
     if source_theorem_candidate_materialization_required:
         targets = [
@@ -4608,6 +4623,9 @@ def _compact_formalizer_environment_feedback(
         input_summary=input_summary,
         target_shape_contract=target_shape_contract,
     )
+    theory_trace_downstream_alignment_feedback = (
+        _theory_trace_downstream_alignment_feedback(feedback)
+    )
     payload = {
         "architect_evidence_contract": _compact_value(
             feedback.get("architect_evidence_contract", {})
@@ -4737,6 +4755,10 @@ def _compact_formalizer_environment_feedback(
             or feedback.get("proof_evidence_boundary", "")
         ),
     }
+    if theory_trace_downstream_alignment_feedback:
+        payload["theory_trace_downstream_alignment_feedback"] = _compact_value(
+            theory_trace_downstream_alignment_feedback
+        )
     formal_blocker_resource_requests = (
         feedback.get("formal_blocker_resource_requests", [])
         or input_summary.get("formal_blocker_resource_requests", [])
@@ -4783,6 +4805,76 @@ def _compact_formalizer_environment_feedback(
             source_theorem_proof_body_adapter_feedback
         )
     return payload
+
+
+def _theory_trace_downstream_alignment_feedback(
+    feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(feedback, Mapping):
+        return {}
+    if str(feedback.get("feedback_type", "") or "") == (
+        "theory_trace_downstream_alignment_feedback"
+    ):
+        source: Mapping[str, Any] = feedback
+    else:
+        nested = feedback.get("theory_trace_downstream_alignment_feedback", {})
+        source = nested if isinstance(nested, Mapping) else {}
+    if not source:
+        return {}
+    input_summary = (
+        source.get("input_summary", {})
+        if isinstance(source.get("input_summary", {}), Mapping)
+        else {}
+    )
+    contract = (
+        source.get("theory_trace_downstream_alignment_contract", {})
+        if isinstance(
+            source.get("theory_trace_downstream_alignment_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    return {
+        "feedback_type": "theory_trace_downstream_alignment_feedback",
+        "trigger": (
+            input_summary.get("trigger", "")
+            or contract.get("trigger", "")
+            or "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+        ),
+        "target_consumer_subsystem": (
+            source.get("target_consumer_subsystem", "")
+            or input_summary.get("target_consumer_subsystem", "")
+            or contract.get("target_consumer_subsystem", "")
+        ),
+        "failure_classifications": (
+            source.get(
+                "failure_classifications",
+                input_summary.get(
+                    "failure_classifications",
+                    contract.get("failure_classifications", []),
+                ),
+            )
+            or []
+        ),
+        "target_ids": (
+            source.get(
+                "target_ids",
+                input_summary.get("target_ids", contract.get("target_ids", [])),
+            )
+            or []
+        ),
+        "required_repair": (
+            source.get("required_repair", "") or source.get("target_behavior", "")
+        ),
+        "acceptance_gate": (
+            source.get("acceptance_gate", "") or contract.get("acceptance_gate", "")
+        ),
+        "proof_evidence_status": (
+            source.get("proof_evidence_status", "")
+            or contract.get("proof_evidence_status", "")
+        ),
+        "boundary": source.get("boundary", ""),
+    }
 
 
 def _feedback_target_shape_contract(
