@@ -45545,6 +45545,84 @@ def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_ha
     )
 
 
+def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_dry_run": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode": (
+            "redacted"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is False
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert (
+        "authoring tasks but the LLM authoring worker did not run"
+        in rows[
+            "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+        ]["blocker"]
+    )
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_requested"
+    ] = True
+    payload["source_theorem_exact_semantic_definition_authoring_worker_ran"] = True
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_dry_run"
+    ] = False
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode"
+    ] = "full"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -46870,6 +46948,18 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         source_theorem_exact_semantic_definition_lean_repair_executor_local_lean=False,
         source_theorem_exact_semantic_definition_lean_repair_executor_lean_project="",
         source_theorem_exact_semantic_definition_lean_environment_repair_executor=False,
+        source_theorem_exact_semantic_definition_authoring_worker=False,
+        source_theorem_exact_semantic_definition_authoring_worker_provider="none",
+        source_theorem_exact_semantic_definition_authoring_worker_static_response_file="",
+        source_theorem_exact_semantic_definition_authoring_worker_model="",
+        source_theorem_exact_semantic_definition_authoring_worker_model_tier="sonnet",
+        source_theorem_exact_semantic_definition_authoring_worker_max_tokens=4000,
+        source_theorem_exact_semantic_definition_authoring_worker_temperature=0.0,
+        source_theorem_exact_semantic_definition_authoring_worker_max_repair_attempts=1,
+        source_theorem_exact_semantic_definition_authoring_worker_llm_timeout_seconds=60.0,
+        source_theorem_exact_semantic_definition_authoring_worker_max_tasks=0,
+        source_theorem_exact_semantic_definition_authoring_worker_allow_external_export=False,
+        source_theorem_exact_semantic_definition_authoring_worker_external_export_mode="redacted",
         source_theorem_exact_semantic_definition_closure_review=False,
         source_theorem_exact_semantic_definition_candidate_synthesis=False,
         source_theorem_exact_semantic_definition_candidate_synthesis_local_lean=False,
@@ -46992,6 +47082,15 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.source_theorem_exact_semantic_definition_source_root == [
         "legacy_sources/ai_statistician"
     ]
+    assert args.source_theorem_exact_semantic_definition_authoring_worker is False
+    assert (
+        args.source_theorem_exact_semantic_definition_authoring_worker_provider
+        == "none"
+    )
+    assert (
+        args.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export
+        is False
+    )
     assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
@@ -47081,6 +47180,19 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_lean_project == args.lean_project
+    assert args.source_theorem_exact_semantic_definition_authoring_worker is True
+    assert (
+        args.source_theorem_exact_semantic_definition_authoring_worker_provider
+        == args.provider
+    )
+    assert (
+        args.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export
+        is True
+    )
+    assert (
+        args.source_theorem_exact_semantic_definition_authoring_worker_external_export_mode
+        == "full"
+    )
     assert _research_agent_runtime_capability_config_errors(args) == []
 
 

@@ -9930,6 +9930,23 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if preset == "full-live":
         args.run_coding_agent_generated_code_repair_eval = True
         args.run_formalizer_lean_candidate_repair_eval = True
+        args.source_theorem_exact_semantic_definition_authoring_worker = True
+        authoring_provider = str(
+            getattr(
+                args,
+                "source_theorem_exact_semantic_definition_authoring_worker_provider",
+                "none",
+            )
+            or "none"
+        )
+        if authoring_provider in {"", "none", "static"}:
+            args.source_theorem_exact_semantic_definition_authoring_worker_provider = (
+                args.provider
+            )
+        args.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export = True
+        args.source_theorem_exact_semantic_definition_authoring_worker_external_export_mode = (
+            "full"
+        )
         if str(
             getattr(args, "coding_agent_repair_eval_provider", "same") or "same"
         ) in {"", "none", "static"}:

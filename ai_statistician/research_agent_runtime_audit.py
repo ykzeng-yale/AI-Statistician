@@ -299,6 +299,13 @@ def audit_research_agent_runtime(
     )
     agenda_rows = _load_jsonl(agenda_path, errors, required=True)
     learning_rows = _load_jsonl(learning_path, errors, required=True)
+    exact_semantic_definition_authoring_task_rows = (
+        _runtime_exact_semantic_definition_authoring_task_rows(
+            runtime_dir=runtime_dir,
+            artifacts=artifacts,
+            errors=errors,
+        )
+    )
     if int(manifest.get("n_questions", -1)) != len(rows):
         errors.append("manifest n_questions does not match per-question result count")
     if int(manifest.get("n_runtime_next_action_items", -1)) != len(agenda_rows):
@@ -1255,6 +1262,78 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets",
+                0,
+            )
+            or 0
+        ),
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": len(
+            exact_semantic_definition_authoring_task_rows
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_required": bool(
+            exact_semantic_definition_authoring_task_rows
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_dry_run": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_dry_run",
+                True,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
                 0,
             )
             or 0
@@ -4401,6 +4480,34 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    exact_semantic_definition_authoring_tasks = int(
+        payload.get(
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_definition_authoring_worker_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_required",
+            False,
+        )
+        or exact_semantic_definition_authoring_tasks > 0
+    )
+    exact_semantic_definition_authoring_worker_ran = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_ran",
+            False,
+        )
+        is True
+    )
+    exact_semantic_definition_authoring_worker_llm_attempted = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_verifier_gate_work_orders = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
@@ -5469,6 +5576,62 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "ProofEngineer bridge produced exact semantic-definition Lean repair tasks but the Lean repair executor did not run",
         ),
         _scorecard_row(
+            "exact_semantic_definition_authoring_worker_handoff_not_dropped",
+            (not exact_semantic_definition_authoring_worker_required)
+            or exact_semantic_definition_authoring_worker_ran,
+            (
+                "authoring_tasks="
+                f"{payload.get('n_source_theorem_exact_semantic_definition_authoring_tasks')} "
+                "required="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_required')} "
+                "requested="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_requested')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_ran')} "
+                "prompt_packets="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets')} "
+                "skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_skipped_reason')}"
+            ),
+            (
+                "exact semantic-definition Lean repair emitted authoring tasks "
+                "but the LLM authoring worker did not run"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_authoring_worker_live_attempted",
+            (not exact_semantic_definition_authoring_worker_required)
+            or exact_semantic_definition_authoring_worker_llm_attempted > 0,
+            (
+                "authoring_tasks="
+                f"{payload.get('n_source_theorem_exact_semantic_definition_authoring_tasks')} "
+                "ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_ran')} "
+                "dry_run="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_dry_run')} "
+                "external_export_mode="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_external_export_mode')} "
+                "llm_attempted="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted')}"
+            ),
+            (
+                "exact semantic-definition authoring tasks were only staged or "
+                "blocked; no live LLM authoring attempt was recorded"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="Formalizer/ProofEngineer",
+                target_behavior=(
+                    "Run the exact semantic-definition authoring worker with a "
+                    "live provider and then route generated definition-only "
+                    "candidates through materialization and local Lean/AXLE."
+                ),
+                success_metric=(
+                    "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped",
             exact_semantic_definition_candidate_synthesis_recheck_rows <= 0
             or exact_semantic_definition_candidate_synthesis_recheck_executor_ran,
@@ -6065,6 +6228,39 @@ def _resolve_manifest_paths(runtime_dir: Path, manifest: Mapping[str, Any]) -> l
             if path:
                 paths.append(path)
     return paths
+
+
+def _runtime_exact_semantic_definition_authoring_task_rows(
+    *,
+    runtime_dir: Path,
+    artifacts: Mapping[str, Any],
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    raw_manifest_path = str(
+        artifacts.get(
+            "runtime_source_theorem_exact_semantic_definition_lean_repair_executor_manifest",
+            "",
+        )
+        or ""
+    )
+    if not raw_manifest_path.strip():
+        return []
+    executor_manifest_path = _resolve_path(runtime_dir, raw_manifest_path)
+    if not executor_manifest_path.exists():
+        errors.append(
+            "missing exact semantic-definition Lean repair executor manifest: "
+            f"{executor_manifest_path}"
+        )
+        return []
+    executor_manifest = _load_json(executor_manifest_path, errors)
+    raw_tasks_path = str(
+        executor_manifest.get("exact_semantic_definition_authoring_tasks_jsonl", "")
+        or ""
+    )
+    if not raw_tasks_path.strip():
+        return []
+    tasks_path = _resolve_path(executor_manifest_path.parent, raw_tasks_path)
+    return _load_jsonl(tasks_path, errors, required=True)
 
 
 def _resolve_path(base: Path, raw: object) -> Path:
