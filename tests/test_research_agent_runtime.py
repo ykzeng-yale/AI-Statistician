@@ -13112,6 +13112,61 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
     )
 
 
+def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() -> None:
+    artifacts = {
+        "theory_derivation:structured": {
+            "artifact_kind": "TheoryDerivationPacket",
+            "packet_id": "theory_derivation:structured",
+            "theory_derivation_packet": {
+                "derivation_steps": [
+                    {"id": "identify", "claim": "identify estimand"},
+                    {"id": "score", "claim": "build orthogonal score"},
+                    {"id": "remainder", "claim": "bound remainder"},
+                ],
+                "equation_chain": [
+                    {"step_id": "estimand", "lhs": "psi", "rhs": "E[m1-m0]"},
+                    {
+                        "step_id": "expansion",
+                        "lhs": "sqrt(n)(psi_hat-psi)",
+                        "rhs": "sqrt(n)P_n phi + o_p(1)",
+                    },
+                ],
+                "assumption_ledger": [
+                    {"assumption": "exchangeability", "used_in": ["identify"]},
+                    {"assumption": "positivity", "used_in": ["score"]},
+                ],
+                "formalization_handoff": {
+                    "source_theorem_target": "aipw_asymptotic_normality",
+                    "semantic_alignment_constraints": ["keep nuisance remainder"],
+                },
+            },
+            "theory_derivation_contract": {
+                "min_derivation_steps": 3,
+                "n_derivation_steps": 3,
+                "n_equation_chain_steps": 2,
+                "n_assumption_ledger_rows": 2,
+                "has_formalization_handoff": True,
+            },
+        }
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    theory = evidence_summary["theory"]
+
+    assert theory["n_theory_derivation_packets"] == 1
+    assert theory["n_theory_derivation_packets_with_contract"] == 1
+    assert theory["n_theory_derivation_packets_with_min_derivation_steps"] == 1
+    assert theory["n_theory_derivation_packets_with_equation_chain"] == 1
+    assert theory["n_theory_derivation_packets_with_assumption_ledger"] == 1
+    assert theory["n_theory_derivation_packets_with_formalization_handoff"] == 1
+    assert theory["max_derivation_steps"] == 3
+    assert theory["max_equation_chain_steps"] == 2
+    assert theory["structured_derivation_trace_observed"] is True
+    assert "not execution or proof evidence" in theory["boundary"]
+
+
 def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -> None:
     artifacts = {
         "formalizer_lean_candidate_materialization:fail": {
@@ -37579,6 +37634,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert manifest["n_runtime_learning_rows"] > 0
     evidence_summary = manifest["runtime_evidence_summary"]
     assert evidence_summary["artifact_kind"] == "RuntimeEvidenceSummary"
+    assert evidence_summary["theory"]["structured_derivation_trace_observed"] is True
+    assert evidence_summary["theory"]["n_theory_derivation_packets"] >= 1
+    assert evidence_summary["theory"]["n_theory_derivation_packets_with_contract"] >= 1
+    assert (
+        evidence_summary["theory"][
+            "n_theory_derivation_packets_with_equation_chain"
+        ]
+        >= 1
+    )
+    assert (
+        evidence_summary["theory"][
+            "n_theory_derivation_packets_with_assumption_ledger"
+        ]
+        >= 1
+    )
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is False
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 0
@@ -38434,6 +38504,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_results_with_problem_analysis"] == 1
     assert audit["n_results_with_stat_knowledge_bank_plan"] == 1
     assert audit["n_results_with_literature_fair_comparison_plan"] == 1
+    assert audit["structured_theory_derivation_trace_observed"] is True
+    assert audit["n_theory_derivation_packets"] >= 1
+    assert (
+        scorecard_rows["theory_derivation_trace_contract_observed"]["passed"]
+        is True
+    )
     assert audit["n_results_with_runtime_learning_memory_input"] == 0
     assert audit["n_runtime_learning_memory_input_rows"] == 0
     system_overlay = _research_agent_runtime_audit_overlay(
@@ -38664,6 +38740,13 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
+        "structured_theory_derivation_trace_observed": True,
+        "n_theory_derivation_packets": 1,
+        "n_theory_derivation_packets_with_contract": 1,
+        "n_theory_derivation_packets_with_min_derivation_steps": 1,
+        "n_theory_derivation_packets_with_equation_chain": 1,
+        "n_theory_derivation_packets_with_assumption_ledger": 1,
+        "n_theory_derivation_packets_with_formalization_handoff": 1,
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -38938,6 +39021,13 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
+        "structured_theory_derivation_trace_observed": True,
+        "n_theory_derivation_packets": 1,
+        "n_theory_derivation_packets_with_contract": 1,
+        "n_theory_derivation_packets_with_min_derivation_steps": 1,
+        "n_theory_derivation_packets_with_equation_chain": 1,
+        "n_theory_derivation_packets_with_assumption_ledger": 1,
+        "n_theory_derivation_packets_with_formalization_handoff": 1,
         "runtime_research_path_control_propagated": True,
         "effective_formal_verification_policy": "required",
         "effective_recommended_research_path": "proof_first",
@@ -38992,6 +39082,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "research_path_selected_by_architect_not_manual_override"
     ]["passed"] is True
+    assert rows["theory_derivation_trace_contract_observed"]["passed"] is True
     assert rows["generated_algorithm_code_executed"]["passed"] is True
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is True
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is True
@@ -39013,6 +39104,16 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
 
+    payload["structured_theory_derivation_trace_observed"] = False
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["theory_derivation_trace_contract_observed"]["passed"] is False
+    assert "equation-chain" in rows[
+        "theory_derivation_trace_contract_observed"
+    ]["blocker"]
+
+    payload["structured_theory_derivation_trace_observed"] = True
     payload["runtime_research_path_control_propagated"] = False
     payload["runtime_research_path_execution_summary"] = {
         "n_controlled_artifacts": 2,

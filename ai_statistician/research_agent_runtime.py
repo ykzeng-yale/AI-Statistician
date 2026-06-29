@@ -44464,7 +44464,28 @@ def _generated_sandbox_repair_sequences(
     return closed_sequences
 
 
+def _runtime_safe_list_len(value: Any) -> int:
+    return len(value) if isinstance(value, list) else 0
+
+
 def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    theory = {
+        "n_theory_derivation_packets": 0,
+        "n_theory_derivation_packets_with_contract": 0,
+        "n_theory_derivation_packets_with_min_derivation_steps": 0,
+        "n_theory_derivation_packets_with_equation_chain": 0,
+        "n_theory_derivation_packets_with_assumption_ledger": 0,
+        "n_theory_derivation_packets_with_formalization_handoff": 0,
+        "max_derivation_steps": 0,
+        "max_equation_chain_steps": 0,
+        "max_assumption_ledger_rows": 0,
+        "structured_derivation_trace_observed": False,
+        "boundary": (
+            "Theory derivation traces are LLM proposal context for simulation, "
+            "algorithm, and formalization handoff. They are not execution or "
+            "proof evidence."
+        ),
+    }
     proof = {
         "n_formalization_manifests": 0,
         "n_proved_subclaims": 0,
@@ -44608,7 +44629,73 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             if not isinstance(artifact, Mapping):
                 continue
             kind = str(artifact.get("artifact_kind", ""))
-            if kind == "RuntimeFormalizationManifest":
+            if kind == "TheoryDerivationPacket":
+                theory["n_theory_derivation_packets"] += 1
+                contract = (
+                    artifact.get("theory_derivation_contract", {})
+                    if isinstance(artifact.get("theory_derivation_contract", {}), Mapping)
+                    else {}
+                )
+                derivation = (
+                    artifact.get("theory_derivation_packet", {})
+                    if isinstance(artifact.get("theory_derivation_packet", {}), Mapping)
+                    else {}
+                )
+                n_derivation_steps = int(
+                    contract.get(
+                        "n_derivation_steps",
+                        _runtime_safe_list_len(derivation.get("derivation_steps", [])),
+                    )
+                    or 0
+                )
+                n_equation_chain_steps = int(
+                    contract.get(
+                        "n_equation_chain_steps",
+                        _runtime_safe_list_len(derivation.get("equation_chain", [])),
+                    )
+                    or 0
+                )
+                n_assumption_ledger_rows = int(
+                    contract.get(
+                        "n_assumption_ledger_rows",
+                        _runtime_safe_list_len(derivation.get("assumption_ledger", [])),
+                    )
+                    or 0
+                )
+                has_formalization_handoff = bool(
+                    contract.get("has_formalization_handoff", False)
+                    or (
+                        isinstance(derivation.get("formalization_handoff", {}), Mapping)
+                        and derivation.get("formalization_handoff")
+                    )
+                )
+                if contract:
+                    theory["n_theory_derivation_packets_with_contract"] += 1
+                if n_derivation_steps >= int(contract.get("min_derivation_steps", 3) or 3):
+                    theory[
+                        "n_theory_derivation_packets_with_min_derivation_steps"
+                    ] += 1
+                if n_equation_chain_steps > 0:
+                    theory["n_theory_derivation_packets_with_equation_chain"] += 1
+                if n_assumption_ledger_rows > 0:
+                    theory["n_theory_derivation_packets_with_assumption_ledger"] += 1
+                if has_formalization_handoff:
+                    theory[
+                        "n_theory_derivation_packets_with_formalization_handoff"
+                    ] += 1
+                theory["max_derivation_steps"] = max(
+                    int(theory["max_derivation_steps"]),
+                    n_derivation_steps,
+                )
+                theory["max_equation_chain_steps"] = max(
+                    int(theory["max_equation_chain_steps"]),
+                    n_equation_chain_steps,
+                )
+                theory["max_assumption_ledger_rows"] = max(
+                    int(theory["max_assumption_ledger_rows"]),
+                    n_assumption_ledger_rows,
+                )
+            elif kind == "RuntimeFormalizationManifest":
                 counts = artifact.get("counts", {}) if isinstance(artifact.get("counts"), Mapping) else {}
                 proof["n_formalization_manifests"] += 1
                 proof["n_proved_subclaims"] += int(counts.get("proved", 0) or 0)
@@ -44997,9 +45084,18 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     )
     proof["verifiers"] = sorted(verifier_names)
     proof["verification_strengths"] = sorted(strengths)
+    theory["structured_derivation_trace_observed"] = bool(
+        int(theory["n_theory_derivation_packets"]) > 0
+        and int(theory["n_theory_derivation_packets_with_contract"]) > 0
+        and int(theory["n_theory_derivation_packets_with_min_derivation_steps"]) > 0
+        and int(theory["n_theory_derivation_packets_with_equation_chain"]) > 0
+        and int(theory["n_theory_derivation_packets_with_assumption_ledger"]) > 0
+        and int(theory["n_theory_derivation_packets_with_formalization_handoff"]) > 0
+    )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeEvidenceSummary",
+        "theory": theory,
         "proof": proof,
         "simulation": simulation,
         "algorithm": algorithm,

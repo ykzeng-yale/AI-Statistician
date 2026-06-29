@@ -187,6 +187,11 @@ def audit_research_agent_runtime(
         if isinstance(runtime_evidence_summary.get("proof", {}), Mapping)
         else {}
     )
+    runtime_theory_summary = (
+        dict(runtime_evidence_summary.get("theory", {}) or {})
+        if isinstance(runtime_evidence_summary.get("theory", {}), Mapping)
+        else {}
+    )
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
     )
@@ -1488,6 +1493,53 @@ def audit_research_agent_runtime(
         "n_results_with_literature_fair_comparison_plan": sum(
             1 for row in rows if row.has_literature_fair_comparison_plan
         ),
+        "n_theory_derivation_packets": int(
+            runtime_theory_summary.get("n_theory_derivation_packets", 0) or 0
+        ),
+        "n_theory_derivation_packets_with_contract": int(
+            runtime_theory_summary.get(
+                "n_theory_derivation_packets_with_contract",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_derivation_packets_with_min_derivation_steps": int(
+            runtime_theory_summary.get(
+                "n_theory_derivation_packets_with_min_derivation_steps",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_derivation_packets_with_equation_chain": int(
+            runtime_theory_summary.get(
+                "n_theory_derivation_packets_with_equation_chain",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_derivation_packets_with_assumption_ledger": int(
+            runtime_theory_summary.get(
+                "n_theory_derivation_packets_with_assumption_ledger",
+                0,
+            )
+            or 0
+        ),
+        "n_theory_derivation_packets_with_formalization_handoff": int(
+            runtime_theory_summary.get(
+                "n_theory_derivation_packets_with_formalization_handoff",
+                0,
+            )
+            or 0
+        ),
+        "structured_theory_derivation_trace_observed": bool(
+            runtime_theory_summary.get(
+                "structured_derivation_trace_observed",
+                False,
+            )
+        ),
+        "theory_derivation_trace_boundary": str(
+            runtime_theory_summary.get("boundary", "") or ""
+        ),
         "has_kernel_evidence": any(row.n_kernel_verified_subclaims > 0 for row in rows),
         "has_formal_gaps": any(row.n_formal_gaps > 0 for row in rows),
         "rows": [asdict(row) for row in rows],
@@ -2699,6 +2751,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "literature fair-comparison planning was missing for at least one result",
         ),
         _scorecard_row(
+            "theory_derivation_trace_contract_observed",
+            payload.get("structured_theory_derivation_trace_observed") is True,
+            (
+                "theory_packets="
+                f"{payload.get('n_theory_derivation_packets')} "
+                "with_contract="
+                f"{payload.get('n_theory_derivation_packets_with_contract')} "
+                "with_min_steps="
+                f"{payload.get('n_theory_derivation_packets_with_min_derivation_steps')} "
+                "with_equation_chain="
+                f"{payload.get('n_theory_derivation_packets_with_equation_chain')} "
+                "with_assumption_ledger="
+                f"{payload.get('n_theory_derivation_packets_with_assumption_ledger')} "
+                "with_formalization_handoff="
+                f"{payload.get('n_theory_derivation_packets_with_formalization_handoff')}"
+            ),
+            (
+                "TheoryDeveloper did not produce a structured derivation trace "
+                "with equation-chain, assumption-ledger, and formalization handoff; "
+                "downstream coding/proof workers are not receiving enough LLM-derived "
+                "theory context"
+            ),
+        ),
+        _scorecard_row(
             "algorithm_sandbox_executed",
             int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
             f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
@@ -3756,6 +3832,14 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM topology policy ok: {payload.get('llm_topology_policy_ok')}",
         f"- unsupported generator backends: {payload.get('unsupported_generator_backends_enabled')}",
         f"- critic reroutes: {payload.get('n_critic_reroutes')}",
+        f"- theory derivation packets: {payload.get('n_theory_derivation_packets')}",
+        "- structured theory derivation trace observed: "
+        f"{payload.get('structured_theory_derivation_trace_observed')}",
+        "- theory packets with equation chain / assumption ledger / formalization handoff: "
+        f"{payload.get('n_theory_derivation_packets_with_equation_chain')} / "
+        f"{payload.get('n_theory_derivation_packets_with_assumption_ledger')} / "
+        f"{payload.get('n_theory_derivation_packets_with_formalization_handoff')}",
+        f"- theory derivation trace boundary: {payload.get('theory_derivation_trace_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
         f"- generated-code metric gate failed: {payload.get('n_generated_code_sandbox_metric_gate_failed')}",
