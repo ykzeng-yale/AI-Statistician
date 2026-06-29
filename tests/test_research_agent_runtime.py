@@ -29904,6 +29904,85 @@ def test_formalizer_validator_rejects_source_to_bridge_skeleton_marker() -> None
     assert any("fail_if_success" in error for error in errors)
 
 
+def test_formalizer_validator_rejects_source_to_bridge_wrong_declaration_name() -> None:
+    expected_declaration = (
+        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+    )
+    packet = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_source_theorem_still_gap",
+                "informal_source": "full source theorem remains unproved",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "hC",
+                "to": "hGoodCovered",
+                "role": "source-to-bridge premise derivation",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal good covered bridge",
+                "target_library": "local",
+                "purpose": "premise derivation",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["run local Lean on premise candidate"],
+            "known_blockers": [],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodCovered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "premise_candidate_declaration_name": expected_declaration,
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "request:hGoodCovered"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": {
+                    "candidate_request_id": "request:hGoodCovered",
+                    "premise_name": "hGoodCovered",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "premise_candidate_declaration_name": expected_declaration,
+                },
+                "premise_derivation_candidate_lean_source": (
+                    "theorem invented_hGoodCovered_bridge "
+                    "(A B : Prop) (hC : A -> B) : A -> B := by\n"
+                    "  exact hC\n"
+                ),
+            }
+        ],
+        "gap_taxonomy": [
+            {"gap": "premise derivation still unverified", "kind": "proof_search"}
+        ],
+        "critic_findings": [
+            {"critic": "validator", "finding": "wrong declaration name"}
+        ],
+        "next_actions": [
+            {"owner_agent": "ProofEngineer", "action": "repair theorem name"}
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+
+    errors = validate_formalizer_packet(packet)
+
+    assert any(
+        "exact premise_candidate_declaration_name" in error
+        and expected_declaration in error
+        for error in errors
+    )
+
+
 def test_formalizer_validator_rejects_vacuous_true_source_to_bridge_candidate() -> None:
     packet = {
         "formal_targets": [
@@ -30383,7 +30462,7 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "target_lean_declaration": "split_conformal_finite_sample_coverage",
                 "premise_derivation_candidate_lean_source": (
-                    "theorem split_conformal_hGoodRankImpliesCovered_source_to_bridge "
+                    "theorem split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation "
                     "(good_rank_event covered : Prop) "
                     "(hC : good_rank_event -> covered) : "
                     "good_rank_event -> covered := by\n"
@@ -30458,6 +30537,9 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request
         candidate["source_to_bridge_premise_derivation_candidate_request_id"]
         == "request:hGoodRankImpliesCovered"
     )
+    assert candidate["premise_candidate_declaration_name"] == (
+        "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
+    )
     assert candidate["required_semantic_anchor_reference_names"] == ["hC"]
     assert "hC hGoodRank" in candidate["premise_derivation_candidate_lean_source"]
     assert validate_formalizer_packet(packet) == []
@@ -30507,7 +30589,7 @@ def test_formalizer_autofills_single_source_to_bridge_request_fallback() -> None
                 "target_lean_declaration": "split_conformal_finite_sample_coverage",
                 "expected_status": "NEEDS_KERNEL_CHECK",
                 "premise_derivation_candidate_lean_source": (
-                    "theorem hGoodRankImpliesCovered_source_to_bridge_derivation\n"
+                    "theorem split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation\n"
                     "    (A B C : Prop)\n"
                     "    (hQuantileThreshold : A)\n"
                     "    (hGoodRank : A -> B)\n"
@@ -30632,6 +30714,9 @@ def test_formalizer_autofills_single_source_to_bridge_request_fallback() -> None
             "candidate_request_id"
         ]
         == "request:hGoodRankImpliesCovered"
+    )
+    assert candidate["premise_candidate_declaration_name"] == (
+        "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
     )
     assert candidate["required_semantic_anchor_reference_names"] == [
         "hQuantileThreshold",
@@ -30876,7 +30961,7 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
                 "target_lean_declaration": "split_conformal_finite_sample_coverage",
                 "required_semantic_anchor_reference_names": ["hGoodRank", "hExch"],
                 "premise_derivation_candidate_lean_source": (
-                    "theorem normalized_status_source_to_bridge_candidate "
+                    "theorem split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation "
                     "(hGoodRank hExch : Prop) : hGoodRank -> hExch -> "
                     "hGoodRank /\\ hExch := by\n"
                     "  intro hg he\n"
@@ -36476,6 +36561,56 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
         "derive these bridge premise names" in required_input
         for required_input in work_order["required_inputs"]
     )
+
+
+def test_runtime_memory_normalizes_stale_source_to_bridge_request_declaration_name() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    expected_declaration = (
+        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+    )
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "premise_name": "hGoodCovered",
+                "premise_candidate_declaration_name": expected_declaration,
+                "premise_derivation_kernel_verified": False,
+                "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
+                "failure_classification": "premise_derivation_candidate_wrong_declaration",
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "request:hGoodCovered"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": {
+                    "candidate_request_id": "request:hGoodCovered",
+                    "premise_name": "hGoodCovered",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
+                },
+            }
+        ],
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    diagnostic = summary["source_to_bridge_premise_derivation_diagnostics"][0]
+    assert diagnostic["premise_candidate_declaration_name"] == expected_declaration
+    assert diagnostic["source_to_bridge_premise_derivation_candidate_request"][
+        "premise_candidate_declaration_name"
+    ] == expected_declaration
 
 
 def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter_feedback(

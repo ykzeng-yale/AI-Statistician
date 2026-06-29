@@ -14,6 +14,7 @@ REQUIRED_FIELDS = (
     "premise_name",
     "target_theorem_name",
     "target_lean_declaration",
+    "premise_candidate_declaration_name",
     "exact_source_theorem_binders",
     "premise_semantic_anchor_binders",
     "premise_semantic_anchor_binder_names",
@@ -56,13 +57,46 @@ def string_values(raw: Any) -> list[str]:
 
 
 def safe_identifier(raw: str) -> str:
-    value = re.sub(r"[^A-Za-z0-9_]", "_", str(raw or "").strip())
-    value = re.sub(r"_+", "_", value).strip("_")
+    value = re.sub(r"\W+", "_", str(raw or "").strip())
+    value = value.strip("_")
     if not value:
-        return "metadata_request"
+        return "source_to_bridge_premise"
     if value[0].isdigit():
-        value = f"x_{value}"
+        value = "source_to_bridge_premise_" + value
     return value
+
+
+def default_premise_candidate_declaration_name(
+    request: Mapping[str, Any],
+) -> str:
+    existing = str(
+        request.get("premise_candidate_declaration_name", "")
+        or request.get("source_to_bridge_premise_candidate_declaration_name", "")
+        or ""
+    ).strip()
+    if existing:
+        return existing
+    target = str(
+        request.get("target_lean_declaration", "")
+        or request.get("target_theorem_name", "")
+        or ""
+    ).strip()
+    premise = str(request.get("premise_name", "") or "").strip()
+    if not target or not premise:
+        return ""
+    return (
+        f"{safe_identifier(target)}_"
+        f"{safe_identifier(premise)}_source_to_bridge_derivation"
+    )
+
+
+def ensure_premise_candidate_declaration_name(
+    request: dict[str, Any],
+) -> str:
+    declaration_name = default_premise_candidate_declaration_name(request)
+    if declaration_name and not request.get("premise_candidate_declaration_name"):
+        request["premise_candidate_declaration_name"] = declaration_name
+    return declaration_name
 
 
 def missing_metadata_fields(request: Mapping[str, Any]) -> list[str]:
@@ -149,6 +183,9 @@ def metadata_authoring_request_row(
         normalized_request["target_theorem_name"] = target_theorem_name
     if target_lean_declaration and not normalized_request.get("target_lean_declaration"):
         normalized_request["target_lean_declaration"] = target_lean_declaration
+    premise_candidate_declaration_name = ensure_premise_candidate_declaration_name(
+        normalized_request
+    )
 
     candidate_request_id = str(
         normalized_request.get("candidate_request_id", "") or ""
@@ -196,6 +233,10 @@ def metadata_authoring_request_row(
         "premise_names": _request_string_list(normalized_request, "premise_names"),
         "premise_target_type": str(
             normalized_request.get("premise_target_type", "") or ""
+        ),
+        "premise_candidate_declaration_name": premise_candidate_declaration_name,
+        "source_to_bridge_premise_candidate_declaration_name": (
+            premise_candidate_declaration_name
         ),
         "premise_semantic_dependency_requirements": _request_string_list(
             normalized_request,
@@ -464,12 +505,15 @@ def memory_metadata_authoring_request_rows(
         for key in (
             "premise_name",
             "premise_target_type",
+            "premise_candidate_declaration_name",
+            "source_to_bridge_premise_candidate_declaration_name",
             "semantic_anchor_reference_gate",
             "candidate_contract",
         ):
             value = str(row.get(key, "") or input_summary.get(key, "") or "")
             if value and not request.get(key):
                 request[key] = value
+        ensure_premise_candidate_declaration_name(request)
         for key in (
             "premise_names",
             "premise_semantic_dependency_requirements",
@@ -525,6 +569,14 @@ def memory_metadata_authoring_request_rows(
                 "premise_names": string_values(request.get("premise_names", [])),
                 "premise_target_type": str(
                     request.get("premise_target_type", "") or ""
+                ),
+                "premise_candidate_declaration_name": str(
+                    request.get("premise_candidate_declaration_name", "") or ""
+                ),
+                "source_to_bridge_premise_candidate_declaration_name": str(
+                    request.get("source_to_bridge_premise_candidate_declaration_name", "")
+                    or request.get("premise_candidate_declaration_name", "")
+                    or ""
                 ),
                 "premise_semantic_dependency_requirements": string_values(
                     request.get("premise_semantic_dependency_requirements", [])

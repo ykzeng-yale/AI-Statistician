@@ -31900,6 +31900,50 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
             or ""
         ).strip()
+        if not premise_candidate_declaration_name:
+            premise_candidate_declaration_name = (
+                stb_metadata.default_premise_candidate_declaration_name(
+                    {
+                        "target_lean_declaration": str(
+                            premise_candidate_request.get(
+                                "target_lean_declaration",
+                                "",
+                            )
+                            or row.get("target_lean_declaration", "")
+                            or (
+                                input_summary.get("target_lean_declaration", "")
+                                if isinstance(input_summary, Mapping)
+                                else ""
+                            )
+                            or target
+                            or ""
+                        ),
+                        "target_theorem_name": str(
+                            premise_candidate_request.get("target_theorem_name", "")
+                            or row.get("target_theorem_name", "")
+                            or (
+                                input_summary.get("target_theorem_name", "")
+                                if isinstance(input_summary, Mapping)
+                                else ""
+                            )
+                            or target
+                            or ""
+                        ),
+                        "premise_name": (
+                            source_to_bridge_premise_name
+                            or str(
+                                premise_candidate_request.get("premise_name", "")
+                                or ""
+                            )
+                        ),
+                    }
+                )
+            )
+        if premise_candidate_declaration_name and premise_candidate_request:
+            premise_candidate_request.setdefault(
+                "premise_candidate_declaration_name",
+                premise_candidate_declaration_name,
+            )
         if is_source_to_bridge_premise_derivation_feedback:
             if premise_derivation_kernel_verified:
                 failure_classification = (
@@ -34059,6 +34103,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "premise_name",
                 "target_theorem_name",
                 "target_lean_declaration",
+                "premise_candidate_declaration_name",
                 "exact_source_theorem_binders",
                 "premise_semantic_anchor_binders",
                 "premise_semantic_anchor_binder_names",
@@ -34633,6 +34678,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "premise_target_type": str(
                     row.get("premise_target_type", "") or ""
+                ),
+                "premise_candidate_declaration_name": str(
+                    row.get("premise_candidate_declaration_name", "") or ""
+                ),
+                "source_to_bridge_premise_candidate_declaration_name": str(
+                    row.get(
+                        "source_to_bridge_premise_candidate_declaration_name",
+                        "",
+                    )
+                    or row.get("premise_candidate_declaration_name", "")
+                    or ""
                 ),
                 "exact_source_theorem_binders": list(
                     row.get("exact_source_theorem_binders", []) or []
@@ -36474,6 +36530,36 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
             ).strip()
             if not target_theorem_name:
                 target_theorem_name = target_lean_declaration
+            premise_candidate_declaration_name = str(
+                candidate.get("premise_candidate_declaration_name", "")
+                or candidate.get("source_to_bridge_premise_candidate_declaration_name", "")
+                or candidate_request.get("premise_candidate_declaration_name", "")
+                or candidate_request.get(
+                    "source_to_bridge_premise_candidate_declaration_name",
+                    "",
+                )
+                or diagnostic.get("premise_candidate_declaration_name", "")
+                or diagnostic.get(
+                    "source_to_bridge_premise_candidate_declaration_name",
+                    "",
+                )
+                or ""
+            ).strip()
+            if not premise_candidate_declaration_name:
+                premise_candidate_declaration_name = (
+                    stb_metadata.default_premise_candidate_declaration_name(
+                        {
+                            "target_lean_declaration": target_lean_declaration,
+                            "target_theorem_name": target_theorem_name,
+                            "premise_name": premise_name,
+                        }
+                    )
+                )
+            if premise_candidate_declaration_name:
+                candidate_request.setdefault(
+                    "premise_candidate_declaration_name",
+                    premise_candidate_declaration_name,
+                )
             source_formal_target_id = str(
                 candidate.get("id", "")
                 or candidate.get("source_formal_target_id", "")
@@ -36560,6 +36646,12 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                     "target_lean_declaration": target_lean_declaration,
                     "target_theorem_goal_ids": work_order_target_goal_ids,
                     "premise_name": premise_name,
+                    "premise_candidate_declaration_name": (
+                        premise_candidate_declaration_name
+                    ),
+                    "source_to_bridge_premise_candidate_declaration_name": (
+                        premise_candidate_declaration_name
+                    ),
                     "required_derivation": str(
                         candidate.get("required_derivation", "")
                         or diagnostic.get("premise_derivation_gap_summary", "")

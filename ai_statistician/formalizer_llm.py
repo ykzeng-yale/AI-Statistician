@@ -13,6 +13,10 @@ from .formalizer_repair_policy import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .source_to_bridge_metadata import (
+    default_premise_candidate_declaration_name,
+    ensure_premise_candidate_declaration_name,
+)
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -32,7 +36,7 @@ FORMALIZER_BOUNDARY = (
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
-FORMALIZER_MAX_TEXT_CHARS = 360
+FORMALIZER_MAX_TEXT_CHARS = 300
 
 
 @dataclass(frozen=True)
@@ -295,6 +299,9 @@ def build_formalizer_prompt(
                 "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
                 "source_to_bridge_premise_derivation_candidates; "
                 "proof_bank_obligation_requests alone do not satisfy this gate. "
+                "A source_to_bridge_premise_derivation_candidates entry must copy "
+                "premise_candidate_declaration_name from the runtime request and "
+                "its Lean source must declare theorem <that exact name>. "
                 "When runtime target-shape feedback says a source theorem would "
                 "drift if repaired, emit that source theorem as FORMAL_GAP and "
                 "route helper/premise Lean candidates separately. A separate helper "
@@ -340,8 +347,9 @@ def build_formalizer_prompt(
             "formal_targets entry just to satisfy the Lean-candidate gate. Keep "
             "the source theorem as expected_status=FORMAL_GAP, and either emit a "
             "structured source_to_bridge_premise_derivation_candidate_requests "
-            "object with the exact source-binding metadata, or record the missing "
-            "metadata fields as a source_to_bridge_metadata_blocker. "
+            "object with the exact source-binding metadata, including "
+            "premise_candidate_declaration_name, or record the missing metadata "
+            "fields as a source_to_bridge_metadata_blocker. "
         )
     elif requires_lean_candidate and has_source_theorem_target_drift:
         lean_candidate_instruction = (
@@ -480,6 +488,9 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             ],
             "target_theorem_name": "split_conformal_coverage",
             "target_lean_declaration": "split_conformal_coverage",
+            "premise_candidate_declaration_name": (
+                "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+            ),
             "premise_derivation_candidate_lean_source": (
                 "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation ... := by\n"
                 "  ..."
@@ -494,6 +505,9 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "premise_name": "hGoodCovered",
             "target_theorem_name": "split_conformal",
             "target_lean_declaration": "split_conformal",
+            "premise_candidate_declaration_name": (
+                "split_conformal_hGoodCovered_source_to_bridge_derivation"
+            ),
             "premise_target_type": "adapter premise Lean type",
             "exact_source_theorem_binders": [{"name": "hC", "type": "source hyp"}],
             "premise_semantic_anchor_binders": [{"name": "hC", "role": "anchor"}],
@@ -636,6 +650,11 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 "source_to_bridge_premise_derivation_candidates entry missing Lean candidate source"
             )
+        declaration_errors = _source_to_bridge_candidate_declaration_contract_errors(
+            row,
+            candidate_source,
+        )
+        errors.extend(declaration_errors)
         if not _source_to_bridge_candidate_has_source_binding_contract(row):
             errors.append(
                 "source_to_bridge_premise_derivation_candidates entry missing "
@@ -694,6 +713,86 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     if forbidden_packet:
         errors.append(f"packet contains forbidden proof claim: {forbidden_packet}")
     return sorted(set(errors))
+
+
+def _source_to_bridge_candidate_declaration_contract_errors(
+    row: Mapping[str, Any],
+    candidate_source: str,
+) -> list[str]:
+    if not candidate_source.strip():
+        return []
+    expected_names = _source_to_bridge_candidate_expected_declaration_names(row)
+    if not expected_names:
+        return []
+    missing = [
+        name
+        for name in expected_names
+        if not re.search(rf"\btheorem\s+{re.escape(name)}\b", candidate_source)
+    ]
+    if not missing:
+        return []
+    return [
+        "source_to_bridge_premise_derivation_candidates Lean candidate must "
+        "declare theorem with exact premise_candidate_declaration_name: "
+        + ", ".join(missing)
+    ]
+
+
+def _source_to_bridge_candidate_expected_declaration_names(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    names: list[str] = []
+
+    def add_value(value: Any) -> None:
+        text = str(value or "").strip()
+        if text:
+            names.append(text)
+
+    def add_request(request: Mapping[str, Any]) -> None:
+        add_value(request.get("premise_candidate_declaration_name", ""))
+        add_value(
+            request.get("source_to_bridge_premise_candidate_declaration_name", "")
+        )
+        generated = default_premise_candidate_declaration_name(request)
+        if generated:
+            names.append(generated)
+
+    add_value(row.get("premise_candidate_declaration_name", ""))
+    add_value(row.get("source_to_bridge_premise_candidate_declaration_name", ""))
+    single_request = row.get("source_to_bridge_premise_derivation_candidate_request", {})
+    if isinstance(single_request, Mapping):
+        add_request(single_request)
+
+    grouped_request = row.get(
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
+        {},
+    )
+    if isinstance(grouped_request, Mapping):
+        for key in (
+            "premise_candidate_declaration_names",
+            "per_premise_candidate_requests",
+        ):
+            raw_rows = grouped_request.get(key, [])
+            if not isinstance(raw_rows, list | tuple | set):
+                continue
+            for item in raw_rows:
+                if isinstance(item, Mapping):
+                    add_request(item)
+                else:
+                    add_value(item)
+    if not names:
+        target = str(
+            row.get("target_lean_declaration", "")
+            or row.get("target_theorem_name", "")
+            or ""
+        ).strip()
+        for premise in _source_to_bridge_candidate_premise_names(row):
+            generated = default_premise_candidate_declaration_name(
+                {"target_lean_declaration": target, "premise_name": premise}
+            )
+            if generated:
+                names.append(generated)
+    return tuple(dict.fromkeys(name for name in names if name))
 
 
 def _phantom_source_to_bridge_next_action_errors(
@@ -2774,6 +2873,8 @@ def _source_to_bridge_candidate_request_shortcuts(
         ).strip():
             candidate_request = diagnostic
         if isinstance(candidate_request, Mapping) and candidate_request:
+            candidate_request = dict(candidate_request)
+            ensure_premise_candidate_declaration_name(candidate_request)
             request_id = str(
                 diagnostic.get(
                     "source_to_bridge_premise_derivation_candidate_request_id",
@@ -2803,6 +2904,15 @@ def _source_to_bridge_candidate_request_shortcuts(
                     "premise_target_type": str(
                         candidate_request.get("premise_target_type", "")
                         or diagnostic.get("premise_target_type", "")
+                        or ""
+                    ),
+                    "premise_candidate_declaration_name": str(
+                        candidate_request.get("premise_candidate_declaration_name", "")
+                        or diagnostic.get("premise_candidate_declaration_name", "")
+                        or diagnostic.get(
+                            "source_to_bridge_premise_candidate_declaration_name",
+                            "",
+                        )
                         or ""
                     ),
                     "required_semantic_anchor_reference_names": list(
@@ -2972,6 +3082,8 @@ def _copy_missing_candidate_metadata(
         "semantic_anchor_reference_gate",
         "adapter_object_names_requiring_source_instantiation",
         "premise_target_type",
+        "premise_candidate_declaration_name",
+        "source_to_bridge_premise_candidate_declaration_name",
         "target_theorem_name",
         "target_lean_declaration",
         "candidate_contract",
