@@ -377,6 +377,7 @@ def _runtime_evidence_truth_table_from_manifest(
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
             "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
         ),
@@ -389,6 +390,7 @@ def _runtime_evidence_truth_table_from_manifest(
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
         ),
     )
@@ -401,6 +403,7 @@ def _runtime_evidence_truth_table_from_manifest(
         (
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_dominant_failure_classification",
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification",
             "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
@@ -411,6 +414,7 @@ def _runtime_evidence_truth_table_from_manifest(
         (
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
             "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
             "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt",
             "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
@@ -19291,6 +19295,15 @@ def run_research_agent_runtime(
         is not None
     )
     manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = int(
         (
@@ -19298,6 +19311,76 @@ def run_research_agent_runtime(
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
         or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_runtime_learning_rows"
+    ] = len(
+        source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_learning_rows
+    )
+    materialized_typechecked_review_recheck_executor_compact_payload = (
+        _executor_manifest_compact_payload(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification"
+    ] = str(
+        materialized_typechecked_review_recheck_executor_compact_payload.get(
+            "dominant_failure_classification",
+            "",
+        )
+        or ""
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_by_proof_body_gate_status"
+    ] = dict(
+        materialized_typechecked_review_recheck_executor_compact_payload.get(
+            "by_proof_body_gate_status",
+            {},
+        )
+        or {}
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_excerpt_rows"
+    ] = int(
+        materialized_typechecked_review_recheck_executor_compact_payload.get(
+            "n_proof_body_goal_excerpt_rows",
+            0,
+        )
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt"
+    ] = [
+        str(value)
+        for value in materialized_typechecked_review_recheck_executor_compact_payload.get(
+            "first_proof_body_goal_excerpt",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ][:8]
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_proof_evidence_status"
+    ] = (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+        if manifest.get(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            0,
+        )
+        else "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        if source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        else ""
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_boundary"
+    ] = (
+        "The materialized typechecked-review proof-body recheck executor is "
+        "proof evidence only when it reports n_source_theorem_kernel_verified "
+        "> 0 for the exact source theorem. Failed or non-kernel rows are "
+        "ProofEngineer feedback."
+        if source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        else ""
     )
     manifest[
         "source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_ran"
