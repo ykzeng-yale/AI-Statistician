@@ -43329,9 +43329,23 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is False
+    cross_task_row = rows["cross_task_full_theorem_generalization_demonstrated"]
     assert "two question ids inside one family" in rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["blocker"]
+    assert cross_task_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert "--question-task-family conformal" in cross_task_row[
+        "recommended_capability_eval_command"
+    ]
+    assert "--question-task-family experimental_design" in cross_task_row[
+        "recommended_capability_eval_command"
+    ]
+    assert "--min-task-families 2" in cross_task_row[
+        "recommended_capability_eval_command"
+    ]
+    assert cross_task_row["proof_evidence_status"] == (
+        "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
 
     legacy_question_only_payload = {
         "n_results": 2,
@@ -43418,6 +43432,9 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is True
+    assert "recommended_capability_eval_command" not in rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]
     assert ladder["scale"] == "L0-L9"
     assert ladder_rows[9]["passed"] is True
 
@@ -43521,6 +43538,13 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
     assert scorecard_rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is False
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "## Capability Routing" in report
+    assert "--question-task-family conformal" in report
+    assert "--question-task-family experimental_design" in report
+    assert "evaluation routing metadata" in report
     assert ladder_rows[9]["passed"] is False
 
 

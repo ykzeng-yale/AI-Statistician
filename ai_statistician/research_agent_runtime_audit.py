@@ -5226,6 +5226,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "two question ids inside one family cannot establish general "
                 "AI Statistician readiness"
             ),
+            **_cross_task_generalization_scorecard_routing(payload),
         ),
     ]
     n_passed = sum(1 for row in rows if row["passed"])
@@ -5268,12 +5269,60 @@ def _scorecard_row(
     passed: bool,
     evidence: str,
     blocker: str,
+    **routing: Any,
 ) -> dict[str, Any]:
-    return {
+    row = {
         "requirement_id": requirement_id,
         "passed": bool(passed),
         "evidence": evidence,
         "blocker": "" if passed else blocker,
+    }
+    if routing and not bool(passed):
+        row.update(routing)
+    return row
+
+
+def _cross_task_generalization_scorecard_routing(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    families = explicit_task_family_list(payload.get("task_families", []))
+    first_family = families[0] if families else "conformal"
+    second_family = (
+        "experimental_design"
+        if first_family != "experimental_design"
+        else "multiple_testing"
+    )
+    command = (
+        ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
+        f"--question-task-family {first_family} "
+        f"--question-task-family {second_family} "
+        "--min-task-families 2 "
+        "--provider anthropic "
+        "--capability-eval "
+        "--capability-eval-preset full-live "
+        "--max-iterations 8 "
+        "--out runs/main_worker_cross_family_full_live"
+    )
+    return {
+        "next_owner_subsystem": "ArchitectCoordinator",
+        "target_behavior": (
+            "Run a live Architect-controlled capability eval over at least two "
+            "explicit statistics task families, then prove full source/frontier "
+            "theorems in each selected family before claiming L9 generality."
+        ),
+        "recommended_capability_eval_command": command,
+        "success_metric": (
+            "n_distinct_task_families>=2 and "
+            "n_task_families_with_full_frontier_theorem_proved>=2 with "
+            "local Lean/AXLE kernel verification for the full source/frontier "
+            "theorem in each family"
+        ),
+        "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
+        "routing_boundary": (
+            "This recommendation is evaluation routing metadata. It is not proof "
+            "evidence and does not satisfy L9 until the audit records real "
+            "kernel-verified full theorem evidence across the selected families."
+        ),
     }
 
 
@@ -5564,6 +5613,32 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
         "",
+        "## Capability Routing",
+    ]
+    routed_rows = [
+        row
+        for row in payload.get("capability_scorecard", {}).get("rows", []) or []
+        if (
+            isinstance(row, Mapping)
+            and row.get("passed") is not True
+            and str(row.get("recommended_capability_eval_command", "") or "").strip()
+        )
+    ]
+    if routed_rows:
+        for row in routed_rows:
+            lines.extend(
+                [
+                    f"- {row.get('requirement_id')}: owner={row.get('next_owner_subsystem')}",
+                    f"  - target: {row.get('target_behavior')}",
+                    f"  - command: `{row.get('recommended_capability_eval_command')}`",
+                    f"  - success: {row.get('success_metric')}",
+                    f"  - boundary: {row.get('routing_boundary')}",
+                ]
+            )
+    else:
+        lines.append("- no scorecard routing recommendations")
+    lines.extend([
+        "",
         "## Runtime Handoff Identity",
         f"- pending task memory rows: {payload.get('n_runtime_pending_task_memory_rows')}",
         "- route-critical target identity rows / missing target_ids: "
@@ -5582,6 +5657,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('runtime_handoff_artifact_missing_roles')} / "
         f"{payload.get('runtime_handoff_artifact_missing_owner_subsystems')}",
         "",
+    ])
+    lines.extend([
         f"- live generator agents enabled: {payload.get('n_live_generator_agents_enabled')}",
         f"- ArchitectCoordinator trace executed: {payload.get('architect_coordinator_enabled')}",
         f"- Architect control status: {payload.get('runtime_architect_control_status')}",
@@ -5743,7 +5820,7 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"late_source_kernel_verified={payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified')}",
         "",
         "## Capability Gaps",
-    ]
+    ])
     if payload.get("capability_gaps"):
         for gap in payload.get("capability_gaps", []) or []:
             lines.append(f"- {gap}")
