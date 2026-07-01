@@ -10848,6 +10848,60 @@ def test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic() -> None
     assert "expected_status=FORMAL_GAP" in prompt
 
 
+def test_formalizer_prompt_derives_core_helper_contract_from_precheck_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+            "failure_classification": "formalizer_lean_candidate_precheck_rejected",
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_local_check_failed"],
+            },
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "request:hDoubleRobust",
+                    "candidate_kind": "source_to_bridge_premise_derivation_candidate",
+                    "source_field": "source_to_bridge_premise_derivation_candidates",
+                    "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                    "precheck_errors": [
+                        (
+                            "core-Lean-only helper contract violation: no-import "
+                            "helper uses non-core arithmetic/API marker(s): Real, <=. "
+                            "Use only Prop, Not, arrows, lambda/fun, and `exact`, "
+                            "or add a verified import and route the dependency explicitly."
+                        )
+                    ],
+                    "lean_source_excerpt": (
+                        "theorem thm_aipw_normality_hDoubleRobust_source_to_bridge_derivation "
+                        "(eta : Real) (hEta : 0 < eta) "
+                        "(hPos : forall x, eta <= propensity x) : True := by "
+                        "exact True.intro"
+                    ),
+                    "local_lean_attempted": False,
+                    "local_lean_compiled": False,
+                    "local_lean_skipped_reason": (
+                        "candidate_rejected_by_precheck_or_not_materialized"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert "Mandatory core-Lean helper repair" in prompt
+    assert "do not use Real, <=" in prompt
+    assert "core_prop_bridge" in prompt
+    assert "lean_no_import_noncore_arithmetic" in prompt
+
+
 def test_formalizer_prompt_repair_instructions_handle_local_lean_timeout_without_weakening() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
