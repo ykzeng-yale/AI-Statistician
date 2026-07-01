@@ -899,6 +899,39 @@ def _feedback_requires_formalizer_lean_candidate(
     return False
 
 
+def _feedback_has_repeated_syntax_failure_contract(
+    feedback: Mapping[str, Any] | None,
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    input_summary = (
+        feedback.get("input_summary", {})
+        if isinstance(feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for source in (feedback, input_summary):
+        if not isinstance(source, Mapping):
+            continue
+        contract = (
+            source.get("local_lean_repair_contract", {})
+            if isinstance(source.get("local_lean_repair_contract", {}), Mapping)
+            else {}
+        )
+        if not bool(contract.get("repeated_syntax_failure", False)):
+            continue
+        diagnostic_classes = {
+            str(value).strip()
+            for value in contract.get("diagnostic_classes", []) or []
+            if str(value).strip()
+        }
+        if (
+            not diagnostic_classes
+            or "lean_parser_or_syntax_error" in diagnostic_classes
+        ):
+            return True
+    return False
+
+
 def _feedback_has_source_theorem_target_drift(
     feedback: Mapping[str, Any] | None,
 ) -> bool:
@@ -1161,6 +1194,16 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
         )
     )
     if not candidate_targets and not source_to_bridge_candidate_targets:
+        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
+            if _has_explicit_source_theorem_formal_gap_target(formal_targets):
+                return []
+            return [
+                "capability_eval repeated parser/syntax contract requires either "
+                "an explicit source-theorem FORMAL_GAP formal_targets row with "
+                "an empty Lean sketch, or one parser-simple support candidate in "
+                "source_to_bridge_premise_derivation_candidates with copied "
+                "source-binding metadata; packet has neither"
+            ]
         if (
             pending_source_to_bridge_premise_names
             and _packet_has_source_to_bridge_semantic_anchor_blocker(
@@ -1220,6 +1263,25 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval formal target "
                 f"{target_id} Lean sketch {placeholder_error}"
             )
+        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
+            if expected_status == "NEEDS_KERNEL_CHECK":
+                errors.append(
+                    "capability_eval formal target "
+                    f"{target_id} violates repeated parser/syntax repair "
+                    "contract: executable formal_targets are gated after a "
+                    "repeated parser failure; keep the source theorem as "
+                    "FORMAL_GAP and route executable helper/support work "
+                    "through source_to_bridge_premise_derivation_candidates "
+                    "or another support channel with copied source-binding "
+                    "metadata"
+                )
+            for contract_error in _lean_statement_repeated_syntax_contract_errors(
+                source
+            ):
+                errors.append(
+                    "capability_eval formal target "
+                    f"{target_id} Lean sketch {contract_error}"
+                )
     if pending_source_to_bridge_premise_names:
         candidate_premise_names = {
             name
@@ -1272,6 +1334,14 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval source-to-bridge candidate "
                 f"{premise_id} Lean sketch {placeholder_error}"
             )
+        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
+            for contract_error in _lean_statement_repeated_syntax_contract_errors(
+                source
+            ):
+                errors.append(
+                    "capability_eval source-to-bridge candidate "
+                    f"{premise_id} Lean sketch {contract_error}"
+                )
     return errors
 
 
@@ -6629,6 +6699,31 @@ def _lean_statement_placeholder_syntax_error(source: str) -> str:
         if re.search(pattern, source, flags=re.IGNORECASE):
             return message
     return ""
+
+
+def _lean_statement_repeated_syntax_contract_errors(source: str) -> list[str]:
+    text = str(source or "")
+    if not text:
+        return []
+    errors: list[str] = []
+    if re.search(r"\bType\s*\*", text):
+        errors.append(
+            "violates repeated parser/syntax repair contract: `Type*` universe "
+            "shorthand is forbidden after a repeated parser failure; use `Type`, "
+            "an explicit universe, FORMAL_GAP, or a minimal ASCII/core support lemma"
+        )
+    if "|>" in text:
+        errors.append(
+            "violates repeated parser/syntax repair contract: pipeline syntax `|>` "
+            "is forbidden after a repeated parser failure"
+        )
+    if any(ord(ch) > 127 for ch in text):
+        errors.append(
+            "violates repeated parser/syntax repair contract: non-ASCII Lean syntax "
+            "or binders are forbidden after a repeated parser failure; use ASCII "
+            "identifiers and parser-simple core Lean"
+        )
+    return errors
 
 
 def _source_to_bridge_candidate_vacuous_truth_error(source: str) -> str:

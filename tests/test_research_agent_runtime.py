@@ -10171,6 +10171,328 @@ def test_repeated_syntax_contract_precheck_rejects_source_theorem_retry(
     assert "source_to_bridge_premise_derivation_candidates" in errors
 
 
+def test_repeated_syntax_contract_precheck_rejects_diagnostic_helper_type_star_retry(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="formalize-lean-repair:test:syntax_helper_retry",
+        owner_subsystem="ProofEngineer",
+        objective="reject parser-failing helper after repeated parser failure",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:repeated_syntax_helper_retry",
+            "formal_targets": [
+                {
+                    "id": "diagnostic_helper_retry",
+                    "informal_source": "diagnostic helper after repeated syntax failure",
+                    "lean_statement_sketch": (
+                        "theorem diagnostic_helper_retry "
+                        "{Omega : Type*} (p : Prop) : p -> p := by\n"
+                        "  intro hp\n"
+                        "  exact hp\n"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "diagnostic_helper_retry",
+                        "source_theorem_goal_id": "source_theorem",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "diagnostic_helper_not_source_theorem": True,
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
+    errors = " ".join(row["precheck_errors"])
+    assert "repeated Lean parser/syntax contract violation" in errors
+    assert "Type*" in errors
+    assert row["blocking_precheck_errors"]
+
+
+def test_repeated_syntax_contract_precheck_rejects_helper_formal_target_retry(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="formalize-lean-repair:test:syntax_helper_formal_target",
+        owner_subsystem="ProofEngineer",
+        objective="reject helper formal target after repeated parser failure",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:repeated_syntax_helper_formal_target",
+            "formal_targets": [
+                {
+                    "id": "diagnostic_helper_retry",
+                    "informal_source": "diagnostic helper after repeated syntax failure",
+                    "lean_statement_sketch": (
+                        "theorem diagnostic_helper_retry "
+                        "(p q : Prop) (h : p -> q) (hp : p) : q := by\n"
+                        "  exact h hp\n"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "diagnostic_helper_retry",
+                        "source_theorem_goal_id": "source_theorem",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "diagnostic_helper_not_source_theorem": True,
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    errors = " ".join(row["precheck_errors"])
+    assert "executable formal_targets are gated" in errors
+    assert "source_to_bridge_premise_derivation_candidates" in errors
+
+
+def test_capability_eval_allows_repeated_syntax_formal_gap_without_new_candidate() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "source_theorem_gap_after_repeated_syntax",
+                    "informal_source": (
+                        "source theorem remains blocked by repeated parser failure"
+                    ),
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "source_theorem",
+                        "source_theorem_goal_id": "source_theorem",
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [],
+        },
+        environment_feedback={
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
+            },
+        },
+    )
+
+    assert errors == []
+
+
+def test_capability_eval_repeated_syntax_without_gap_requires_explicit_route() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [],
+            "source_to_bridge_premise_derivation_candidates": [],
+        },
+        environment_feedback={
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
+            },
+        },
+    )
+
+    joined = " ".join(errors)
+    assert "repeated parser/syntax contract" in joined
+    assert "source-theorem FORMAL_GAP" in joined
+    assert "packet has neither" in joined
+
+
+def test_capability_eval_rejects_repeated_syntax_type_star_candidate() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "diagnostic_helper_retry",
+                    "informal_source": "diagnostic helper after repeated parser failure",
+                    "lean_statement_sketch": (
+                        "theorem diagnostic_helper_retry "
+                        "{Omega : Type*} (p : Prop) : p -> p := by\n"
+                        "  intro hp\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [],
+        },
+        environment_feedback={
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
+            },
+        },
+    )
+
+    joined = " ".join(errors)
+    assert "repeated parser/syntax repair contract" in joined
+    assert "Type*" in joined
+
+
+def test_capability_eval_rejects_repeated_syntax_formal_targets_helper() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "diagnostic_helper_retry",
+                    "informal_source": "diagnostic helper after repeated parser failure",
+                    "lean_statement_sketch": (
+                        "theorem diagnostic_helper_retry "
+                        "(p q : Prop) (h : p -> q) (hp : p) : q := by\n"
+                        "  exact h hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [],
+        },
+        environment_feedback={
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
+            },
+        },
+    )
+
+    joined = " ".join(errors)
+    assert "executable formal_targets are gated" in joined
+    assert "source_to_bridge_premise_derivation_candidates" in joined
+
+
+def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "capability_eval repeated parser/syntax contract requires either "
+                "an explicit source-theorem FORMAL_GAP formal_targets row with "
+                "an empty Lean sketch, or one parser-simple support candidate in "
+                "source_to_bridge_premise_derivation_candidates with copied "
+                "source-binding metadata; packet has neither"
+            )
+        ],
+        history=[{"attempt_index": 1, "ok": False}],
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:causal_ate_aipw:syntax",
+        owner_subsystem="ProofEngineer",
+        objective="repair repeated syntax failure",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            }
+        },
+    )
+
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary={},
+        exc=exc,
+    )
+
+    feedback = result.next_task.inputs["environment_feedback"]  # type: ignore[union-attr]
+    assert "parser/syntax fail-closed mode" in feedback["required_repair"]
+    assert "expected_status=FORMAL_GAP" in feedback["required_repair"]
+    assert "source_to_bridge_premise_derivation_candidates" in feedback[
+        "required_repair"
+    ]
+    assert "helper formal_targets with NEEDS_KERNEL_CHECK" in feedback[
+        "required_repair"
+    ]
+    assert "at most one separate helper formal_targets entry" not in feedback[
+        "required_repair"
+    ]
+    assert "helper formal_targets as executable substitutes" in feedback[
+        "target_behavior"
+    ]
+    assert "source-theorem FORMAL_GAP row" in feedback["acceptance_gate"]
+
+
 def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
     tmp_path: Path,
 ) -> None:

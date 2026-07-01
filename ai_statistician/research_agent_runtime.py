@@ -7531,12 +7531,14 @@ def _formalizer_packet_validation_failure_result(
         "target_behavior": _formalizer_validation_failure_target_behavior(
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
-            )
+            ),
+            local_lean_repair_contract=active_local_lean_repair_contract,
         ),
         "acceptance_gate": _formalizer_validation_failure_acceptance_gate(
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
-            )
+            ),
+            local_lean_repair_contract=active_local_lean_repair_contract,
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
@@ -7629,10 +7631,12 @@ def _formalizer_packet_validation_failure_result(
         ),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "target_behavior": learning_row["target_behavior"],
+        "acceptance_gate": learning_row["acceptance_gate"],
         "required_repair": _formalizer_validation_failure_required_repair(
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
             ),
+            local_lean_repair_contract=active_local_lean_repair_contract,
             validation_repair_directives=validation_repair_directives,
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
@@ -8325,9 +8329,28 @@ def _formalizer_source_theorem_candidate_materialization_contract_from_validatio
     }
 
 
+def _formalizer_local_lean_contract_has_repeated_syntax_failure(
+    contract: Mapping[str, Any] | None,
+) -> bool:
+    if not isinstance(contract, Mapping):
+        return False
+    if not bool(contract.get("repeated_syntax_failure", False)):
+        return False
+    diagnostic_classes = {
+        str(value).strip()
+        for value in contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    }
+    return (
+        not diagnostic_classes
+        or "lean_parser_or_syntax_error" in diagnostic_classes
+    )
+
+
 def _formalizer_validation_failure_target_behavior(
     *,
     source_theorem_candidate_materialization_contract: Mapping[str, Any],
+    local_lean_repair_contract: Mapping[str, Any],
 ) -> str:
     if source_theorem_candidate_materialization_contract:
         targets = ", ".join(
@@ -8359,6 +8382,17 @@ def _formalizer_validation_failure_target_behavior(
             "identity; do not satisfy this repair with FORMAL_GAP-only or "
             "helper/support-only outputs"
         )
+    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
+        local_lean_repair_contract
+    ):
+        return (
+            "rerun Formalizer/ProofEngineer under repeated parser/syntax "
+            "fail-closed mode: emit an explicit source-theorem FORMAL_GAP "
+            "formal_targets row with an empty Lean sketch, or emit one "
+            "parser-simple ASCII/core support candidate through a support/"
+            "source-to-bridge channel with copied source-binding metadata; do "
+            "not use helper formal_targets as executable substitutes"
+        )
     return (
         "rerun Formalizer/ProofEngineer with a locally valid packet: preserve "
         "source-binding request metadata, include all required semantic anchors "
@@ -8370,6 +8404,7 @@ def _formalizer_validation_failure_target_behavior(
 def _formalizer_validation_failure_acceptance_gate(
     *,
     source_theorem_candidate_materialization_contract: Mapping[str, Any],
+    local_lean_repair_contract: Mapping[str, Any],
 ) -> str:
     if source_theorem_candidate_materialization_contract:
         return (
@@ -8377,6 +8412,16 @@ def _formalizer_validation_failure_acceptance_gate(
             "concrete exact source-theorem formal_targets candidate; materialization "
             "creates a Lean artifact for signature/local Lean feedback but is not "
             "proof evidence until kernel verified."
+        )
+    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
+        local_lean_repair_contract
+    ):
+        return (
+            "Formalizer packet passes local validation only when repeated "
+            "parser/syntax feedback is resolved by an explicit source-theorem "
+            "FORMAL_GAP row with empty Lean sketch, or by a parser-simple "
+            "support-channel candidate that satisfies source-binding metadata; "
+            "any executable candidate still needs local Lean/AXLE verification."
         )
     return (
         "Formalizer packet passes local schema/semantic validation; any resulting "
@@ -8388,9 +8433,12 @@ def _formalizer_validation_failure_acceptance_gate(
 def _formalizer_validation_failure_required_repair(
     *,
     source_theorem_candidate_materialization_contract: Mapping[str, Any],
+    local_lean_repair_contract: Mapping[str, Any],
     validation_repair_directives: Sequence[str],
 ) -> str:
-    directive_text = " ".join(str(row) for row in validation_repair_directives if str(row))
+    directive_text = " ".join(
+        str(row) for row in validation_repair_directives if str(row)
+    )
     if source_theorem_candidate_materialization_contract:
         targets = list(
             source_theorem_candidate_materialization_contract.get("target_ids", []) or []
@@ -8399,7 +8447,9 @@ def _formalizer_validation_failure_required_repair(
             or []
         )
         target_text = (
-            " Requested target id/name(s): " + ", ".join(dict.fromkeys(map(str, targets))) + "."
+            " Requested target id/name(s): "
+            + ", ".join(dict.fromkeys(map(str, targets)))
+            + "."
             if targets
             else ""
         )
@@ -8416,6 +8466,26 @@ def _formalizer_validation_failure_required_repair(
             "kernel proof from the candidate. After the packet passes local validation, "
             "AgentRuntime will materialize the Lean artifact and route local Lean/AXLE "
             "or signature-probe feedback. "
+            + directive_text
+        )
+    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
+        local_lean_repair_contract
+    ):
+        return (
+            "Return a locally valid Formalizer packet under repeated "
+            "parser/syntax fail-closed mode. If no parser-simple support "
+            "candidate can be emitted with exact source-binding metadata, the "
+            "packet must include an explicit source-theorem formal_targets row "
+            "with expected_status=FORMAL_GAP and an empty lean_statement_sketch, "
+            "plus gap_taxonomy/next_actions naming the exact parser blocker. If "
+            "an executable support candidate is emitted, put it in "
+            "source_to_bridge_premise_derivation_candidates or another support "
+            "channel with copied runtime request metadata, use ASCII/core Lean "
+            "that avoids `Type*`, Unicode binders, pipeline syntax, guessed "
+            "imports, and large dependent statements, and keep the source "
+            "theorem target as FORMAL_GAP. Do not emit helper formal_targets "
+            "with NEEDS_KERNEL_CHECK as a substitute for the source theorem, and "
+            "do not claim kernel proof from any candidate. "
             + directive_text
         )
     return (
@@ -11788,11 +11858,24 @@ def _formalizer_repeated_syntax_contract_precheck_errors(
         return []
     text = str(source or "")
     errors: list[str] = []
+    if re.search(r"\bType\s*\*", text):
+        errors.append(
+            "repeated Lean parser/syntax contract violation: `Type*` universe "
+            "shorthand is forbidden after a repeated parser failure; use `Type`, "
+            "an explicit universe such as `Type u`, expected_status=FORMAL_GAP, "
+            "or a minimal ASCII/core Lean support lemma."
+        )
     if "|>" in text:
         errors.append(
             "repeated Lean parser/syntax contract violation: pipeline syntax `|>` "
             "is forbidden after a repeated parser failure; use a parser-simple "
             "declaration or emit expected_status=FORMAL_GAP."
+        )
+    if any(ord(ch) > 127 for ch in text):
+        errors.append(
+            "repeated Lean parser/syntax contract violation: non-ASCII Lean syntax "
+            "or binders are forbidden after a repeated parser failure; use ASCII "
+            "identifiers/parser-simple core Lean or emit expected_status=FORMAL_GAP."
         )
     if str(source_field or "") == "formal_targets":
         provenance = (
@@ -11805,6 +11888,16 @@ def _formalizer_repeated_syntax_contract_precheck_errors(
         )
         source_theorem_target_known = _source_theorem_target_known_value(provenance)
         expected_status = str(candidate_metadata.get("expected_status", "") or "")
+        if expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}:
+            errors.append(
+                "repeated Lean parser/syntax contract violation: executable "
+                "formal_targets are gated after a repeated parser failure. Emit "
+                "the source theorem as expected_status=FORMAL_GAP with an empty "
+                "Lean sketch, or route one minimal ASCII/core Lean support lemma "
+                "through source_to_bridge_premise_derivation_candidates, "
+                "lemma_dependency_plan, or a proof-bank request with exact "
+                "source-binding metadata."
+            )
         if (
             source_theorem_target_known is True
             and expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}
