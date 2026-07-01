@@ -23752,6 +23752,38 @@ def test_formal_subclaim_prover_classifies_local_lean_timeout_separately() -> No
     assert control["verifier_timeout_s"] == 1
 
 
+def test_formal_subclaim_prover_watchdog_bounds_hanging_verifier() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+
+    class HangingLeanVerifier:
+        name = "local.lake_env_lean"
+        timeout_s = 0.01
+
+        async def verify_many(self, _items):
+            await asyncio.sleep(10)
+            raise AssertionError("watchdog should cancel this verifier call")
+
+    prover = FormalSubclaimProver(
+        verifier=HangingLeanVerifier(),
+        proof_obligation_ids=("prob_measure_univ",),
+        max_proof_obligations=1,
+    )
+    subclaims = asyncio.run(prover.prove(problem, theorem_goals))
+    control = prover.proof_obligation_control()
+    registered_rows = [row for row in subclaims if row.claim_type == "lean_obligation"]
+
+    assert [row.proof_obligation_id for row in registered_rows] == ["prob_measure_univ"]
+    assert registered_rows[0].status == "FAILED"
+    assert registered_rows[0].formalization_status == "verification_timeout"
+    assert registered_rows[0].verification_strength == "local_lean_timeout"
+    assert "watchdog timed out" in str(registered_rows[0].errors[0])
+    assert "timed out" in str(registered_rows[0].gap_reason)
+    assert control["verifier"] == "local.lake_env_lean"
+    assert control["verifier_timeout_s"] == 0.01
+
+
 def test_formalizer_prompt_exposes_registered_proof_obligation_catalog() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     problem = ProblemFormalizer().formalize(question)

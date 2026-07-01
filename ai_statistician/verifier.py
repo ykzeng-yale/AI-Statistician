@@ -180,7 +180,7 @@ async def _terminate_process_tree(proc: asyncio.subprocess.Process | None) -> No
     with contextlib.suppress(ProcessLookupError):
         os.killpg(proc.pid, signal.SIGKILL)
     with contextlib.suppress(Exception):
-        await proc.wait()
+        await asyncio.wait_for(proc.wait(), timeout=2)
 
 
 class LocalLeanProofVerifier:
@@ -266,6 +266,9 @@ class LocalLeanProofVerifier:
                     )
                     for obligation, proof_body, retrieval_hits in items
                 ]
+            except asyncio.CancelledError:
+                await _terminate_process_tree(proc)
+                raise
             except Exception:
                 return [
                     await self.verify(obligation, proof_body, retrieval_hits)
@@ -370,6 +373,9 @@ class LocalLeanProofVerifier:
                     errors=errors,
                     retrieval_hits=retrieval_hits,
                 )
+            except asyncio.CancelledError:
+                await _terminate_process_tree(proc)
+                raise
             except Exception as exc:
                 return ProofCheck(
                     obligation_id=obligation.id,

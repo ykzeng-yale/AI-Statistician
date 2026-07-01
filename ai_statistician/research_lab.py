@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import re
@@ -32,6 +33,7 @@ from .research_schema import (
     TheoremGoal,
 )
 from .retrieval import ProofBankRetriever, RetrievalQuery
+from .schema import ProofCheck
 from .verifier import MockProofVerifier, ProofVerifier
 
 
@@ -5163,6 +5165,52 @@ def _proof_check_timed_out(check: Any) -> bool:
     return False
 
 
+def _proof_verifier_watchdog_timeout_s(verifier: Any) -> float:
+    try:
+        timeout_s = float(getattr(verifier, "timeout_s", 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        return 0.0
+    grace_s = min(5.0, max(0.1, timeout_s * 0.1))
+    return timeout_s + grace_s
+
+
+def _proof_verifier_watchdog_timeout_checks(
+    proof_items: list[tuple[Any, list[Any]]],
+    *,
+    verifier: Any,
+    elapsed_ms: int,
+    timeout_s: float,
+) -> list[ProofCheck]:
+    verifier_name = str(getattr(verifier, "name", type(verifier).__name__))
+    verification_strength = (
+        "local_lean_timeout"
+        if "lean" in verifier_name.lower()
+        else "proof_verifier_timeout"
+    )
+    timeout_label = f"{timeout_s:g}"
+    return [
+        ProofCheck(
+            obligation_id=obligation.id,
+            ok=False,
+            proof_body=obligation.proof_body,
+            verifier=verifier_name,
+            verification_strength=verification_strength,
+            kernel_verified=False,
+            elapsed_ms=elapsed_ms,
+            errors=[
+                (
+                    f"{verifier_name} verification watchdog timed out after "
+                    f"{timeout_label}s"
+                )
+            ],
+            retrieval_hits=hits,
+        )
+        for obligation, hits in proof_items
+    ]
+
+
 class FormalSubclaimProver:
     def __init__(
         self,
@@ -5211,7 +5259,11 @@ class FormalSubclaimProver:
             "prioritized_proof_obligation_ids": list(self._last_prioritized_obligation_ids),
             "max_proof_obligations": self.max_proof_obligations,
             "verifier": getattr(self.verifier, "name", type(self.verifier).__name__),
-            "verifier_timeout_s": verifier_timeout_s if isinstance(verifier_timeout_s, int) else None,
+            "verifier_timeout_s": (
+                verifier_timeout_s
+                if isinstance(verifier_timeout_s, (int, float))
+                else None
+            ),
             "candidate_proof_obligation_ids": list(self._last_candidate_obligation_ids),
             "selected_proof_obligation_ids": list(self._last_selected_obligation_ids),
             "selected_priority_proof_obligation_ids": list(self._last_selected_priority_obligation_ids),
@@ -5375,18 +5427,48 @@ class FormalSubclaimProver:
             )
             proof_items.append((obligation, hits))
         verifier_many = getattr(self.verifier, "verify_many", None)
-        if callable(verifier_many):
-            checks = await verifier_many(
-                [
-                    (obligation, obligation.proof_body, hits)
-                    for obligation, hits in proof_items
-                ]
-            )
-        else:
-            checks = [
+        verifier_start = datetime.now(timezone.utc)
+        verifier_watchdog_timeout_s = _proof_verifier_watchdog_timeout_s(
+            self.verifier
+        )
+
+        async def _run_verifier() -> list[ProofCheck]:
+            if callable(verifier_many):
+                return await verifier_many(
+                    [
+                        (obligation, obligation.proof_body, hits)
+                        for obligation, hits in proof_items
+                    ]
+                )
+            return [
                 await self.verifier.verify(obligation, obligation.proof_body, hits)
                 for obligation, hits in proof_items
             ]
+
+        try:
+            if verifier_watchdog_timeout_s > 0:
+                checks = await asyncio.wait_for(
+                    _run_verifier(),
+                    timeout=verifier_watchdog_timeout_s,
+                )
+            else:
+                checks = await _run_verifier()
+        except asyncio.TimeoutError:
+            elapsed_ms = max(
+                1,
+                int(
+                    (
+                        datetime.now(timezone.utc) - verifier_start
+                    ).total_seconds()
+                    * 1000
+                ),
+            )
+            checks = _proof_verifier_watchdog_timeout_checks(
+                proof_items,
+                verifier=self.verifier,
+                elapsed_ms=elapsed_ms,
+                timeout_s=verifier_watchdog_timeout_s,
+            )
         for (obligation, _hits), check in zip(proof_items, checks, strict=True):
             subclaims.append(
                 FormalSubclaim(
