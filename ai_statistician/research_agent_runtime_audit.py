@@ -21,11 +21,16 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
+    _effective_formal_verification_policy,
+    _effective_recommended_research_path,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
+    _runtime_architect_recommended_formal_verification_policy,
+    _runtime_architect_recommended_research_path,
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_manifest_int_sum,
+    _runtime_research_path_execution_summary,
 )
 from .task_family import (
     explicit_task_family_list,
@@ -364,6 +369,11 @@ def audit_research_agent_runtime(
         row.has_runtime_learning_memory_input for row in rows
     ):
         errors.append("runtime input context memory rows were not propagated into per-question traces")
+    runtime_research_path_control = _runtime_research_path_control_from_results(
+        result_paths=result_paths,
+        manifest=manifest,
+        errors=errors,
+    )
 
     runtime_handoff_artifact_missing_summary = (
         _runtime_handoff_artifact_missing_audit_summary(
@@ -560,7 +570,10 @@ def audit_research_agent_runtime(
         ),
         "runtime_evaluation_mode": str(manifest.get("runtime_evaluation_mode", "")),
         "effective_formal_verification_policy": str(
-            manifest.get("effective_formal_verification_policy", "")
+            runtime_research_path_control["effective_formal_verification_policy"]
+        ),
+        "requested_formal_verification_policy": str(
+            manifest.get("requested_formal_verification_policy", "")
             or manifest.get("formal_verification_policy", "")
             or ""
         ),
@@ -568,18 +581,32 @@ def audit_research_agent_runtime(
             manifest.get("requested_recommended_research_path", "") or ""
         ),
         "effective_recommended_research_path": str(
-            manifest.get("effective_recommended_research_path", "") or ""
+            runtime_research_path_control["effective_recommended_research_path"]
+        ),
+        "architect_recommended_formal_verification_policy": str(
+            runtime_research_path_control[
+                "architect_recommended_formal_verification_policy"
+            ]
+        ),
+        "architect_recommended_research_path": str(
+            runtime_research_path_control["architect_recommended_research_path"]
         ),
         "runtime_research_path_control_propagated": bool(
-            manifest.get("runtime_research_path_control_propagated", False)
+            runtime_research_path_control["runtime_research_path_control_propagated"]
         ),
         "runtime_research_path_execution_summary": (
-            dict(manifest.get("runtime_research_path_execution_summary", {}) or {})
-            if isinstance(
-                manifest.get("runtime_research_path_execution_summary", {}),
-                Mapping,
-            )
-            else {}
+            runtime_research_path_control["runtime_research_path_execution_summary"]
+        ),
+        "runtime_research_path_execution_summary_source": str(
+            runtime_research_path_control[
+                "runtime_research_path_execution_summary_source"
+            ]
+        ),
+        "runtime_research_path_manifest_stale": bool(
+            runtime_research_path_control["runtime_research_path_manifest_stale"]
+        ),
+        "runtime_research_path_manifest_snapshot": (
+            runtime_research_path_control["runtime_research_path_manifest_snapshot"]
         ),
         "n_results": len(rows),
         "question_ids": sorted(
@@ -752,6 +779,11 @@ def audit_research_agent_runtime(
         "n_runtime_formal_gap_planner_handoff_rows_with_execution_context": int(
             runtime_formal_gap_planner_handoff_context_summary[
                 "n_runtime_formal_gap_planner_handoff_rows_with_execution_context"
+            ]
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context"
             ]
         ),
         "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": int(
@@ -2565,6 +2597,106 @@ def audit_research_agent_runtime(
     return payload
 
 
+def _runtime_research_path_control_from_results(
+    *,
+    result_paths: list[Path],
+    manifest: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    manifest_summary = (
+        dict(manifest.get("runtime_research_path_execution_summary", {}) or {})
+        if isinstance(
+            manifest.get("runtime_research_path_execution_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    manifest_snapshot = {
+        "effective_formal_verification_policy": str(
+            manifest.get("effective_formal_verification_policy", "")
+            or manifest.get("formal_verification_policy", "")
+            or ""
+        ),
+        "effective_recommended_research_path": str(
+            manifest.get("effective_recommended_research_path", "") or ""
+        ),
+        "architect_recommended_formal_verification_policy": str(
+            manifest.get("architect_recommended_formal_verification_policy", "")
+            or ""
+        ),
+        "architect_recommended_research_path": str(
+            manifest.get("architect_recommended_research_path", "") or ""
+        ),
+        "runtime_research_path_control_propagated": bool(
+            manifest.get("runtime_research_path_control_propagated", False)
+        ),
+        "runtime_research_path_execution_summary": manifest_summary,
+    }
+    results = [
+        result
+        for result in (_load_json(path, errors) for path in result_paths)
+        if result
+    ]
+    if not results:
+        return {
+            **manifest_snapshot,
+            "runtime_research_path_execution_summary_source": "manifest_fallback",
+            "runtime_research_path_manifest_stale": False,
+            "runtime_research_path_manifest_snapshot": manifest_snapshot,
+        }
+
+    architect_policy = _runtime_architect_recommended_formal_verification_policy(
+        results
+    )
+    architect_path = _runtime_architect_recommended_research_path(results)
+    effective_policy = _effective_formal_verification_policy(
+        requested_policy=(
+            str(
+                manifest.get("requested_formal_verification_policy", "")
+                or manifest.get("formal_verification_policy", "")
+                or manifest.get("effective_formal_verification_policy", "")
+                or ""
+            )
+        ),
+        architect_recommended_policy=architect_policy,
+    )
+    effective_path = _effective_recommended_research_path(
+        effective_formal_verification_policy=effective_policy,
+        requested_recommended_path=str(
+            manifest.get("requested_recommended_research_path", "") or ""
+        ),
+        architect_recommended_path=architect_path,
+    )
+    summary = _runtime_research_path_execution_summary(
+        results,
+        effective_formal_verification_policy=effective_policy,
+        effective_recommended_research_path=effective_path,
+    )
+    manifest_stale = (
+        manifest_snapshot["effective_formal_verification_policy"] != effective_policy
+        or manifest_snapshot["effective_recommended_research_path"] != effective_path
+        or manifest_snapshot["architect_recommended_formal_verification_policy"]
+        != architect_policy
+        or manifest_snapshot["architect_recommended_research_path"] != architect_path
+        or manifest_snapshot["runtime_research_path_control_propagated"]
+        != bool(summary.get("path_control_propagated", False))
+        or manifest_summary != summary
+    )
+    return {
+        "effective_formal_verification_policy": effective_policy,
+        "effective_recommended_research_path": effective_path,
+        "architect_recommended_formal_verification_policy": architect_policy,
+        "architect_recommended_research_path": architect_path,
+        "runtime_research_path_control_propagated": bool(
+            summary.get("path_control_propagated", False)
+        ),
+        "runtime_research_path_execution_summary": summary,
+        "runtime_research_path_execution_summary_source": "result_artifacts_recomputed",
+        "runtime_research_path_manifest_stale": manifest_stale,
+        "runtime_research_path_manifest_snapshot": manifest_snapshot,
+    }
+
+
 def _audit_result_path(path: Path) -> RuntimeAuditRow:
     errors: list[str] = []
     data = _load_json(path, errors)
@@ -3744,45 +3876,67 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
 
     handoff_rows = 0
     rows_with_context = 0
+    rows_covered_by_sibling_context = 0
     execution_contexts = 0
+    valid_context_keys: set[tuple[str, str, str]] = set()
+    row_entries: list[tuple[str, int, Any]] = []
     for channel, rows in row_sources:
         for index, row in enumerate(rows):
             if not _runtime_formal_gap_planner_handoff_row(row):
                 continue
-            handoff_rows += 1
-            channels.add(channel)
-            channel_counts[channel] += 1
+            row_entries.append((channel, index, row))
             contexts = _runtime_formal_gap_planner_execution_contexts_for_row(row)
             valid_contexts = [
                 context
                 for context in contexts
                 if not _runtime_formal_gap_planner_context_missing_fields(context)
             ]
-            execution_contexts += len(contexts)
             if valid_contexts:
-                rows_with_context += 1
-                channel_context_counts[channel] += 1
-                continue
-            missing_fields = ["formalization_gap_planner_execution_contexts"]
-            if contexts:
-                missing_fields = _runtime_formal_gap_planner_context_missing_fields(
-                    contexts[0]
+                valid_context_keys.update(
+                    _runtime_formal_gap_planner_context_cover_keys(row)
                 )
-            missing_rows.append(
-                {
-                    "channel": channel,
-                    "index": str(index),
-                    "row_id": _runtime_route_row_identifier(row),
-                    "agenda_id": _runtime_formal_gap_planner_row_agenda_id(row),
-                    "trigger": _runtime_route_row_trigger_value(row),
-                    "owner_subsystem": _runtime_route_row_field(
-                        row,
-                        "owner_subsystem",
-                        "next_owner_subsystem",
-                    ),
-                    "missing_fields": missing_fields,
-                }
+
+    for channel, index, row in row_entries:
+        handoff_rows += 1
+        channels.add(channel)
+        channel_counts[channel] += 1
+        contexts = _runtime_formal_gap_planner_execution_contexts_for_row(row)
+        valid_contexts = [
+            context
+            for context in contexts
+            if not _runtime_formal_gap_planner_context_missing_fields(context)
+        ]
+        execution_contexts += len(contexts)
+        if valid_contexts:
+            rows_with_context += 1
+            channel_context_counts[channel] += 1
+            continue
+        if _runtime_formal_gap_planner_context_covered_by_sibling(
+            row,
+            valid_context_keys,
+        ):
+            rows_covered_by_sibling_context += 1
+            continue
+        missing_fields = ["formalization_gap_planner_execution_contexts"]
+        if contexts:
+            missing_fields = _runtime_formal_gap_planner_context_missing_fields(
+                contexts[0]
             )
+        missing_rows.append(
+            {
+                "channel": channel,
+                "index": str(index),
+                "row_id": _runtime_route_row_identifier(row),
+                "agenda_id": _runtime_formal_gap_planner_row_agenda_id(row),
+                "trigger": _runtime_route_row_trigger_value(row),
+                "owner_subsystem": _runtime_route_row_field(
+                    row,
+                    "owner_subsystem",
+                    "next_owner_subsystem",
+                ),
+                "missing_fields": missing_fields,
+            }
+        )
 
     pending_agenda_channels = (
         "runtime_pending_task_environment_feedback",
@@ -3798,6 +3952,9 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
         "n_runtime_formal_gap_planner_handoff_rows": handoff_rows,
         "n_runtime_formal_gap_planner_handoff_rows_with_execution_context": (
             rows_with_context
+        ),
+        "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context": (
+            rows_covered_by_sibling_context
         ),
         "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": len(
             missing_rows
@@ -3940,6 +4097,42 @@ def _runtime_formal_gap_planner_handoff_row(row: Any) -> bool:
         "runtime_formalization_gap_planner_handoff:" in value
         for value in marker_values
     )
+
+
+def _runtime_formal_gap_planner_context_covered_by_sibling(
+    row: Mapping[str, Any],
+    valid_context_keys: set[tuple[str, str, str]],
+) -> bool:
+    if not valid_context_keys:
+        return False
+    return any(
+        key in valid_context_keys
+        for key in _runtime_formal_gap_planner_context_cover_keys(row)
+    )
+
+
+def _runtime_formal_gap_planner_context_cover_keys(
+    row: Mapping[str, Any],
+) -> set[tuple[str, str, str]]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    agenda_id = _runtime_formal_gap_planner_row_agenda_id(row)
+    trigger = _runtime_route_row_trigger_value(row)
+    target_values = []
+    for source in (row, input_summary):
+        raw_targets = source.get("target_ids", [])
+        if isinstance(raw_targets, list):
+            target_values.extend(str(value).strip() for value in raw_targets)
+        elif str(raw_targets or "").strip():
+            target_values.append(str(raw_targets).strip())
+    target_key = ",".join(sorted({value for value in target_values if value}))
+    keys: set[tuple[str, str, str]] = set()
+    if agenda_id and trigger and target_key:
+        keys.add((agenda_id, trigger, target_key))
+    return keys
 
 
 def _runtime_formal_gap_planner_row_agenda_id(row: Mapping[str, Any]) -> str:
@@ -5496,6 +5689,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_formal_gap_planner_handoff_rows')} "
                 "with_execution_context="
                 f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_with_execution_context')} "
+                "covered_by_sibling_context="
+                f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context')} "
                 "execution_contexts="
                 f"{payload.get('n_runtime_formal_gap_planner_handoff_execution_contexts')} "
                 "agenda_rows="
@@ -7337,6 +7532,11 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('runtime_source_to_bridge_feedback_contract_channels')}",
         "- source-to-bridge feedback declaration missing sample: "
         f"{payload.get('runtime_source_to_bridge_feedback_rows_missing_declaration_contract')}",
+        "- formal-gap planner handoff rows / with context / covered by sibling / missing: "
+        f"{payload.get('n_runtime_formal_gap_planner_handoff_rows')} / "
+        f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_with_execution_context')} / "
+        f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context')} / "
+        f"{payload.get('n_runtime_formal_gap_planner_handoff_rows_missing_execution_context')}",
         "- missing handoff artifact feedback rows / learning / agenda: "
         f"{payload.get('n_runtime_handoff_artifact_missing_feedback_rows')} / "
         f"{payload.get('n_runtime_handoff_artifact_missing_learning_rows')} / "

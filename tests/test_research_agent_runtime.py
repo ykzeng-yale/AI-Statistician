@@ -211,6 +211,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
     _runtime_component_calibration_gaps_from_scorecard,
+    _runtime_formal_gap_planner_handoff_context_audit_summary,
     _merge_runtime_theory_summaries,
     _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
@@ -2036,6 +2037,64 @@ def test_runtime_capability_scorecard_flags_route_critical_targetless_rows() -> 
     assert target_score["passed"] is False
     assert "proof_feedback:targetless" in target_score["evidence"]
     assert "top-level target_ids" in target_score["blocker"]
+
+
+def test_formal_gap_planner_handoff_context_allows_compact_sibling_marker() -> None:
+    compact_row = {
+        "learning_task": "next_action_routing",
+        "input_summary": {
+            "agenda_id": "formal_gap:gap_planner_handoff",
+            "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+            "target_ids": ["causal_identification"],
+        },
+    }
+    contextualized_row = {
+        "learning_task": "next_action_routing",
+        "input_summary": {
+            "agenda_id": "formal_gap:gap_planner_handoff",
+            "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+            "target_ids": ["causal_identification"],
+        },
+        "formalization_gap_planner_execution_contexts": [
+            {
+                "handoff_id": "runtime_formalization_gap_planner_handoff:test",
+                "standalone_seed_path": "runs/test/seed.json",
+                "target_intake_path": "runs/test/target.json",
+                "llm_route_planner_prompt_cli": "python -m planner prompt",
+                "llm_route_planner_live_cli": (
+                    "python -m planner live --invoke-provider"
+                ),
+                "reuse_smoke_cli": "python -m planner reuse",
+                "proof_evidence_status": (
+                    "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+                ),
+            }
+        ],
+    }
+
+    summary = _runtime_formal_gap_planner_handoff_context_audit_summary(
+        agenda_rows=[],
+        learning_rows=[compact_row, contextualized_row],
+    )
+
+    assert summary["n_runtime_formal_gap_planner_handoff_rows"] == 2
+    assert (
+        summary["n_runtime_formal_gap_planner_handoff_rows_with_execution_context"]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context"
+        ]
+        == 1
+    )
+    assert (
+        summary["n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"]
+        == 0
+    )
 
 
 def _structured_theory_trace_alignment_fixture() -> dict[str, object]:
@@ -48537,6 +48596,107 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "statistical metric gate" in rows[
         "generated_simulation_metric_gate_clean"
     ]["blocker"]
+
+
+def test_runtime_audit_recomputes_stale_research_path_control(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "causal_ate_aipw_runtime_result.json"
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    result = {
+        "status": "ACCEPTED",
+        "blackboard": {
+            "project_id": "ai_statistician:causal_ate_aipw",
+            "artifacts": {
+                "retrieval:historical": {
+                    "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                    "evidence_contract": {
+                        "formal_verification_policy": "optional",
+                        "recommended_research_path": "dual_track",
+                    },
+                },
+                "formalization:current": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "runtime_architect_control": {
+                        "subsystem": "ProofEngineer",
+                        "evidence_contract": {
+                            "formal_verification_policy": "required",
+                            "recommended_research_path": "proof_first",
+                            "formal_required_for_final": True,
+                        },
+                    },
+                },
+            },
+        },
+        "traces": [
+            {
+                "subsystem": "ProofEngineer",
+                "produced_artifact_ids": ["formalization:current"],
+            }
+        ],
+    }
+    result_path.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    traces_path.write_text(
+        json.dumps({"subsystem": "ProofEngineer"}) + "\n",
+        encoding="utf-8",
+    )
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_"
+            "critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "formal_verification_policy": "required",
+        "requested_formal_verification_policy": "required",
+        "effective_formal_verification_policy": "required",
+        "effective_recommended_research_path": "dual_track",
+        "architect_recommended_formal_verification_policy": "optional",
+        "architect_recommended_research_path": "dual_track",
+        "runtime_research_path_control_propagated": False,
+        "runtime_research_path_execution_summary": {
+            "n_controlled_artifacts": 2,
+            "n_controlled_artifacts_with_evidence_contract": 1,
+            "n_policy_mismatches": 1,
+            "n_path_mismatches": 1,
+            "path_control_propagated": False,
+        },
+        "n_questions": 1,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert audit["runtime_research_path_execution_summary_source"] == (
+        "result_artifacts_recomputed"
+    )
+    assert audit["runtime_research_path_manifest_stale"] is True
+    assert audit["architect_recommended_formal_verification_policy"] == "required"
+    assert audit["architect_recommended_research_path"] == "proof_first"
+    assert audit["effective_recommended_research_path"] == "proof_first"
+    assert audit["runtime_research_path_control_propagated"] is True
+    summary = audit["runtime_research_path_execution_summary"]
+    assert summary["n_controlled_artifacts"] == 1
+    assert summary["n_historical_controlled_input_artifacts_skipped"] == 0
+    assert summary["n_policy_mismatches"] == 0
+    assert summary["n_path_mismatches"] == 0
 
 
 def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization() -> None:
