@@ -52315,12 +52315,14 @@ def _generated_sandbox_repair_sequence_counts(
 def _formalizer_lean_candidate_repair_sequence_count(
     artifacts: Mapping[str, Any],
 ) -> int:
-    """Count failed generated Lean candidates closed by ProofEngineer repair.
+    """Count failed generated Lean candidates closed by integrated repair.
 
     A later local Lean success on the same question is not enough: it may be an
     unrelated candidate. Treat the sequence as closed only when the successful
     candidate came from the explicit ``formalize-lean-repair:*`` task emitted by
-    the runtime ProofEngineer loop.
+    the runtime ProofEngineer loop, or from the follow-on
+    ``formalize-repair:*`` packet-validation repair hop that consumed the same
+    ProofEngineer/local-Lean feedback and reran local Lean.
     """
 
     manifests: list[Mapping[str, Any]] = []
@@ -52349,7 +52351,9 @@ def _formalizer_lean_candidate_repair_sequence_count(
         )
         question_id = str(question.get("id", "") or "unknown")
         task_id = str(manifest.get("task_id", "") or "")
-        pass_from_proofengineer_repair = task_id.startswith("formalize-lean-repair:")
+        pass_from_integrated_repair = task_id.startswith(
+            ("formalize-lean-repair:", "formalize-repair:")
+        )
         rows = manifest.get("candidate_rows", [])
         if not isinstance(rows, list):
             rows = []
@@ -52373,7 +52377,7 @@ def _formalizer_lean_candidate_repair_sequence_count(
 
         if (
             manifest_has_pass
-            and pass_from_proofengineer_repair
+            and pass_from_integrated_repair
             and saw_prior_failure_by_question.get(question_id, False)
         ):
             closed_sequences += 1
