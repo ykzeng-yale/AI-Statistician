@@ -289,8 +289,13 @@ def build_algorithm_engineer_prompt(
         "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
         "or non-executable code. "
         "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
-        "use imports except math/statistics, NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
-        "operations, method calls, or attribute access except math.*, statistics.*, and list append. If the requested "
+        "use imports other than plain import math/statistics/random; do not use from-import helper aliases, "
+        "NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
+        "operations, method calls, or attribute access except math.*, statistics.*, random.*, and list append/sort. "
+        "Do not call bare helpers such as mean(), stdev(), or sqrt(); use sum(values) / len(values), explicit "
+        "variance/std loops, or module-qualified calls such as statistics.mean(values), statistics.stdev(values), "
+        "and math.sqrt(x). If runtime_environment_feedback.forbidden_generated_code_calls is nonempty, do not reuse "
+        "those names as bare calls in the next draft. If the requested "
         "prototype needs those tools, omit sandbox_code_drafts and describe the registered-template or "
         "human-reviewed adapter plan instead. For this compact packet, do not include "
         "sandbox_code_drafts unless registered_template_hint is none for every implementation target.\n\n"
@@ -463,6 +468,11 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             feedback.get("failure_classification", ""),
             limit=180,
         ),
+        "forbidden_generated_code_calls": _compact_string_list(
+            feedback.get("forbidden_generated_code_calls", []),
+            limit=6,
+            char_limit=80,
+        ),
         "prototypes": [
             {
                 "estimator_id": _truncate_text(row.get("estimator_id", ""), limit=120),
@@ -483,6 +493,12 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
                     limit=3,
                     char_limit=220,
                 ),
+                "forbidden_generated_code_calls": _compact_string_list(
+                    row.get("forbidden_generated_code_calls", []),
+                    limit=5,
+                    char_limit=80,
+                ),
+                "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
                 "code_excerpt": _truncate_text(
                     row.get("code_excerpt", ""),
                     limit=500,
@@ -690,7 +706,7 @@ def _compact_string_list(value: Any, *, limit: int, char_limit: int = 220) -> li
 
 
 def _truncate_text(value: Any, *, limit: int = 360) -> str:
-    text = str(value or "")
+    text = "" if value is None else str(value)
     if len(text) <= limit:
         return text
     return text[: max(0, limit - 18)] + "...[truncated]"

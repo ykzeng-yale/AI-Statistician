@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-06-29",
+  "updated_at": "2026-07-01",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -950,7 +950,19 @@
     "critic_after_agenda_candidate_review_live_kernel_verified_subclaims": 126,
     "critic_after_agenda_candidate_review_live_formal_gaps": 81,
     "critic_after_agenda_candidate_review_live_agenda_audit": "Critic preserved 15 agenda rows with 0 missing target_ids and 0 duplicate ids. good_rank_event/coverage_event/covered route as PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW with SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY; C_n remains PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR with LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT. Source theorem proof counters remain 0.",
-    "exact_semantic_work_order_feedback_gate_patch": "Patched shared exact-semantic compiled-candidate normalization and work-order feedback serialization so sparse canonical work_order rows and replayed historical rows emit proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY plus candidate-review queue status for local-Lean compiled definition-only candidates. The serializer also exports proof_body_gate_statuses/runtime_queue_statuses summaries for pending-task and Critic handoffs."
+    "exact_semantic_work_order_feedback_gate_patch": "Patched shared exact-semantic compiled-candidate normalization and work-order feedback serialization so sparse canonical work_order rows and replayed historical rows emit proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY plus candidate-review queue status for local-Lean compiled definition-only candidates. The serializer also exports proof_body_gate_statuses/runtime_queue_statuses summaries for pending-task and Critic handoffs.",
+    "latest_62pt_algorithm_repair_policy_live_runtime_manifest": "runs/main_worker_runtime_real_kernel_probe_algorithm_metric_repair_policy_live_20260630/research_agent_runtime_manifest.json",
+    "latest_62pt_algorithm_repair_policy_live_audit_manifest": "runs/main_worker_runtime_real_kernel_probe_algorithm_metric_repair_policy_live_20260630_audit_current/research_agent_runtime_audit_manifest.json",
+    "latest_62pt_algorithm_repair_policy_live_scorecard": "36/62",
+    "latest_62pt_algorithm_repair_policy_live_status": "MAX_ITERATIONS_REACHED",
+    "latest_62pt_algorithm_repair_policy_live_pending_next_task": "formalize:causal_ate_aipw:0efcf409",
+    "latest_62pt_algorithm_repair_policy_live_generated_algorithm_code_executed": 3,
+    "latest_62pt_algorithm_repair_policy_live_generated_algorithm_repair_sequences": 1,
+    "latest_62pt_algorithm_repair_policy_live_generated_algorithm_unsafe_rejections": 2,
+    "latest_62pt_algorithm_repair_policy_live_generated_algorithm_metric_gate_failures": 2,
+    "latest_62pt_algorithm_repair_policy_live_generated_simulation_code_executed": 0,
+    "latest_62pt_algorithm_repair_policy_live_result": "Live Anthropic AlgorithmEngineer repair sequence now crosses the integrated generated-code repair gate in the 62-point runtime lineage: unsafe mean/stdev drafts were rejected, metric-gate failures carried code excerpts plus metrics such as ci_coverage=0.0 and bias/RMSE, and a later generated aipw_crossfit draft executed with ci_coverage=1.0 and no metric/safety errors. The runtime records n_generated_code_sandbox_failed_then_passed_repair_sequences=1 and routes forward to FormalizationEvaluator. This is implementation evidence only, not theorem proof evidence; generated simulation integrated execution remains 0 in this lineage.",
+    "latest_62pt_algorithm_repair_policy_tests": ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 491 passed in 205.74s after generated-code safe-subset/metric-feedback repair patch"
   },
   "latest_runtime_eval_alignment": {
     "date": "2026-06-25",

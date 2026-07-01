@@ -403,6 +403,11 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             feedback.get("failure_classification", ""),
             limit=180,
         ),
+        "forbidden_generated_code_calls": _compact_string_list(
+            feedback.get("forbidden_generated_code_calls", []),
+            limit=6,
+            char_limit=80,
+        ),
         "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
         "simulation_manifest_id": _truncate_text(
             feedback.get("simulation_manifest_id", ""),
@@ -428,6 +433,12 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
                     limit=3,
                     char_limit=220,
                 ),
+                "forbidden_generated_code_calls": _compact_string_list(
+                    row.get("forbidden_generated_code_calls", []),
+                    limit=5,
+                    char_limit=80,
+                ),
+                "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
                 "code_excerpt": _truncate_text(
                     row.get("code_excerpt", ""),
                     limit=500,
@@ -602,6 +613,17 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _compact_mapping(value: Any, *, limit: int) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact: dict[str, Any] = {}
+    for index, (key, row_value) in enumerate(value.items()):
+        if index >= limit:
+            break
+        compact[str(key)] = _truncate_text(row_value, limit=180)
+    return compact
+
+
 def _compact_string_or_list(value: Any) -> str | list[str]:
     if isinstance(value, list):
         return _compact_string_list(value, limit=2)
@@ -619,7 +641,7 @@ def _compact_string_list(value: Any, *, limit: int, char_limit: int = 220) -> li
 
 
 def _truncate_text(value: Any, *, limit: int = 360) -> str:
-    text = str(value or "")
+    text = "" if value is None else str(value)
     if len(text) <= limit:
         return text
     return text[: max(0, limit - 18)] + "...[truncated]"

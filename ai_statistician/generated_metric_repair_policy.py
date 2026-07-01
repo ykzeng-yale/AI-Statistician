@@ -13,6 +13,11 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
 
     return {
         "allowed_modules": ["math", "statistics", "random"],
+        "allowed_import_forms": [
+            "import math",
+            "import statistics",
+            "import random",
+        ],
         "allowed_globals": [
             "abs",
             "bool",
@@ -31,6 +36,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "str",
             "sum",
             "tuple",
+            "zip",
         ],
         "allowed_methods": [
             "list.append",
@@ -42,6 +48,17 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "rng.normalvariate",
             "math.*",
             "statistics.*",
+        ],
+        "forbidden_import_forms": [
+            "from math import ...",
+            "from statistics import ...",
+            "from random import ...",
+            "bare helper aliases such as mean(), stdev(), sqrt()",
+        ],
+        "manual_summary_patterns": [
+            "average = sum(values) / len(values) when values is non-empty",
+            "variance = sum((x - average) ** 2 for x in values) / max(1, len(values) - 1)",
+            "standard_error = math.sqrt(max(variance, 0.0) / n)",
         ],
         "forbidden_dependencies": [
             "numpy",
@@ -59,6 +76,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "global/nonlocal",
             "file I/O, network, subprocess, eval, exec",
             "private/dunder names or attributes",
+            "from-imported helper aliases; use plain module imports and module-qualified calls",
             "method calls or attribute access outside math/statistics/random and list append/sort",
         ],
         "safe_random_usage": (
@@ -85,7 +103,12 @@ def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) ->
         f"Generated-Python sandbox guard repair is active for the {label}: "
         "the next draft must keep all mutable state local to run_sandbox, avoid "
         "global/nonlocal, avoid classes/with/file/network/subprocess/eval/exec, "
-        "and import only math, statistics, or random. For stochastic simulations, "
+        "and use only plain module imports: import math, import statistics, or "
+        "import random. Do not write from statistics import mean/stdev or call "
+        "bare helper aliases such as mean(), stdev(), or sqrt(); use "
+        "sum(values) / len(values), explicit variance/std loops, or "
+        "module-qualified calls such as statistics.mean(values), "
+        "statistics.stdev(values), and math.sqrt(x). For stochastic simulations, "
         "prefer local RNG objects such as rng = random.Random(seed + rep) and "
         "call rng.random(), rng.uniform(), rng.gauss(), or rng.normalvariate(). "
         "Do not hand-roll closure-based RNG state that requires nonlocal. "
@@ -105,13 +128,18 @@ def generated_metric_gate_repair_instruction(*, artifact_label: str) -> str:
     return (
         "Runtime metric-gate repair is active: the previous "
         f"{label} executed locally but returned statistically invalid metrics. "
+        "Read the previous metric_gate_errors, metrics, and code_excerpt as the "
+        "concrete repair target. "
         "Repair the estimator, DGP, uncertainty calculation, or metric computation "
         "so named probability/coverage metrics are nondegenerate, inside [0,1], "
         "and satisfy the stated target when target_coverage is present. If an "
         "interval or prediction-set coverage metric is below target_coverage, "
-        "the next draft must correct the coverage indicator and increase or "
-        "recalibrate the uncertainty radius/quantile enough to meet the target "
-        "while still reporting utility diagnostics. Do not "
+        "the next draft must correct the coverage indicator and recalibrate the "
+        "uncertainty radius/quantile enough to meet the target while still "
+        "reporting utility diagnostics. If bias, RMSE, or a point-estimate error "
+        "metric is large, first repair target/DGP/estimator alignment and the "
+        "estimand used by the coverage indicator; do not merely widen intervals "
+        "around a wrong center. Do not "
         "only rename metrics or hide the coverage field. Do not satisfy the gate "
         "with a vacuous all-covering or otherwise utility-free output; preserve "
         "and return relevant utility diagnostics such as mean_width, interval_size, "

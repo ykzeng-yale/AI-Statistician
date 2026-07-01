@@ -53609,7 +53609,13 @@ def _algorithm_sandbox_revision_feedback(
         row for row in manifest.get("prototypes", []) or [] if isinstance(row, Mapping)
     ]
     compact_prototypes: list[dict[str, Any]] = []
+    forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
+        safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
+            safety_errors
+        )
+        forbidden_generated_code_calls.extend(row_forbidden_calls)
         compact_prototypes.append(
             {
                 "estimator_id": str(row.get("estimator_id", "") or ""),
@@ -53620,9 +53626,13 @@ def _algorithm_sandbox_revision_feedback(
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
                 )[:5],
-                "safety_errors": list(_str_tuple(row.get("safety_errors", [])))[:5],
+                "safety_errors": safety_errors,
+                "forbidden_generated_code_calls": row_forbidden_calls[:5],
+                "metrics": _compact_generated_sandbox_metrics(
+                    row.get("metrics", {})
+                ),
                 "script_path": str(row.get("script_path", "") or ""),
-                "code_excerpt": str(row.get("code_excerpt", "") or "")[:1200],
+                "code_excerpt": _generated_python_sandbox_code_excerpt(row),
                 "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
                 "reason": str(row.get("reason", "") or "")[:500],
             }
@@ -53641,6 +53651,9 @@ def _algorithm_sandbox_revision_feedback(
         "n_unsafe_generated_code_rejected": int(
             manifest.get("n_unsafe_generated_code_rejected", 0) or 0
         ),
+        "forbidden_generated_code_calls": list(
+            dict.fromkeys(forbidden_generated_code_calls)
+        )[:10],
         "prototypes": compact_prototypes,
         "required_repair": (
             "produce a sandbox draft that passes the safe subset, defines "
@@ -53648,6 +53661,10 @@ def _algorithm_sandbox_revision_feedback(
             "nondegenerate metrics satisfying the stated acceptance gate; or "
             "explicitly choose a matching registered template/unsupported blocker "
             "instead of repeating the same non-executable or metric-failing draft"
+            + " "
+            + generated_python_sandbox_guard_repair_instruction(
+                artifact_label="generated algorithm draft"
+            )
         ),
         "boundary": boundary,
     }
@@ -53663,6 +53680,52 @@ def _simulation_code_drafts(proposal_packet: Mapping[str, Any] | None) -> list[d
     ]
 
 
+def _compact_generated_sandbox_metrics(
+    value: Any,
+    *,
+    limit: int = 8,
+    text_limit: int = 160,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact: dict[str, Any] = {}
+    for index, (key, row_value) in enumerate(value.items()):
+        if index >= limit:
+            break
+        metric_key = str(key)
+        if isinstance(row_value, bool) or row_value is None:
+            compact[metric_key] = row_value
+        elif isinstance(row_value, int):
+            compact[metric_key] = row_value
+        elif isinstance(row_value, float):
+            compact[metric_key] = row_value if math.isfinite(row_value) else str(row_value)
+        elif isinstance(row_value, str):
+            compact[metric_key] = row_value[:text_limit]
+        else:
+            compact[metric_key] = str(row_value)[:text_limit]
+    return compact
+
+
+def _generated_python_sandbox_code_excerpt(
+    row: Mapping[str, Any],
+    *,
+    limit: int = 1200,
+) -> str:
+    inline = str(row.get("code_excerpt", "") or "")
+    if inline:
+        return inline[:limit]
+    script_path = str(row.get("script_path", "") or "")
+    if not script_path:
+        return ""
+    try:
+        path = Path(script_path)
+        if path.exists() and path.is_file():
+            return path.read_text(encoding="utf-8")[:limit]
+    except OSError:
+        return ""
+    return ""
+
+
 def _generated_simulation_revision_feedback(
     *,
     manifest: Mapping[str, Any],
@@ -53675,7 +53738,13 @@ def _generated_simulation_revision_feedback(
         if isinstance(row, Mapping)
     ]
     compact_prototypes: list[dict[str, Any]] = []
+    forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
+        safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
+            safety_errors
+        )
+        forbidden_generated_code_calls.extend(row_forbidden_calls)
         compact_prototypes.append(
             {
                 "simulation_id": str(row.get("simulation_id", "") or ""),
@@ -53686,9 +53755,13 @@ def _generated_simulation_revision_feedback(
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
                 )[:5],
-                "safety_errors": list(_str_tuple(row.get("safety_errors", [])))[:5],
+                "safety_errors": safety_errors,
+                "forbidden_generated_code_calls": row_forbidden_calls[:5],
+                "metrics": _compact_generated_sandbox_metrics(
+                    row.get("metrics", {})
+                ),
                 "script_path": str(row.get("script_path", "") or ""),
-                "code_excerpt": str(row.get("code_excerpt", "") or "")[:1200],
+                "code_excerpt": _generated_python_sandbox_code_excerpt(row),
                 "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
                 "reason": str(row.get("reason", "") or "")[:500],
             }
@@ -53712,6 +53785,9 @@ def _generated_simulation_revision_feedback(
         "n_unsafe_generated_simulation_code_rejected": int(
             manifest.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
         ),
+        "forbidden_generated_code_calls": list(
+            dict.fromkeys(forbidden_generated_code_calls)
+        )[:10],
         "generated_simulation_prototypes": compact_prototypes,
         "required_repair": (
             "produce a safe simulation_code_drafts entry that defines "
@@ -54150,6 +54226,7 @@ def _run_generated_python_sandbox(
         "runner_path": str(runner_path),
         "result_path": str(result_path),
         "script_hash": stable_hash(code),
+        "code_excerpt": code[:2000],
         "returncode": returncode,
         "safety_errors": [],
         "metrics": metrics,
@@ -54245,6 +54322,11 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                 errors.append(
                     "generated Python draft can import only math/statistics/random modules"
                 )
+            else:
+                errors.append(
+                    "generated Python draft must use plain module imports "
+                    "(import math/statistics/random), not from-import helper aliases"
+                )
         elif isinstance(node, (ast.ClassDef, ast.AsyncFunctionDef, ast.With, ast.AsyncWith)):
             errors.append(f"unsupported generated-code node: {node.__class__.__name__}")
         elif isinstance(node, (ast.Global, ast.Nonlocal)):
@@ -54288,6 +54370,7 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                     "str",
                     "sum",
                     "tuple",
+                    "zip",
                     *function_names,
                 }
                 if name not in allowed_calls:
@@ -54302,6 +54385,20 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
             else:
                 errors.append("unsupported generated-code call form")
     return sorted(set(errors))
+
+
+def _generated_python_forbidden_call_names_from_safety_errors(
+    safety_errors: Iterable[str],
+) -> list[str]:
+    names: list[str] = []
+    for error in safety_errors:
+        match = re.search(
+            r"forbidden generated-code call:\s*([A-Za-z_][A-Za-z0-9_]*)",
+            str(error),
+        )
+        if match:
+            names.append(match.group(1))
+    return list(dict.fromkeys(names))
 
 
 def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:
@@ -54368,6 +54465,7 @@ SAFE_BUILTINS = {
     "str": str,
     "sum": sum,
     "tuple": tuple,
+    "zip": zip,
     "__import__": _safe_import,
 }
 

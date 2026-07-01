@@ -14522,6 +14522,63 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
     assert tool_call.exit_status == "rejected"
 
 
+def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="statistics_alias_probe",
+        spec={"id": "statistics_alias_probe"},
+        code_draft={
+            "code": (
+                "from statistics import mean, stdev\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    values = [1.0, 2.0, 3.0]\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'mean_value': mean(values),\n"
+                "        'sd_value': stdev(values),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260629,
+        timeout_s=5,
+    )
+
+    assert tool_call.exit_status == "rejected"
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert any("from-import helper aliases" in row for row in prototype["safety_errors"])
+    assert "forbidden generated-code call: mean" in prototype["safety_errors"]
+    assert "forbidden generated-code call: stdev" in prototype["safety_errors"]
+
+    feedback = _algorithm_sandbox_revision_feedback(
+        manifest={
+            "manifest_id": "algorithm_sandbox_manifest:statistics_alias_probe",
+            "prototypes": [prototype],
+            "n_prototypes": 1,
+            "n_executed": 0,
+            "n_passed": 0,
+            "n_metric_gate_failed": 0,
+            "n_generated_code_executed": 0,
+            "n_unsafe_generated_code_rejected": 1,
+        },
+        boundary="algorithm sandbox is not proof evidence",
+        failure_classification="generated_algorithm_sandbox_required_not_executed",
+    )
+
+    assert feedback["forbidden_generated_code_calls"] == ["mean", "stdev"]
+    assert feedback["prototypes"][0]["forbidden_generated_code_calls"] == [
+        "mean",
+        "stdev",
+    ]
+    assert "from statistics import mean, stdev" in feedback["prototypes"][0][
+        "code_excerpt"
+    ]
+    assert "from statistics import mean/stdev" in feedback["required_repair"]
+    assert "sum(values) / len(values)" in feedback["required_repair"]
+
+
 def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Path) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
         sandbox_dir=tmp_path,
@@ -14553,6 +14610,40 @@ def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Pat
     assert prototype["executor"] == "generated_python_sandbox"
     assert prototype["smoke_passed"] is True
     assert prototype["metrics"]["sandbox_failed"] is False
+    assert tool_call.tool_name == "python.generated_algorithm_sandbox"
+    assert tool_call.exit_status == "0"
+
+
+def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="zip_probe",
+        spec={"id": "zip_probe"},
+        code_draft={
+            "code": (
+                "import math\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    left = [float(i) for i in range(max(1, replicates))]\n"
+                "    right = [float(seed % 7) for _ in range(max(1, replicates))]\n"
+                "    paired = [x + y for x, y in zip(left, right)]\n"
+                "    mean_paired = sum(paired) / max(1, len(paired))\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'mean_paired': mean_paired,\n"
+                "        'root_replicates': math.sqrt(max(1, replicates)),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260629,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["executor"] == "generated_python_sandbox"
+    assert prototype["smoke_passed"] is True
+    assert prototype["safety_errors"] == []
+    assert prototype["metrics"]["mean_paired"] > 0.0
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
     assert tool_call.exit_status == "0"
 
@@ -14589,6 +14680,26 @@ def test_generated_algorithm_sandbox_rejects_degenerate_coverage_metric(
     ]
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
     assert tool_call.exit_status == "0"
+
+    feedback = _algorithm_sandbox_revision_feedback(
+        manifest={
+            "manifest_id": "algorithm_sandbox_manifest:degenerate_coverage",
+            "prototypes": [prototype],
+            "n_prototypes": 1,
+            "n_executed": 1,
+            "n_passed": 0,
+            "n_metric_gate_failed": 1,
+            "n_generated_code_executed": 1,
+            "n_unsafe_generated_code_rejected": 0,
+        },
+        boundary="algorithm sandbox is not proof evidence",
+        failure_classification="generated_algorithm_sandbox_metric_gate_failed",
+    )
+    feedback_row = feedback["prototypes"][0]
+    assert feedback_row["metrics"]["empirical_coverage"] == 0.0
+    assert feedback_row["metrics"]["mean_width"] == 1.0
+    assert "def run_sandbox" in feedback_row["code_excerpt"]
+    assert "'empirical_coverage': 0.0" in feedback_row["code_excerpt"]
 
 
 def test_generated_algorithm_sandbox_allows_local_helper_function(
@@ -14850,6 +14961,12 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert "split_conformal_interval" in prompt
     assert "trusted split-conformal regression interval sandbox" in prompt
     assert "imports except math/statistics/random" in prompt
+    assert "allowed_import_forms" in prompt
+    assert "forbidden_import_forms" in prompt
+    assert "from statistics import ..." in prompt
+    assert "bare helper aliases" in prompt
+    assert "sum(values) / len(values)" in prompt
+    assert '"zip"' in prompt
     assert "random.Random" in prompt
     assert "global/nonlocal" in prompt
     assert "method calls or attribute access outside math/statistics/random" in prompt
@@ -14884,12 +15001,22 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
             "feedback_type": "algorithm_sandbox_execution_feedback",
             "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:bad",
             "failure_classification": "algorithm_sandbox_no_executable_prototype",
+            "forbidden_generated_code_calls": ["mean", "stdev"],
             "prototypes": [
                 {
                     "estimator_id": "custom",
                     "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
                     "executor": "generated_python_sandbox",
-                    "safety_errors": ["can import only math/statistics"],
+                    "safety_errors": [
+                        "forbidden generated-code call: mean",
+                        "forbidden generated-code call: stdev",
+                    ],
+                    "forbidden_generated_code_calls": ["mean", "stdev"],
+                    "code_excerpt": (
+                        "from statistics import mean, stdev\n"
+                        "def run_sandbox(seed, replicates):\n"
+                        "    return {'m': mean([1, 2]), 's': stdev([1, 2])}"
+                    ),
                 }
             ],
             "required_repair": "produce safe run_sandbox code",
@@ -14899,9 +15026,14 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "runtime_environment_feedback" in prompt
     assert "algorithm_sandbox_no_executable_prototype" in prompt
     assert "REJECTED_UNSAFE_GENERATED_CODE" in prompt
-    assert "can import only math/statistics" in prompt
+    assert "forbidden generated-code call: mean" in prompt
+    assert "forbidden_generated_code_calls" in prompt
+    assert "from statistics import mean, stdev" in prompt
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "Do not call bare helpers" in prompt
+    assert "sum(values) / len(values)" in prompt
+    assert "do not reuse those names as bare calls" in prompt
     assert "rng = random.Random(seed + rep)" in prompt
     assert "avoid global/nonlocal" in prompt
     assert "do not repeat the same unsafe" in prompt
@@ -14947,6 +15079,15 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
                     "metric_gate_errors": [
                         "empirical_coverage is degenerate zero coverage"
                     ],
+                    "metrics": {
+                        "empirical_coverage": 0.0,
+                        "target_coverage": 0.9,
+                        "mean_width": 1.0,
+                    },
+                    "code_excerpt": (
+                        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                        "    return {'empirical_coverage': 0.0, 'mean_width': 1.0}"
+                    ),
                 }
             ],
             "required_repair": "repair metric-failing draft",
@@ -14964,7 +15105,13 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     assert "generated_algorithm_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
     assert "empirical_coverage is degenerate zero coverage" in prompt
+    assert '"empirical_coverage":"0.0"' in prompt
+    assert '"target_coverage":"0.9"' in prompt
+    assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "Read the previous metric_gate_errors, metrics, and code_excerpt" in prompt
+    assert "target/DGP/estimator alignment" in prompt
+    assert "wrong center" in prompt
     assert "vacuous all-covering" in prompt
     assert "utility diagnostics" in prompt
     assert "mean_width" in prompt
@@ -15535,6 +15682,9 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "REJECTED_UNSAFE_GENERATED_CODE" in prompt
     assert "can import only math/statistics" in prompt
     assert "imports except math/statistics/random" in prompt
+    assert "from statistics import ..." in prompt
+    assert "bare helper aliases" in prompt
+    assert "sum(values) / len(values)" in prompt
     assert "rng = random.Random(seed + rep)" in prompt
     assert "avoid global/nonlocal" in prompt
     assert "do not repeat the same unsafe" in prompt
@@ -15572,6 +15722,15 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
                     "metric_gate_errors": [
                         "mean_coverage is degenerate zero coverage"
                     ],
+                    "metrics": {
+                        "mean_coverage": 0.0,
+                        "target_coverage": 0.9,
+                        "mean_width": 1.0,
+                    },
+                    "code_excerpt": (
+                        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                        "    return {'mean_coverage': 0.0, 'mean_width': 1.0}"
+                    ),
                 }
             ],
             "required_repair": "repair metric-failing simulation draft",
@@ -15588,7 +15747,12 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert "generated_simulation_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
     assert "mean_coverage is degenerate zero coverage" in prompt
+    assert '"mean_coverage":"0.0"' in prompt
+    assert '"target_coverage":"0.9"' in prompt
+    assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "Read the previous metric_gate_errors, metrics, and code_excerpt" in prompt
+    assert "target/DGP/estimator alignment" in prompt
     assert "vacuous all-covering" in prompt
     assert "utility diagnostics" in prompt
     assert "mean_width" in prompt
