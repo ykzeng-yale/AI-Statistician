@@ -2831,6 +2831,7 @@ class ResearchAgentRuntimeConfig:
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
+    algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
     recommended_research_path: str = ""
@@ -2980,6 +2981,7 @@ def _runtime_requested_evidence_contract(
     formal_verification_policy: str,
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
+    algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
 ) -> dict[str, Any]:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     path = _normalized_recommended_research_path(
@@ -2987,7 +2989,7 @@ def _runtime_requested_evidence_contract(
         formal_verification_policy=policy,
     )
     capability_eval = str(evaluation_mode or "") == "capability_eval"
-    return {
+    contract = {
         "formal_verification_policy": policy,
         "recommended_research_path": path,
         "formal_required_for_final": policy == "required",
@@ -3017,6 +3019,15 @@ def _runtime_requested_evidence_contract(
             "report formal verification level as none, partial, or full",
         ],
     }
+    yield_after_attempts = max(
+        0,
+        int(algorithm_engineer_generated_code_repair_yield_after_attempts or 0),
+    )
+    if capability_eval and yield_after_attempts > 0:
+        contract[
+            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
+        ] = yield_after_attempts
+    return contract
 
 
 def _runtime_architect_context_with_requested_evidence_contract(
@@ -3025,16 +3036,29 @@ def _runtime_architect_context_with_requested_evidence_contract(
     formal_verification_policy: str,
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
+    algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
 ) -> dict[str, Any]:
     payload = dict(context or {})
-    payload.setdefault(
-        "runtime_requested_evidence_contract",
-        _runtime_requested_evidence_contract(
-            formal_verification_policy=formal_verification_policy,
-            recommended_research_path=recommended_research_path,
-            evaluation_mode=evaluation_mode,
+    requested_contract = _runtime_requested_evidence_contract(
+        formal_verification_policy=formal_verification_policy,
+        recommended_research_path=recommended_research_path,
+        evaluation_mode=evaluation_mode,
+        algorithm_engineer_generated_code_repair_yield_after_attempts=(
+            algorithm_engineer_generated_code_repair_yield_after_attempts
         ),
     )
+    existing_contract = payload.get("runtime_requested_evidence_contract", {})
+    if isinstance(existing_contract, Mapping):
+        requested_contract = {**requested_contract, **dict(existing_contract)}
+    yield_after_attempts = max(
+        0,
+        int(algorithm_engineer_generated_code_repair_yield_after_attempts or 0),
+    )
+    if yield_after_attempts > 0:
+        requested_contract[
+            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
+        ] = yield_after_attempts
+    payload["runtime_requested_evidence_contract"] = requested_contract
     return payload
 
 
@@ -5571,38 +5595,110 @@ class AlgorithmEngineerRuntimeSubsystem:
                 boundary=str(manifest["boundary"]),
                 failure_classification=revision_failure_classification,
             )
-            revision_context = dict(effective_context)
-            revision_context["previous_algorithm_sandbox_manifest_id"] = manifest_id
-            next_task = AgentTask(
-                task_id=f"algorithm-revise:{question.id}:{stable_hash(feedback)[:8]}",
-                owner_subsystem="AlgorithmEngineer",
-                objective=(
-                    "Repair the LLM implementation/sandbox draft using local "
-                    "sandbox diagnostics before routing to formalization."
-                ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": packet_id,
-                    "simulation_manifest_id": simulation_manifest_id,
-                    "implementation_gaps": implementation_gaps,
-                    "n_runs": int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
-                    "seed": int(task.inputs.get("seed", self.seed) or self.seed),
-                    "architect_context": revision_context,
-                    "environment_feedback": feedback,
-                },
-                allowed_tools=("python", "filesystem_sandbox"),
-                expected_artifacts=_architect_expected_artifacts(
-                    context,
-                    "AlgorithmEngineer",
-                    ("algorithm_sandbox_manifest",),
-                ),
-                acceptance_gate=_architect_acceptance_gate(
-                    context,
-                    "AlgorithmEngineer",
-                    "repaired sandbox prototype executes or a concrete unsupported-prototype blocker is recorded",
-                ),
-                stop_condition="repaired algorithm sandbox feedback recorded",
+            yield_after_attempts = (
+                _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
+                    effective_context,
+                    feedback,
+                )
             )
+            repair_attempts_used = (
+                _runtime_algorithm_engineer_generated_code_repair_attempts_used(
+                    effective_context
+                )
+            )
+            if (
+                requires_generated_algorithm_code
+                and yield_after_attempts > 0
+                and repair_attempts_used >= yield_after_attempts
+            ):
+                next_task = (
+                    _algorithm_engineer_repair_budget_yield_to_formalization_task(
+                        question=question,
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=simulation_manifest_id,
+                        algorithm_sandbox_manifest_id=manifest_id,
+                        architect_context=effective_context,
+                        algorithm_feedback=feedback,
+                        failure_classification=revision_failure_classification,
+                        repair_attempts_used=repair_attempts_used,
+                        yield_after_attempts=yield_after_attempts,
+                    )
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "algorithm_engineer_repair_budget_yield_to_formalization"
+                        ),
+                        summary=(
+                            "AlgorithmEngineer generated-code repair budget was "
+                            "exhausted; routing diagnostics to FormalizationEvaluator "
+                            "while keeping the algorithm blocker open."
+                        ),
+                        payload={
+                            "algorithm_sandbox_manifest_id": manifest_id,
+                            "failure_classification": (
+                                revision_failure_classification
+                            ),
+                            "repair_attempts_used": repair_attempts_used,
+                            "yield_after_attempts": yield_after_attempts,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+            else:
+                revision_context = dict(effective_context)
+                revision_context["previous_algorithm_sandbox_manifest_id"] = (
+                    manifest_id
+                )
+                revision_context["runtime_feedback_loop"] = {
+                    **(
+                        dict(revision_context.get("runtime_feedback_loop", {}))
+                        if isinstance(
+                            revision_context.get("runtime_feedback_loop", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    "source_subsystem": "AlgorithmEngineer",
+                    "handoff": "algorithm_engineer_generated_code_repair",
+                    "algorithm_sandbox_manifest_id": manifest_id,
+                    "algorithm_engineer_generated_code_repair_attempts_used": (
+                        repair_attempts_used + 1
+                    ),
+                    "algorithm_engineer_generated_code_repair_yield_after_attempts": (
+                        yield_after_attempts
+                    ),
+                }
+                next_task = AgentTask(
+                    task_id=f"algorithm-revise:{question.id}:{stable_hash(feedback)[:8]}",
+                    owner_subsystem="AlgorithmEngineer",
+                    objective=(
+                        "Repair the LLM implementation/sandbox draft using local "
+                        "sandbox diagnostics before routing to formalization."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "theory_packet_id": packet_id,
+                        "simulation_manifest_id": simulation_manifest_id,
+                        "implementation_gaps": implementation_gaps,
+                        "n_runs": int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
+                        "seed": int(task.inputs.get("seed", self.seed) or self.seed),
+                        "architect_context": revision_context,
+                        "environment_feedback": feedback,
+                    },
+                    allowed_tools=("python", "filesystem_sandbox"),
+                    expected_artifacts=_architect_expected_artifacts(
+                        context,
+                        "AlgorithmEngineer",
+                        ("algorithm_sandbox_manifest",),
+                    ),
+                    acceptance_gate=_architect_acceptance_gate(
+                        context,
+                        "AlgorithmEngineer",
+                        "repaired sandbox prototype executes or a concrete unsupported-prototype blocker is recorded",
+                    ),
+                    stop_condition="repaired algorithm sandbox feedback recorded",
+                )
         elif _runtime_generated_simulation_required_before_formalization(
             context=effective_context,
             environment_feedback=environment_feedback,
@@ -5648,14 +5744,22 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
         evidence_entries = [row for row in (proposal_evidence, evidence) if row is not None]
         if revision_required:
-            algorithm_rationale = (
-                "AlgorithmEngineer did not satisfy the required generated-code "
-                "sandbox evidence; runtime is routing local diagnostics back to "
-                "AlgorithmEngineer for repair."
-                if requires_generated_algorithm_code
-                else "AlgorithmEngineer sandbox produced no acceptable executable prototype; "
-                "runtime is routing local diagnostics back to AlgorithmEngineer for repair."
-            )
+            if next_task.owner_subsystem == "FormalizationEvaluator":
+                algorithm_rationale = (
+                    "AlgorithmEngineer did not satisfy the required generated-code "
+                    "sandbox evidence after the bounded repair budget; runtime is "
+                    "routing the blocker to FormalizationEvaluator so proof and "
+                    "formal-gap feedback are not starved."
+                )
+            else:
+                algorithm_rationale = (
+                    "AlgorithmEngineer did not satisfy the required generated-code "
+                    "sandbox evidence; runtime is routing local diagnostics back to "
+                    "AlgorithmEngineer for repair."
+                    if requires_generated_algorithm_code
+                    else "AlgorithmEngineer sandbox produced no acceptable executable prototype; "
+                    "runtime is routing local diagnostics back to AlgorithmEngineer for repair."
+                )
         else:
             if next_task.owner_subsystem == "SimulationEvaluator":
                 algorithm_rationale = (
@@ -14772,6 +14876,9 @@ def run_research_agent_runtime(
             formal_verification_policy=formal_verification_policy,
             recommended_research_path=requested_research_path,
             evaluation_mode=config.evaluation_mode,
+            algorithm_engineer_generated_code_repair_yield_after_attempts=(
+                config.algorithm_engineer_generated_code_repair_yield_after_attempts
+            ),
         )
     )
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -32625,6 +32732,72 @@ def _runtime_requires_generated_algorithm_code(
         environment_feedback,
         flag="capability_eval_requires_generated_algorithm_code",
     )
+
+
+def _runtime_positive_int_from_contract_sources(
+    sources: Sequence[Mapping[str, Any] | None],
+    *,
+    key: str,
+) -> int:
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        candidates: list[Any] = [source.get(key)]
+        for contract_key in (
+            "runtime_requested_evidence_contract",
+            "architect_evidence_contract",
+        ):
+            contract = source.get(contract_key, {})
+            if isinstance(contract, Mapping):
+                candidates.append(contract.get(key))
+        input_summary = source.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            candidates.append(input_summary.get(key))
+            for contract_key in (
+                "runtime_requested_evidence_contract",
+                "architect_evidence_contract",
+            ):
+                contract = input_summary.get(contract_key, {})
+                if isinstance(contract, Mapping):
+                    candidates.append(contract.get(key))
+        for value in candidates:
+            try:
+                parsed = int(value or 0)
+            except (TypeError, ValueError):
+                continue
+            if parsed > 0:
+                return parsed
+    return 0
+
+
+def _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> int:
+    return _runtime_positive_int_from_contract_sources(
+        (context, environment_feedback),
+        key=(
+            "capability_eval_algorithm_engineer_generated_code_repair_"
+            "yield_after_attempts"
+        ),
+    )
+
+
+def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
+    context: Mapping[str, Any],
+) -> int:
+    loop = context.get("runtime_feedback_loop", {})
+    if not isinstance(loop, Mapping):
+        return 0
+    for key in (
+        "algorithm_engineer_generated_code_repair_attempts_used",
+        "algorithm_engineer_generated_code_repair_turns",
+    ):
+        try:
+            return max(0, int(loop.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    return 0
 
 
 def _runtime_requires_generated_simulation_code(
@@ -56724,6 +56897,104 @@ def _formalization_task(
             "formalization manifest distinguishes proved subclaims from formal gaps",
         ),
         stop_condition="formalization/proof feedback recorded",
+    )
+
+
+def _algorithm_engineer_repair_budget_yield_to_formalization_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    architect_context: Mapping[str, Any],
+    algorithm_feedback: Mapping[str, Any],
+    failure_classification: str,
+    repair_attempts_used: int,
+    yield_after_attempts: int,
+) -> AgentTask:
+    feedback = {
+        "feedback_type": "algorithm_engineer_repair_budget_yield_feedback",
+        "source_feedback_type": str(algorithm_feedback.get("feedback_type", "")),
+        "failure_classification": failure_classification,
+        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        "algorithm_repair_attempts_used": int(repair_attempts_used),
+        "algorithm_repair_yield_after_attempts": int(yield_after_attempts),
+        "algorithm_sandbox_feedback": dict(algorithm_feedback),
+        "target_behavior": (
+            "Run formalization/proof-gap evaluation with the algorithm blocker "
+            "still open, so proof-state and Lean feedback are not starved by a "
+            "bounded generated-code repair loop."
+        ),
+        "acceptance_gate": (
+            "FormalizationEvaluator records formal targets, proof-state or Lean "
+            "feedback, and open gaps without treating the failed algorithm "
+            "sandbox manifest as passing implementation evidence."
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts": int(
+                yield_after_attempts
+            ),
+        },
+        "proof_evidence_status": "ALGORITHM_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
+        "execution_evidence_status": (
+            "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
+        ),
+        "boundary": (
+            "This handoff is scheduling and diagnostic feedback only. It does "
+            "not prove a theorem, validate the failed generated algorithm, or "
+            "close any formal gap."
+        ),
+    }
+    context = dict(architect_context)
+    context["previous_algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "AlgorithmEngineer",
+        "handoff": "algorithm_engineer_repair_budget_yield_to_formalization",
+        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        "algorithm_engineer_generated_code_repair_attempts_used": int(
+            repair_attempts_used
+        ),
+        "algorithm_engineer_generated_code_repair_yield_after_attempts": int(
+            yield_after_attempts
+        ),
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem="FormalizationEvaluator",
+    )
+    task = _formalization_task(
+        question=question,
+        packet_id=theory_packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        architect_context=context,
+    )
+    inputs = dict(task.inputs)
+    inputs["environment_feedback"] = feedback
+    return replace(
+        task,
+        task_id=(
+            f"formalize-algorithm-yield:{question.id}:"
+            f"{stable_hash([algorithm_sandbox_manifest_id, repair_attempts_used])[:8]}"
+        ),
+        objective=(
+            "Run formalization/proof feedback after the bounded AlgorithmEngineer "
+            "generated-code repair budget is exhausted."
+        ),
+        inputs=inputs,
+        acceptance_gate=feedback["acceptance_gate"],
+        stop_condition=(
+            "formalization/proof feedback recorded with the algorithm blocker "
+            "kept open"
+        ),
     )
 
 

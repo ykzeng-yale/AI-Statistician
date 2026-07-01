@@ -9382,6 +9382,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
+            algorithm_engineer_generated_code_repair_yield_after_attempts=int(
+                getattr(
+                    args,
+                    "algorithm_engineer_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            ),
             resume_through_architect=resume_through_architect,
             formal_verification_policy=str(
                 getattr(args, "formal_verification_policy", "optional") or "optional"
@@ -10369,6 +10377,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             int(
                 getattr(
                     args,
+                    "algorithm_engineer_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.algorithm_engineer_generated_code_repair_yield_after_attempts = 1
+        if (
+            int(
+                getattr(
+                    args,
                     "formalization_gap_planner_live_max_handoffs",
                     1,
                 )
@@ -10809,6 +10829,22 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 "capability eval preset full-live requires "
                 "--formalization-gap-planner-live-max-handoffs > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "algorithm_engineer_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded "
+                "AlgorithmEngineer generated-code repair scheduling; set "
+                "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
             )
         if (
             int(
@@ -17484,6 +17520,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum runtime gap-planner handoffs to send to the live route "
             "planner when --formalization-gap-planner-live-route-planner is enabled"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--algorithm-engineer-generated-code-repair-yield-after-attempts",
+        type=int,
+        default=0,
+        help=(
+            "in capability-eval, route unresolved AlgorithmEngineer generated-code "
+            "diagnostics to FormalizationEvaluator after this many self-repair "
+            "attempts; 0 keeps the legacy unbounded self-repair routing"
         ),
     )
     research_agent_runtime.add_argument(

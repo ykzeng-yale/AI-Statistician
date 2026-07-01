@@ -7022,6 +7022,22 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
         "simulation_first"
     )
 
+    merged_context = _runtime_architect_context_with_requested_evidence_contract(
+        {"runtime_requested_evidence_contract": {"existing_context_flag": "keep"}},
+        formal_verification_policy="advisory",
+        recommended_research_path="simulation_first",
+        evaluation_mode="capability_eval",
+        algorithm_engineer_generated_code_repair_yield_after_attempts=1,
+    )
+    merged_contract = merged_context["runtime_requested_evidence_contract"]
+    assert merged_contract["existing_context_flag"] == "keep"
+    assert (
+        merged_contract[
+            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
+        ]
+        == 1
+    )
+
 
 def test_research_path_execution_summary_detects_control_propagation() -> None:
     results = [
@@ -19253,6 +19269,173 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
         and row["failure_classification"]
         == "generated_algorithm_sandbox_metric_gate_failed"
         for row in learning_rows
+    )
+
+
+def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:algorithm-yield"
+    simulation_manifest_id = "simulation:algorithm-yield"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "custom_estimator",
+                        "name": "Custom conformal estimator",
+                        "algorithm_sketch": "Requires generated sandbox adapter.",
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+        },
+    )
+
+    class AlwaysFailingAlgorithmEngineer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            return {
+                "packet_id": (
+                    "algorithm_engineer_proposal:yield_failure:"
+                    + str(self.calls)
+                ),
+                "implementation_targets": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "registered_template_hint": "none",
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': 0.0,\n"
+                            "        'mean_width': 1.0,\n"
+                            "        'replicates': max(5, int(replicates)),\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+            }
+
+    class RecordingFormalizationSubsystem:
+        name = "FormalizationEvaluator"
+
+        def __init__(self) -> None:
+            self.tasks: list[AgentTask] = []
+
+        def run(
+            self,
+            task: AgentTask,
+            _blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.tasks.append(task)
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="recorded formalization work after algorithm yield",
+            )
+
+    proposal_agent = AlwaysFailingAlgorithmEngineer()
+    formalizer = RecordingFormalizationSubsystem()
+    runtime = AgentRuntime(
+        blackboard=blackboard,
+        subsystems={
+            "AlgorithmEngineer": AlgorithmEngineerRuntimeSubsystem(
+                out_dir=tmp_path / "generated_algorithm_sandbox",
+                n_runs=12,
+                seed=20260623,
+                proposal_agent=proposal_agent,
+                timeout_s=20,
+            ),
+            "FormalizationEvaluator": formalizer,
+        },
+    )
+    initial_task = AgentTask(
+        task_id="algorithm:integrated-generated-yield",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Yield unresolved generated-code repair diagnostics to formalization.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {
+                    "estimator_id": "custom_estimator",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    "reason": "Capability eval requires generated code execution.",
+                }
+            ],
+            "n_runs": 12,
+            "seed": 20260623,
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_algorithm_code": True,
+                    "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts": 1,
+                },
+            },
+        },
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+
+    result = runtime.run(initial_task, max_iterations=3)
+
+    assert result.status == "ACCEPTED"
+    assert proposal_agent.calls == 2
+    assert result.traces[0].status == "REVISE"
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.traces[1].status == "REVISE"
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
+    assert (
+        "bounded repair budget"
+        in result.traces[1].rationale
+    )
+    assert result.traces[2].subsystem == "FormalizationEvaluator"
+    assert len(formalizer.tasks) == 1
+
+    yielded_task = formalizer.tasks[0]
+    feedback = yielded_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "algorithm_engineer_repair_budget_yield_feedback"
+    )
+    assert feedback["failure_classification"] == (
+        "generated_algorithm_sandbox_metric_gate_failed"
+    )
+    assert feedback["algorithm_repair_attempts_used"] == 1
+    assert feedback["algorithm_repair_yield_after_attempts"] == 1
+    assert feedback["execution_evidence_status"] == (
+        "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
+    )
+    assert feedback["proof_evidence_status"] == (
+        "ALGORITHM_REPAIR_YIELD_NOT_PROOF_EVIDENCE"
+    )
+    assert (
+        yielded_task.inputs["architect_context"]["runtime_feedback_loop"][
+            "handoff"
+        ]
+        == "algorithm_engineer_repair_budget_yield_to_formalization"
     )
 
 
@@ -53928,6 +54111,10 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
     assert args.formalization_gap_planner_live_provider == "same"
     assert args.formalization_gap_planner_live_timeout_seconds > 0
+    assert (
+        args.algorithm_engineer_generated_code_repair_yield_after_attempts
+        == 1
+    )
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
@@ -53960,6 +54147,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         "capability eval preset full-live requires the integrated live "
         "FormalizationGapPlanner route-planner feedback path; missing "
         "--formalization-gap-planner-live-route-planner"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.formalization_gap_planner_live_route_planner = True
+    args.algorithm_engineer_generated_code_repair_yield_after_attempts = 0
+    assert (
+        "capability eval preset full-live requires bounded "
+        "AlgorithmEngineer generated-code repair scheduling; set "
+        "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 
