@@ -4018,6 +4018,151 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert "runs/same-turn-prompt" in direct_prompt
 
 
+def test_formal_gap_planner_enrichment_rehydrates_pre_bridge_learning_row() -> None:
+    learning_rows = [
+        {
+            "schema_version": 1,
+            "question_id": "causal_ate_aipw",
+            "formalization_manifest_id": "formalization_manifest:match",
+            "learning_task": "next_action_routing",
+            "target_ids": [
+                "causal_identification",
+                "aipw_double_robustness",
+            ],
+            "input_summary": {
+                "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                "owner_subsystem": "FormalizationGapPlanner",
+                "agenda_id": "formal_gap:gap_planner_handoff",
+                "target_ids": [
+                    "causal_identification",
+                    "aipw_double_robustness",
+                ],
+            },
+            "target_behavior": "stage planner packets before broad theory",
+            "acceptance_gate": "target-prover replay preserves proof boundaries",
+        }
+    ]
+    context_rows = [
+        {
+            "artifact_kind": "RuntimeFormalizationGapPlannerBridge",
+            "formalization_manifest_id": "formalization_manifest:match",
+            "bridge_id": "runtime_formalization_gap_planner_bridge:match",
+            "handoff_id": "runtime_formalization_gap_planner_handoff:match",
+            "standalone_seed_artifact_id": (
+                "runtime_formalization_gap_planner_standalone_seed:match"
+            ),
+            "standalone_seed_path": "runs/match-seed.json",
+            "target_intake_path": "runs/match-target-intake.json",
+            "target_ids": [
+                "causal_identification",
+                "aipw_double_robustness",
+            ],
+            "llm_route_planner_prompt_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner "
+                "--input runs/match-seed.json --out runs/match-prompt"
+            ),
+            "llm_route_planner_live_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner "
+                "--input runs/match-seed.json --invoke-provider "
+                "--out runs/match-live"
+            ),
+            "reuse_smoke_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input runs/match-target-intake.json "
+                "--out runs/match-reuse-smoke"
+            ),
+        },
+        {
+            "artifact_kind": "RuntimeFormalizationGapPlannerBridge",
+            "formalization_manifest_id": "formalization_manifest:other",
+            "bridge_id": "runtime_formalization_gap_planner_bridge:other",
+            "handoff_id": "runtime_formalization_gap_planner_handoff:other",
+            "standalone_seed_artifact_id": (
+                "runtime_formalization_gap_planner_standalone_seed:other"
+            ),
+            "standalone_seed_path": "runs/other-seed.json",
+            "target_intake_path": "runs/other-target-intake.json",
+            "target_ids": [
+                "causal_identification",
+                "aipw_double_robustness",
+            ],
+            "llm_route_planner_prompt_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner "
+                "--input runs/other-seed.json --out runs/other-prompt"
+            ),
+            "reuse_smoke_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input runs/other-target-intake.json "
+                "--out runs/other-reuse-smoke"
+            ),
+        },
+    ]
+
+    runtime_module._runtime_formalization_gap_planner_enrich_next_action_rows(
+        learning_rows,
+        context_rows=context_rows,
+    )
+
+    row = learning_rows[0]
+    contexts = row["formalization_gap_planner_execution_contexts"]
+    assert len(contexts) == 1
+    assert contexts[0]["bridge_id"] == "runtime_formalization_gap_planner_bridge:match"
+    assert contexts[0]["handoff_id"] == "runtime_formalization_gap_planner_handoff:match"
+    assert contexts[0]["llm_route_planner_prompt_cli"].endswith(
+        "--out runs/match-prompt"
+    )
+    assert row["formalization_gap_planner_handoff_id"] == (
+        "runtime_formalization_gap_planner_handoff:match"
+    )
+    assert row["input_summary"]["formalization_gap_planner_execution_contexts"] == (
+        contexts
+    )
+    assert row["input_summary"]["formalization_gap_planner_bridge_id"] == (
+        "runtime_formalization_gap_planner_bridge:match"
+    )
+
+    stale_memory_row = {
+        "schema_version": 1,
+        "question_id": "causal_ate_aipw",
+        "formalization_manifest_id": "formalization_manifest:match",
+        "learning_task": "next_action_routing",
+        "target_ids": [
+            "causal_identification",
+            "aipw_double_robustness",
+        ],
+        "input_summary": {
+            "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+            "owner_subsystem": "FormalizationGapPlanner",
+            "agenda_id": "formal_gap:gap_planner_handoff",
+            "target_ids": [
+                "causal_identification",
+                "aipw_double_robustness",
+            ],
+        },
+    }
+    combined_rows = runtime_module._runtime_learning_rows_with_input_memory(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [stale_memory_row],
+            }
+        },
+        [row],
+    )
+
+    assert combined_rows[0]["formalization_gap_planner_execution_contexts"][0][
+        "bridge_id"
+    ] == "runtime_formalization_gap_planner_bridge:match"
+    assert combined_rows[0]["input_summary"][
+        "formalization_gap_planner_execution_contexts"
+    ][0]["reuse_smoke_cli"].endswith("--out runs/match-reuse-smoke")
+
+
 def test_pending_task_handoff_enriches_formal_gap_planner_agenda_context() -> None:
     pending_task = {
         "task_id": "formalize-critic-repair:conformal_prediction_coverage:next",

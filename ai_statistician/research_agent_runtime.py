@@ -25629,6 +25629,21 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
                     "target_theorem_name",
                 )
             )
+            row_formalization_manifest_ids = set(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "formalization_manifest_id",
+                    "source_formalization_manifest_id",
+                )
+            )
+            row_question_ids = set(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "question_id",
+                )
+            )
             matched_contexts: list[dict[str, Any]] = []
             for context_row in context_rows:
                 if not isinstance(context_row, Mapping):
@@ -25638,12 +25653,46 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
                     if isinstance(context_row.get("input_summary", {}), Mapping)
                     else {}
                 )
-                if (
+                context_row_contexts = (
+                    _runtime_formalization_gap_planner_row_contexts(
+                        context_row,
+                        context_input_summary,
+                    )
+                )
+                context_row_is_handoff_source = (
                     _runtime_learning_memory_formal_gap_next_action_stage(
                         context_row,
                         context_input_summary,
                     )
-                    != "gap_planner_handoff"
+                    == "gap_planner_handoff"
+                    or bool(context_row_contexts)
+                )
+                if not context_row_is_handoff_source:
+                    continue
+                context_formalization_manifest_ids = set(
+                    _runtime_learning_row_string_values(
+                        context_row,
+                        context_input_summary,
+                        "formalization_manifest_id",
+                        "source_formalization_manifest_id",
+                    )
+                )
+                if row_formalization_manifest_ids and (
+                    not context_formalization_manifest_ids
+                    or row_formalization_manifest_ids.isdisjoint(
+                        context_formalization_manifest_ids
+                    )
+                ):
+                    continue
+                context_question_ids = set(
+                    _runtime_learning_row_string_values(
+                        context_row,
+                        context_input_summary,
+                        "question_id",
+                    )
+                )
+                if row_question_ids and context_question_ids and (
+                    row_question_ids.isdisjoint(context_question_ids)
                 ):
                     continue
                 context_target_ids = set(
@@ -25661,12 +25710,7 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
                     row_target_ids & context_target_ids
                 ):
                     continue
-                matched_contexts.extend(
-                    _runtime_formalization_gap_planner_row_contexts(
-                        context_row,
-                        context_input_summary,
-                    )
-                )
+                matched_contexts.extend(context_row_contexts)
             contexts = matched_contexts
         if not contexts and len(fallback_contexts) == 1:
             contexts = fallback_contexts
@@ -46893,6 +46937,10 @@ def _runtime_learning_rows_with_input_memory(
             dict(row) for row in memory.get("rows", []) if isinstance(row, Mapping)
         )
     rows.extend(dict(row) for row in learning_rows if isinstance(row, Mapping))
+    _runtime_formalization_gap_planner_enrich_next_action_rows(
+        rows,
+        context_rows=rows,
+    )
     return rows
 
 
