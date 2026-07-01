@@ -32368,10 +32368,17 @@ def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[s
             sources.append(nested)
     provenance: dict[str, Any] = {}
     if any("source_theorem_target_known" in source for source in sources):
-        provenance["source_theorem_target_known"] = any(
-            bool(source.get("source_theorem_target_known", False))
-            for source in sources
+        known_values = tuple(
+            value
+            for value in (
+                _source_theorem_target_known_value(source)
+                for source in sources
+                if "source_theorem_target_known" in source
+            )
+            if value is not None
         )
+        if known_values:
+            provenance["source_theorem_target_known"] = any(known_values)
     constraints: list[str] = []
     for source in sources:
         for key in _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS:
@@ -40824,6 +40831,274 @@ def _formalizer_source_theorem_exact_semantic_definition_work_orders(
     return rows
 
 
+def _formalizer_target_requests_source_theorem_formal_environment_repair(
+    target: Mapping[str, Any],
+    *,
+    source_target_provenance: Mapping[str, Any],
+    lean_statement_sketch: str,
+) -> bool:
+    if _source_theorem_target_known_value(source_target_provenance) is not True:
+        return False
+    if bool(target.get("kernel_verified", False)):
+        return False
+    expected_status = str(target.get("expected_status", "") or "").strip().upper()
+    expected_status_normalized_from = str(
+        target.get("expected_status_normalized_from", "") or ""
+    ).strip().upper()
+    statement = lean_statement_sketch.strip()
+    if bool(target.get("source_theorem_formal_environment_repair_required", False)):
+        return True
+    return bool(
+        expected_status == "FORMAL_GAP"
+        or expected_status_normalized_from == "FORMAL_GAP"
+        or statement.startswith("FORMAL_GAP")
+    )
+
+
+def _formalizer_source_theorem_formal_environment_failure_classification(
+    target: Mapping[str, Any],
+    *,
+    lean_statement_sketch: str,
+    diagnostics: Sequence[str],
+) -> str:
+    explicit = str(target.get("failure_classification", "") or "").strip()
+    if explicit in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES:
+        return explicit
+    if not lean_statement_sketch.strip():
+        return "source_theorem_candidate_materialization_required"
+    diagnostic_text = "\n".join(str(value) for value in diagnostics).lower()
+    if any(marker in diagnostic_text for marker in ("import", "parser", "syntax")):
+        return "lean_syntax_or_import_environment_gap"
+    return "formal_environment_placeholder_primitives"
+
+
+def _formalizer_target_environment_diagnostics(
+    target: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any],
+    *,
+    lean_statement_sketch: str,
+) -> list[str]:
+    diagnostics: list[str] = []
+    for key in (
+        "diagnostics",
+        "precheck_errors",
+        "formal_environment_blockers",
+        "semantic_alignment_constraints",
+    ):
+        diagnostics.extend(
+            str(value).strip()
+            for value in target.get(key, []) or []
+            if str(value).strip()
+        )
+    proof_search_plan = proposal_packet.get("proof_search_plan", {})
+    if isinstance(proof_search_plan, Mapping):
+        diagnostics.extend(
+            str(value).strip()
+            for value in proof_search_plan.get("known_blockers", []) or []
+            if str(value).strip()
+        )
+    statement = lean_statement_sketch.strip()
+    if statement.startswith("FORMAL_GAP"):
+        diagnostics.append(statement.splitlines()[0][:500])
+    return list(dict.fromkeys(diagnostics))[:12]
+
+
+def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets(
+    *,
+    artifact: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any],
+    seen: set[str],
+) -> list[dict[str, Any]]:
+    """Queue source-theorem environment repair from Formalizer target contracts."""
+
+    question = (
+        artifact.get("question", {})
+        if isinstance(artifact.get("question"), Mapping)
+        else {}
+    )
+    rows: list[dict[str, Any]] = []
+    for target in proposal_packet.get("formal_targets", []) or []:
+        if not isinstance(target, Mapping):
+            continue
+        source_formal_target_id = str(target.get("id", "") or "").strip()
+        if not source_formal_target_id:
+            continue
+        lean_statement_sketch = str(target.get("lean_statement_sketch", "") or "")
+        source_target_provenance = _source_theorem_target_provenance_from_row(target)
+        source_target_provenance.setdefault(
+            "source_formalizer_packet_id",
+            str(proposal_packet.get("packet_id", "") or ""),
+        )
+        source_target_provenance.setdefault(
+            "source_formal_target_id",
+            source_formal_target_id,
+        )
+        if question.get("id") and not source_target_provenance.get(
+            "source_theorem_question_id"
+        ):
+            source_target_provenance["source_theorem_question_id"] = str(
+                question.get("id", "") or ""
+            )
+        if not _formalizer_target_requests_source_theorem_formal_environment_repair(
+            target,
+            source_target_provenance=source_target_provenance,
+            lean_statement_sketch=lean_statement_sketch,
+        ):
+            continue
+        target_lean_declaration = str(
+            source_target_provenance.get("target_lean_declaration", "") or ""
+        ).strip()
+        if not target_lean_declaration:
+            target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
+        target_theorem_name = (
+            target_lean_declaration
+            or str(target.get("target_theorem_name", "") or "").strip()
+            or source_formal_target_id
+        )
+        if target_lean_declaration:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_lean_declaration,
+            )
+        semantic_alignment_constraints = list(
+            source_target_provenance.get("semantic_alignment_constraints", []) or []
+        )
+        target_ids = _source_theorem_work_order_target_ids(
+            target,
+            source_target_provenance=source_target_provenance,
+            fallback_target_theorem_name=target_theorem_name,
+            fallback_source_formal_target_id=source_formal_target_id,
+        )
+        diagnostics = _formalizer_target_environment_diagnostics(
+            target,
+            proposal_packet,
+            lean_statement_sketch=lean_statement_sketch,
+        )
+        failure_classification = (
+            _formalizer_source_theorem_formal_environment_failure_classification(
+                target,
+                lean_statement_sketch=lean_statement_sketch,
+                diagnostics=diagnostics,
+            )
+        )
+        context = _source_theorem_formal_environment_context(
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
+        missing_symbols = [
+            str(value)
+            for value in (
+                target.get("missing_formal_symbols", [])
+                or context["missing_formal_symbols"]
+            )
+            if str(value).strip()
+        ]
+        typeclass_blockers = [
+            str(value)
+            for value in (
+                target.get("typeclass_blockers", [])
+                or context["typeclass_blockers"]
+            )
+            if str(value).strip()
+        ]
+        recommended_repair_tasks = [
+            str(value)
+            for value in (
+                target.get("recommended_repair_tasks", [])
+                or context["recommended_repair_tasks"]
+            )
+            if str(value).strip()
+        ]
+        candidate_artifact_path = str(
+            target.get("candidate_artifact_path", "")
+            or target.get("kernel_check_artifact_path", "")
+            or ""
+        ).strip()
+        work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
+            [
+                artifact.get("manifest_id", ""),
+                proposal_packet.get("packet_id", ""),
+                source_formal_target_id,
+                target_theorem_name,
+                target_ids,
+                failure_classification,
+                diagnostics,
+                source_target_provenance,
+            ]
+        )[:20]
+        if work_order_id in seen:
+            continue
+        seen.add(work_order_id)
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": work_order_id,
+                "source_formalization_manifest_id": str(
+                    artifact.get("manifest_id", "") or ""
+                ),
+                "source_formalizer_packet_id": str(
+                    proposal_packet.get("packet_id", "") or ""
+                ),
+                "source_formal_target_id": source_formal_target_id,
+                "question_id": str(question.get("id", "") or ""),
+                "question_title": str(question.get("title", "") or ""),
+                "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
+                "target_lean_declaration": target_lean_declaration
+                or target_theorem_name,
+                "target_theorem_goal_ids": list(target_ids),
+                "candidate_artifact_path": candidate_artifact_path,
+                "lean_statement_sketch": lean_statement_sketch,
+                "lean_imports": _formal_target_imports(target),
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": semantic_alignment_constraints,
+                "source_formalizer_expected_status": str(
+                    target.get("expected_status", "") or ""
+                ),
+                "source_formalizer_expected_status_normalized_from": str(
+                    target.get("expected_status_normalized_from", "") or ""
+                ),
+                "source_theorem_candidate_materialization_required": (
+                    failure_classification
+                    == "source_theorem_candidate_materialization_required"
+                ),
+                "failure_classification": failure_classification,
+                "diagnostics": diagnostics,
+                "missing_formal_symbols": missing_symbols,
+                "typeclass_blockers": typeclass_blockers,
+                "recommended_repair_tasks": recommended_repair_tasks,
+                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                "action_type": "repair_exact_source_theorem_formal_environment",
+                "runtime_queue_status": (
+                    "PENDING_SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_FROM_FORMALIZER_TARGET"
+                ),
+                "runtime_queue_boundary": (
+                    "This queue row was derived from a Formalizer source-theorem "
+                    "target contract marked as a formal gap or normalized formal "
+                    "gap. It is not proof evidence; it asks ProofEngineer/Lean to "
+                    "materialize or repair the exact source-theorem environment "
+                    "before proof-body search can resume."
+                ),
+                "required_outputs": [
+                    "local Lean project or AXLE environment for the exact source theorem",
+                    "Lean import list for the theorem and upstream statistical primitives",
+                    "missing formal symbols or instances that must be defined before proof search",
+                    "rerunnable exact-source artifact verifier manifest",
+                ],
+                "acceptance_gate": (
+                    "local Lean/AXLE resolves imports and reaches the exact source theorem "
+                    "declaration; artifact/source theorem proof evidence still requires "
+                    "kernel verification and no sorry/admit/axiom placeholders"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
 def _runtime_source_theorem_formal_environment_work_order_rows(
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -40844,6 +41119,19 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                 "source_theorem_exact_candidate_environment_gap",
                 False,
             ):
+                proposal_id = str(
+                    artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
+                    or ""
+                )
+                proposal_packet = artifacts.get(proposal_id, {})
+                if isinstance(proposal_packet, Mapping):
+                    rows.extend(
+                        _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets(
+                            artifact=artifact,
+                            proposal_packet=proposal_packet,
+                            seen=seen,
+                        )
+                    )
                 continue
             question = (
                 artifact.get("question", {})
@@ -40977,11 +41265,11 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         ),
                         "target_theorem_goal_ids": list(target_ids),
                         "candidate_artifact_path": candidate_artifact_path,
-                        "source_theorem_target_known": bool(
-                            source_target_provenance.get(
-                                "source_theorem_target_known",
-                                False,
+                        "source_theorem_target_known": (
+                            _source_theorem_target_known_value(
+                                source_target_provenance
                             )
+                            is True
                         ),
                         "source_theorem_target_provenance": source_target_provenance,
                         "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -41109,8 +41397,9 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
             "target_lean_declaration"
         ):
             source_target_provenance["target_lean_declaration"] = target_lean_declaration
-        if bool(row.get("source_theorem_target_known", False)) or bool(
-            source_target_provenance.get("source_theorem_target_known", False)
+        if (
+            _source_theorem_target_known_value(row) is True
+            or _source_theorem_target_known_value(source_target_provenance) is True
         ):
             source_target_provenance["source_theorem_target_known"] = True
         semantic_alignment_constraints = list(
@@ -41191,8 +41480,9 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 or target_theorem_name,
                 "target_theorem_goal_ids": list(target_ids),
                 "candidate_artifact_path": candidate_artifact_path,
-                "source_theorem_target_known": bool(
-                    source_target_provenance.get("source_theorem_target_known", False)
+                "source_theorem_target_known": (
+                    _source_theorem_target_known_value(source_target_provenance)
+                    is True
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -41233,7 +41523,7 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
     for row in artifact_verifier_payload.get("rows", []) or []:
         if not isinstance(row, Mapping):
             continue
-        if not bool(row.get("source_theorem_target_known", False)):
+        if _source_theorem_target_known_value(row) is not True:
             continue
         if bool(row.get("source_theorem_kernel_verified", False)):
             continue
@@ -41825,6 +42115,9 @@ def _formalizer_source_theorem_promotion_work_orders(
         source_target_provenance = _source_theorem_target_provenance_from_row(
             target
         )
+        explicit_source_target_known = _source_theorem_target_known_value(
+            source_target_provenance
+        )
         source_target_provenance.setdefault(
             "source_formalizer_packet_id",
             str(proposal_packet.get("packet_id", "") or ""),
@@ -41852,7 +42145,14 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "target_lean_declaration",
                 target_lean_declaration,
             )
-            source_target_provenance["source_theorem_target_known"] = True
+            if explicit_source_target_known is not False:
+                source_target_provenance["source_theorem_target_known"] = True
+        if (
+            _source_theorem_target_known_value(source_target_provenance) is False
+            and not proof_body_repair_mode
+            and not proof_body_adapter_mode
+        ):
+            continue
         semantic_alignment_constraints = list(
             source_target_provenance.get("semantic_alignment_constraints", [])
             or []
@@ -41944,11 +42244,9 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
                 "lean_imports": _formal_target_imports(target),
                 "informal_source": str(target.get("informal_source", "") or ""),
-                "source_theorem_target_known": bool(
-                    source_target_provenance.get(
-                        "source_theorem_target_known",
-                        False,
-                    )
+                "source_theorem_target_known": (
+                    _source_theorem_target_known_value(source_target_provenance)
+                    is True
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": semantic_alignment_constraints[:8],

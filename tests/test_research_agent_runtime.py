@@ -32510,6 +32510,96 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_runtime_routes_formalizer_source_theorem_gap_target_to_formal_environment_queue() -> None:
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:proposal_gap_route",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:proposal_gap_route"
+        ),
+        "proof_bank_runtime_memory_summary": {
+            "source_theorem_exact_candidate_environment_gap": False,
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:proposal_gap_route",
+        "formal_targets": [
+            {
+                "id": "split_conformal_helper",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_helper (p : Prop) (hp : p) : p := hp"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": "false",
+                    "target_lean_declaration": "split_conformal_helper",
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            },
+            {
+                "id": "split_conformal_source_theorem",
+                "informal_source": (
+                    "source theorem remains a probability coverage formal gap"
+                ),
+                "lean_statement_sketch": "",
+                "lean_imports": [],
+                "semantic_alignment_constraints": [
+                    "missing reviewed exchangeability and order statistic primitives",
+                    "Mathlib probability imports must be resolved before proof search",
+                ],
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": "true",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            },
+        ],
+    }
+
+    helper_provenance = runtime_module._source_theorem_target_provenance_from_row(
+        proposal["formal_targets"][0]
+    )
+    work_orders = _runtime_source_theorem_formal_environment_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        formalization_manifest["manifest_id"]: formalization_manifest,
+                        proposal["packet_id"]: proposal,
+                    }
+                }
+            }
+        ]
+    )
+
+    assert helper_provenance["source_theorem_target_known"] is False
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
+    assert work_order["source_formal_target_id"] == "split_conformal_source_theorem"
+    assert work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert work_order["source_theorem_target_known"] is True
+    assert work_order["failure_classification"] == (
+        "source_theorem_candidate_materialization_required"
+    )
+    assert work_order["source_theorem_candidate_materialization_required"] is True
+    assert work_order["runtime_queue_status"] == (
+        "PENDING_SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_FROM_FORMALIZER_TARGET"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_critic_memory_routes_candidate_materialization_blocker_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)

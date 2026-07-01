@@ -97,6 +97,23 @@ SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
 )
 
 
+def _source_theorem_target_known_value(provenance: object) -> bool | None:
+    if not isinstance(provenance, Mapping):
+        return None
+    value = provenance.get("source_theorem_target_known")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    return None
+
+
 @dataclass(frozen=True)
 class SourceTheoremFormalEnvironmentSignatureProbeRow:
     schema_version: int
@@ -412,7 +429,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_lean_declaration": target_lean_declaration,
         "candidate_artifact_path": candidate_artifact_path,
         "source_theorem_target_known": bool(
-            source_target_provenance.get("source_theorem_target_known", False)
+            _source_theorem_target_known_value(source_target_provenance) is True
         ),
         "source_theorem_target_provenance": source_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -476,10 +493,17 @@ def _source_theorem_target_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
             sources.append(nested)
     provenance: dict[str, Any] = {}
     if any("source_theorem_target_known" in source for source in sources):
-        provenance["source_theorem_target_known"] = any(
-            bool(source.get("source_theorem_target_known", False))
-            for source in sources
+        known_values = tuple(
+            value
+            for value in (
+                _source_theorem_target_known_value(source)
+                for source in sources
+                if "source_theorem_target_known" in source
+            )
+            if value is not None
         )
+        if known_values:
+            provenance["source_theorem_target_known"] = any(known_values)
     constraints: list[str] = []
     for source in sources:
         for key in SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS:
