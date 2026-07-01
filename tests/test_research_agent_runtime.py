@@ -2557,6 +2557,11 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
         {
             "runtime_dir": "runs/previous_capability_eval",
             "manifest": "runs/previous_capability_eval/research_agent_runtime_manifest.json",
+            "runtime_learning_rows_jsonl": (
+                "runs/previous_capability_eval/runtime_learning_rows.jsonl"
+            ),
+            "runtime_resume_manifest_has_pending_task": False,
+            "question_ids": ["causal_ate_aipw"],
             "n_runtime_formalization_gap_planner_handoffs": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_requested": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 1,
@@ -2577,9 +2582,15 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
     assert "followups_required=1" in followthrough["evidence"]
     assert "contract-valid responses" in followthrough["blocker"]
     assert followthrough["next_owner_subsystem"] == "FormalizationGapPlanner"
-    assert "--resume-runtime-manifest runs/previous_capability_eval/research_agent_runtime_manifest.json" in followthrough[
-        "recommended_capability_eval_command"
-    ]
+    recommended_command = followthrough["recommended_capability_eval_command"]
+    assert "--resume-runtime-manifest" not in recommended_command
+    assert "--question-id causal_ate_aipw" in recommended_command
+    assert (
+        "--learning-memory-jsonl "
+        "runs/previous_capability_eval/runtime_learning_rows.jsonl"
+    ) in recommended_command
+    assert "--capability-eval-preset full-live" in recommended_command
+    assert "--max-iterations 16" in recommended_command
 
     payload.update(
         {

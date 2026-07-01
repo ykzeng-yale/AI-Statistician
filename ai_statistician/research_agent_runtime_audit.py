@@ -64,6 +64,7 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 )
 FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
 FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
+FULL_LIVE_RERUN_MIN_ITERATIONS = 16
 FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES = {
     "handoff_id": (
         "handoff_id",
@@ -395,6 +396,33 @@ def audit_research_agent_runtime(
         if str(pending_task_raw_path or "").strip()
         else {}
     )
+    manifest_pending_task = manifest.get("incomplete_pending_next_task", {})
+    runtime_resume_manifest_has_pending_task = (
+        isinstance(manifest_pending_task, Mapping) and bool(manifest_pending_task)
+    )
+    pending_task_artifact_payload = (
+        pending_task_payload.get("pending_next_task", {})
+        if isinstance(pending_task_payload, Mapping)
+        else {}
+    )
+    pending_task_artifact_path = (
+        _resolve_path(runtime_dir, pending_task_raw_path)
+        if str(pending_task_raw_path or "").strip()
+        else None
+    )
+    if (
+        not runtime_resume_manifest_has_pending_task
+        and isinstance(pending_task_artifact_payload, Mapping)
+        and pending_task_artifact_payload
+        and pending_task_artifact_path is not None
+        and pending_task_artifact_path.exists()
+    ):
+        runtime_resume_manifest_has_pending_task = True
+        runtime_resumable_manifest_path = str(pending_task_artifact_path)
+    elif runtime_resume_manifest_has_pending_task:
+        runtime_resumable_manifest_path = str(manifest_path)
+    else:
+        runtime_resumable_manifest_path = ""
     runtime_pending_task_memory_rows = _runtime_pending_task_memory_rows(
         pending_task_payload
     )
@@ -646,6 +674,11 @@ def audit_research_agent_runtime(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
+        "runtime_learning_rows_jsonl": str(learning_path),
+        "runtime_resume_manifest_has_pending_task": (
+            runtime_resume_manifest_has_pending_task
+        ),
+        "runtime_resumable_manifest_path": runtime_resumable_manifest_path,
         "runtime_stage": manifest.get("runtime_stage", ""),
         "runtime_resume_policy": str(manifest.get("runtime_resume_policy", "") or ""),
         "runtime_resumed_from_pending_task": bool(
@@ -7466,7 +7499,7 @@ def _cross_task_generalization_scorecard_routing(
         "--provider anthropic "
         "--capability-eval "
         "--capability-eval-preset full-live "
-        "--max-iterations 8 "
+        f"--max-iterations {FULL_LIVE_RERUN_MIN_ITERATIONS} "
         "--out runs/main_worker_cross_family_full_live"
     )
     return {
@@ -7500,12 +7533,24 @@ def _capability_resume_out_dir(payload: Mapping[str, Any]) -> str:
     return str(path.with_name(f"{path.name}_resume_full_live"))
 
 
+def _capability_rerun_out_dir(payload: Mapping[str, Any]) -> str:
+    runtime_dir = str(payload.get("runtime_dir", "") or "").strip()
+    if not runtime_dir:
+        return "runs/main_worker_runtime_rerun_full_live"
+    path = Path(runtime_dir)
+    return str(path.with_name(f"{path.name}_rerun_full_live"))
+
+
 def _capability_resume_command(
     payload: Mapping[str, Any],
     *,
     max_iterations: int = 8,
 ) -> str:
-    manifest_path = str(payload.get("manifest", "") or "").strip()
+    manifest_path = str(
+        payload.get("runtime_resumable_manifest_path", "")
+        or payload.get("manifest", "")
+        or ""
+    ).strip()
     manifest_arg = manifest_path if manifest_path else "<prior_runtime_manifest>"
     out_arg = _capability_resume_out_dir(payload)
     return (
@@ -7520,6 +7565,61 @@ def _capability_resume_command(
     )
 
 
+def _capability_full_live_rerun_command(
+    payload: Mapping[str, Any],
+    *,
+    max_iterations: int = 8,
+) -> str:
+    effective_max_iterations = max(max_iterations, FULL_LIVE_RERUN_MIN_ITERATIONS)
+    out_arg = _capability_rerun_out_dir(payload)
+    question_args = " ".join(
+        f"--question-id {shlex.quote(question_id)}"
+        for question_id in _compact_string_list(payload.get("question_ids", []))
+    )
+    learning_memory_path = str(
+        payload.get("runtime_learning_rows_jsonl", "") or ""
+    ).strip()
+    learning_memory_args = (
+        " "
+        + " ".join(
+            (
+                "--learning-memory-jsonl",
+                shlex.quote(learning_memory_path),
+                "--max-learning-memory-rows",
+                "40",
+            )
+        )
+        if learning_memory_path
+        else ""
+    )
+    question_fragment = f"{question_args} " if question_args else ""
+    return (
+        ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
+        f"{question_fragment}"
+        "--provider anthropic "
+        "--capability-eval "
+        "--capability-eval-preset full-live "
+        f"--max-iterations {effective_max_iterations} "
+        "--formalization-gap-planner-live-max-handoffs 1 "
+        "--formalization-gap-planner-live-max-route-requests-per-handoff 1"
+        f"{learning_memory_args} "
+        f"--out {shlex.quote(out_arg)}"
+    )
+
+
+def _capability_feedback_command(
+    payload: Mapping[str, Any],
+    *,
+    max_iterations: int = 8,
+) -> str:
+    if payload.get("runtime_resume_manifest_has_pending_task") is False:
+        return _capability_full_live_rerun_command(
+            payload,
+            max_iterations=max_iterations,
+        )
+    return _capability_resume_command(payload, max_iterations=max_iterations)
+
+
 def _runtime_resume_scorecard_routing(
     payload: Mapping[str, Any],
     *,
@@ -7531,17 +7631,17 @@ def _runtime_resume_scorecard_routing(
     return {
         "next_owner_subsystem": owner,
         "target_behavior": target_behavior,
-        "recommended_capability_eval_command": _capability_resume_command(
+        "recommended_capability_eval_command": _capability_feedback_command(
             payload,
             max_iterations=max_iterations,
         ),
         "success_metric": success_metric,
         "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
         "routing_boundary": (
-            "This recommendation resumes an evaluation run and is not proof "
-            "evidence. Capability is satisfied only after the resumed runtime "
-            "records the requested live-agent artifacts and, where relevant, "
-            "real Lean/AXLE kernel evidence in the audit."
+            "This recommendation routes a follow-up capability evaluation and "
+            "is not proof evidence. Capability is satisfied only after the "
+            "follow-up runtime records the requested live-agent artifacts and, "
+            "where relevant, real Lean/AXLE kernel evidence in the audit."
         ),
     }
 
