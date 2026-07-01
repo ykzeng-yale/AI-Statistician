@@ -3017,28 +3017,36 @@ def _runtime_architect_recommended_formal_verification_policy(
             if isinstance(blackboard, Mapping)
             else {}
         )
-        if isinstance(artifacts, Mapping):
-            for artifact in artifacts.values():
-                policy = _artifact_formal_verification_policy(artifact)
-                if policy:
-                    return policy
-        traces = result.get("traces", [])
-        if not isinstance(traces, list):
-            continue
-        for trace in traces:
-            if not isinstance(trace, Mapping):
-                continue
-            for artifact in (trace.get("produced_artifacts", {}) or {}).values():
+        produced_artifact_ids = _runtime_trace_produced_artifact_ids(result)
+        if isinstance(artifacts, Mapping) and produced_artifact_ids:
+            for artifact_id in produced_artifact_ids:
+                artifact = artifacts.get(artifact_id)
                 if not isinstance(artifact, Mapping):
                     continue
                 policy = _artifact_formal_verification_policy(artifact)
                 if policy:
                     return policy
-            for observation in trace.get("observations", []) or []:
-                if not isinstance(observation, Mapping):
+        traces = result.get("traces", [])
+        if isinstance(traces, list):
+            for trace in traces:
+                if not isinstance(trace, Mapping):
                     continue
-                payload = observation.get("payload", {})
-                policy = _artifact_formal_verification_policy(payload)
+                for artifact in (trace.get("produced_artifacts", {}) or {}).values():
+                    if not isinstance(artifact, Mapping):
+                        continue
+                    policy = _artifact_formal_verification_policy(artifact)
+                    if policy:
+                        return policy
+                for observation in trace.get("observations", []) or []:
+                    if not isinstance(observation, Mapping):
+                        continue
+                    payload = observation.get("payload", {})
+                    policy = _artifact_formal_verification_policy(payload)
+                    if policy:
+                        return policy
+        if isinstance(artifacts, Mapping) and not produced_artifact_ids:
+            for artifact in artifacts.values():
+                policy = _artifact_formal_verification_policy(artifact)
                 if policy:
                     return policy
     return ""
@@ -3054,46 +3062,76 @@ def _runtime_architect_recommended_research_path(
             if isinstance(blackboard, Mapping)
             else {}
         )
-        if isinstance(artifacts, Mapping):
-            for artifact in artifacts.values():
-                path = _artifact_recommended_research_path(artifact)
-                if path:
-                    return path
-        traces = result.get("traces", [])
-        if not isinstance(traces, list):
-            continue
-        for trace in traces:
-            if not isinstance(trace, Mapping):
-                continue
-            for artifact in (trace.get("produced_artifacts", {}) or {}).values():
+        produced_artifact_ids = _runtime_trace_produced_artifact_ids(result)
+        if isinstance(artifacts, Mapping) and produced_artifact_ids:
+            for artifact_id in produced_artifact_ids:
+                artifact = artifacts.get(artifact_id)
                 if not isinstance(artifact, Mapping):
                     continue
                 path = _artifact_recommended_research_path(artifact)
                 if path:
                     return path
-            for observation in trace.get("observations", []) or []:
-                if not isinstance(observation, Mapping):
+        traces = result.get("traces", [])
+        if isinstance(traces, list):
+            for trace in traces:
+                if not isinstance(trace, Mapping):
                     continue
-                payload = observation.get("payload", {})
-                path = _artifact_recommended_research_path(payload)
+                for artifact in (trace.get("produced_artifacts", {}) or {}).values():
+                    if not isinstance(artifact, Mapping):
+                        continue
+                    path = _artifact_recommended_research_path(artifact)
+                    if path:
+                        return path
+                for observation in trace.get("observations", []) or []:
+                    if not isinstance(observation, Mapping):
+                        continue
+                    payload = observation.get("payload", {})
+                    path = _artifact_recommended_research_path(payload)
+                    if path:
+                        return path
+        if isinstance(artifacts, Mapping) and not produced_artifact_ids:
+            for artifact in artifacts.values():
+                path = _artifact_recommended_research_path(artifact)
                 if path:
                     return path
     return ""
+
+
+def _runtime_trace_produced_artifact_ids(result: Mapping[str, Any]) -> tuple[str, ...]:
+    traces = result.get("traces", [])
+    if not isinstance(traces, list):
+        return ()
+    artifact_ids: list[str] = []
+    seen: set[str] = set()
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        for value in trace.get("produced_artifact_ids", []) or []:
+            artifact_id = str(value).strip()
+            if not artifact_id or artifact_id in seen:
+                continue
+            seen.add(artifact_id)
+            artifact_ids.append(artifact_id)
+    return tuple(artifact_ids)
 
 
 def _artifact_evidence_contract(value: Any) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         return {}
     contract = value.get("evidence_contract", {})
-    if not isinstance(contract, Mapping):
+    if not isinstance(contract, Mapping) or not contract:
+        control = value.get("runtime_architect_control", {})
+        if isinstance(control, Mapping):
+            contract = control.get("evidence_contract", {})
+    if not isinstance(contract, Mapping) or not contract:
         plan = value.get("architect_runtime_plan", {})
         if isinstance(plan, Mapping):
             contract = plan.get("evidence_contract", {})
-    if not isinstance(contract, Mapping):
+    if not isinstance(contract, Mapping) or not contract:
         payload = value.get("payload", {})
         if isinstance(payload, Mapping):
             contract = payload.get("evidence_contract", {})
-    if not isinstance(contract, Mapping):
+    if not isinstance(contract, Mapping) or not contract:
         return {}
     return contract
 
@@ -53807,6 +53845,7 @@ def _runtime_research_path_execution_summary(
     n_with_evidence_contract = 0
     n_policy_mismatches = 0
     n_path_mismatches = 0
+    n_historical_controlled_input_artifacts_skipped = 0
     effective_policy = str(effective_formal_verification_policy or "").strip().lower()
     effective_path = str(effective_recommended_research_path or "").strip().lower()
 
@@ -53819,11 +53858,18 @@ def _runtime_research_path_execution_summary(
         )
         if not isinstance(artifacts, Mapping):
             continue
-        for artifact in artifacts.values():
+        produced_artifact_ids = set(_runtime_trace_produced_artifact_ids(result))
+        artifact_scope = (
+            produced_artifact_ids if produced_artifact_ids else set(artifacts)
+        )
+        for artifact_id, artifact in artifacts.items():
             if not isinstance(artifact, Mapping):
                 continue
             control = artifact.get("runtime_architect_control", {})
             if not isinstance(control, Mapping) or not control:
+                continue
+            if str(artifact_id) not in artifact_scope:
+                n_historical_controlled_input_artifacts_skipped += 1
                 continue
             n_controlled_artifacts += 1
             subsystem = str(control.get("subsystem", "") or "").strip() or str(
@@ -53895,6 +53941,9 @@ def _runtime_research_path_execution_summary(
         "n_controlled_artifacts_with_evidence_contract": n_with_evidence_contract,
         "n_policy_mismatches": n_policy_mismatches,
         "n_path_mismatches": n_path_mismatches,
+        "n_historical_controlled_input_artifacts_skipped": (
+            n_historical_controlled_input_artifacts_skipped
+        ),
         "controlled_subsystems": sorted(serializable_by_subsystem),
         "by_subsystem": serializable_by_subsystem,
         "path_control_propagated": bool(
@@ -53905,9 +53954,11 @@ def _runtime_research_path_execution_summary(
         ),
         "boundary": (
             "This summary checks whether Architect evidence-contract routing "
-            "reached runtime artifacts. It is control-plane evidence only; it "
-            "does not prove statistical claims or certify that the chosen path "
-            "was mathematically optimal."
+            "reached artifacts produced by the current runtime traces. Rehydrated "
+            "historical blackboard artifacts are preserved as inputs but not "
+            "counted as current-turn control propagation. This is control-plane "
+            "evidence only; it does not prove statistical claims or certify that "
+            "the chosen path was mathematically optimal."
         ),
     }
 

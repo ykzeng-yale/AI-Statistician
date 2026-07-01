@@ -6183,6 +6183,48 @@ def test_optional_formal_policy_follows_architect_recommendation() -> None:
     )
 
 
+def test_architect_recommendation_prefers_current_trace_contracts() -> None:
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "retrieval:historical": {
+                        "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                        "evidence_contract": {
+                            "formal_verification_policy": "optional",
+                            "recommended_research_path": "dual_track",
+                            "formal_required_for_final": False,
+                        },
+                    },
+                    "formalization:current": {
+                        "artifact_kind": "RuntimeFormalizationManifest",
+                        "runtime_architect_control": {
+                            "subsystem": "ProofEngineer",
+                            "evidence_contract": {
+                                "formal_verification_policy": "required",
+                                "recommended_research_path": "proof_first",
+                                "formal_required_for_final": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "traces": [
+                {
+                    "subsystem": "ProofEngineer",
+                    "produced_artifact_ids": ["formalization:current"],
+                }
+            ],
+        }
+    ]
+
+    assert (
+        _runtime_architect_recommended_formal_verification_policy(results)
+        == "required"
+    )
+    assert _runtime_architect_recommended_research_path(results) == "proof_first"
+
+
 def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
     contract = _runtime_requested_evidence_contract(
         formal_verification_policy="advisory",
@@ -6270,6 +6312,64 @@ def test_research_path_execution_summary_detects_control_propagation() -> None:
     assert mismatch_summary["path_control_propagated"] is False
     assert mismatch_summary["n_policy_mismatches"] == 2
     assert mismatch_summary["n_path_mismatches"] == 2
+
+
+def test_research_path_execution_summary_scopes_to_current_trace_artifacts() -> None:
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "retrieval:historical": {
+                        "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                        "runtime_architect_control": {
+                            "subsystem": "RetrievalMemory",
+                            "formal_verification_policy": "optional",
+                            "recommended_research_path": "dual_track",
+                            "formal_required_for_final": False,
+                            "evidence_contract": {
+                                "formal_verification_policy": "optional",
+                                "recommended_research_path": "dual_track",
+                                "formal_required_for_final": False,
+                            },
+                        },
+                    },
+                    "formalization:current": {
+                        "artifact_kind": "RuntimeFormalizationManifest",
+                        "runtime_architect_control": {
+                            "subsystem": "ProofEngineer",
+                            "formal_verification_policy": "required",
+                            "recommended_research_path": "dual_track",
+                            "formal_required_for_final": True,
+                            "evidence_contract": {
+                                "formal_verification_policy": "required",
+                                "recommended_research_path": "dual_track",
+                                "formal_required_for_final": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "traces": [
+                {
+                    "subsystem": "ProofEngineer",
+                    "produced_artifact_ids": ["formalization:current"],
+                }
+            ],
+        }
+    ]
+
+    summary = _runtime_research_path_execution_summary(
+        results,
+        effective_formal_verification_policy="required",
+        effective_recommended_research_path="dual_track",
+    )
+
+    assert summary["path_control_propagated"] is True
+    assert summary["n_controlled_artifacts"] == 1
+    assert summary["n_historical_controlled_input_artifacts_skipped"] == 1
+    assert summary["n_policy_mismatches"] == 0
+    assert summary["n_path_mismatches"] == 0
+    assert summary["controlled_subsystems"] == ["ProofEngineer"]
 
 
 def test_simulation_engineer_prompt_compacts_theory_context() -> None:
