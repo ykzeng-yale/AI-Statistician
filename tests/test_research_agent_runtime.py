@@ -7155,6 +7155,31 @@ def test_formalizer_materialization_validator_rejects_wrong_target_identity() ->
     ]
 
 
+def test_formalizer_repair_policy_covers_source_theorem_materialization_gate() -> None:
+    policy = formalizer_validation_repair_policy(
+        [
+            (
+                "source_theorem_exact_candidate_materialization_required requires "
+                "a concrete source-theorem formal_targets entry with "
+                "expected_status=NEEDS_KERNEL_CHECK, nonempty Lean theorem/lemma "
+                "sketch, and source_theorem_target_provenance. "
+                "source_theorem_target_known=true; FORMAL_GAP and helper/support "
+                "candidates do not satisfy this materialization gate"
+            )
+        ]
+    )
+
+    rule_ids = {row["rule_id"] for row in policy["rules"]}
+    directive_text = " ".join(
+        str(row.get("prompt_directive", "")) for row in policy["rules"]
+    )
+
+    assert "source_theorem_candidate_materialization_required" in rule_ids
+    assert "exact source-theorem formal_targets entry" in directive_text
+    assert "FORMAL_GAP-only" in directive_text
+    assert "not proof evidence" in directive_text
+
+
 def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
@@ -8014,6 +8039,95 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
         "source_theorem_lane"
     ]["output_key"] == "formal_targets"
     assert "local Lean/AXLE kernel verification" in learning_rows[0]["acceptance_gate"]
+
+
+def test_formalizer_validation_failure_routes_materialization_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "source_theorem_exact_candidate_materialization_required requires "
+                "a concrete source-theorem formal_targets entry with "
+                "expected_status=NEEDS_KERNEL_CHECK, nonempty Lean theorem/lemma "
+                "sketch, and source_theorem_target_provenance. "
+                "source_theorem_target_known=true; FORMAL_GAP and helper/support "
+                "candidates do not satisfy this materialization gate"
+            )
+        ],
+        history=[{"attempt_index": 1, "ok": False}],
+    )
+    task = AgentTask(
+        task_id="formalize:aipw_materialization",
+        owner_subsystem="FormalizationEvaluator",
+        objective="materialize exact source theorem candidate",
+        inputs={},
+    )
+
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_candidate_materialization_required"
+            ),
+            "source_theorem_candidate_materialization_required_target_names": [
+                "thm_aipw_normality"
+            ],
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "aipw_asymptotic_normality"
+            ],
+            "source_theorem_candidate_materialization_required_statuses": [
+                "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+            ],
+        },
+        exc=exc,
+    )
+
+    artifact = next(iter(result.produced_artifacts.values()))
+    feedback = result.next_task.inputs["environment_feedback"]  # type: ignore[union-attr]
+    contract = feedback["source_theorem_candidate_materialization_contract"]
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert "materialization candidate" in result.next_task.objective
+    assert contract["contract_kind"] == (
+        "source_theorem_candidate_materialization_required"
+    )
+    assert contract["target_ids"] == ["aipw_asymptotic_normality"]
+    assert contract["target_names"] == ["thm_aipw_normality"]
+    assert feedback["target_ids"] == ["aipw_asymptotic_normality"]
+    assert "FORMAL_GAP-only" in feedback["required_repair"]
+    assert "helper-only" in feedback["required_repair"]
+    assert "expected_status=FORMAL_GAP with an empty Lean sketch" not in feedback[
+        "required_repair"
+    ]
+    assert artifact["target_ids"] == ["aipw_asymptotic_normality"]
+    assert artifact["learning_rows"][0]["input_summary"][
+        "source_theorem_candidate_materialization_contract"
+    ]["target_ids"] == ["aipw_asymptotic_normality"]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "aipw"},
+        theorem_goals=theorem_goals,
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    assert "source_theorem_candidate_materialization_contract" in prompt
+    assert "Mandatory source-theorem candidate-materialization repair" in prompt
+    assert "Requested target id/name(s): aipw_asymptotic_normality" in prompt
 
 
 def test_formalizer_runtime_enforces_lean_candidate_required_from_learning_memory() -> None:

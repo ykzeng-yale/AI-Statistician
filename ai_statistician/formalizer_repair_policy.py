@@ -243,6 +243,35 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
             "unused binders, or metadata."
         ),
     ),
+    FormalizerValidationRepairRule(
+        rule_id="source_theorem_candidate_materialization_required",
+        violation_family="source_theorem_materialization_contract",
+        trigger_markers=(
+            "source_theorem_exact_candidate_materialization_required requires",
+            "formal_gap and helper/support candidates do not satisfy this materialization gate",
+            "formal_targets candidate must preserve a requested target id/name",
+        ),
+        prompt_directive=(
+            "In source-theorem candidate-materialization mode, emit a concrete "
+            "exact source-theorem formal_targets entry with "
+            "expected_status=NEEDS_KERNEL_CHECK, a nonempty Lean theorem/lemma "
+            "sketch, source_theorem_target_provenance.source_theorem_target_known=true, "
+            "and copied requested target_ids/names. Do not satisfy this mode with "
+            "FORMAL_GAP-only, helper-only, support-only, or source-to-bridge-only "
+            "outputs; materialization is still not proof evidence until Lean/AXLE "
+            "checks the exact candidate."
+        ),
+        allowed_resolution=(
+            "Create the exact source-theorem Lean candidate artifact for signature "
+            "probe/local Lean feedback while preserving target identity and proof "
+            "boundaries."
+        ),
+        forbidden_resolution=(
+            "Do not route materialization-mode feedback back into a FORMAL_GAP-only "
+            "or helper/support-only packet, and do not claim kernel proof from the "
+            "candidate."
+        ),
+    ),
 )
 
 

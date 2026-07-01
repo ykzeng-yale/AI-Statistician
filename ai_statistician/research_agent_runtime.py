@@ -7329,6 +7329,12 @@ def _formalizer_packet_validation_failure_result(
             validation_errors
         )
     )
+    source_theorem_candidate_materialization_contract = (
+        _formalizer_source_theorem_candidate_materialization_contract_from_validation_errors(
+            validation_errors,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        )
+    )
     prior_environment_feedback = (
         task.inputs.get("environment_feedback", {})
         if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -7471,6 +7477,9 @@ def _formalizer_packet_validation_failure_result(
             "target_shape_contract": active_target_shape_contract,
             "target_drift_repair_contract": active_target_drift_repair_contract,
             "next_action_reference_contract": next_action_reference_contract,
+            "source_theorem_candidate_materialization_contract": (
+                source_theorem_candidate_materialization_contract
+            ),
             "local_lean_repair_contract": active_local_lean_repair_contract,
             "candidate_diagnostics": active_candidate_diagnostics,
             "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -7519,16 +7528,15 @@ def _formalizer_packet_validation_failure_result(
             ),
             "last_attempt_summary": exc.history[-1] if exc.history else {},
         },
-        "target_behavior": (
-            "rerun Formalizer/ProofEngineer with a locally valid packet: preserve "
-            "source-binding request metadata, include all required semantic anchors "
-            "and adapter objects in each source-to-bridge premise candidate, and do "
-            "not send candidates to Lean until the local validator accepts them"
+        "target_behavior": _formalizer_validation_failure_target_behavior(
+            source_theorem_candidate_materialization_contract=(
+                source_theorem_candidate_materialization_contract
+            )
         ),
-        "acceptance_gate": (
-            "Formalizer packet passes local schema/semantic validation; any resulting "
-            "source-to-bridge premise candidate still requires local Lean/AXLE kernel "
-            "verification before becoming proof evidence."
+        "acceptance_gate": _formalizer_validation_failure_acceptance_gate(
+            source_theorem_candidate_materialization_contract=(
+                source_theorem_candidate_materialization_contract
+            )
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
@@ -7554,6 +7562,9 @@ def _formalizer_packet_validation_failure_result(
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
         "next_action_reference_contract": next_action_reference_contract,
+        "source_theorem_candidate_materialization_contract": (
+            source_theorem_candidate_materialization_contract
+        ),
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -7588,6 +7599,9 @@ def _formalizer_packet_validation_failure_result(
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
         "next_action_reference_contract": next_action_reference_contract,
+        "source_theorem_candidate_materialization_contract": (
+            source_theorem_candidate_materialization_contract
+        ),
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -7615,48 +7629,58 @@ def _formalizer_packet_validation_failure_result(
         ),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "target_behavior": learning_row["target_behavior"],
-        "required_repair": (
-            "Return a locally valid Formalizer packet. For each "
-            "source_to_bridge_premise_derivation_candidate, preserve source-binding "
-            "metadata by copying the runtime memory request id/object into each "
-            "candidate, reference every missing semantic anchor outside comments, "
-            "derive adapter objects from exact source binders instead of putting "
-            "them in the theorem binder list, or report the exact semantic blocker "
-            "instead of emitting a candidate. If validation feedback identifies a "
-            "coverage/probability source theorem and no complete no-sorry Lean proof "
-            "is available, emit that source theorem as expected_status=FORMAL_GAP "
-            "with an empty Lean sketch and route support work outside the source "
-            "theorem formal_targets slot. Do not mention "
-            "source_to_bridge_premise_derivation_candidates in next_actions unless "
-            "the packet also emits the concrete candidate object with Lean source, "
-            "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata. If this "
-            "is a repeated proof-hole/phantom-action repair and no source-to-bridge "
-            "metadata can be copied, emit at most one separate helper formal_targets "
-            "entry with source_theorem_target_provenance.source_theorem_target_known=false "
-            "so Lean/LSP can inspect a real artifact without promoting it to source "
-            "theorem proof evidence; remove any next_actions entry that asks the "
-            "runtime to execute absent source_to_bridge_premise_derivation_candidates. "
-            + " ".join(validation_repair_directives)
+        "required_repair": _formalizer_validation_failure_required_repair(
+            source_theorem_candidate_materialization_contract=(
+                source_theorem_candidate_materialization_contract
+            ),
+            validation_repair_directives=validation_repair_directives,
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    target_ids = list(
+        source_theorem_candidate_materialization_contract.get("target_ids", []) or []
+    )
+    if target_ids:
+        learning_row["target_ids"] = target_ids
+        failure_artifact["target_ids"] = target_ids
+        repair_feedback["target_ids"] = target_ids
+    target_names = list(
+        source_theorem_candidate_materialization_contract.get("target_names", []) or []
+    )
+    if target_names:
+        learning_row["target_names"] = target_names
+        failure_artifact["target_names"] = target_names
+        repair_feedback["target_names"] = target_names
     next_inputs = dict(task.inputs)
     next_inputs["environment_feedback"] = repair_feedback
+    next_task_objective = (
+        "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
+        "source-theorem materialization candidate before requesting Lean/prover work."
+        if source_theorem_candidate_materialization_contract
+        else (
+            "Repair the Formalizer/ProofEngineer packet using local validator "
+            "feedback before materializing Lean candidates or requesting proof work."
+        )
+    )
+    next_task_acceptance_gate = (
+        "repaired Formalizer packet passes local materialization validation with an "
+        "exact source-theorem formal_targets Lean candidate; proof still requires "
+        "local Lean/AXLE kernel verification"
+        if source_theorem_candidate_materialization_contract
+        else (
+            "repaired Formalizer packet passes local validation; any Lean candidate "
+            "still requires local Lean/AXLE kernel verification"
+        )
+    )
     next_task = AgentTask(
         task_id=f"formalize-repair:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
         owner_subsystem="FormalizationEvaluator",
-        objective=(
-            "Repair the Formalizer/ProofEngineer packet using local validator "
-            "feedback before materializing Lean candidates or requesting proof work."
-        ),
+        objective=next_task_objective,
         inputs=next_inputs,
         allowed_tools=task.allowed_tools,
         expected_artifacts=task.expected_artifacts,
-        acceptance_gate=(
-            "repaired Formalizer packet passes local validation; any Lean candidate "
-            "still requires local Lean/AXLE kernel verification"
-        ),
+        acceptance_gate=next_task_acceptance_gate,
         stop_condition="repaired formalizer packet or explicit formal blocker recorded",
     )
     evidence = EvidenceLedgerEntry(
@@ -8211,6 +8235,212 @@ def _formalizer_next_action_reference_contract_from_validation_errors(
             "work items."
         ),
     }
+
+
+def _formalizer_source_theorem_candidate_materialization_contract_from_validation_errors(
+    validation_errors: Sequence[str],
+    *,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    error_text = " ".join(str(error) for error in validation_errors).lower()
+    materialization_error = any(
+        marker in error_text
+        for marker in (
+            "source_theorem_exact_candidate_materialization_required",
+            "materialization gate",
+            "formal_targets candidate must preserve a requested target id/name",
+        )
+    )
+    materialization_required = bool(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_candidate_materialization_required",
+            False,
+        )
+        or proof_bank_runtime_memory_summary.get("recommended_formalizer_target_mode")
+        == "source_theorem_exact_candidate_materialization_required"
+    )
+    if not materialization_error and not materialization_required:
+        return {}
+
+    target_names = [
+        str(value).strip()
+        for value in proof_bank_runtime_memory_summary.get(
+            "source_theorem_candidate_materialization_required_target_names",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    target_ids = [
+        str(value).strip()
+        for value in proof_bank_runtime_memory_summary.get(
+            "source_theorem_candidate_materialization_required_target_ids",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    blocking_statuses = [
+        str(value).strip()
+        for value in proof_bank_runtime_memory_summary.get(
+            "source_theorem_candidate_materialization_required_statuses",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    return {
+        "contract_kind": "source_theorem_candidate_materialization_required",
+        "inferred_from": "formalizer_packet_validation_errors",
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_candidate_materialization_required"
+        ),
+        "target_names": list(dict.fromkeys(target_names)),
+        "target_ids": list(dict.fromkeys(target_ids)),
+        "blocking_statuses": list(dict.fromkeys(blocking_statuses)),
+        "required_formal_targets_entry": {
+            "expected_status": "NEEDS_KERNEL_CHECK",
+            "lean_statement_sketch": (
+                "nonempty Lean theorem/lemma declaration for the exact source theorem"
+            ),
+            "source_theorem_target_provenance.source_theorem_target_known": True,
+            "target_identity": (
+                "copy a requested target_id/target_name into the formal target or "
+                "source_theorem_target_provenance"
+            ),
+        },
+        "forbidden_substitutes": [
+            "FORMAL_GAP-only source theorem row",
+            "helper/support formal target",
+            "source_to_bridge_premise_derivation_candidates-only packet",
+            "next_actions that request artifacts absent from this packet",
+        ],
+        "acceptance_gate": (
+            "The repaired packet passes local Formalizer validation only when a "
+            "concrete exact source-theorem formal_targets candidate can be "
+            "materialized for signature probes/local Lean. This is not source theorem "
+            "proof evidence until the exact candidate is kernel verified."
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _formalizer_validation_failure_target_behavior(
+    *,
+    source_theorem_candidate_materialization_contract: Mapping[str, Any],
+) -> str:
+    if source_theorem_candidate_materialization_contract:
+        targets = ", ".join(
+            [
+                *[
+                    str(value)
+                    for value in source_theorem_candidate_materialization_contract.get(
+                        "target_ids",
+                        [],
+                    )
+                    or []
+                ],
+                *[
+                    str(value)
+                    for value in source_theorem_candidate_materialization_contract.get(
+                        "target_names",
+                        [],
+                    )
+                    or []
+                ],
+            ]
+        )
+        suffix = f" for {targets}" if targets else ""
+        return (
+            "rerun Formalizer/ProofEngineer in exact source-theorem candidate "
+            f"materialization mode{suffix}: emit a concrete formal_targets Lean "
+            "theorem/lemma candidate with expected_status=NEEDS_KERNEL_CHECK, "
+            "source_theorem_target_known=true provenance, and requested target "
+            "identity; do not satisfy this repair with FORMAL_GAP-only or "
+            "helper/support-only outputs"
+        )
+    return (
+        "rerun Formalizer/ProofEngineer with a locally valid packet: preserve "
+        "source-binding request metadata, include all required semantic anchors "
+        "and adapter objects in each source-to-bridge premise candidate, and do "
+        "not send candidates to Lean until the local validator accepts them"
+    )
+
+
+def _formalizer_validation_failure_acceptance_gate(
+    *,
+    source_theorem_candidate_materialization_contract: Mapping[str, Any],
+) -> str:
+    if source_theorem_candidate_materialization_contract:
+        return (
+            "Formalizer packet passes local materialization validation with a "
+            "concrete exact source-theorem formal_targets candidate; materialization "
+            "creates a Lean artifact for signature/local Lean feedback but is not "
+            "proof evidence until kernel verified."
+        )
+    return (
+        "Formalizer packet passes local schema/semantic validation; any resulting "
+        "source-to-bridge premise candidate still requires local Lean/AXLE kernel "
+        "verification before becoming proof evidence."
+    )
+
+
+def _formalizer_validation_failure_required_repair(
+    *,
+    source_theorem_candidate_materialization_contract: Mapping[str, Any],
+    validation_repair_directives: Sequence[str],
+) -> str:
+    directive_text = " ".join(str(row) for row in validation_repair_directives if str(row))
+    if source_theorem_candidate_materialization_contract:
+        targets = list(
+            source_theorem_candidate_materialization_contract.get("target_ids", []) or []
+        ) + list(
+            source_theorem_candidate_materialization_contract.get("target_names", [])
+            or []
+        )
+        target_text = (
+            " Requested target id/name(s): " + ", ".join(dict.fromkeys(map(str, targets))) + "."
+            if targets
+            else ""
+        )
+        return (
+            "Return a locally valid Formalizer packet in exact source-theorem "
+            "candidate-materialization mode. The main formal_targets output must be "
+            "a concrete exact source-theorem Lean theorem/lemma candidate with "
+            "expected_status=NEEDS_KERNEL_CHECK, nonempty lean_statement_sketch, "
+            "source_theorem_target_provenance.source_theorem_target_known=true, and "
+            "the requested target identity preserved in the target row or provenance."
+            + target_text
+            + " Do not satisfy this materialization repair with FORMAL_GAP-only, "
+            "helper-only, support-only, or source-to-bridge-only outputs; do not claim "
+            "kernel proof from the candidate. After the packet passes local validation, "
+            "AgentRuntime will materialize the Lean artifact and route local Lean/AXLE "
+            "or signature-probe feedback. "
+            + directive_text
+        )
+    return (
+        "Return a locally valid Formalizer packet. For each "
+        "source_to_bridge_premise_derivation_candidate, preserve source-binding "
+        "metadata by copying the runtime memory request id/object into each "
+        "candidate, reference every missing semantic anchor outside comments, "
+        "derive adapter objects from exact source binders instead of putting "
+        "them in the theorem binder list, or report the exact semantic blocker "
+        "instead of emitting a candidate. If validation feedback identifies a "
+        "coverage/probability source theorem and no complete no-sorry Lean proof "
+        "is available, emit that source theorem as expected_status=FORMAL_GAP "
+        "with an empty Lean sketch and route support work outside the source "
+        "theorem formal_targets slot. Do not mention "
+        "source_to_bridge_premise_derivation_candidates in next_actions unless "
+        "the packet also emits the concrete candidate object with Lean source, "
+        "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata. If this "
+        "is a repeated proof-hole/phantom-action repair and no source-to-bridge "
+        "metadata can be copied, emit at most one separate helper formal_targets "
+        "entry with source_theorem_target_provenance.source_theorem_target_known=false "
+        "so Lean/LSP can inspect a real artifact without promoting it to source "
+        "theorem proof evidence; remove any next_actions entry that asks the "
+        "runtime to execute absent source_to_bridge_premise_derivation_candidates. "
+        + directive_text
+    )
 
 
 def _formalizer_missing_semantic_anchor_references(errors: list[str]) -> list[str]:

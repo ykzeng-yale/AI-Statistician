@@ -4397,6 +4397,20 @@ def _formalizer_mode_specific_instructions(
             )
             else {}
         )
+        source_theorem_candidate_materialization_contract = (
+            runtime_environment_feedback.get(
+                "source_theorem_candidate_materialization_contract",
+                {},
+            )
+            if isinstance(
+                runtime_environment_feedback.get(
+                    "source_theorem_candidate_materialization_contract",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        )
         target_shape_contract_text = (
             json.dumps(target_shape_contract, default=str).lower()
             if isinstance(target_shape_contract, Mapping)
@@ -4473,6 +4487,48 @@ def _formalizer_mode_specific_instructions(
                 "Mandatory validation repair directives: "
                 + " ".join(validation_repair_directives[:4])
             )
+        if source_theorem_candidate_materialization_contract:
+            materialization_target_ids = [
+                str(value).strip()
+                for value in source_theorem_candidate_materialization_contract.get(
+                    "target_ids",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ]
+            materialization_target_names = [
+                str(value).strip()
+                for value in source_theorem_candidate_materialization_contract.get(
+                    "target_names",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ]
+            materialization_targets = list(
+                dict.fromkeys(
+                    [*materialization_target_ids, *materialization_target_names]
+                )
+            )
+            instruction = (
+                "Mandatory source-theorem candidate-materialization repair: emit a "
+                "concrete exact source-theorem formal_targets Lean theorem/lemma "
+                "candidate with expected_status=NEEDS_KERNEL_CHECK, nonempty "
+                "lean_statement_sketch, "
+                "source_theorem_target_provenance.source_theorem_target_known=true, "
+                "and the requested target identity preserved. Do not satisfy this "
+                "mode with FORMAL_GAP-only, helper-only, support-only, or "
+                "source-to-bridge-only outputs; do not claim proof until Lean/AXLE "
+                "kernel verification checks the exact candidate."
+            )
+            if materialization_targets:
+                instruction += (
+                    " Requested target id/name(s): "
+                    + ", ".join(materialization_targets)
+                    + "."
+                )
+            instructions.append(instruction)
         if next_action_reference_contract:
             instructions.append(
                 "Mandatory next_action_reference_contract repair: every next_actions "
@@ -4514,7 +4570,10 @@ def _formalizer_mode_specific_instructions(
                 "`exact?`, and placeholder proof holes from Lean source; emit a complete "
                 "candidate or an explicit FORMAL_GAP."
             )
-            if target_shape_requires_coverage:
+            if (
+                target_shape_requires_coverage
+                and not source_theorem_candidate_materialization_contract
+            ):
                 instructions.append(
                     "Mandatory coverage-theorem proof-hole reroute: because the source "
                     "theorem target is a probability/coverage claim, do not emit another "
@@ -5138,6 +5197,10 @@ def _compact_formalizer_environment_feedback(
         "next_action_reference_contract": _compact_value(
             feedback.get("next_action_reference_contract", {})
             or input_summary.get("next_action_reference_contract", {})
+        ),
+        "source_theorem_candidate_materialization_contract": _compact_value(
+            feedback.get("source_theorem_candidate_materialization_contract", {})
+            or input_summary.get("source_theorem_candidate_materialization_contract", {})
         ),
         "candidate_reroute_options": _compact_value(candidate_reroute_options),
         "local_lean_repair_contract": _compact_value(local_lean_repair_contract),
