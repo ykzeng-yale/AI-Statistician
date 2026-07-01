@@ -1326,6 +1326,283 @@ def test_critic_suppresses_formalizer_reroute_for_packet_validation_escalation()
     assert "immediate Formalizer reroute is suppressed" in decision["reason"]
 
 
+def _runtime_gap_planner_bridge_fixture(
+    question: OpenResearchQuestion,
+) -> dict[str, object]:
+    return _runtime_formalization_gap_planner_bridge(
+        question=question,
+        problem=ResearchProblemSpec(
+            question_id=question.id,
+            problem_class="semiparametric causal inference",
+            dgp="unconfounded binary treatment with overlap",
+            estimand="average treatment effect",
+            assumptions=("unconfoundedness", "overlap", "finite second moments"),
+            asymptotic_regime="iid sample with nuisance consistency",
+            diagnostics=("orthogonal score residual",),
+        ),
+        theorem_goals=[
+            TheoremGoal(
+                id="aipw_double_robustness",
+                title="AIPW double robustness",
+                informal_statement=(
+                    "The AIPW score has mean equal to the ATE when either the "
+                    "outcome regression or propensity score nuisance is correct."
+                ),
+                proof_strategy=(
+                    "Use conditional expectation identities and split the "
+                    "bias into nuisance residual terms."
+                ),
+                status="FORMAL_GAP",
+                required_primitives=(
+                    "conditional_expectation_tower",
+                    "aipw_score_algebra",
+                ),
+                proof_obligations=("aipw_double_robustness",),
+            )
+        ],
+        subclaims=[
+            FormalSubclaim(
+                id="subclaim:aipw_double_robustness",
+                title="AIPW score conditional expectation bridge",
+                status="FAILED",
+                claim=(
+                    "A source-backed conditional expectation bridge is needed "
+                    "before the AIPW algebra can be promoted."
+                ),
+                claim_type="theory_gap",
+                proof_obligation_id="aipw_double_robustness",
+                verifier="Lean4",
+                formal_source_hits=[
+                    {
+                        "source_id": "mathlib_probability",
+                        "source_type": "lean4_library",
+                        "declaration": "ProbabilityTheory.condexp_tower",
+                    }
+                ],
+                primitive_formal_source_hits={
+                    "conditional_expectation_tower": [
+                        {
+                            "source_id": "mathlib_probability",
+                            "source_type": "lean4_library",
+                            "declaration": "ProbabilityTheory.condexp_tower",
+                        }
+                    ],
+                    "aipw_score_algebra": [
+                        {
+                            "source_id": "ai_statistician_runtime",
+                            "source_type": "lean4_candidate",
+                            "declaration": "aipw_score_bias_decomposition",
+                        }
+                    ],
+                },
+            )
+        ],
+        proof_state_rows=[
+            {
+                "subclaim_id": "subclaim:aipw_double_robustness",
+                "target_prover_family": "lean4",
+                "attempt_status": "formal_gap_scaffold_blocked",
+                "residual_goals": [
+                    "instantiate conditional expectation tower law",
+                    "derive source-to-bridge AIPW score algebra",
+                ],
+            }
+        ],
+        retrieval_context={
+            "target_prover_family": "lean4",
+            "paper_sources": [
+                {
+                    "id": "chernozhukov_dml",
+                    "title": "Double/debiased machine learning",
+                }
+            ],
+            "knowledge_cards": [],
+            "formal_source_hits": [
+                {
+                    "theorem_goal_id": "aipw_double_robustness",
+                    "hits": [
+                        {
+                            "source_id": "mathlib_probability",
+                            "source_type": "lean4_library",
+                            "declaration": "ProbabilityTheory.condexp_tower",
+                        }
+                    ],
+                }
+            ],
+        },
+        formalization_manifest_id="formalization_manifest:packet_escalation",
+        proof_state_feedback_manifest_id="proof_state_feedback_manifest:packet_escalation",
+    )
+
+
+def test_critic_routes_packet_validation_escalation_to_gap_planner_when_bridge_available() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:critic_packet_escalation_gap_planner"
+    formalization_id = "formalization_manifest:packet_escalation_gap_planner"
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="critic-packet-escalation-gap-planner-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+                "counts": {"formal_source_hits": 1},
+            },
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            formalization_id: {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": formalization_id,
+                "counts": {
+                    "proved": 0,
+                    "kernel_verified": 0,
+                    "formal_gap": 1,
+                },
+                "formal_subclaims": [
+                    {
+                        "id": "aipw_source_theorem_gap",
+                        "status": "FORMAL_GAP",
+                        "gap_reason": "repeated Formalizer packet validation failure",
+                    }
+                ],
+                "deterministic_theorem_goals": [
+                    {"id": "aipw_double_robustness", "status": "FORMAL_GAP"}
+                ],
+                "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+                "formalization_gap_planner_standalone_seed_artifact_id": bridge[
+                    "standalone_seed_artifact_id"
+                ],
+            },
+            bridge["bridge_id"]: bridge,
+        }
+    )
+    task = AgentTask(
+        task_id="formalizer-packet-blocker:causal_ate_aipw:gap-planner",
+        owner_subsystem="CriticEvaluator",
+        objective="Route repeated Formalizer packet-validation blocker.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "formalization_manifest_id": formalization_id,
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                }
+            },
+            "environment_feedback": {
+                "failure_classification": (
+                    "formalizer_repeated_syntax_packet_validation_escalated"
+                ),
+                "packet_validation_escalation": {
+                    "escalation_kind": (
+                        "formalizer_repeated_syntax_packet_validation_loop"
+                    ),
+                    "proof_evidence_status": (
+                        "FORMALIZER_REPEATED_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "critic_requested_formalization_gap_planner_execution"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.next_task.task_id.startswith("gap-planner-handoff:")
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    decision = critic_manifest["runtime_reroute_decision"]
+    assert decision["formalizer_packet_validation_escalation_active"] is True
+    assert decision["reroute_to_formalization_gap_planner"] is True
+    assert decision["reroute_to_formalizer_proofengineer"] is False
+    assert "offline replay and prompt staging" in decision["reason"]
+    feedback = decision["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "formalizer_packet_validation_gap_planner_handoff"
+    )
+    assert bridge["bridge_id"] in feedback["formalization_gap_planner_bridge_ids"]
+
+
+def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_smoke(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-runtime-subsystem-test")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:test",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute gap-planner handoff smoke.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "failure_classification": (
+                    "critic_requested_formalization_gap_planner_execution"
+                ),
+                "packet_validation_escalation": {
+                    "escalation_kind": (
+                        "formalizer_repeated_syntax_packet_validation_loop"
+                    )
+                },
+            },
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    assert result.next_task is None
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    assert manifest["audit_all_ok"] is True
+    assert manifest["live_llm_invoked"] is False
+    assert manifest["counts"]["bridge_rows"] == 1
+    assert manifest["counts"]["handoff_rows"] == 1
+    assert manifest["counts"]["llm_prompt_packets"] >= 1
+    assert manifest["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
+    )
+    assert Path(manifest["runtime_formalization_gap_planner_bridges_jsonl"]).exists()
+    assert Path(manifest["runtime_formalization_gap_planner_handoffs_jsonl"]).exists()
+    assert Path(manifest["audit_manifest_path"]).exists()
+    assert result.tool_calls
+    assert result.tool_calls[0].exit_status == "passed"
+    assert any(
+        row.evidence_type == "formalization_gap_planner_runtime_execution"
+        and row.payload["live_llm_invoked"] is False
+        for row in result.evidence_entries
+    )
+
+
 def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(
     tmp_path: Path,
 ) -> None:

@@ -61,6 +61,11 @@ from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
 )
+from .formalization_gap_planner_runtime_handoff_audit import (
+    PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
+    PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
+    audit_formalization_gap_planner_runtime_handoffs,
+)
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
@@ -12839,6 +12844,310 @@ def _critic_feedback_has_formalizer_packet_validation_escalation(
     )
 
 
+def _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
+    blackboard: BlackboardState,
+    *,
+    question_id: str = "",
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    normalized_question_id = str(question_id or "").strip()
+    for artifact in blackboard.artifacts.values():
+        if not (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind")
+            == "RuntimeFormalizationGapPlannerBridge"
+        ):
+            continue
+        question = artifact.get("question", {})
+        artifact_question_id = (
+            str(question.get("id", "") or "").strip()
+            if isinstance(question, Mapping)
+            else ""
+        )
+        if (
+            normalized_question_id
+            and artifact_question_id
+            and artifact_question_id != normalized_question_id
+        ):
+            continue
+        rows.append(_runtime_formalization_gap_planner_bridge_with_targets(artifact))
+    rows.sort(key=lambda row: str(row.get("bridge_id", "") or ""))
+    return rows
+
+
+def _critic_agenda_has_formalization_gap_planner_handoff(
+    agenda: Sequence[Mapping[str, Any]],
+) -> bool:
+    for row in agenda:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("id", "") or "") == "formal_gap:gap_planner_handoff":
+            return True
+        if str(row.get("route_stage", "") or "") == "gap_planner_handoff":
+            return True
+        if str(row.get("owner_subsystem", "") or "") == "FormalizationGapPlanner":
+            return True
+        if str(row.get("formalization_gap_planner_bridge_id", "") or "").strip():
+            return True
+        if row.get("formalization_gap_planner_execution_contexts"):
+            return True
+    return False
+
+
+class FormalizationGapPlannerRuntimeSubsystem:
+    name = "FormalizationGapPlanner"
+
+    def __init__(self, *, out_dir: Path) -> None:
+        self.out_dir = out_dir
+
+    def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        question = _question_from_payload(task.inputs["question"])
+        environment_feedback = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        bridge_rows = _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
+            blackboard,
+            question_id=question.id,
+        )
+        planner_root = self.out_dir
+        seed_dir = planner_root / "runtime_formalization_gap_planner_seeds"
+        target_intake_dir = (
+            planner_root / "runtime_formalization_gap_planner_target_intake"
+        )
+        bridges_path = planner_root / "runtime_formalization_gap_planner_bridges.jsonl"
+        handoffs_path = planner_root / "runtime_formalization_gap_planner_handoffs.jsonl"
+        audit_dir = planner_root / "runtime_formalization_gap_planner_handoff_audit"
+        audit_payload: dict[str, Any] = {}
+        handoff_rows: list[dict[str, Any]] = []
+        produced_artifacts: dict[str, Any] = {}
+        tool_calls: list[ToolCallRecord] = []
+        if bridge_rows:
+            _write_jsonl(bridges_path, bridge_rows)
+            _write_runtime_formalization_gap_planner_seed_files(
+                bridge_rows,
+                seed_dir=seed_dir,
+            )
+            _write_runtime_formalization_gap_planner_target_intake_files(
+                bridge_rows,
+                target_intake_dir=target_intake_dir,
+            )
+            handoff_rows = _runtime_formalization_gap_planner_handoff_rows(
+                bridge_rows,
+                runtime_out_dir=planner_root,
+            )
+            _write_jsonl(handoffs_path, handoff_rows)
+            audit_payload = dict(
+                audit_formalization_gap_planner_runtime_handoffs(
+                    handoffs_path,
+                    audit_dir,
+                    run_smoke=True,
+                )
+            )
+            tool_calls.append(
+                ToolCallRecord(
+                    tool_name=(
+                        "formalization_gap_planner.runtime_handoff_audit_smoke"
+                    ),
+                    inputs={
+                        "handoffs_path": str(handoffs_path),
+                        "run_smoke": True,
+                        "n_bridge_rows": len(bridge_rows),
+                        "n_handoff_rows": len(handoff_rows),
+                    },
+                    output_paths=(
+                        str(
+                            audit_dir
+                            / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
+                        ),
+                        str(bridges_path),
+                        str(handoffs_path),
+                    ),
+                    input_hash=stable_hash([task.task_id, bridge_rows]),
+                    output_hash=str(
+                        audit_payload.get("runtime_handoff_audit_fingerprint", "")
+                        or stable_hash(audit_payload)
+                    ),
+                    exit_status=(
+                        "passed" if audit_payload.get("all_ok") else "failed"
+                    ),
+                    stdout_summary=(
+                        f"handoffs={audit_payload.get('n_handoffs', 0)} "
+                        f"checks={audit_payload.get('n_checks', 0)} "
+                        f"failed={audit_payload.get('n_failed', 0)} "
+                        f"llm_prompt_packets="
+                        f"{audit_payload.get('n_llm_prompt_packets', 0)}"
+                    ),
+                    safety_boundary=FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
+                )
+            )
+        else:
+            handoffs_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_jsonl(bridges_path, [])
+            _write_jsonl(handoffs_path, [])
+            audit_payload = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "component_name": (
+                    "formalization_gap_planner_runtime_handoff_audit"
+                ),
+                "runtime_formalization_gap_planner_handoffs_jsonl": str(
+                    handoffs_path
+                ),
+                "run_smoke": True,
+                "n_handoffs": 0,
+                "n_checks": 0,
+                "n_ok": 0,
+                "n_failed": 1,
+                "all_ok": False,
+                "errors": [
+                    "no RuntimeFormalizationGapPlannerBridge artifact was "
+                    "available in the runtime blackboard"
+                ],
+                "proof_evidence_status": (
+                    FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS
+                ),
+                "proof_evidence_boundary": (
+                    FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY
+                ),
+            }
+        for bridge in bridge_rows:
+            bridge_id = str(bridge.get("bridge_id", "") or "").strip()
+            if bridge_id:
+                produced_artifacts[bridge_id] = bridge
+        for handoff in handoff_rows:
+            handoff_id = str(handoff.get("handoff_id", "") or "").strip()
+            if handoff_id:
+                produced_artifacts[handoff_id] = handoff
+        all_ok = bool(audit_payload.get("all_ok", False))
+        manifest_id = (
+            "runtime_formalization_gap_planner_execution_manifest:"
+            + stable_hash([task.task_id, bridge_rows, handoff_rows, audit_payload])[:20]
+        )
+        manifest = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeFormalizationGapPlannerExecutionManifest",
+            "manifest_id": manifest_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question": _question_to_payload(question),
+            "task_id": task.task_id,
+            "source_failure_classification": str(
+                environment_feedback.get("failure_classification", "") or ""
+            ),
+            "packet_validation_escalation": (
+                dict(environment_feedback.get("packet_validation_escalation", {}))
+                if isinstance(
+                    environment_feedback.get("packet_validation_escalation", {}),
+                    Mapping,
+                )
+                else {}
+            ),
+            "runtime_formalization_gap_planner_bridges_jsonl": str(bridges_path),
+            "runtime_formalization_gap_planner_seed_dir": str(seed_dir),
+            "runtime_formalization_gap_planner_target_intake_dir": str(
+                target_intake_dir
+            ),
+            "runtime_formalization_gap_planner_handoffs_jsonl": str(
+                handoffs_path
+            ),
+            "runtime_formalization_gap_planner_handoff_audit_dir": str(
+                audit_dir
+            ),
+            "audit_manifest_path": str(
+                audit_dir
+                / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
+            ),
+            "audit_all_ok": all_ok,
+            "audit_payload": audit_payload,
+            "counts": {
+                "bridge_rows": len(bridge_rows),
+                "handoff_rows": len(handoff_rows),
+                "audit_checks": int(audit_payload.get("n_checks", 0) or 0),
+                "audit_failed": int(audit_payload.get("n_failed", 0) or 0),
+                "standalone_smoke_ok": int(
+                    audit_payload.get("n_standalone_smoke_ok", 0) or 0
+                ),
+                "target_intake_smoke_ok": int(
+                    audit_payload.get("n_target_intake_smoke_ok", 0) or 0
+                ),
+                "llm_prompt_smoke_ok": int(
+                    audit_payload.get("n_llm_prompt_smoke_ok", 0) or 0
+                ),
+                "llm_prompt_packets": int(
+                    audit_payload.get("n_llm_prompt_packets", 0) or 0
+                ),
+                "reuse_smoke_cost_control_ok": int(
+                    audit_payload.get("n_reuse_smoke_cost_control_ok", 0) or 0
+                ),
+            },
+            "live_llm_invoked": False,
+            "live_llm_boundary": (
+                "The runtime FormalizationGapPlanner subsystem executes the "
+                "offline replay/prompt-staging smoke path only. The live Claude "
+                "route-planner stage remains explicit and operator-gated via the "
+                "handoff execution plan."
+            ),
+            "proof_evidence_status": FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
+            "proof_evidence_boundary": FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
+            "boundary": (
+                "This manifest records executable gap-planner handoff replay and "
+                "prompt staging. It is planner/audit evidence, not theorem proof "
+                "evidence, and it does not close any formal gap."
+            ),
+        }
+        produced_artifacts[manifest_id] = manifest
+        evidence = EvidenceLedgerEntry(
+            evidence_id="evidence:" + stable_hash([task.task_id, manifest_id])[:20],
+            task_id=task.task_id,
+            artifact_id=manifest_id,
+            evidence_type="formalization_gap_planner_runtime_execution",
+            status=(
+                "OFFLINE_HANDOFF_SMOKE_EXECUTED_NOT_PROOF_EVIDENCE"
+                if all_ok
+                else "OFFLINE_HANDOFF_SMOKE_BLOCKED_NOT_PROOF_EVIDENCE"
+            ),
+            boundary=FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
+            payload={
+                **manifest["counts"],
+                "audit_all_ok": all_ok,
+                "live_llm_invoked": False,
+                "proof_evidence_status": (
+                    FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS
+                ),
+            },
+        )
+        observation = EnvironmentObservation(
+            observation_type="formalization_gap_planner_runtime_execution",
+            summary=(
+                f"bridge_rows={len(bridge_rows)} handoffs={len(handoff_rows)} "
+                f"audit_all_ok={all_ok} "
+                f"llm_prompt_packets={manifest['counts']['llm_prompt_packets']}"
+            ),
+            payload={
+                **manifest["counts"],
+                "audit_all_ok": all_ok,
+                "live_llm_invoked": False,
+            },
+        )
+        return AgentStepResult(
+            status="ACCEPTED" if all_ok else "BLOCKED",
+            rationale=(
+                "FormalizationGapPlanner executed the offline handoff smoke path "
+                "and staged route-planner prompts without invoking the live LLM."
+                if all_ok
+                else "FormalizationGapPlanner could not execute a valid runtime "
+                "handoff smoke path from the available bridge artifacts."
+            ),
+            produced_artifacts=produced_artifacts,
+            observations=(observation,),
+            tool_calls=tuple(tool_calls),
+            evidence_entries=(evidence,),
+            failure_classification=(
+                "" if all_ok else "formalization_gap_planner_handoff_blocked"
+            ),
+        )
+
+
 class CriticEvaluatorRuntimeSubsystem:
     name = "CriticEvaluator"
 
@@ -13007,14 +13316,27 @@ class CriticEvaluatorRuntimeSubsystem:
                 critic_environment_feedback
             )
         )
-        should_repair = _critic_should_reroute_to_theory(
+        gap_planner_bridge_rows = (
+            _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
+                blackboard,
+                question_id=question.id,
+            )
+        )
+        should_route_to_gap_planner = (
+            formalizer_packet_validation_escalation_active
+            and bool(gap_planner_bridge_rows)
+            and _critic_agenda_has_formalization_gap_planner_handoff(agenda)
+        )
+        should_repair_candidate = _critic_should_reroute_to_theory(
             agenda=agenda,
             formalization_manifest=formalization_manifest,
             critic_round=critic_round,
             max_critic_repair_rounds=max_critic_repair_rounds,
         )
+        should_repair = should_repair_candidate and not should_route_to_gap_planner
         should_route_to_formalizer = (
             not formalizer_packet_validation_escalation_active
+            and not should_route_to_gap_planner
             and not should_repair
             and _critic_should_route_to_formalizer_proofengineer(
                 agenda=agenda,
@@ -13032,6 +13354,46 @@ class CriticEvaluatorRuntimeSubsystem:
             formalization_manifest=formalization_manifest,
             agenda=agenda,
         )
+        gap_planner_feedback = {
+            "feedback_type": (
+                "formalizer_packet_validation_gap_planner_handoff"
+            ),
+            "feedback_source": "CriticEvaluator",
+            "failure_classification": (
+                "critic_requested_formalization_gap_planner_execution"
+            ),
+            "packet_validation_escalation": (
+                dict(critic_environment_feedback.get("packet_validation_escalation", {}))
+                if isinstance(
+                    critic_environment_feedback.get(
+                        "packet_validation_escalation",
+                        {},
+                    ),
+                    Mapping,
+                )
+                else {}
+            ),
+            "formalization_manifest_id": formalization_manifest_id,
+            "formalization_gap_planner_bridge_ids": [
+                str(row.get("bridge_id", "") or "")
+                for row in gap_planner_bridge_rows
+                if str(row.get("bridge_id", "") or "").strip()
+            ],
+            "target_behavior": (
+                "Execute the runtime FormalizationGapPlanner offline replay and "
+                "prompt-staging smoke path before requesting another Formalizer "
+                "packet for the repeated validation failure."
+            ),
+            "acceptance_gate": (
+                "runtime FormalizationGapPlanner materializes standalone seeds, "
+                "target intake, execution-plan handoffs, and offline prompt smoke "
+                "without invoking live Claude or claiming proof evidence"
+            ),
+            "proof_evidence_status": (
+                "CRITIC_REQUESTED_GAP_PLANNER_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         proposal_validation_failure_id = ""
@@ -13145,6 +13507,9 @@ class CriticEvaluatorRuntimeSubsystem:
             "max_critic_repair_rounds": max_critic_repair_rounds,
             "runtime_reroute_decision": {
                 "reroute_to_theory_developer": should_repair,
+                "reroute_to_formalization_gap_planner": (
+                    should_route_to_gap_planner
+                ),
                 "reroute_to_formalizer_proofengineer": (
                     should_route_to_formalizer
                 ),
@@ -13152,6 +13517,12 @@ class CriticEvaluatorRuntimeSubsystem:
                     formalizer_packet_validation_escalation_active
                 ),
                 "reason": (
+                    "repeated Formalizer packet-validation escalation has a "
+                    "runtime gap-planner bridge; routing to FormalizationGapPlanner "
+                    "for offline replay and prompt staging before any new "
+                    "Formalizer packet"
+                    if should_route_to_gap_planner
+                    else
                     "repeated Formalizer packet-validation escalation recorded; "
                     "deterministic agenda remains the authority and immediate "
                     "Formalizer reroute is suppressed"
@@ -13165,6 +13536,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     else "critic repair budget exhausted or no theory-level repair trigger"
                 ),
                 "environment_feedback": (
+                    gap_planner_feedback
+                    if should_route_to_gap_planner
+                    else
                     repair_feedback
                     if should_repair or should_route_to_formalizer
                     else {}
@@ -13217,6 +13591,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     "critic_repair_round": critic_round,
                     "max_critic_repair_rounds": max_critic_repair_rounds,
                     "reroute_to_theory_developer": should_repair,
+                    "reroute_to_formalization_gap_planner": (
+                        should_route_to_gap_planner
+                    ),
                     "reroute_to_formalizer_proofengineer": (
                         should_route_to_formalizer
                     ),
@@ -13226,6 +13603,76 @@ class CriticEvaluatorRuntimeSubsystem:
                 },
             )
         )
+        if should_route_to_gap_planner:
+            gap_planner_context = dict(context)
+            gap_planner_context["environment_feedback"] = gap_planner_feedback
+            gap_planner_context["runtime_feedback_loop"] = {
+                **(
+                    dict(context.get("runtime_feedback_loop", {}))
+                    if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+                    else {}
+                ),
+                "source_subsystem": "CriticEvaluator",
+                "critic_repair_round": critic_round,
+                "max_critic_repair_rounds": max_critic_repair_rounds,
+                "critic_evaluator_manifest_id": manifest_id,
+                "handoff": "formalization_gap_planner_after_packet_validation_loop",
+            }
+            return AgentStepResult(
+                status="REVISE",
+                rationale=(
+                    "CriticEvaluator found a repeated Formalizer packet-validation "
+                    "loop with replayable gap-planner bridge artifacts; routing to "
+                    "FormalizationGapPlanner for offline replay and prompt staging "
+                    "before any new Formalizer packet."
+                ),
+                produced_artifacts=produced_artifacts,
+                observations=tuple(observations),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_evidence,
+                        proposal_validation_failure_evidence,
+                        evidence,
+                    )
+                    if row is not None
+                ),
+                next_task=AgentTask(
+                    task_id=(
+                        f"gap-planner-handoff:{question.id}:"
+                        f"{stable_hash([manifest_id, gap_planner_feedback])[:8]}"
+                    ),
+                    owner_subsystem="FormalizationGapPlanner",
+                    objective=(
+                        "Execute the runtime formalization-gap planner handoff "
+                        "for a repeated Formalizer packet-validation blocker."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "architect_context": gap_planner_context,
+                        "environment_feedback": gap_planner_feedback,
+                        "formalization_manifest_id": formalization_manifest_id,
+                        "theory_packet_id": theory_packet_id,
+                    },
+                    allowed_tools=(
+                        "formalization_gap_planner",
+                        "formal_source_retriever",
+                        "evidence_ledger",
+                    ),
+                    expected_artifacts=(
+                        "runtime_formalization_gap_planner_execution_manifest",
+                        "runtime_formalization_gap_planner_handoffs",
+                    ),
+                    acceptance_gate=gap_planner_feedback["acceptance_gate"],
+                    stop_condition=(
+                        "offline gap-planner replay and prompt-staging smoke "
+                        "completed or a typed handoff blocker recorded"
+                    ),
+                ),
+                failure_classification=(
+                    "critic_requested_formalization_gap_planner_execution"
+                ),
+            )
         if should_repair:
             revision_context = dict(context)
             revision_context["environment_feedback"] = repair_feedback
@@ -13577,6 +14024,9 @@ def run_research_agent_runtime(
             ),
             "FormalizationEvaluator": formalization_subsystem,
             "ProofEngineer": proofengineer_subsystem,
+            "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
+                out_dir=out_dir,
+            ),
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(
                 proposal_agent=critic_evaluator,
                 runtime_config=config,
