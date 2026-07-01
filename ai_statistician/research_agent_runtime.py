@@ -39,6 +39,7 @@ from .critic_evaluator_llm import (
 )
 from .fingerprint import stable_hash
 from .generated_metric_repair_policy import (
+    generated_metric_gate_repair_instruction,
     generated_python_sandbox_guard_repair_instruction,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
@@ -53823,12 +53824,28 @@ def _algorithm_sandbox_revision_feedback(
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
+                "metric_gate_targets": _compact_generated_sandbox_metrics(
+                    row.get("metric_gate_targets", {})
+                ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
                 "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
+    has_metric_gate_failure = (
+        failure_classification == "generated_algorithm_sandbox_metric_gate_failed"
+        or int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
+        or any(row.get("metric_gate_errors") for row in prototypes)
+    )
+    metric_gate_repair = (
+        " "
+        + generated_metric_gate_repair_instruction(
+            artifact_label="generated algorithm draft"
+        )
+        if has_metric_gate_failure
+        else ""
+    )
     return {
         "feedback_type": "algorithm_sandbox_execution_feedback",
         "algorithm_sandbox_manifest_id": str(manifest.get("manifest_id", "") or ""),
@@ -53857,6 +53874,7 @@ def _algorithm_sandbox_revision_feedback(
             + generated_python_sandbox_guard_repair_instruction(
                 artifact_label="generated algorithm draft"
             )
+            + metric_gate_repair
         ),
         "boundary": boundary,
     }
@@ -53952,12 +53970,31 @@ def _generated_simulation_revision_feedback(
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
+                "metric_gate_targets": _compact_generated_sandbox_metrics(
+                    row.get("metric_gate_targets", {})
+                ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
                 "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
+    has_metric_gate_failure = (
+        failure_classification == "generated_simulation_sandbox_metric_gate_failed"
+        or int(
+            manifest.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0
+        )
+        > 0
+        or any(row.get("metric_gate_errors") for row in prototypes)
+    )
+    metric_gate_repair = (
+        " "
+        + generated_metric_gate_repair_instruction(
+            artifact_label="generated simulation draft"
+        )
+        if has_metric_gate_failure
+        else ""
+    )
     return {
         "feedback_type": "generated_simulation_sandbox_execution_feedback",
         "simulation_manifest_id": str(manifest.get("manifest_id", "") or ""),
@@ -53991,6 +54028,7 @@ def _generated_simulation_revision_feedback(
             + generated_python_sandbox_guard_repair_instruction(
                 artifact_label="generated simulation draft"
             )
+            + metric_gate_repair
         ),
         "boundary": boundary,
     }
@@ -54089,11 +54127,11 @@ def _generated_sandbox_metric_gate_errors(
         return []
 
     errors: list[str] = []
-    target_coverage = _coerce_optional_float(metrics.get("target_coverage"))
+    target_coverage = _generated_sandbox_target_coverage_from_context(
+        context or {}
+    )
     if target_coverage is None:
-        target_coverage = _generated_sandbox_target_coverage_from_context(
-            context or {}
-        )
+        target_coverage = _coerce_optional_float(metrics.get("target_coverage"))
     if target_coverage is not None and not (0.0 <= target_coverage <= 1.0):
         errors.append("target_coverage must be in [0, 1]")
         target_coverage = None
@@ -54217,6 +54255,20 @@ def _generated_sandbox_target_coverage_from_context(
 ) -> float | None:
     if not isinstance(context, Mapping):
         return None
+    text_target_keys = {
+        "acceptance_gate",
+        "description",
+        "evaluation_prompt",
+        "expected_outputs",
+        "expected_theoretical_behavior",
+        "objective",
+        "question",
+        "simulation_targets",
+        "summary",
+        "target_behavior",
+        "title",
+        "validation_metrics",
+    }
     stack: list[Any] = [context]
     while stack:
         item = stack.pop()
@@ -54224,18 +54276,73 @@ def _generated_sandbox_target_coverage_from_context(
             for key, value in item.items():
                 key_text = str(key).strip().lower()
                 if key_text in {
+                    "code",
+                    "code_draft",
+                    "code_excerpt",
+                    "sandbox_code_drafts",
+                    "simulation_code_drafts",
+                }:
+                    continue
+                if key_text in {
                     "target_coverage",
                     "coverage_target",
                     "nominal_coverage",
+                    "nominal_level",
                     "required_coverage",
                 }:
                     target = _coerce_optional_float(value)
                     if target is not None:
                         return target
+                if key_text in {"alpha", "nominal_alpha", "miscoverage_alpha"}:
+                    alpha = _coerce_optional_float(value)
+                    if alpha is not None and 0.0 <= alpha <= 1.0:
+                        return 1.0 - alpha
+                if (
+                    key_text in text_target_keys
+                    or key_text.endswith("_description")
+                    or key_text.endswith("_summary")
+                ):
+                    text_target = _generated_sandbox_target_coverage_from_text(value)
+                    if text_target is not None:
+                        return text_target
+                    if isinstance(value, (list, tuple)):
+                        for text_item in value:
+                            text_target = _generated_sandbox_target_coverage_from_text(
+                                text_item
+                            )
+                            if text_target is not None:
+                                return text_target
                 if isinstance(value, (Mapping, list, tuple)):
                     stack.append(value)
         elif isinstance(item, (list, tuple)):
             stack.extend(item)
+    return None
+
+
+def _generated_sandbox_target_coverage_from_text(value: Any) -> float | None:
+    if not isinstance(value, str):
+        return None
+    text = value.lower()
+    if not any(
+        token in text
+        for token in (
+            "coverage",
+            "confidence",
+            "interval",
+            "prediction set",
+            "prediction-set",
+            "prediction interval",
+        )
+    ):
+        return None
+    for match in re.finditer(r"(?<![0-9.])([0-9]{1,2}(?:\.[0-9]+)?)\s*%", text):
+        try:
+            percentage = float(match.group(1))
+        except ValueError:
+            continue
+        candidate = percentage / 100.0
+        if 0.5 <= candidate <= 1.0:
+            return candidate
     return None
 
 
@@ -54395,16 +54502,21 @@ def _run_generated_python_sandbox(
         and not bool(metrics.get("sandbox_failed", False))
         and _metrics_are_finite(metrics)
     )
+    metric_context = {
+        "estimator_id": estimator_id,
+        "spec": spec,
+        "code_draft": code_draft,
+        **(dict(validation_context or {})),
+    }
     metric_gate_errors = _generated_sandbox_metric_gate_errors(
         metrics,
-        context={
-            "estimator_id": estimator_id,
-            "spec": spec,
-            "code_draft": code_draft,
-            **(dict(validation_context or {})),
-        },
+        context=metric_context,
         code=code,
     )
+    metric_gate_targets: dict[str, Any] = {}
+    target_coverage = _generated_sandbox_target_coverage_from_context(metric_context)
+    if target_coverage is not None:
+        metric_gate_targets["target_coverage"] = target_coverage
     smoke_passed = execution_smoke_passed and not metric_gate_errors
     prototype_status = "EXECUTED" if returncode == 0 else "FAILED"
     if execution_smoke_passed and metric_gate_errors:
@@ -54422,6 +54534,7 @@ def _run_generated_python_sandbox(
         "returncode": returncode,
         "safety_errors": [],
         "metrics": metrics,
+        "metric_gate_targets": metric_gate_targets,
         "execution_smoke_passed": execution_smoke_passed,
         "metric_gate_errors": metric_gate_errors,
         "smoke_passed": smoke_passed,
@@ -54497,6 +54610,7 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
         "uniform",
         "gauss",
         "normalvariate",
+        "shuffle",
     }
     if "run_sandbox" not in function_names:
         errors.append("generated Python draft must define run_sandbox")
@@ -54538,8 +54652,11 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
             if node.attr in allowed_safe_methods:
                 continue
             if isinstance(node.value, ast.Name) and node.value.id not in allowed_modules:
+                object_name = node.value.id
                 errors.append(
-                    "generated-code attribute access is limited to math/statistics/random modules"
+                    "generated-code attribute access is limited to "
+                    f"math/statistics/random modules or safe local methods: "
+                    f"{object_name}.{node.attr}"
                 )
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
@@ -54558,6 +54675,7 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                     "pow",
                     "range",
                     "round",
+                    "set",
                     "sorted",
                     "str",
                     "sum",
@@ -54573,7 +54691,15 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                     and node.func.value.id in allowed_modules
                     and not node.func.attr.startswith("_")
                 ) and node.func.attr not in allowed_safe_methods:
-                    errors.append("forbidden generated-code method call")
+                    object_name = (
+                        node.func.value.id
+                        if isinstance(node.func.value, ast.Name)
+                        else node.func.value.__class__.__name__
+                    )
+                    errors.append(
+                        f"forbidden generated-code method call: "
+                        f"{object_name}.{node.func.attr}"
+                    )
             else:
                 errors.append("unsupported generated-code call form")
     return sorted(set(errors))
@@ -54586,6 +54712,13 @@ def _generated_python_forbidden_call_names_from_safety_errors(
     for error in safety_errors:
         match = re.search(
             r"forbidden generated-code call:\s*([A-Za-z_][A-Za-z0-9_]*)",
+            str(error),
+        )
+        if match:
+            names.append(match.group(1))
+            continue
+        match = re.search(
+            r"forbidden generated-code method call:\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)",
             str(error),
         )
         if match:
@@ -54653,6 +54786,7 @@ SAFE_BUILTINS = {
     "pow": pow,
     "range": range,
     "round": round,
+    "set": set,
     "sorted": sorted,
     "str": str,
     "sum": sum,

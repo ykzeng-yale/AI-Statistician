@@ -499,6 +499,10 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
                     char_limit=80,
                 ),
                 "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
+                "metric_gate_targets": _compact_mapping(
+                    row.get("metric_gate_targets", {}),
+                    limit=4,
+                ),
                 "code_excerpt": _truncate_text(
                     row.get("code_excerpt", ""),
                     limit=500,

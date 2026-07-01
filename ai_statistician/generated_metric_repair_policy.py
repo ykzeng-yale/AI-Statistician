@@ -32,6 +32,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "pow",
             "range",
             "round",
+            "set",
             "sorted",
             "str",
             "sum",
@@ -46,6 +47,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "rng.uniform",
             "rng.gauss",
             "rng.normalvariate",
+            "rng.shuffle",
             "math.*",
             "statistics.*",
         ],
@@ -77,7 +79,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "file I/O, network, subprocess, eval, exec",
             "private/dunder names or attributes",
             "from-imported helper aliases; use plain module imports and module-qualified calls",
-            "method calls or attribute access outside math/statistics/random and list append/sort",
+            "method calls or attribute access outside math/statistics/random, rng random/shuffle methods, and list append/sort",
         ],
         "safe_random_usage": (
             "Use local RNG objects such as rng = random.Random(seed + rep); "
@@ -110,7 +112,8 @@ def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) ->
         "module-qualified calls such as statistics.mean(values), "
         "statistics.stdev(values), and math.sqrt(x). For stochastic simulations, "
         "prefer local RNG objects such as rng = random.Random(seed + rep) and "
-        "call rng.random(), rng.uniform(), rng.gauss(), or rng.normalvariate(). "
+        "call rng.random(), rng.uniform(), rng.gauss(), rng.normalvariate(), or "
+        "rng.shuffle(local_list). "
         "Do not hand-roll closure-based RNG state that requires nonlocal. "
     )
 
@@ -128,8 +131,8 @@ def generated_metric_gate_repair_instruction(*, artifact_label: str) -> str:
     return (
         "Runtime metric-gate repair is active: the previous "
         f"{label} executed locally but returned statistically invalid metrics. "
-        "Read the previous metric_gate_errors, metrics, and code_excerpt as the "
-        "concrete repair target. "
+        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
+        "and code_excerpt as the concrete repair target. "
         "Repair the estimator, DGP, uncertainty calculation, or metric computation "
         "so named probability/coverage metrics are nondegenerate, inside [0,1], "
         "and satisfy the stated target when target_coverage is present. If an "

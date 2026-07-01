@@ -14614,6 +14614,85 @@ def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Pat
     assert tool_call.exit_status == "0"
 
 
+def test_generated_algorithm_sandbox_allows_local_rng_shuffle(tmp_path: Path) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="rng_shuffle_probe",
+        spec={"id": "rng_shuffle_probe"},
+        code_draft={
+            "code": (
+                "import random\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    rng = random.Random(seed)\n"
+                "    values = list(range(max(5, int(replicates))))\n"
+                "    rng.shuffle(values)\n"
+                "    total = 0\n"
+                "    for value in values:\n"
+                "        total = total + value\n"
+                "    return {\n"
+                "        'mean_index': total / max(1, len(values)),\n"
+                "        'replicates': int(replicates),\n"
+                "        'sandbox_failed': False,\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260701,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["smoke_passed"] is True
+    assert prototype["metrics"]["sandbox_failed"] is False
+    assert tool_call.exit_status == "0"
+
+
+def test_generated_algorithm_feedback_names_forbidden_method_calls(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="forbidden_method_probe",
+        spec={"id": "forbidden_method_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    values = [int(seed), int(replicates)]\n"
+                "    dropped = values.pop()\n"
+                "    return {'sandbox_failed': False, 'dropped': dropped}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260701,
+        timeout_s=5,
+    )
+
+    assert tool_call.exit_status == "rejected"
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert "forbidden generated-code method call: values.pop" in prototype[
+        "safety_errors"
+    ]
+    feedback = _algorithm_sandbox_revision_feedback(
+        manifest={
+            "manifest_id": "algorithm_sandbox_manifest:forbidden_method_probe",
+            "prototypes": [prototype],
+            "n_prototypes": 1,
+            "n_executed": 0,
+            "n_passed": 0,
+            "n_metric_gate_failed": 0,
+            "n_generated_code_executed": 0,
+            "n_unsafe_generated_code_rejected": 1,
+        },
+        boundary="algorithm sandbox is not proof evidence",
+        failure_classification="generated_algorithm_sandbox_required_not_executed",
+    )
+
+    assert feedback["forbidden_generated_code_calls"] == ["values.pop"]
+    assert feedback["prototypes"][0]["forbidden_generated_code_calls"] == [
+        "values.pop"
+    ]
+
+
 def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
         sandbox_dir=tmp_path,
@@ -14625,8 +14704,10 @@ def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> 
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    left = [float(i) for i in range(max(1, replicates))]\n"
                 "    right = [float(seed % 7) for _ in range(max(1, replicates))]\n"
+                "    keep = set(range(max(1, replicates)))\n"
                 "    paired = [x + y for x, y in zip(left, right)]\n"
-                "    mean_paired = sum(paired) / max(1, len(paired))\n"
+                "    filtered = [value for i, value in enumerate(paired) if i in keep]\n"
+                "    mean_paired = sum(filtered) / max(1, len(filtered))\n"
                 "    return {\n"
                 "        'sandbox_failed': False,\n"
                 "        'mean_paired': mean_paired,\n"
@@ -14813,6 +14894,83 @@ def test_generated_algorithm_sandbox_uses_context_target_coverage(
     assert tool_call.exit_status == "0"
 
 
+def test_generated_algorithm_sandbox_extracts_question_text_coverage_target(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="aipw_crossfit",
+        spec={
+            "id": "aipw_crossfit",
+            "validation_metrics": ["coverage", "mean width"],
+        },
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    n = max(5, int(replicates))\n"
+                "    covered = 0\n"
+                "    for i in range(n):\n"
+                "        covered = covered + (1 if (int(seed) + i) % 10 < 7 else 0)\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'coverage': covered / n,\n"
+                "        'mean_width': 0.6,\n"
+                "        'n_replicates': n,\n"
+                "    }\n"
+            )
+        },
+        validation_context={
+            "question": {
+                "id": "causal_ate_aipw",
+                "description": (
+                    "Develop an AIPW estimator and practical 95% confidence "
+                    "intervals for the ATE."
+                ),
+            }
+        },
+        n_runs=10,
+        seed=20260622,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert prototype["metric_gate_targets"]["target_coverage"] == 0.95
+    assert "coverage below target_coverage" in prototype["metric_gate_errors"]
+    assert tool_call.tool_name == "python.generated_algorithm_sandbox"
+    assert tool_call.exit_status == "0"
+
+
+def test_generated_metric_gate_prefers_context_target_over_candidate_target() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage": 0.7,
+            "target_coverage": 0.5,
+            "mean_width": 0.6,
+        },
+        context={"target_coverage": 0.95},
+    )
+
+    assert "coverage below target_coverage" in errors
+
+
+def test_generated_metric_gate_ignores_candidate_draft_text_target() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage": 0.7,
+            "mean_width": 0.6,
+        },
+        context={
+            "code_draft": {
+                "description": "candidate claims this is a 95% coverage draft"
+            }
+        },
+    )
+
+    assert "coverage below target_coverage" not in errors
+
+
 def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     long_text = "long_context_" + ("x" * 4000)
@@ -14967,7 +15125,9 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert "bare helper aliases" in prompt
     assert "sum(values) / len(values)" in prompt
     assert '"zip"' in prompt
+    assert '"set"' in prompt
     assert "random.Random" in prompt
+    assert "rng.shuffle" in prompt
     assert "global/nonlocal" in prompt
     assert "method calls or attribute access outside math/statistics/random" in prompt
     assert "leave sandbox_code_drafts empty" in prompt
@@ -15109,7 +15269,10 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
-    assert "Read the previous metric_gate_errors, metrics, and code_excerpt" in prompt
+    assert (
+        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
+        "and code_excerpt"
+    ) in prompt
     assert "target/DGP/estimator alignment" in prompt
     assert "wrong center" in prompt
     assert "vacuous all-covering" in prompt
@@ -15751,7 +15914,10 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
-    assert "Read the previous metric_gate_errors, metrics, and code_excerpt" in prompt
+    assert (
+        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
+        "and code_excerpt"
+    ) in prompt
     assert "target/DGP/estimator alignment" in prompt
     assert "vacuous all-covering" in prompt
     assert "utility diagnostics" in prompt
@@ -16510,6 +16676,11 @@ def test_algorithm_engineer_revises_after_generated_code_metric_gate_failure(
         "metric_gate_errors"
     ]
     assert "metric-failing draft" in feedback["required_repair"]
+    assert "Runtime metric-gate repair is active" in feedback["required_repair"]
+    assert (
+        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
+        "and code_excerpt"
+    ) in feedback["required_repair"]
 
 
 def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
@@ -17768,6 +17939,88 @@ def test_generated_sandbox_capability_eval_accepts_seeded_stress_code() -> None:
     assert not any("must use the replicates argument" in error for error in errors)
 
 
+def test_generated_algorithm_feedback_carries_context_metric_gate_targets(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prototype, _tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="target_probe",
+        spec={"id": "target_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    n = max(5, int(replicates))\n"
+                "    covered = 0\n"
+                "    for i in range(n):\n"
+                "        covered = covered + (0 if (int(seed) + i) % 5 == 0 else 1)\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'empirical_coverage': covered / n,\n"
+                "        'mean_width': 1.0,\n"
+                "        'replicates': n,\n"
+                "    }\n"
+            )
+        },
+        validation_context={
+            "runtime_evaluation_mode": "capability_eval",
+            "target_coverage": 0.9,
+        },
+        n_runs=10,
+        seed=20260701,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert prototype["metric_gate_targets"]["target_coverage"] == 0.9
+    assert "empirical_coverage below target_coverage" in prototype[
+        "metric_gate_errors"
+    ]
+
+    feedback = _algorithm_sandbox_revision_feedback(
+        manifest={
+            "manifest_id": "algorithm_sandbox_manifest:target_probe",
+            "prototypes": [prototype],
+            "n_prototypes": 1,
+            "n_executed": 1,
+            "n_passed": 0,
+            "n_metric_gate_failed": 1,
+            "n_generated_code_executed": 1,
+            "n_unsafe_generated_code_rejected": 0,
+        },
+        boundary="algorithm sandbox is not proof evidence",
+        failure_classification="generated_algorithm_sandbox_metric_gate_failed",
+    )
+
+    assert feedback["prototypes"][0]["metric_gate_targets"]["target_coverage"] == 0.9
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:target_probe",
+            "estimator_specs": [{"id": "target_probe", "name": "target probe"}],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:target_probe",
+            "simulation_passed": True,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "target_probe",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        environment_feedback=feedback,
+    )
+
+    assert "metric_gate_targets" in prompt
+    assert '"target_coverage":"0.9"' in prompt
+
+
 def test_generated_python_sandbox_capability_eval_fails_shallow_seedless_draft(
     tmp_path: Path,
 ) -> None:
@@ -17989,6 +18242,12 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
     assert prototype["execution_smoke_passed"] is True
     assert prototype["smoke_passed"] is False
     assert "mean_coverage is degenerate zero coverage" in prototype["metric_gate_errors"]
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert "Runtime metric-gate repair is active" in feedback["required_repair"]
+    assert (
+        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
+        "and code_excerpt"
+    ) in feedback["required_repair"]
 
 
 def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_target(
