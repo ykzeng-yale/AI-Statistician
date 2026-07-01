@@ -89,6 +89,7 @@ from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     audit_formalization_gap_planner_runtime_handoffs,
 )
 from ai_statistician.proof_state_feedback import (
+    PROOF_STATE_FEEDBACK_BOUNDARY,
     PROOF_STATE_FEEDBACK_STATUS,
     LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
@@ -14293,6 +14294,194 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     ]["allowed_tools"]
     assert formalizer.seen_environment_feedback[-1]["repair_owner_agent"] == (
         "ProofEngineer"
+    )
+
+
+def test_formalizer_live_prover_inspects_compiled_candidate_when_required(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class CompilingLeanFormalizer:
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:compiled_live_prover_candidate",
+                "source_agent": "CompilingLeanFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "compiled_live_prover_candidate",
+                        "informal_source": "minimal compiled candidate for live prover inspection",
+                        "lean_statement_sketch": (
+                            "theorem compiled_live_prover_candidate "
+                            "(support target : Prop) "
+                            "(h : support -> target) (hs : support) : "
+                            "target := by\n"
+                            "  exact h hs\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": False,
+                            "target_lean_declaration": "",
+                            "source_theorem_goal_id": "",
+                        },
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["lean_lsp_mcp", "local_lean"],
+                    "kernel_check_plan": ["run local Lean", "inspect with Lean LSP"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    class FakeLiveCandidateProofStateProvider:
+        name = "lean_lsp_mcp_proof_state_feedback"
+
+        def inspect(self, subclaims: list[FormalSubclaim]) -> list[ProofStateFeedbackRow]:
+            assert subclaims
+            if not subclaims[0].id.startswith("formalizer_lean_candidate:"):
+                return [
+                    ProofStateFeedbackRow(
+                        schema_version=1,
+                        feedback_id="proof_state_feedback:general_subclaim",
+                        subclaim_id=subclaims[0].id,
+                        proof_obligation_id=subclaims[0].proof_obligation_id or "",
+                        claim_type=subclaims[0].claim_type,
+                        provider_name=self.name,
+                        provider_preferences=("lean_lsp_mcp", "local_lean"),
+                        requested_tools=("lean_diagnostic_messages",),
+                        attempt_status="general_subclaim_feedback_recorded",
+                        diagnostics=("general proof-state feedback",),
+                        residual_goals=(),
+                        route_revision_recommended=False,
+                        subclaim_status=subclaims[0].status,
+                        subclaim_kernel_verified=subclaims[0].kernel_verified,
+                        local_lean_checked=False,
+                        local_lean_returncode=None,
+                        proof_evidence_status=PROOF_STATE_FEEDBACK_STATUS,
+                        proof_evidence_boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
+                        created_at="2026-01-01T00:00:00+00:00",
+                    )
+                ]
+            assert subclaims[0].artifact_path
+            return [
+                ProofStateFeedbackRow(
+                    schema_version=1,
+                    feedback_id="proof_state_feedback:compiled_live_candidate",
+                    subclaim_id=subclaims[0].id,
+                    proof_obligation_id=subclaims[0].proof_obligation_id or "",
+                    claim_type=subclaims[0].claim_type,
+                    provider_name=self.name,
+                    provider_preferences=("lean_lsp_mcp", "local_lean"),
+                    requested_tools=("lean_diagnostic_messages", "lean_goal"),
+                    attempt_status="candidate_live_prover_inspection_recorded",
+                    diagnostics=("compiled candidate inspected by live prover",),
+                    residual_goals=(),
+                    route_revision_recommended=False,
+                    subclaim_status=subclaims[0].status,
+                    subclaim_kernel_verified=subclaims[0].kernel_verified,
+                    local_lean_checked=False,
+                    local_lean_returncode=None,
+                    proof_evidence_status=PROOF_STATE_FEEDBACK_STATUS,
+                    proof_evidence_boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
+                    created_at="2026-01-01T00:00:00+00:00",
+                    executed_tools=("lean_lsp_mcp.lean_diagnostic_messages",),
+                    tool_call_trace=(
+                        {
+                            "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                            "status": "mcp_tool_call_succeeded",
+                            "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+                        },
+                    ),
+                    artifact_path=str(subclaims[0].artifact_path),
+                )
+            ]
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=CompilingLeanFormalizer(),  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_state_provider=FakeLiveCandidateProofStateProvider(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=True,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_compiled_candidate_live_prover",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Inspect a compiled materialized candidate with live prover tools.",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_formalizer_lean_candidate": True,
+                    "capability_eval_requires_formalizer_local_lean_check": True,
+                    "capability_eval_requires_formalizer_proof_state_request": True,
+                    "capability_eval_requires_formalizer_proof_state_feedback": True,
+                    "capability_eval_requires_formalizer_live_prover_tool_call": True,
+                }
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    candidate_feedback_manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+    ]
+    assert len(candidate_feedback_manifests) == 1
+    candidate_feedback_manifest = candidate_feedback_manifests[0]
+    assert candidate_feedback_manifest["lean_lsp_mcp_live_called"] is True
+    assert (
+        candidate_feedback_manifest["counts"]["lean_lsp_mcp_tool_calls"] == 1
+    )
+    assert any(
+        obs.observation_type == "formalizer_lean_candidate_proof_state_feedback"
+        and obs.payload["lean_lsp_mcp_live_called"] is True
+        for obs in result.observations
+    )
+    assert any(
+        tool.tool_name
+        == "ProofStateFeedbackProvider.inspect_formalizer_lean_candidate"
+        and tool.inputs["lean_lsp_mcp_live_called"] is True
+        for tool in result.tool_calls
+    )
+    assert any(
+        entry.evidence_type == "formalizer_lean_candidate_proof_state_feedback"
+        and entry.payload["lean_lsp_mcp_live_called"] is True
+        for entry in result.evidence_entries
     )
 
 
@@ -46586,6 +46775,7 @@ def _write_budgeted_continuation_runtime_audit_fixture(
     tmp_path: Path,
     *,
     include_pending_next_task: bool,
+    pending_owner_subsystem: str = "FormalizationEvaluator",
 ) -> Path:
     runtime_dir = tmp_path / (
         "runtime_with_pending" if include_pending_next_task else "runtime_without_pending"
@@ -46597,7 +46787,7 @@ def _write_budgeted_continuation_runtime_audit_fixture(
     result_path = runtime_dir / "q1_runtime_result.json"
     next_task = {
         "task_id": "formalize:repair:q1",
-        "owner_subsystem": "FormalizationEvaluator",
+        "owner_subsystem": pending_owner_subsystem,
         "objective": "Repair the remaining formal gap.",
         "inputs": {"question": {"id": "q1"}},
     }
@@ -46760,6 +46950,26 @@ def test_runtime_audit_treats_budgeted_pending_continuation_as_contract_ok(
         encoding="utf-8"
     )
     assert "budgeted continuations contract-ok: 1/1" in report
+
+
+def test_runtime_audit_accepts_budgeted_proofengineer_continuation(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = _write_budgeted_continuation_runtime_audit_fixture(
+        tmp_path,
+        include_pending_next_task=True,
+        pending_owner_subsystem="ProofEngineer",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert audit["all_ok"] is True
+    assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["rows"][0]["pending_next_task_owner_subsystem"] == "ProofEngineer"
+    assert not any(
+        "pending next_task owner_subsystem is not a known runtime subsystem" in error
+        for error in audit["result_errors"]
+    )
 
 
 def test_runtime_audit_keeps_budgeted_continuation_strict_without_pending_task(

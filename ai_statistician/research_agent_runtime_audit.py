@@ -49,6 +49,7 @@ REQUIRED_SUBSYSTEMS = (
     "CriticEvaluator",
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
+ROUTEABLE_RUNTIME_SUBSYSTEMS = (*REQUIRED_ARCHITECT_SUBSYSTEMS, "ProofEngineer")
 SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
@@ -3040,7 +3041,7 @@ def _architect_resume_routed_to_theory_refresh(traces: list[Any]) -> bool:
 def _runtime_trace_sequence_uses_known_subsystems(
     subsystem_sequence: list[str],
 ) -> bool:
-    known_subsystems = set(REQUIRED_ARCHITECT_SUBSYSTEMS)
+    known_subsystems = set(ROUTEABLE_RUNTIME_SUBSYSTEMS)
     return bool(subsystem_sequence) and all(
         str(subsystem or "") in known_subsystems
         for subsystem in subsystem_sequence
@@ -3094,7 +3095,9 @@ def _runtime_result_pending_next_task_contract(
             errors.append("pending next_task task_id does not match next_task_id")
         if not pending_next_task_owner_subsystem:
             errors.append("pending next_task is missing owner_subsystem")
-        elif pending_next_task_owner_subsystem not in set(REQUIRED_ARCHITECT_SUBSYSTEMS):
+        elif pending_next_task_owner_subsystem not in set(
+            ROUTEABLE_RUNTIME_SUBSYSTEMS
+        ):
             errors.append(
                 "pending next_task owner_subsystem is not a known runtime subsystem"
             )

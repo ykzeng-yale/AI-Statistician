@@ -5932,6 +5932,127 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_materialization: dict[str, Any] | None = None
         candidate_proof_state_manifest: dict[str, Any] | None = None
         candidate_proof_state_evidence: EvidenceLedgerEntry | None = None
+
+        def record_candidate_proof_state_feedback(
+            proof_state_feedback: Mapping[str, Any],
+        ) -> None:
+            nonlocal candidate_proof_state_manifest
+            nonlocal candidate_proof_state_evidence
+            if self.proof_state_provider is None or lean_candidate_materialization is None:
+                return
+            candidate_proof_state_subclaims = (
+                _formalizer_lean_candidate_proof_state_subclaims(
+                    lean_candidate_materialization,
+                    proof_state_feedback,
+                )
+            )
+            candidate_proof_state_rows = (
+                self.proof_state_provider.inspect(candidate_proof_state_subclaims)
+                if candidate_proof_state_subclaims
+                else []
+            )
+            candidate_proof_state_row_dicts = [
+                proof_state_feedback_row_to_json(row)
+                for row in candidate_proof_state_rows
+            ]
+            if not candidate_proof_state_row_dicts:
+                return
+            candidate_lean_lsp_mcp_live_called = any(
+                any(
+                    str(tool).startswith("lean_lsp_mcp.")
+                    for tool in (row.get("executed_tools", []) or [])
+                )
+                for row in candidate_proof_state_row_dicts
+            )
+            candidate_proof_state_manifest_id = (
+                "formalizer_lean_candidate_proof_state_feedback_manifest:"
+                + stable_hash(
+                    [
+                        task.task_id,
+                        lean_candidate_materialization.get("manifest_id", ""),
+                        candidate_proof_state_row_dicts,
+                    ]
+                )[:20]
+            )
+            candidate_proof_state_manifest = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+                ),
+                "manifest_id": candidate_proof_state_manifest_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "question": _question_to_payload(question),
+                "task_id": task.task_id,
+                "source_materialization_manifest_id": str(
+                    lean_candidate_materialization.get("manifest_id", "")
+                ),
+                "provider_name": getattr(
+                    self.proof_state_provider,
+                    "name",
+                    "unknown",
+                ),
+                "lean_lsp_mcp_live_called": candidate_lean_lsp_mcp_live_called,
+                "rows": candidate_proof_state_row_dicts,
+                "counts": {
+                    "rows": len(candidate_proof_state_row_dicts),
+                    "residual_goals": sum(
+                        len(row.residual_goals) for row in candidate_proof_state_rows
+                    ),
+                    "executed_tool_calls": sum(
+                        len(row.tool_call_trace) for row in candidate_proof_state_rows
+                    ),
+                    "local_lean_tool_calls": sum(
+                        1
+                        for row in candidate_proof_state_rows
+                        if "local.lake_env_lean" in set(row.executed_tools)
+                    ),
+                    "lean_lsp_mcp_tool_calls": sum(
+                        sum(
+                            1
+                            for tool in (row.get("executed_tools", []) or [])
+                            if str(tool).startswith("lean_lsp_mcp.")
+                        )
+                        for row in candidate_proof_state_row_dicts
+                    ),
+                    "route_revision_recommended": sum(
+                        1
+                        for row in candidate_proof_state_rows
+                        if row.route_revision_recommended
+                    ),
+                },
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+            }
+            candidate_proof_state_manifest["learning_rows"] = (
+                _formalizer_lean_candidate_proof_state_feedback_learning_rows(
+                    candidate_proof_state_manifest
+                )
+            )
+            candidate_proof_state_manifest["n_learning_rows"] = len(
+                candidate_proof_state_manifest["learning_rows"]
+            )
+            produced_artifacts[candidate_proof_state_manifest_id] = (
+                candidate_proof_state_manifest
+            )
+            candidate_proof_state_evidence = EvidenceLedgerEntry(
+                evidence_id="evidence:"
+                + stable_hash([task.task_id, candidate_proof_state_manifest_id])[:20],
+                task_id=task.task_id,
+                artifact_id=candidate_proof_state_manifest_id,
+                evidence_type="formalizer_lean_candidate_proof_state_feedback",
+                status=(
+                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
+                ),
+                boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
+                payload={
+                    "counts": candidate_proof_state_manifest["counts"],
+                    "provider_name": candidate_proof_state_manifest["provider_name"],
+                    "lean_lsp_mcp_live_called": candidate_lean_lsp_mcp_live_called,
+                },
+            )
+
         if _should_emit_deterministic_theorem_closure_packet(
             proof_bank_runtime_memory_summary
         ) and not _runtime_context_requires_formalizer_lean_candidate(context):
@@ -6137,168 +6258,70 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     _enrich_repeated_formalizer_lean_candidate_feedback(
                         lean_candidate_repair_feedback
                     )
-                    if self.proof_state_provider is not None:
-                        candidate_proof_state_subclaims = (
-                            _formalizer_lean_candidate_proof_state_subclaims(
-                                lean_candidate_materialization,
-                                lean_candidate_repair_feedback,
-                            )
-                        )
-                        candidate_proof_state_rows = (
-                            self.proof_state_provider.inspect(
-                                candidate_proof_state_subclaims
-                            )
-                            if candidate_proof_state_subclaims
-                            else []
-                        )
-                        candidate_proof_state_row_dicts = [
-                            proof_state_feedback_row_to_json(row)
-                            for row in candidate_proof_state_rows
-                        ]
-                        if candidate_proof_state_row_dicts:
-                            candidate_lean_lsp_mcp_live_called = any(
-                                any(
-                                    str(tool).startswith("lean_lsp_mcp.")
-                                    for tool in (row.get("executed_tools", []) or [])
-                                )
-                                for row in candidate_proof_state_row_dicts
-                            )
-                            candidate_proof_state_manifest_id = (
-                                "formalizer_lean_candidate_proof_state_feedback_manifest:"
-                                + stable_hash(
-                                    [
-                                        task.task_id,
-                                        lean_candidate_materialization.get(
-                                            "manifest_id",
-                                            "",
-                                        ),
-                                        candidate_proof_state_row_dicts,
-                                    ]
-                                )[:20]
-                            )
-                            candidate_proof_state_manifest = {
-                                "schema_version": RUNTIME_SCHEMA_VERSION,
-                                "artifact_kind": (
-                                    "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
-                                ),
-                                "manifest_id": candidate_proof_state_manifest_id,
-                                "created_at": datetime.now(timezone.utc).isoformat(),
-                                "question": _question_to_payload(question),
-                                "task_id": task.task_id,
-                                "source_materialization_manifest_id": str(
-                                    lean_candidate_materialization.get(
-                                        "manifest_id",
-                                        "",
-                                    )
-                                ),
-                                "provider_name": getattr(
-                                    self.proof_state_provider,
-                                    "name",
-                                    "unknown",
-                                ),
-                                "lean_lsp_mcp_live_called": candidate_lean_lsp_mcp_live_called,
-                                "rows": candidate_proof_state_row_dicts,
-                                "counts": {
-                                    "rows": len(candidate_proof_state_row_dicts),
-                                    "residual_goals": sum(
-                                        len(row.residual_goals)
-                                        for row in candidate_proof_state_rows
-                                    ),
-                                    "executed_tool_calls": sum(
-                                        len(row.tool_call_trace)
-                                        for row in candidate_proof_state_rows
-                                    ),
-                                    "local_lean_tool_calls": sum(
-                                        1
-                                        for row in candidate_proof_state_rows
-                                        if "local.lake_env_lean"
-                                        in set(row.executed_tools)
-                                    ),
-                                    "lean_lsp_mcp_tool_calls": sum(
-                                        sum(
-                                            1
-                                            for tool in (
-                                                row.get("executed_tools", []) or []
-                                            )
-                                            if str(tool).startswith("lean_lsp_mcp.")
-                                        )
-                                        for row in candidate_proof_state_row_dicts
-                                    ),
-                                    "route_revision_recommended": sum(
-                                        1
-                                        for row in candidate_proof_state_rows
-                                        if row.route_revision_recommended
-                                    ),
-                                },
-                                "proof_evidence_status": (
-                                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
-                                ),
-                                "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
-                            }
-                            candidate_proof_state_manifest["learning_rows"] = (
-                                _formalizer_lean_candidate_proof_state_feedback_learning_rows(
-                                    candidate_proof_state_manifest
-                                )
-                            )
-                            candidate_proof_state_manifest["n_learning_rows"] = len(
-                                candidate_proof_state_manifest["learning_rows"]
-                            )
-                            produced_artifacts[candidate_proof_state_manifest_id] = (
-                                candidate_proof_state_manifest
-                            )
-                            candidate_proof_state_evidence = EvidenceLedgerEntry(
-                                evidence_id="evidence:"
-                                + stable_hash(
-                                    [task.task_id, candidate_proof_state_manifest_id]
-                                )[:20],
-                                task_id=task.task_id,
-                                artifact_id=candidate_proof_state_manifest_id,
-                                evidence_type=(
-                                    "formalizer_lean_candidate_proof_state_feedback"
-                                ),
-                                status=(
-                                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
-                                ),
-                                boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
-                                payload={
-                                    "counts": candidate_proof_state_manifest[
-                                        "counts"
-                                    ],
-                                    "provider_name": candidate_proof_state_manifest[
-                                        "provider_name"
-                                    ],
-                                    "lean_lsp_mcp_live_called": candidate_lean_lsp_mcp_live_called,
-                                },
-                            )
-                            proofengineer_context = lean_candidate_repair_feedback.setdefault(
+                    record_candidate_proof_state_feedback(
+                        lean_candidate_repair_feedback
+                    )
+                    if candidate_proof_state_manifest is not None:
+                        proofengineer_context = (
+                            lean_candidate_repair_feedback.setdefault(
                                 "proofengineer_repair_context",
                                 {},
                             )
-                            if isinstance(proofengineer_context, dict):
-                                proofengineer_context[
-                                    "candidate_proof_state_feedback_rows"
-                                ] = candidate_proof_state_row_dicts[:3]
-                                proofengineer_context[
-                                    "candidate_proof_state_feedback_counts"
-                                ] = {
-                                    "rows": len(candidate_proof_state_row_dicts),
-                                    "residual_goals": sum(
-                                        len(row.residual_goals)
-                                        for row in candidate_proof_state_rows
-                                    ),
-                                    "route_revision_recommended": sum(
-                                        1
-                                        for row in candidate_proof_state_rows
-                                        if row.route_revision_recommended
-                                    ),
-                                }
-                                proofengineer_context[
-                                    "candidate_proof_state_provider"
-                                ] = getattr(
-                                    self.proof_state_provider,
-                                    "name",
-                                    "unknown",
+                        )
+                        if isinstance(proofengineer_context, dict):
+                            candidate_rows = list(
+                                candidate_proof_state_manifest.get("rows", []) or []
+                            )
+                            candidate_counts = dict(
+                                candidate_proof_state_manifest.get("counts", {})
+                                or {}
+                            )
+                            proofengineer_context[
+                                "candidate_proof_state_feedback_rows"
+                            ] = candidate_rows[:3]
+                            proofengineer_context[
+                                "candidate_proof_state_feedback_counts"
+                            ] = {
+                                "rows": int(candidate_counts.get("rows", 0) or 0),
+                                "residual_goals": int(
+                                    candidate_counts.get("residual_goals", 0) or 0
+                                ),
+                                "route_revision_recommended": int(
+                                    candidate_counts.get(
+                                        "route_revision_recommended",
+                                        0,
+                                    )
+                                    or 0
+                                ),
+                            }
+                            proofengineer_context[
+                                "candidate_proof_state_provider"
+                            ] = str(
+                                candidate_proof_state_manifest.get(
+                                    "provider_name",
+                                    "",
                                 )
+                                or ""
+                            )
+                elif (
+                    self.proof_state_provider is not None
+                    and _runtime_context_requires_formalizer_live_prover_tool_call(
+                        context
+                    )
+                    and int(
+                        lean_candidate_materialization.get(
+                            "n_lean_lsp_mcp_ready_requests",
+                            0,
+                        )
+                        or 0
+                    )
+                    > 0
+                ):
+                    record_candidate_proof_state_feedback(
+                        _formalizer_lean_candidate_live_prover_inspection_feedback(
+                            lean_candidate_materialization
+                        )
+                    )
             is_deterministic_closure = (
                 proposal_source == "deterministic_theorem_closure_work_order_seed"
             )
@@ -7014,6 +7037,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
             )
         if candidate_proof_state_manifest is not None:
+            candidate_live_mcp_called = bool(
+                candidate_proof_state_manifest.get(
+                    "lean_lsp_mcp_live_called",
+                    False,
+                )
+            )
             observations.append(
                 EnvironmentObservation(
                     observation_type=(
@@ -7022,7 +7051,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     summary=(
                         "candidate_proof_state_feedback="
                         f"{candidate_proof_state_manifest['counts']['rows']} "
-                        "live_mcp=false"
+                        f"live_mcp={str(candidate_live_mcp_called).lower()}"
                     ),
                     payload={
                         "manifest_id": candidate_proof_state_manifest[
@@ -7035,7 +7064,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         "proof_evidence_status": candidate_proof_state_manifest[
                             "proof_evidence_status"
                         ],
-                        "lean_lsp_mcp_live_called": False,
+                        "lean_lsp_mcp_live_called": candidate_live_mcp_called,
                     },
                 )
             )
@@ -7088,6 +7117,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
             )
         if candidate_proof_state_manifest is not None:
+            candidate_live_mcp_called = bool(
+                candidate_proof_state_manifest.get(
+                    "lean_lsp_mcp_live_called",
+                    False,
+                )
+            )
             tool_calls.append(
                 ToolCallRecord(
                     tool_name=(
@@ -7100,7 +7135,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                                 "source_materialization_manifest_id"
                             ]
                         ),
-                        "lean_lsp_mcp_live_called": False,
+                        "lean_lsp_mcp_live_called": candidate_live_mcp_called,
                     },
                     exit_status="0",
                     stdout_summary=(
@@ -10181,6 +10216,16 @@ def _formalizer_lean_candidate_proof_state_subclaims(
     """Represent failed Formalizer Lean candidates as proof-state work items."""
 
     rows: list[FormalSubclaim] = []
+    manifest_candidates: dict[str, Mapping[str, Any]] = {}
+    manifest_candidate_rows = [
+        candidate
+        for candidate in manifest.get("candidate_rows", []) or []
+        if isinstance(candidate, Mapping)
+    ]
+    for candidate in manifest_candidate_rows:
+        candidate_key = str(candidate.get("candidate_id", "") or "").strip()
+        if candidate_key:
+            manifest_candidates.setdefault(candidate_key, candidate)
     diagnostics = [
         row
         for row in feedback.get("candidate_diagnostics", []) or []
@@ -10188,17 +10233,28 @@ def _formalizer_lean_candidate_proof_state_subclaims(
     ]
     for index, row in enumerate(diagnostics, start=1):
         candidate_id = str(row.get("candidate_id", "") or f"candidate_{index}")
+        manifest_candidate = manifest_candidates.get(candidate_id, {})
+        if not manifest_candidate and len(manifest_candidate_rows) == 1:
+            manifest_candidate = manifest_candidate_rows[0]
         kernel_artifact_path = str(
             row.get("kernel_check_artifact_path", "")
+            or manifest_candidate.get("kernel_check_artifact_path", "")
             or row.get("artifact_path", "")
+            or manifest_candidate.get("artifact_path", "")
             or ""
         )
         artifact_path = str(
             row.get("proof_state_artifact_path", "")
+            or manifest_candidate.get("proof_state_artifact_path", "")
             or row.get("target_lean_file", "")
+            or manifest_candidate.get("target_lean_file", "")
             or kernel_artifact_path
         )
-        lean_statement = str(row.get("lean_source_excerpt", "") or "")
+        lean_statement = str(
+            row.get("lean_source_excerpt", "")
+            or manifest_candidate.get("lean_source_excerpt", "")
+            or ""
+        )
         if artifact_path:
             try:
                 path = Path(artifact_path)
@@ -10215,11 +10271,17 @@ def _formalizer_lean_candidate_proof_state_subclaims(
             value = str(row.get(key, "") or "").strip()
             if value:
                 error_rows.append(value[:500])
+        local_lean_compiled = bool(
+            row.get(
+                "local_lean_compiled",
+                manifest_candidate.get("local_lean_compiled", False),
+            )
+        )
         rows.append(
             FormalSubclaim(
                 id="formalizer_lean_candidate:" + _safe_identifier(candidate_id),
                 title="Formalizer Lean candidate proof-state repair: " + candidate_id,
-                status="FAILED",
+                status="PROVED" if local_lean_compiled else "FAILED",
                 claim=(
                     "Repair materialized Formalizer Lean candidate "
                     f"{candidate_id} from manifest {manifest.get('manifest_id', '')}"
@@ -10227,10 +10289,14 @@ def _formalizer_lean_candidate_proof_state_subclaims(
                 claim_type="lean_obligation",
                 proof_obligation_id=candidate_id,
                 lean_statement=lean_statement,
-                formalization_status="candidate_needs_proofengineer_repair",
+                formalization_status=(
+                    "candidate_live_prover_inspection_requested"
+                    if local_lean_compiled
+                    else "candidate_needs_proofengineer_repair"
+                ),
                 verifier="ProofEngineerCandidateProofStateFeedback",
                 verification_strength="diagnostic_only",
-                kernel_verified=False,
+                kernel_verified=local_lean_compiled,
                 errors=error_rows[:6],
                 gap_reason=str(feedback.get("failure_classification", "") or ""),
                 artifact_path=artifact_path or None,
@@ -10250,6 +10316,112 @@ def _formalizer_lean_candidate_proof_state_subclaims(
             )
         )
     return rows
+
+
+def _formalizer_lean_candidate_live_prover_inspection_feedback(
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build diagnostic feedback for LSP-ready candidates that need live inspection."""
+
+    diagnostics: list[dict[str, Any]] = []
+    for index, candidate in enumerate(
+        manifest.get("candidate_rows", []) or [],
+        start=1,
+    ):
+        if not isinstance(candidate, Mapping):
+            continue
+        live_request = (
+            candidate.get("live_proof_state_request", {})
+            if isinstance(candidate.get("live_proof_state_request", {}), Mapping)
+            else {}
+        )
+        provider_preferences = tuple(
+            str(value)
+            for value in live_request.get("provider_preferences", ()) or ()
+        )
+        if "lean_lsp_mcp" not in provider_preferences:
+            continue
+        artifact_path = str(
+            candidate.get("proof_state_artifact_path", "")
+            or candidate.get("target_lean_file", "")
+            or candidate.get("kernel_check_artifact_path", "")
+            or candidate.get("artifact_path", "")
+            or ""
+        )
+        if not artifact_path:
+            continue
+        diagnostics.append(
+            {
+                "candidate_id": str(
+                    candidate.get("candidate_id", "") or f"candidate_{index}"
+                ),
+                "candidate_kind": str(candidate.get("candidate_kind", "") or ""),
+                "source_field": str(candidate.get("source_field", "") or ""),
+                "source_hash": str(candidate.get("source_hash", "") or ""),
+                "artifact_path": str(candidate.get("artifact_path", "") or ""),
+                "kernel_check_artifact_path": str(
+                    candidate.get("kernel_check_artifact_path", "")
+                    or candidate.get("artifact_path", "")
+                    or ""
+                ),
+                "proof_state_artifact_path": artifact_path,
+                "target_lean_file": str(
+                    candidate.get("target_lean_file", "") or artifact_path
+                ),
+                "target_lean_line": int(candidate.get("target_lean_line", 0) or 0),
+                "target_lean_column": int(
+                    candidate.get("target_lean_column", 0) or 0
+                ),
+                "target_lean_declaration": str(
+                    candidate.get("target_lean_declaration", "") or ""
+                ),
+                "lean_source_excerpt": str(
+                    candidate.get("lean_source_excerpt", "") or ""
+                )[:8000],
+                "precheck_status": str(candidate.get("precheck_status", "") or ""),
+                "precheck_errors": list(candidate.get("precheck_errors", []) or []),
+                "local_lean_attempted": bool(
+                    candidate.get("local_lean_attempted", False)
+                ),
+                "local_lean_compiled": bool(
+                    candidate.get("local_lean_compiled", False)
+                ),
+                "local_lean_exit_status": str(
+                    candidate.get("local_lean_exit_status", "") or ""
+                ),
+                "local_lean_stdout_excerpt": str(
+                    candidate.get("local_lean_stdout", "") or ""
+                )[:500],
+                "local_lean_stderr_excerpt": str(
+                    candidate.get("local_lean_stderr", "") or ""
+                )[:500],
+            }
+        )
+    return {
+        "feedback_type": "formalizer_lean_candidate_live_prover_inspection",
+        "failure_classification": "formalizer_live_prover_inspection_requested",
+        "candidate_diagnostics": diagnostics,
+        "proofengineer_repair_context": {
+            "candidate_artifact_paths": [
+                row["proof_state_artifact_path"] for row in diagnostics
+            ],
+            "proof_state_workflow": {
+                "style": "lean_dojo_reprover_compatible",
+                "preferred_tool_order": (
+                    "lean_diagnostic_messages",
+                    "lean_goal",
+                    "lean_state_search",
+                    "lean_multi_attempt",
+                    "local_lean_or_axle_rerun",
+                ),
+            },
+            "boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+        },
+        "proof_evidence_status": (
+            "FORMALIZER_LEAN_CANDIDATE_LIVE_PROVER_INSPECTION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
 
 
 def _formalizer_target_shape_contract_from_diagnostics(
