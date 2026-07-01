@@ -9350,6 +9350,17 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         args,
         architect_coordinator_configured=architect_coordinator is not None,
     )
+    gap_planner_live_provider_arg = str(
+        getattr(args, "formalization_gap_planner_live_provider", "same") or "same"
+    )
+    if gap_planner_live_provider_arg == "same":
+        gap_planner_live_provider = (
+            provider_name
+            if provider_name in LIVE_GENERATOR_PROVIDER_CHOICES
+            else _default_live_generator_provider()
+        )
+    else:
+        gap_planner_live_provider = gap_planner_live_provider_arg
     manifest = run_research_agent_runtime(
         questions,
         Path(args.out),
@@ -9767,6 +9778,60 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "source_theorem_exact_semantic_definition_candidate_synthesis_lean_timeout",
                     90,
+                )
+            ),
+            formalization_gap_planner_live_route_planner=bool(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_route_planner",
+                    False,
+                )
+            ),
+            formalization_gap_planner_live_max_handoffs=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_handoffs",
+                    1,
+                )
+            ),
+            formalization_gap_planner_live_provider=gap_planner_live_provider,
+            formalization_gap_planner_live_model=str(
+                getattr(args, "formalization_gap_planner_live_model", "") or ""
+            ),
+            formalization_gap_planner_live_model_tier=str(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_model_tier",
+                    "auto",
+                )
+                or "auto"
+            ),
+            formalization_gap_planner_live_max_tokens=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_tokens",
+                    9000,
+                )
+            ),
+            formalization_gap_planner_live_temperature=float(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_temperature",
+                    0.1,
+                )
+            ),
+            formalization_gap_planner_live_max_repair_attempts=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_repair_attempts",
+                    1,
+                )
+            ),
+            formalization_gap_planner_live_timeout_seconds=float(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
                 )
             ),
         ),
@@ -17272,6 +17337,71 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-route-planner",
+        action="store_true",
+        help=(
+            "inside AgentRuntime, follow successful gap-planner handoff smoke "
+            "with a bounded live LLM route-planner task instead of stopping at "
+            "prompt packets awaiting response"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-handoffs",
+        type=int,
+        default=1,
+        help=(
+            "maximum runtime gap-planner handoffs to send to the live route "
+            "planner when --formalization-gap-planner-live-route-planner is enabled"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-provider",
+        choices=("same",) + LIVE_GENERATOR_PROVIDER_CHOICES,
+        default="same",
+        help=(
+            "provider for the integrated live gap-planner route planner; same "
+            "uses the main --provider"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-model",
+        default="",
+        help="optional model override for the integrated live gap-planner route planner",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-model-tier",
+        choices=("auto",) + CLAUDE_MODEL_TIERS,
+        default="auto",
+        help=(
+            "Claude cost tier policy for integrated live gap-planner route "
+            "planning; auto uses the route-planner model-tier policy"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-tokens",
+        type=int,
+        default=9000,
+        help="maximum output tokens for each live gap-planner route-planner call",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-temperature",
+        type=float,
+        default=0.1,
+        help="generation temperature for live gap-planner route planning",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-repair-attempts",
+        type=int,
+        default=1,
+        help="maximum JSON repair attempts for live gap-planner route-planner responses",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help="wall-clock timeout for each live gap-planner route-planner provider call",
     )
     research_agent_runtime.add_argument(
         "--capability-eval",

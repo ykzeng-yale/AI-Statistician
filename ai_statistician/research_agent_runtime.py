@@ -60,11 +60,23 @@ from .exact_source_theorem_proof_body_executor import (
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
+    export_formalization_gap_planner_standalone_plan,
+)
+from .formalization_gap_planner_target_intake import (
+    normalize_formalization_gap_planner_target_intake,
+)
+from .formalization_gap_planner_component_resource_registry import (
+    export_formalization_gap_planner_component_resource_registry,
 )
 from .formalization_gap_planner_runtime_handoff_audit import (
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
     audit_formalization_gap_planner_runtime_handoffs,
+)
+from .formalization_gap_planner_llm_route_planner import (
+    PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
+    PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
+    export_formalization_gap_planner_llm_route_planner,
 )
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
@@ -80,6 +92,7 @@ from .llm_json_repair import PacketValidationError
 from .model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    AnthropicGeneratorBackend,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     OpenAIResponsesGeneratorBackend,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -2883,6 +2896,17 @@ class ResearchAgentRuntimeConfig:
     source_theorem_exact_semantic_definition_candidate_synthesis_local_lean: bool = False
     source_theorem_exact_semantic_definition_candidate_synthesis_lean_project: str = ""
     source_theorem_exact_semantic_definition_candidate_synthesis_lean_timeout: int = 90
+    formalization_gap_planner_live_route_planner: bool = False
+    formalization_gap_planner_live_max_handoffs: int = 1
+    formalization_gap_planner_live_provider: str = "anthropic"
+    formalization_gap_planner_live_model: str = ""
+    formalization_gap_planner_live_model_tier: str = "auto"
+    formalization_gap_planner_live_max_tokens: int = 9000
+    formalization_gap_planner_live_temperature: float = 0.1
+    formalization_gap_planner_live_max_repair_attempts: int = 1
+    formalization_gap_planner_live_timeout_seconds: float = (
+        DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+    )
 
 
 def _normalized_formal_verification_policy(policy: str) -> str:
@@ -12897,8 +12921,565 @@ def _critic_agenda_has_formalization_gap_planner_handoff(
 class FormalizationGapPlannerRuntimeSubsystem:
     name = "FormalizationGapPlanner"
 
-    def __init__(self, *, out_dir: Path) -> None:
+    def __init__(
+        self,
+        *,
+        out_dir: Path,
+        runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
+    ) -> None:
         self.out_dir = out_dir
+        self.runtime_config = runtime_config
+
+    def _live_route_planner_max_handoffs(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "max_handoffs",
+            self.runtime_config.formalization_gap_planner_live_max_handoffs,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(self.runtime_config.formalization_gap_planner_live_max_handoffs),
+            )
+
+    def _live_route_planner_provider(self, task: AgentTask) -> str:
+        provider = str(
+            task.inputs.get(
+                "provider",
+                self.runtime_config.formalization_gap_planner_live_provider,
+            )
+            or ""
+        ).strip()
+        if provider == "same":
+            provider = "anthropic"
+        return provider or "anthropic"
+
+    def _live_route_planner_model(self, task: AgentTask) -> str:
+        return str(
+            task.inputs.get(
+                "model",
+                self.runtime_config.formalization_gap_planner_live_model,
+            )
+            or ""
+        ).strip()
+
+    def _live_route_planner_model_tier(self, task: AgentTask) -> str:
+        return str(
+            task.inputs.get(
+                "model_tier",
+                self.runtime_config.formalization_gap_planner_live_model_tier,
+            )
+            or "auto"
+        ).strip() or "auto"
+
+    def _live_route_planner_max_tokens(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "max_tokens",
+            self.runtime_config.formalization_gap_planner_live_max_tokens,
+        )
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                1,
+                int(self.runtime_config.formalization_gap_planner_live_max_tokens),
+            )
+
+    def _live_route_planner_temperature(self, task: AgentTask) -> float:
+        raw = task.inputs.get(
+            "temperature",
+            self.runtime_config.formalization_gap_planner_live_temperature,
+        )
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return float(
+                self.runtime_config.formalization_gap_planner_live_temperature
+            )
+
+    def _live_route_planner_max_repair_attempts(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "max_repair_attempts",
+            self.runtime_config.formalization_gap_planner_live_max_repair_attempts,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                ),
+            )
+
+    def _live_route_planner_timeout_seconds(self, task: AgentTask) -> float:
+        raw = task.inputs.get(
+            "timeout_seconds",
+            self.runtime_config.formalization_gap_planner_live_timeout_seconds,
+        )
+        try:
+            return max(1.0, float(raw))
+        except (TypeError, ValueError):
+            return max(
+                1.0,
+                float(
+                    self.runtime_config.formalization_gap_planner_live_timeout_seconds
+                ),
+            )
+
+    def _live_route_planner_backend(
+        self,
+        *,
+        provider: str,
+        timeout_seconds: float,
+    ) -> GeneratorBackend | None:
+        normalized = str(provider or "").strip().lower()
+        if normalized == "anthropic":
+            return AnthropicGeneratorBackend(timeout_s=timeout_seconds)
+        if normalized == "openai":
+            return OpenAIResponsesGeneratorBackend(timeout_s=timeout_seconds)
+        return None
+
+    def _bounded_live_route_handoffs(
+        self,
+        handoff_rows: Sequence[Mapping[str, Any]],
+        *,
+        max_handoffs: int,
+    ) -> list[dict[str, Any]]:
+        selected: list[dict[str, Any]] = []
+        for handoff in handoff_rows:
+            if len(selected) >= max_handoffs:
+                break
+            if not isinstance(handoff, Mapping):
+                continue
+            seed_path = str(handoff.get("standalone_seed_path", "") or "").strip()
+            if not seed_path:
+                continue
+            selected.append(dict(handoff))
+        return selected
+
+    def _optional_handoff_path(
+        self,
+        handoff: Mapping[str, Any],
+        key: str,
+    ) -> Path | None:
+        text = str(handoff.get(key, "") or "").strip()
+        return Path(text) if text else None
+
+    def _materialize_live_route_planner_context(
+        self,
+        handoff: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        errors: list[str] = []
+        output_paths: list[str] = []
+        standalone_seed_path = self._optional_handoff_path(
+            handoff,
+            "standalone_seed_path",
+        )
+        standalone_plan_dir = self._optional_handoff_path(
+            handoff,
+            "standalone_plan_dir",
+        )
+        if standalone_seed_path is not None and standalone_plan_dir is not None:
+            standalone_manifest = (
+                standalone_plan_dir
+                / "goal_conditioned_minimal_formalization_plan_manifest.json"
+            )
+            if not standalone_manifest.exists():
+                try:
+                    standalone_payload = (
+                        export_formalization_gap_planner_standalone_plan(
+                            standalone_seed_path,
+                            standalone_plan_dir,
+                            max_routes=20,
+                        )
+                    )
+                    if not standalone_payload.get("all_ok", False):
+                        errors.extend(
+                            str(error)
+                            for error in standalone_payload.get("errors", [])
+                            if str(error).strip()
+                        )
+                except Exception as exc:  # pragma: no cover - defensive live path.
+                    errors.append(
+                        "standalone_plan_materialization_failed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+            output_paths.append(str(standalone_manifest))
+        target_intake_path = self._optional_handoff_path(
+            handoff,
+            "target_intake_path",
+        )
+        target_intake_dir = self._optional_handoff_path(
+            handoff,
+            "target_intake_dir",
+        )
+        if target_intake_path is not None and target_intake_dir is not None:
+            target_manifest = (
+                target_intake_dir
+                / "formalization_gap_planner_target_intake_manifest.json"
+            )
+            if not target_manifest.exists():
+                try:
+                    target_payload = normalize_formalization_gap_planner_target_intake(
+                        target_intake_path,
+                        target_intake_dir,
+                    )
+                    if not target_payload.get("all_ok", False):
+                        errors.extend(
+                            str(error)
+                            for error in target_payload.get("errors", [])
+                            if str(error).strip()
+                        )
+                except Exception as exc:  # pragma: no cover - defensive live path.
+                    errors.append(
+                        "target_intake_materialization_failed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+            output_paths.append(str(target_manifest))
+        registry_dir = self._optional_handoff_path(
+            handoff,
+            "component_resource_registry_dir",
+        )
+        if registry_dir is not None:
+            registry_manifest = (
+                registry_dir
+                / "formalization_gap_planner_component_resource_registry_manifest.json"
+            )
+            if not registry_manifest.exists():
+                try:
+                    registry_payload = (
+                        export_formalization_gap_planner_component_resource_registry(
+                            registry_dir,
+                        )
+                    )
+                    if not registry_payload.get("all_ok", False):
+                        errors.extend(
+                            str(error)
+                            for error in registry_payload.get("errors", [])
+                            if str(error).strip()
+                        )
+                except Exception as exc:  # pragma: no cover - defensive live path.
+                    errors.append(
+                        "component_resource_registry_materialization_failed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+            output_paths.append(str(registry_manifest))
+        return {
+            "standalone_plan_dir": str(standalone_plan_dir or ""),
+            "target_intake_dir": str(target_intake_dir or ""),
+            "component_resource_registry_dir": str(registry_dir or ""),
+            "output_paths": output_paths,
+            "errors": errors,
+            "all_ok": not errors,
+        }
+
+    def _execute_live_route_planner(
+        self,
+        task: AgentTask,
+        handoff_rows: Sequence[Mapping[str, Any]],
+    ) -> tuple[dict[str, Any], ToolCallRecord]:
+        max_handoffs = self._live_route_planner_max_handoffs(task)
+        selected = self._bounded_live_route_handoffs(
+            handoff_rows,
+            max_handoffs=max_handoffs,
+        )
+        live_root = self.out_dir / "runtime_formalization_gap_planner_live_route_planner"
+        live_root.mkdir(parents=True, exist_ok=True)
+        provider = self._live_route_planner_provider(task)
+        model = self._live_route_planner_model(task)
+        model_tier = self._live_route_planner_model_tier(task)
+        max_tokens = self._live_route_planner_max_tokens(task)
+        temperature = self._live_route_planner_temperature(task)
+        max_repair_attempts = self._live_route_planner_max_repair_attempts(task)
+        timeout_seconds = self._live_route_planner_timeout_seconds(task)
+        generator_backend = self._live_route_planner_backend(
+            provider=provider,
+            timeout_seconds=timeout_seconds,
+        )
+        rows: list[dict[str, Any]] = []
+        output_paths: list[str] = []
+        errors: list[str] = []
+        for handoff in selected:
+            handoff_id = str(handoff.get("handoff_id", "") or "").strip()
+            slug = _safe_identifier(handoff_id or str(handoff.get("bridge_id", "")))
+            if not slug:
+                slug = "runtime_gap_planner_live_route"
+            out_dir = live_root / slug
+            standalone_seed_path = Path(
+                str(handoff.get("standalone_seed_path", "") or "").strip()
+            )
+            context_materialization = self._materialize_live_route_planner_context(
+                handoff
+            )
+            context_errors = [
+                str(error)
+                for error in context_materialization.get("errors", [])
+                if str(error).strip()
+            ]
+            errors.extend(context_errors)
+            output_paths.extend(
+                str(path)
+                for path in context_materialization.get("output_paths", [])
+                if str(path).strip()
+            )
+            try:
+                payload = export_formalization_gap_planner_llm_route_planner(
+                    standalone_seed_path,
+                    out_dir=out_dir,
+                    provider_name=provider,
+                    model=model,
+                    model_tier=model_tier,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    max_estimated_prompt_input_tokens=(
+                        RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+                    ),
+                    max_repair_attempts=max_repair_attempts,
+                    invoke_provider=True,
+                    generator_backend=generator_backend,
+                    formalization_gap_planner_target_intake_dir=(
+                        self._optional_handoff_path(handoff, "target_intake_dir")
+                    ),
+                    goal_conditioned_minimal_formalization_plan_dir=(
+                        self._optional_handoff_path(handoff, "standalone_plan_dir")
+                    ),
+                    formalization_gap_planner_component_resource_registry_dir=(
+                        self._optional_handoff_path(
+                            handoff,
+                            "component_resource_registry_dir",
+                        )
+                    ),
+                )
+                row_errors = [
+                    str(error)
+                    for error in [*context_errors, *payload.get("errors", [])]
+                    if str(error).strip()
+                ]
+                rows.append(
+                    {
+                        "handoff_id": handoff_id,
+                        "bridge_id": str(handoff.get("bridge_id", "") or ""),
+                        "standalone_seed_path": str(standalone_seed_path),
+                        "context_materialization": context_materialization,
+                        "out_dir": str(out_dir),
+                        "manifest_path": str(
+                            out_dir
+                            / "formalization_gap_planner_llm_route_planner_manifest.json"
+                        ),
+                        "all_ok": bool(payload.get("all_ok", False)),
+                        "n_request_packets": int(
+                            payload.get("n_request_packets", 0) or 0
+                        ),
+                        "n_response_present": int(
+                            payload.get("n_response_present", 0) or 0
+                        ),
+                        "n_response_contract_ok": int(
+                            payload.get("n_response_contract_ok", 0) or 0
+                        ),
+                        "n_provider_failures": int(
+                            payload.get("n_provider_failures", 0) or 0
+                        ),
+                        "n_awaiting_llm_response": int(
+                            payload.get("n_awaiting_llm_response", 0) or 0
+                        ),
+                        "n_route_adoption_ready": int(
+                            payload.get("n_route_adoption_ready", 0) or 0
+                        ),
+                        "n_route_adoption_pending_refinement": int(
+                            payload.get(
+                                "n_route_adoption_pending_refinement",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_route_adoption_awaiting_llm_response": int(
+                            payload.get(
+                                "n_route_adoption_awaiting_llm_response",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "total_provider_input_tokens": int(
+                            payload.get("total_provider_input_tokens", 0) or 0
+                        ),
+                        "total_provider_output_tokens": int(
+                            payload.get("total_provider_output_tokens", 0) or 0
+                        ),
+                        "total_provider_total_tokens": int(
+                            payload.get("total_provider_total_tokens", 0) or 0
+                        ),
+                        "errors": row_errors[:10],
+                        "proof_evidence_status": (
+                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                        ),
+                        "proof_evidence_boundary": (
+                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+                        ),
+                    }
+                )
+            except Exception as exc:  # pragma: no cover - exercised by live infra.
+                message = f"{type(exc).__name__}: {exc}"
+                errors.append(message)
+                rows.append(
+                    {
+                        "handoff_id": handoff_id,
+                        "bridge_id": str(handoff.get("bridge_id", "") or ""),
+                        "standalone_seed_path": str(standalone_seed_path),
+                        "context_materialization": context_materialization,
+                        "out_dir": str(out_dir),
+                        "all_ok": False,
+                        "n_request_packets": 0,
+                        "n_response_present": 0,
+                        "n_response_contract_ok": 0,
+                        "n_provider_failures": 1,
+                        "n_awaiting_llm_response": 0,
+                        "errors": [message],
+                        "proof_evidence_status": (
+                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                        ),
+                        "proof_evidence_boundary": (
+                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+                        ),
+                    }
+                )
+            output_paths.append(
+                str(
+                    out_dir
+                    / "formalization_gap_planner_llm_route_planner_manifest.json"
+                )
+            )
+        counts = {
+            "selected_handoffs": len(selected),
+            "requested_max_handoffs": max_handoffs,
+            "request_packets": sum(
+                int(row.get("n_request_packets", 0) or 0) for row in rows
+            ),
+            "response_present": sum(
+                int(row.get("n_response_present", 0) or 0) for row in rows
+            ),
+            "response_contract_ok": sum(
+                int(row.get("n_response_contract_ok", 0) or 0) for row in rows
+            ),
+            "provider_failures": sum(
+                int(row.get("n_provider_failures", 0) or 0) for row in rows
+            ),
+            "awaiting_llm_response": sum(
+                int(row.get("n_awaiting_llm_response", 0) or 0) for row in rows
+            ),
+            "route_adoption_ready": sum(
+                int(row.get("n_route_adoption_ready", 0) or 0) for row in rows
+            ),
+            "route_adoption_pending_refinement": sum(
+                int(row.get("n_route_adoption_pending_refinement", 0) or 0)
+                for row in rows
+            ),
+            "route_adoption_awaiting_llm_response": sum(
+                int(row.get("n_route_adoption_awaiting_llm_response", 0) or 0)
+                for row in rows
+            ),
+            "provider_input_tokens": sum(
+                int(row.get("total_provider_input_tokens", 0) or 0)
+                for row in rows
+            ),
+            "provider_output_tokens": sum(
+                int(row.get("total_provider_output_tokens", 0) or 0)
+                for row in rows
+            ),
+            "provider_total_tokens": sum(
+                int(row.get("total_provider_total_tokens", 0) or 0)
+                for row in rows
+            ),
+        }
+        all_responses_recorded = (
+            counts["selected_handoffs"] > 0
+            and counts["request_packets"] > 0
+            and counts["response_present"] == counts["request_packets"]
+            and counts["response_contract_ok"] == counts["request_packets"]
+            and counts["provider_failures"] == 0
+            and counts["awaiting_llm_response"] == 0
+            and not errors
+        )
+        manifest_id = (
+            "runtime_formalization_gap_planner_live_route_planner_manifest:"
+            + stable_hash([task.task_id, selected, rows, counts])[:20]
+        )
+        manifest_path = (
+            live_root
+            / "runtime_formalization_gap_planner_live_route_planner_manifest.json"
+        )
+        rows_path = (
+            live_root
+            / "runtime_formalization_gap_planner_live_route_planner_rows.jsonl"
+        )
+        manifest = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+            "manifest_id": manifest_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "task_id": task.task_id,
+            "provider_name": provider,
+            "model": model,
+            "model_tier": model_tier,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "max_repair_attempts": max_repair_attempts,
+            "timeout_seconds": timeout_seconds,
+            "max_estimated_prompt_input_tokens": (
+                RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+            ),
+            "live_llm_invoked": counts["selected_handoffs"] > 0,
+            "all_live_route_planner_responses_recorded": all_responses_recorded,
+            "counts": counts,
+            "rows": rows,
+            "errors": errors,
+            "manifest_path": str(manifest_path),
+            "rows_path": str(rows_path),
+            "proof_evidence_status": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
+            "proof_evidence_boundary": (
+                FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+            ),
+            "boundary": (
+                "This runtime manifest records live LLM route-planner proposal "
+                "generation only. The resulting route plans are not theorem proof "
+                "evidence and cannot close formal gaps without source-grounding "
+                "and target-prover replay."
+            ),
+        }
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, default=str),
+            encoding="utf-8",
+        )
+        _write_jsonl(rows_path, rows)
+        output_paths.extend([str(manifest_path), str(rows_path)])
+        tool_call = ToolCallRecord(
+            tool_name="formalization_gap_planner.llm_route_planner_live",
+            inputs={
+                "max_handoffs": max_handoffs,
+                "selected_handoffs": len(selected),
+                "provider_name": provider,
+                "model": model,
+                "model_tier": model_tier,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "max_repair_attempts": max_repair_attempts,
+                "timeout_seconds": timeout_seconds,
+            },
+            output_paths=tuple(output_paths),
+            input_hash=stable_hash([task.task_id, selected]),
+            output_hash=stable_hash([rows, counts, errors]),
+            exit_status="passed" if all_responses_recorded else "failed",
+            stdout_summary=(
+                f"handoffs={counts['selected_handoffs']} "
+                f"requests={counts['request_packets']} "
+                f"responses={counts['response_present']} "
+                f"contract_ok={counts['response_contract_ok']} "
+                f"provider_failures={counts['provider_failures']}"
+            ),
+            safety_boundary=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
+        )
+        return manifest, tool_call
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -12912,6 +13493,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             question_id=question.id,
         )
         planner_root = self.out_dir
+        planner_root.mkdir(parents=True, exist_ok=True)
         seed_dir = planner_root / "runtime_formalization_gap_planner_seeds"
         target_intake_dir = (
             planner_root / "runtime_formalization_gap_planner_target_intake"
@@ -13020,9 +13602,136 @@ class FormalizationGapPlannerRuntimeSubsystem:
             if handoff_id:
                 produced_artifacts[handoff_id] = handoff
         all_ok = bool(audit_payload.get("all_ok", False))
+        invoke_live_route_planner = bool(
+            task.inputs.get("invoke_live_route_planner", False)
+        )
+        live_route_planner_manifest: dict[str, Any] = {}
+        if invoke_live_route_planner and all_ok:
+            live_route_planner_manifest, live_tool_call = (
+                self._execute_live_route_planner(task, handoff_rows)
+            )
+            produced_artifacts[
+                str(live_route_planner_manifest["manifest_id"])
+            ] = live_route_planner_manifest
+            tool_calls.append(live_tool_call)
+        live_counts = (
+            dict(live_route_planner_manifest.get("counts", {}))
+            if isinstance(live_route_planner_manifest.get("counts", {}), Mapping)
+            else {}
+        )
+        live_route_planner_all_responses_recorded = bool(
+            live_route_planner_manifest.get(
+                "all_live_route_planner_responses_recorded",
+                False,
+            )
+        )
+        live_route_planner_followup_required = (
+            all_ok
+            and not invoke_live_route_planner
+            and bool(self.runtime_config.formalization_gap_planner_live_route_planner)
+            and int(audit_payload.get("n_llm_prompt_packets", 0) or 0) > 0
+            and int(audit_payload.get("n_llm_prompt_awaiting_response", 0) or 0)
+            > 0
+        )
+        live_route_planner_followup_task: AgentTask | None = None
+        if live_route_planner_followup_required:
+            max_handoffs = max(
+                0,
+                int(self.runtime_config.formalization_gap_planner_live_max_handoffs),
+            )
+            selected_handoff_ids = [
+                str(row.get("handoff_id", "") or "")
+                for row in self._bounded_live_route_handoffs(
+                    handoff_rows,
+                    max_handoffs=max_handoffs,
+                )
+                if str(row.get("handoff_id", "") or "").strip()
+            ]
+            live_route_planner_followup_task = AgentTask(
+                task_id=(
+                    "gap-planner-live-route:"
+                    + question.id
+                    + ":"
+                    + stable_hash(
+                        [
+                            task.task_id,
+                            selected_handoff_ids,
+                            max_handoffs,
+                            self.runtime_config.formalization_gap_planner_live_provider,
+                            self.runtime_config.formalization_gap_planner_live_model,
+                            self.runtime_config.formalization_gap_planner_live_model_tier,
+                        ]
+                    )[:12]
+                ),
+                owner_subsystem="FormalizationGapPlanner",
+                objective=(
+                    "Invoke the bounded live LLM route planner for staged "
+                    "formalization-gap handoffs and record response validation "
+                    "without treating route plans as proof evidence."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "environment_feedback": {
+                        **dict(environment_feedback),
+                        "failure_classification": (
+                            "formalization_gap_planner_live_route_planner_requested"
+                        ),
+                        "runtime_formalization_gap_planner_handoffs_jsonl": str(
+                            handoffs_path
+                        ),
+                        "selected_handoff_ids": selected_handoff_ids,
+                        "proof_evidence_status": (
+                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                        ),
+                    },
+                    "invoke_live_route_planner": True,
+                    "max_handoffs": max_handoffs,
+                    "provider": self.runtime_config.formalization_gap_planner_live_provider,
+                    "model": self.runtime_config.formalization_gap_planner_live_model,
+                    "model_tier": self.runtime_config.formalization_gap_planner_live_model_tier,
+                    "max_tokens": self.runtime_config.formalization_gap_planner_live_max_tokens,
+                    "temperature": self.runtime_config.formalization_gap_planner_live_temperature,
+                    "max_repair_attempts": (
+                        self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                    ),
+                    "timeout_seconds": (
+                        self.runtime_config.formalization_gap_planner_live_timeout_seconds
+                    ),
+                },
+                allowed_tools=(
+                    "model_backend",
+                    "formalization_gap_planner_llm_route_planner",
+                    "evidence_ledger",
+                ),
+                budget={
+                    "max_handoffs": max_handoffs,
+                    "live_llm_invocation_required": True,
+                },
+                expected_artifacts=(
+                    "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+                ),
+                acceptance_gate=(
+                    "At least one bounded live LLM route-planner response is "
+                    "recorded with response_contract_ok=true; route-planner "
+                    "outputs remain non-proof planning evidence."
+                ),
+                stop_condition=(
+                    "Stop after the bounded live route-planner manifest is "
+                    "written; source-grounding and target-prover replay remain "
+                    "separate downstream gates."
+                ),
+            )
         manifest_id = (
             "runtime_formalization_gap_planner_execution_manifest:"
-            + stable_hash([task.task_id, bridge_rows, handoff_rows, audit_payload])[:20]
+            + stable_hash(
+                [
+                    task.task_id,
+                    bridge_rows,
+                    handoff_rows,
+                    audit_payload,
+                    live_route_planner_manifest,
+                ]
+            )[:20]
         )
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -13080,12 +13789,38 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     audit_payload.get("n_reuse_smoke_cost_control_ok", 0) or 0
                 ),
             },
-            "live_llm_invoked": False,
+            "live_route_planner_requested": bool(
+                self.runtime_config.formalization_gap_planner_live_route_planner
+            ),
+            "live_route_planner_followup_required": (
+                live_route_planner_followup_required
+            ),
+            "live_route_planner_followup_task_id": (
+                live_route_planner_followup_task.task_id
+                if live_route_planner_followup_task is not None
+                else ""
+            ),
+            "live_route_planner_max_handoffs": int(
+                self.runtime_config.formalization_gap_planner_live_max_handoffs
+            ),
+            "live_route_planner_manifest_id": str(
+                live_route_planner_manifest.get("manifest_id", "") or ""
+            ),
+            "live_route_planner_manifest_path": str(
+                live_route_planner_manifest.get("manifest_path", "") or ""
+            ),
+            "live_route_planner_counts": live_counts,
+            "live_route_planner_all_responses_recorded": (
+                live_route_planner_all_responses_recorded
+            ),
+            "live_llm_invoked": bool(
+                live_route_planner_manifest.get("live_llm_invoked", False)
+            ),
             "live_llm_boundary": (
-                "The runtime FormalizationGapPlanner subsystem executes the "
-                "offline replay/prompt-staging smoke path only. The live Claude "
-                "route-planner stage remains explicit and operator-gated via the "
-                "handoff execution plan."
+                "Live route planning is disabled by default and must be "
+                "explicitly enabled. When enabled, the runtime invokes only a "
+                "bounded number of handoffs and records route-planner proposals "
+                "as non-proof planning evidence."
             ),
             "proof_evidence_status": FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
             "proof_evidence_boundary": FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
@@ -13102,6 +13837,14 @@ class FormalizationGapPlannerRuntimeSubsystem:
             artifact_id=manifest_id,
             evidence_type="formalization_gap_planner_runtime_execution",
             status=(
+                "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
+                if invoke_live_route_planner
+                and live_route_planner_all_responses_recorded
+                else "LIVE_ROUTE_PLANNER_BLOCKED_NOT_PROOF_EVIDENCE"
+                if invoke_live_route_planner
+                else "OFFLINE_HANDOFF_SMOKE_EXECUTED_LIVE_ROUTE_PLANNER_PENDING_NOT_PROOF_EVIDENCE"
+                if live_route_planner_followup_required
+                else
                 "OFFLINE_HANDOFF_SMOKE_EXECUTED_NOT_PROOF_EVIDENCE"
                 if all_ok
                 else "OFFLINE_HANDOFF_SMOKE_BLOCKED_NOT_PROOF_EVIDENCE"
@@ -13110,7 +13853,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
             payload={
                 **manifest["counts"],
                 "audit_all_ok": all_ok,
-                "live_llm_invoked": False,
+                "live_route_planner_followup_required": (
+                    live_route_planner_followup_required
+                ),
+                "live_route_planner_all_responses_recorded": (
+                    live_route_planner_all_responses_recorded
+                ),
+                "live_llm_invoked": bool(
+                    live_route_planner_manifest.get("live_llm_invoked", False)
+                ),
                 "proof_evidence_status": (
                     FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS
                 ),
@@ -13121,30 +13872,70 @@ class FormalizationGapPlannerRuntimeSubsystem:
             summary=(
                 f"bridge_rows={len(bridge_rows)} handoffs={len(handoff_rows)} "
                 f"audit_all_ok={all_ok} "
-                f"llm_prompt_packets={manifest['counts']['llm_prompt_packets']}"
+                f"llm_prompt_packets={manifest['counts']['llm_prompt_packets']} "
+                f"live_followup_required={live_route_planner_followup_required} "
+                f"live_responses={live_counts.get('response_present', 0)}"
             ),
             payload={
                 **manifest["counts"],
                 "audit_all_ok": all_ok,
-                "live_llm_invoked": False,
+                "live_route_planner_followup_required": (
+                    live_route_planner_followup_required
+                ),
+                "live_route_planner_counts": live_counts,
+                "live_llm_invoked": bool(
+                    live_route_planner_manifest.get("live_llm_invoked", False)
+                ),
             },
         )
-        return AgentStepResult(
-            status="ACCEPTED" if all_ok else "BLOCKED",
-            rationale=(
+        if invoke_live_route_planner:
+            status = (
+                "ACCEPTED" if live_route_planner_all_responses_recorded else "BLOCKED"
+            )
+            rationale = (
+                "FormalizationGapPlanner invoked the bounded live route planner "
+                "and recorded contract-valid LLM route-planner responses as "
+                "non-proof planning evidence."
+                if live_route_planner_all_responses_recorded
+                else "FormalizationGapPlanner could not record contract-valid "
+                "bounded live route-planner responses for the staged handoffs."
+            )
+            failure_classification = (
+                ""
+                if live_route_planner_all_responses_recorded
+                else "formalization_gap_planner_live_route_planner_blocked"
+            )
+        elif live_route_planner_followup_required:
+            status = "REVISE"
+            rationale = (
+                "FormalizationGapPlanner executed the offline handoff smoke path "
+                "and scheduled a bounded live route-planner follow-up instead of "
+                "ending with staged packets awaiting LLM response."
+            )
+            failure_classification = (
+                "formalization_gap_planner_live_route_planner_requested"
+            )
+        else:
+            status = "ACCEPTED" if all_ok else "BLOCKED"
+            rationale = (
                 "FormalizationGapPlanner executed the offline handoff smoke path "
                 "and staged route-planner prompts without invoking the live LLM."
                 if all_ok
                 else "FormalizationGapPlanner could not execute a valid runtime "
                 "handoff smoke path from the available bridge artifacts."
-            ),
+            )
+            failure_classification = (
+                "" if all_ok else "formalization_gap_planner_handoff_blocked"
+            )
+        return AgentStepResult(
+            status=status,
+            rationale=rationale,
             produced_artifacts=produced_artifacts,
             observations=(observation,),
             tool_calls=tuple(tool_calls),
             evidence_entries=(evidence,),
-            failure_classification=(
-                "" if all_ok else "formalization_gap_planner_handoff_blocked"
-            ),
+            next_task=live_route_planner_followup_task,
+            failure_classification=failure_classification,
         )
 
 
@@ -14026,6 +14817,7 @@ def run_research_agent_runtime(
             "ProofEngineer": proofengineer_subsystem,
             "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
                 out_dir=out_dir,
+                runtime_config=config,
             ),
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(
                 proposal_agent=critic_evaluator,

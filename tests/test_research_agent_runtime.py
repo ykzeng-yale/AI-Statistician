@@ -1585,6 +1585,9 @@ def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_sm
     )
     assert manifest["audit_all_ok"] is True
     assert manifest["live_llm_invoked"] is False
+    assert manifest["live_route_planner_requested"] is False
+    assert manifest["live_route_planner_followup_required"] is False
+    assert manifest["live_route_planner_followup_task_id"] == ""
     assert manifest["counts"]["bridge_rows"] == 1
     assert manifest["counts"]["handoff_rows"] == 1
     assert manifest["counts"]["llm_prompt_packets"] >= 1
@@ -1599,6 +1602,192 @@ def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_sm
     assert any(
         row.evidence_type == "formalization_gap_planner_runtime_execution"
         and row.payload["live_llm_invoked"] is False
+        for row in result.evidence_entries
+    )
+
+
+def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when_enabled(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-runtime-live-followup-test")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:test-live-followup",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute gap-planner handoff smoke and schedule live route planning.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "failure_classification": (
+                    "critic_requested_formalization_gap_planner_execution"
+                ),
+                "packet_validation_escalation": {
+                    "escalation_kind": (
+                        "formalizer_repeated_syntax_packet_validation_loop"
+                    )
+                },
+            },
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+        runtime_config=ResearchAgentRuntimeConfig(
+            formalization_gap_planner_live_route_planner=True,
+            formalization_gap_planner_live_max_handoffs=1,
+            formalization_gap_planner_live_provider="anthropic",
+            formalization_gap_planner_live_model_tier="auto",
+        ),
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalization_gap_planner_live_route_planner_requested"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.next_task.task_id.startswith("gap-planner-live-route:")
+    assert result.next_task.inputs["invoke_live_route_planner"] is True
+    assert result.next_task.inputs["max_handoffs"] == 1
+    assert result.next_task.inputs["provider"] == "anthropic"
+    assert result.next_task.inputs["model_tier"] == "auto"
+    assert result.next_task.inputs["timeout_seconds"] > 0
+    assert result.next_task.expected_artifacts == (
+        "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    assert manifest["audit_all_ok"] is True
+    assert manifest["live_llm_invoked"] is False
+    assert manifest["live_route_planner_requested"] is True
+    assert manifest["live_route_planner_followup_required"] is True
+    assert manifest["live_route_planner_followup_task_id"] == result.next_task.task_id
+    assert manifest["live_route_planner_max_handoffs"] == 1
+    assert manifest["counts"]["llm_prompt_packets"] >= 1
+    assert manifest["audit_payload"]["n_llm_prompt_awaiting_response"] >= 1
+    assert any(
+        row.evidence_type == "formalization_gap_planner_runtime_execution"
+        and row.status
+        == "OFFLINE_HANDOFF_SMOKE_EXECUTED_LIVE_ROUTE_PLANNER_PENDING_NOT_PROOF_EVIDENCE"
+        for row in result.evidence_entries
+    )
+
+
+def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-runtime-live-task-test")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:causal_ate_aipw:test",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute bounded live route planner.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "provider": "anthropic",
+            "model": "",
+            "model_tier": "auto",
+            "max_tokens": 9000,
+            "temperature": 0.1,
+            "max_repair_attempts": 1,
+            "environment_feedback": {
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_requested"
+                )
+            },
+        },
+    )
+    calls: list[dict[str, object]] = []
+
+    def fake_export_formalization_gap_planner_llm_route_planner(
+        standalone_input_json: Path,
+        out_dir: Path | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        calls.append(
+            {
+                "standalone_input_json": standalone_input_json,
+                "out_dir": out_dir,
+                **kwargs,
+            }
+        )
+        assert out_dir is not None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text("{}", encoding="utf-8")
+        return {
+            "all_ok": True,
+            "n_request_packets": 2,
+            "n_response_present": 2,
+            "n_response_contract_ok": 2,
+            "n_provider_failures": 0,
+            "n_awaiting_llm_response": 0,
+            "n_route_adoption_ready": 1,
+            "n_route_adoption_pending_refinement": 1,
+            "n_route_adoption_awaiting_llm_response": 0,
+            "total_provider_input_tokens": 123,
+            "total_provider_output_tokens": 45,
+            "total_provider_total_tokens": 168,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "export_formalization_gap_planner_llm_route_planner",
+        fake_export_formalization_gap_planner_llm_route_planner,
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    assert result.next_task is None
+    assert result.failure_classification == ""
+    assert len(calls) == 1
+    assert calls[0]["invoke_provider"] is True
+    assert calls[0]["provider_name"] == "anthropic"
+    assert calls[0]["model_tier"] == "auto"
+    assert Path(str(calls[0]["formalization_gap_planner_target_intake_dir"])).exists()
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    live_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest"
+    )
+    assert manifest["live_llm_invoked"] is True
+    assert manifest["live_route_planner_all_responses_recorded"] is True
+    assert manifest["live_route_planner_counts"]["response_present"] == 2
+    assert manifest["live_route_planner_counts"]["response_contract_ok"] == 2
+    assert live_manifest["all_live_route_planner_responses_recorded"] is True
+    assert live_manifest["counts"]["provider_total_tokens"] == 168
+    assert Path(live_manifest["manifest_path"]).exists()
+    assert any(
+        tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
+        and tool.exit_status == "passed"
+        for tool in result.tool_calls
+    )
+    assert any(
+        row.evidence_type == "formalization_gap_planner_runtime_execution"
+        and row.status == "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
         for row in result.evidence_entries
     )
 
