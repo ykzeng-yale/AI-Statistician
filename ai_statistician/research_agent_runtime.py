@@ -4975,16 +4975,59 @@ class SimulationEvaluatorRuntimeSubsystem:
                 next_task=next_task,
                 failure_classification=generated_simulation_failure_classification,
             )
-        if implementation_gaps:
-            observations.append(
-                EnvironmentObservation(
-                    observation_type="implementation_gap",
-                    summary="LLM estimator specs are not yet executable registered algorithms.",
-                    payload={"implementation_gaps": implementation_gaps},
+        generated_algorithm_sandbox_manifest_id = ""
+        if implementation_gaps and _runtime_requires_generated_algorithm_code(
+            effective_context,
+            environment_feedback,
+        ):
+            generated_algorithm_sandbox_manifest_id = (
+                _runtime_generated_algorithm_sandbox_passed_manifest_id(
+                    blackboard,
+                    question_id=question.id,
+                    theory_packet_id=packet_id,
+                    required_estimator_ids=_implementation_gap_estimator_ids(
+                        implementation_gaps
+                    ),
                 )
             )
+        if implementation_gaps:
+            if generated_algorithm_sandbox_manifest_id:
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "implementation_gap_covered_by_generated_algorithm_sandbox"
+                        ),
+                        summary=(
+                            "Implementation gaps remain unregistered production "
+                            "adapters, but capability-eval generated algorithm "
+                            "sandbox evidence already passed for the gap ids."
+                        ),
+                        payload={
+                            "implementation_gaps": implementation_gaps,
+                            "algorithm_sandbox_manifest_id": (
+                                generated_algorithm_sandbox_manifest_id
+                            ),
+                            "boundary": (
+                                "Generated algorithm sandbox evidence is executable "
+                                "engineering evidence only; it is not production "
+                                "registration and not theorem proof evidence."
+                            ),
+                        },
+                    )
+                )
+            else:
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="implementation_gap",
+                        summary=(
+                            "LLM estimator specs are not yet executable registered "
+                            "algorithms."
+                        ),
+                        payload={"implementation_gaps": implementation_gaps},
+                    )
+                )
         if simulation_passed:
-            if implementation_gaps:
+            if implementation_gaps and not generated_algorithm_sandbox_manifest_id:
                 next_task = AgentTask(
                     task_id=f"algorithm:{question.id}:{stable_hash([packet_id, manifest_id])[:8]}",
                     owner_subsystem="AlgorithmEngineer",
@@ -5019,6 +5062,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     question=question,
                     packet_id=packet_id,
                     simulation_manifest_id=manifest_id,
+                    algorithm_sandbox_manifest_id=(
+                        generated_algorithm_sandbox_manifest_id
+                    ),
                     architect_context=effective_context,
                 )
             return AgentStepResult(
@@ -30308,6 +30354,67 @@ def _runtime_generated_simulation_sandbox_passed_observed(
             ):
                 return True
     return False
+
+
+def _implementation_gap_estimator_ids(
+    implementation_gaps: Iterable[Mapping[str, Any]],
+) -> set[str]:
+    ids: set[str] = set()
+    for row in implementation_gaps:
+        if not isinstance(row, Mapping):
+            continue
+        estimator_id = str(row.get("estimator_id", "") or "").strip()
+        if estimator_id:
+            ids.add(estimator_id)
+    return ids
+
+
+def _runtime_generated_algorithm_sandbox_passed_manifest_id(
+    blackboard: BlackboardState,
+    *,
+    question_id: str = "",
+    theory_packet_id: str = "",
+    required_estimator_ids: Iterable[str] = (),
+) -> str:
+    required_ids = {
+        str(row).strip()
+        for row in required_estimator_ids
+        if str(row).strip()
+    }
+    for artifact in blackboard.artifacts.values():
+        if not isinstance(artifact, Mapping):
+            continue
+        if artifact.get("artifact_kind") != "RuntimeAlgorithmSandboxManifest":
+            continue
+        if question_id:
+            artifact_question = artifact.get("question", {})
+            artifact_question_id = (
+                str(artifact_question.get("id", "") or "")
+                if isinstance(artifact_question, Mapping)
+                else ""
+            )
+            if artifact_question_id and artifact_question_id != question_id:
+                continue
+        artifact_packet_id = str(artifact.get("theory_packet_id", "") or "")
+        if theory_packet_id and artifact_packet_id != theory_packet_id:
+            continue
+        passed_ids: set[str] = set()
+        for row in artifact.get("prototypes", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            if (
+                str(row.get("executor", "") or "") == "generated_python_sandbox"
+                and row.get("prototype_status") == "EXECUTED"
+                and row.get("smoke_passed") is True
+            ):
+                estimator_id = str(row.get("estimator_id", "") or "").strip()
+                if estimator_id:
+                    passed_ids.add(estimator_id)
+        if required_ids and not required_ids.issubset(passed_ids):
+            continue
+        if passed_ids or int(artifact.get("n_passed", 0) or 0) > 0:
+            return str(artifact.get("manifest_id", "") or "")
+    return ""
 
 
 def _runtime_generated_simulation_required_before_formalization(

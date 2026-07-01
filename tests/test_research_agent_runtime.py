@@ -17191,6 +17191,139 @@ def test_algorithm_success_formalizes_after_generated_simulation_already_passed(
     assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
 
 
+def test_simulation_pass_uses_existing_generated_algorithm_evidence_for_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-after-generated-algorithm"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:generated_algorithm_passed"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [
+                    {
+                        "id": "custom_estimator",
+                        "name": "Custom estimator requiring generated code",
+                    }
+                ],
+                "simulation_ademp_spec": {"aim": "stress generated simulation"},
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "question": {"id": question.id, "title": question.title},
+                "theory_packet_id": theory_packet_id,
+                "prototypes": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "executor": "generated_python_sandbox",
+                        "prototype_status": "EXECUTED",
+                        "smoke_passed": True,
+                        "metric_gate_errors": [],
+                    }
+                ],
+                "n_passed": 1,
+                "n_generated_code_executed": 1,
+                "proof_evidence_status": "ALGORITHM_SANDBOX_NOT_PROOF_EVIDENCE",
+            },
+        },
+    )
+
+    class PassingSimulationEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "simulation_engineer_proposal:passes_after_algorithm",
+                "simulation_targets": [
+                    {
+                        "simulation_id": "generated_coverage_probe",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260701,
+                },
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "generated_coverage_probe",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    seed_offset = (int(seed) % 7) * 0.0\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'coverage_95': 1.0,\n"
+                            "        'mean_width': 1.0 + seed_offset,\n"
+                            "        'n_replicates': n,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=PassingSimulationEngineer(),
+        sandbox_root=tmp_path / "generated_simulation_sandbox",
+    ).run(
+        AgentTask(
+            task_id="simulation:after-generated-algorithm",
+            owner_subsystem="SimulationEvaluator",
+            objective="Do not repeat AlgorithmEngineer after generated algorithm pass.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "theory_packet_id": theory_packet_id,
+                "n_runs": 12,
+                "seed": 20260701,
+                "architect_context": {
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_algorithm_code": True,
+                        "capability_eval_requires_generated_simulation_code": True,
+                    },
+                },
+            },
+            expected_artifacts=("simulation_manifest",),
+        ),
+        blackboard,
+    )
+
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("simulation_manifest:")
+    )
+
+    assert result.status == "REROUTE"
+    assert manifest["n_generated_simulation_sandbox_passed"] == 1
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert (
+        result.next_task.inputs["algorithm_sandbox_manifest_id"]
+        == algorithm_manifest_id
+    )
+    assert any(
+        row.observation_type
+        == "implementation_gap_covered_by_generated_algorithm_sandbox"
+        for row in result.observations
+    )
+
+
 def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_code(
     tmp_path: Path,
 ) -> None:
