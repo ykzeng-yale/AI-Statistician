@@ -74,6 +74,7 @@ from ai_statistician.formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
     _normalize_formalizer_packet,
     _validate_capability_eval_formalizer_lean_candidate_packet,
+    _validate_source_theorem_candidate_materialization_packet,
     build_formalizer_prompt,
     validate_formalizer_packet,
 )
@@ -7037,6 +7038,123 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
     assert errors == []
 
 
+def test_formalizer_materialization_validator_rejects_formal_gap_only_packet() -> None:
+    errors = _validate_source_theorem_candidate_materialization_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "thm_aipw_normality",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "thm_aipw_normality",
+                        "target_ids": ["aipw_asymptotic_normality"],
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "h_helper",
+                    "premise_derivation_candidate_lean_source": (
+                        "theorem helper_candidate (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_names": [
+                "thm_aipw_normality"
+            ],
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "aipw_asymptotic_normality"
+            ],
+        },
+    )
+
+    assert errors == [
+        "source_theorem_exact_candidate_materialization_required requires "
+        "a concrete source-theorem formal_targets entry with "
+        "expected_status=NEEDS_KERNEL_CHECK, nonempty Lean theorem/lemma "
+        "sketch, and source_theorem_target_provenance. "
+        "source_theorem_target_known=true; FORMAL_GAP and helper/support "
+        "candidates do not satisfy this materialization gate"
+    ]
+
+
+def test_formalizer_materialization_validator_accepts_exact_source_candidate() -> None:
+    errors = _validate_source_theorem_candidate_materialization_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "thm_aipw_normality",
+                    "lean_statement_sketch": (
+                        "theorem thm_aipw_normality "
+                        "(claim : Prop) (h_claim : claim) : claim := by\n"
+                        "  exact h_claim\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "thm_aipw_normality",
+                        "source_theorem_goal_id": "aipw_asymptotic_normality",
+                        "target_ids": ["aipw_asymptotic_normality"],
+                    },
+                }
+            ],
+        },
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_names": [
+                "thm_aipw_normality"
+            ],
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "aipw_asymptotic_normality"
+            ],
+        },
+    )
+
+    assert errors == []
+
+
+def test_formalizer_materialization_validator_rejects_wrong_target_identity() -> None:
+    errors = _validate_source_theorem_candidate_materialization_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "unrelated_source_theorem",
+                    "lean_statement_sketch": (
+                        "theorem unrelated_source_theorem "
+                        "(claim : Prop) (h_claim : claim) : claim := by\n"
+                        "  exact h_claim\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "unrelated_source_theorem",
+                        "target_ids": ["unrelated_goal"],
+                    },
+                }
+            ],
+        },
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "aipw_asymptotic_normality"
+            ],
+        },
+    )
+
+    assert errors == [
+        "source_theorem_exact_candidate_materialization_required "
+        "formal_targets candidate must preserve a requested target id/name: "
+        "aipw_asymptotic_normality"
+    ]
+
+
 def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
@@ -13323,6 +13441,58 @@ def test_runtime_learning_memory_materialization_pin_key_preserves_target_identi
         ("aipw_asymptotic_normality",),
         ("thm_aipw_normality",),
     }
+
+
+def test_exact_candidate_repair_memory_preserves_materialization_target_ids() -> None:
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "learning_task": "source_theorem_formal_environment_repair_feedback",
+                "target_theorem_name": "thm_aipw_normality",
+                "target_ids": ["thm_aipw_normality"],
+                "candidate_materialization_required": True,
+                "input_summary": {
+                    "candidate_materialization_required": True,
+                    "failure_classification": (
+                        "source_theorem_candidate_materialization_required"
+                    ),
+                },
+            },
+            {
+                "learning_task": "source_theorem_formal_environment_repair_feedback",
+                "target_theorem_name": "thm_aipw_normality",
+                "target_ids": ["aipw_asymptotic_normality"],
+                "candidate_materialization_required": True,
+                "input_summary": {
+                    "candidate_materialization_required": True,
+                    "failure_classification": (
+                        "source_theorem_candidate_materialization_required"
+                    ),
+                },
+            },
+        ],
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert [row["target_ids"] for row in repairs] == [
+        ["thm_aipw_normality"],
+        ["aipw_asymptotic_normality"],
+    ]
+    assert summary["source_theorem_candidate_materialization_required_target_ids"] == [
+        "thm_aipw_normality",
+        "aipw_asymptotic_normality",
+    ]
 
 
 def test_runtime_learning_memory_loader_pins_verified_premise_adapter_context(
@@ -32699,6 +32869,8 @@ def test_critic_memory_routes_candidate_materialization_blocker_request() -> Non
     materialization_row = {
         "learning_task": "source_theorem_formal_environment_repair_feedback",
         "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
         "candidate_materialization_required": True,
         "candidate_materialization_statuses": [
             "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
@@ -32711,6 +32883,7 @@ def test_critic_memory_routes_candidate_materialization_blocker_request() -> Non
         "input_summary": {
             "trigger": "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_REQUIRED",
             "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
             "candidate_artifact_path": "",
             "failure_classification": "formal_environment_placeholder_primitives",
             "candidate_materialization_required": True,
@@ -32752,6 +32925,9 @@ def test_critic_memory_routes_candidate_materialization_blocker_request() -> Non
     assert summary["source_theorem_exact_candidate_environment_gap"] is True
     assert summary["source_theorem_candidate_materialization_required"] is True
     assert summary["source_theorem_candidate_materialization_required_target_names"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["source_theorem_candidate_materialization_required_target_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
     assert summary["source_theorem_candidate_materialization_required_statuses"] == [
@@ -32861,6 +33037,9 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
     assert summary["source_theorem_candidate_materialization_required_target_names"] == [
         "split_conformal_finite_sample_coverage"
     ]
+    assert summary["source_theorem_candidate_materialization_required_target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert summary["source_theorem_candidate_materialization_required_statuses"] == [
         "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
         "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
@@ -32927,6 +33106,9 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
     assert agenda[0]["recommended_formalizer_target_mode"] == (
         "source_theorem_exact_candidate_materialization_required"
     )
+    assert agenda[0]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
     assert agenda[0]["candidate_materialization_statuses"] == [
         "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
         "EXACT_SOURCE_THEOREM_TARGET_LOCATION_MISSING",
@@ -32952,6 +33134,7 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
     )
     assert "source_theorem_candidate_materialization_contract" in prompt
     assert "For source_theorem_exact_candidate_materialization_required" in prompt
+    assert "Materialization target id(s): split_conformal_finite_sample_coverage" in prompt
     assert "formal_gap:source_theorem_candidate_materialization" in prompt
     assert "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION" in prompt
     assert "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY" in prompt

@@ -126,6 +126,15 @@ class LLMFormalizerProofEngineerAgent:
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_formalizer_packet(packet)
+            errors.extend(
+                _validate_source_theorem_candidate_materialization_packet(
+                    packet,
+                    environment_feedback=environment_feedback or {},
+                    proof_bank_runtime_memory_summary=(
+                        proof_bank_runtime_memory_summary or {}
+                    ),
+                )
+            )
             if requires_lean_candidate:
                 errors.extend(
                     _validate_capability_eval_formalizer_lean_candidate_packet(
@@ -1264,6 +1273,165 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 f"{premise_id} Lean sketch {placeholder_error}"
             )
     return errors
+
+
+def _source_theorem_candidate_materialization_context(
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    proof_summary = (
+        proof_bank_runtime_memory_summary
+        if isinstance(proof_bank_runtime_memory_summary, Mapping)
+        else {}
+    )
+    feedback = environment_feedback if isinstance(environment_feedback, Mapping) else {}
+    required = bool(
+        proof_summary.get("source_theorem_candidate_materialization_required")
+        or proof_summary.get("recommended_formalizer_target_mode")
+        == "source_theorem_exact_candidate_materialization_required"
+    )
+    target_names = [
+        str(value).strip()
+        for value in proof_summary.get(
+            "source_theorem_candidate_materialization_required_target_names",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    target_ids = [
+        str(value).strip()
+        for value in proof_summary.get(
+            "source_theorem_candidate_materialization_required_target_ids",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    for row in feedback.get("high_priority_agenda", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("id", "") or "")
+            == "formal_gap:source_theorem_candidate_materialization"
+            or str(row.get("recommended_formalizer_target_mode", "") or "")
+            == "source_theorem_exact_candidate_materialization_required"
+        ):
+            required = True
+            target_ids.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
+    for row in feedback.get("formal_blocker_resource_requests", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("blocker_kind", "") or "")
+            == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+        ):
+            required = True
+            target_ids.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
+    return {
+        "required": required,
+        "target_names": list(dict.fromkeys(target_names)),
+        "target_ids": list(dict.fromkeys(target_ids)),
+    }
+
+
+def _formal_target_materialization_identity_tokens(
+    row: Mapping[str, Any],
+) -> set[str]:
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    tokens: list[str] = []
+    for source in (row, provenance):
+        for key in (
+            "id",
+            "target_id",
+            "target_ids",
+            "target_theorem_goal_ids",
+            "target_theorem_name",
+            "target_lean_declaration",
+            "source_theorem_goal_id",
+            "source_theorem_goal_ids",
+            "source_formal_target_id",
+        ):
+            value = source.get(key)
+            if isinstance(value, list | tuple | set):
+                tokens.extend(str(item).strip() for item in value)
+            else:
+                tokens.append(str(value or "").strip())
+    return {token for token in tokens if token}
+
+
+def _validate_source_theorem_candidate_materialization_packet(
+    packet: Mapping[str, Any],
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> list[str]:
+    context = _source_theorem_candidate_materialization_context(
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+    )
+    if not context["required"]:
+        return []
+    formal_targets = [
+        row
+        for row in packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+    ]
+    source_candidates: list[Mapping[str, Any]] = []
+    for row in formal_targets:
+        source = str(row.get("lean_statement_sketch", "") or "").strip()
+        provenance = (
+            row.get("source_theorem_target_provenance", {})
+            if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+            else {}
+        )
+        if (
+            str(row.get("expected_status", "") or "") == "NEEDS_KERNEL_CHECK"
+            and source
+            and not source.startswith("FORMAL_GAP")
+            and re.search(r"\b(theorem|lemma)\b", source)
+            and _source_theorem_target_known(provenance) is True
+        ):
+            source_candidates.append(row)
+    errors: list[str] = []
+    if not source_candidates:
+        errors.append(
+            "source_theorem_exact_candidate_materialization_required requires "
+            "a concrete source-theorem formal_targets entry with "
+            "expected_status=NEEDS_KERNEL_CHECK, nonempty Lean theorem/lemma "
+            "sketch, and source_theorem_target_provenance. "
+            "source_theorem_target_known=true; FORMAL_GAP and helper/support "
+            "candidates do not satisfy this materialization gate"
+        )
+        return errors
+    requested_targets = set(context["target_ids"] or context["target_names"])
+    if requested_targets:
+        matched = any(
+            requested_targets
+            & _formal_target_materialization_identity_tokens(row)
+            for row in source_candidates
+        )
+        if not matched:
+            errors.append(
+                "source_theorem_exact_candidate_materialization_required "
+                "formal_targets candidate must preserve a requested target "
+                "id/name: "
+                + ", ".join(sorted(requested_targets))
+            )
+    return sorted(set(errors))
 
 
 def _pending_source_to_bridge_premise_names_for_capability_eval(
@@ -3738,13 +3906,28 @@ def _formalizer_mode_specific_instructions(
             or []
             if str(value).strip()
         ]
+        target_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
         for row in materialization_agenda_rows:
             targets.extend(
                 str(value).strip()
                 for value in row.get("target_ids", []) or []
                 if str(value).strip()
             )
+            target_ids.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
         targets = list(dict.fromkeys(targets))[:4]
+        target_ids = list(dict.fromkeys(target_ids))[:4]
         statuses = [
             str(value).strip()
             for value in proof_memory_summary.get(
@@ -3799,6 +3982,12 @@ def _formalizer_mode_specific_instructions(
         )
         if targets:
             instruction += " Materialization target(s): " + ", ".join(targets) + "."
+        if target_ids:
+            instruction += (
+                " Materialization target id(s): "
+                + ", ".join(target_ids)
+                + "."
+            )
         if statuses:
             instruction += " Blocking status(es): " + ", ".join(statuses) + "."
         if materialization_contract:
@@ -5722,6 +5911,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_exact_candidate_environment_gap",
         "source_theorem_candidate_materialization_required",
         "source_theorem_candidate_materialization_required_target_names",
+        "source_theorem_candidate_materialization_required_target_ids",
         "source_theorem_candidate_materialization_required_statuses",
         "source_theorem_candidate_materialization_missing_formal_symbols",
         "source_theorem_candidate_materialization_contract",
@@ -6218,6 +6408,15 @@ def _source_theorem_candidate_materialization_contract(
             str(value).strip()
             for value in proof_memory_summary.get(
                 "source_theorem_candidate_materialization_required_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "target_ids": [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_ids",
                 [],
             )
             or []

@@ -28522,6 +28522,15 @@ def _critic_formal_blocker_resource_requests(
             or []
             if str(value).strip()
         ]
+        materialization_target_ids = [
+            str(value).strip()
+            for value in proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_required_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
         materialization_statuses = [
             str(value).strip()
             for value in proof_bank_memory_summary.get(
@@ -28567,7 +28576,8 @@ def _critic_formal_blocker_resource_requests(
             blocker_kind="SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED",
             blocker="; ".join(blocker_parts),
             next_owner="Formalizer/ProofEngineer/LeanProver",
-            target_ids_override=materialization_targets,
+            target_ids_override=materialization_target_ids
+            or materialization_targets,
         )
 
     for row in agenda:
@@ -31341,6 +31351,13 @@ def _critic_next_action_agenda(
                     ),
                     "target_ids": list(
                         proof_bank_memory_summary.get(
+                            "source_theorem_candidate_materialization_required_target_ids",
+                            [],
+                        )
+                        or []
+                    )
+                    or list(
+                        proof_bank_memory_summary.get(
                             "source_theorem_candidate_materialization_required_target_names",
                             [],
                         )
@@ -32924,7 +32941,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         return ()
     rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
     repairs: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[Any, ...]] = set()
     for row in rows:
         if not isinstance(row, Mapping):
             continue
@@ -33291,6 +33308,23 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         target = str(row.get("target_theorem_name", "") or "").strip()
         if not target and isinstance(input_summary, Mapping):
             target = str(input_summary.get("target_theorem_name", "") or "").strip()
+        target_ids = _runtime_exact_semantic_definition_target_ids(
+            row,
+            target_theorem_name="",
+        )
+        if not target_ids and candidate_materialization_required and target:
+            target_ids = [target]
+        target_theorem_goal_ids = list(
+            _str_tuple(
+                row.get("target_theorem_goal_ids", [])
+                or (
+                    input_summary.get("target_theorem_goal_ids", [])
+                    if isinstance(input_summary, Mapping)
+                    else []
+                )
+                or target_ids
+            )
+        )
         diagnostics: list[str] = []
         failure_classification = ""
         lookup_status = ""
@@ -34170,6 +34204,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )[:16]
         key = (
             target,
+            tuple(target_ids),
             trigger,
             premise_dedupe_key,
             premise_kernel_verified_dedupe_key,
@@ -34987,6 +35022,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         repairs.append(
             {
                 "target_theorem_name": target,
+                "target_ids": list(target_ids),
+                "target_theorem_goal_ids": list(
+                    dict.fromkeys(target_theorem_goal_ids or target_ids)
+                ),
                 "trigger": trigger,
                 "placeholder_symbol": placeholder_symbol,
                 "source_theorem_target_identity_status": (
@@ -36888,6 +36927,19 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(row.get("target_theorem_name", "") or "").strip()
         )
     )
+    exact_candidate_materialization_required_target_ids = tuple(
+        dict.fromkeys(
+            target_id
+            for row in exact_candidate_materialization_required_rows
+            for target_id in _runtime_exact_semantic_definition_target_ids(
+                row,
+                target_theorem_name=str(
+                    row.get("target_theorem_name", "") or ""
+                ).strip(),
+            )
+            if target_id
+        )
+    )
     exact_candidate_materialization_required_statuses = tuple(
         dict.fromkeys(
             str(status).strip()
@@ -37896,6 +37948,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "source_theorem_candidate_materialization_required_target_names": list(
             exact_candidate_materialization_required_targets
         ),
+        "source_theorem_candidate_materialization_required_target_ids": list(
+            exact_candidate_materialization_required_target_ids
+        ),
         "source_theorem_candidate_materialization_required_statuses": list(
             exact_candidate_materialization_required_statuses
         ),
@@ -38258,6 +38313,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
             {
                 "target_theorem_name": str(
                     row.get("target_theorem_name", "") or ""
+                ),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
                 ),
                 "trigger": str(row.get("trigger", "") or ""),
                 "failure_classification": str(
