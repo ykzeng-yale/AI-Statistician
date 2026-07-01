@@ -16724,6 +16724,260 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
     )
 
 
+def test_algorithm_success_routes_to_required_generated_simulation_before_formalization(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:algorithm-before-generated-simulation"
+    simulation_manifest_id = "simulation_manifest:registered_only"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "custom_estimator",
+                        "name": "Custom conformal estimator",
+                        "algorithm_sketch": "Requires generated sandbox adapter.",
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "question": {"id": question.id, "title": question.title},
+                "theory_packet_id": theory_packet_id,
+                "simulation_passed": True,
+                "n_generated_simulation_sandbox_prototypes": 0,
+                "n_generated_simulation_sandbox_executed": 0,
+                "n_generated_simulation_sandbox_passed": 0,
+            },
+        },
+    )
+
+    class PassingAlgorithmEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "algorithm_engineer_proposal:passes-before-simulation",
+                "implementation_targets": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "registered_template_hint": "none",
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    state = int(seed) % (2**31)\n"
+                            "    covered = 0\n"
+                            "    width_total = 0.0\n"
+                            "    for i in range(n):\n"
+                            "        state = (state * 1103515245 + 12345 + i) % (2**31)\n"
+                            "        covered = covered + (0 if state % 10 == 0 else 1)\n"
+                            "        width_total = width_total + 1.0 + ((state % 7) / 100.0)\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': covered / n,\n"
+                            "        'mean_width': width_total / n,\n"
+                            "        'replicates': n,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+            }
+
+    result = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "generated_algorithm_sandbox",
+        n_runs=12,
+        seed=20260630,
+        proposal_agent=PassingAlgorithmEngineer(),  # type: ignore[arg-type]
+        timeout_s=20,
+    ).run(
+        AgentTask(
+            task_id="algorithm:route-generated-simulation",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Do not formalize before required generated simulation evidence.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "theory_packet_id": theory_packet_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                        "reason": "Capability eval requires generated code execution.",
+                    }
+                ],
+                "n_runs": 12,
+                "seed": 20260630,
+                "architect_context": {
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_algorithm_code": True,
+                        "capability_eval_requires_generated_simulation_code": True,
+                    },
+                },
+            },
+            expected_artifacts=("algorithm_sandbox_manifest",),
+        ),
+        blackboard,
+    )
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("algorithm_sandbox_manifest:")
+    )
+
+    assert result.status == "REROUTE"
+    assert manifest["n_generated_code_executed"] == 1
+    assert manifest["n_passed"] == 1
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["theory_packet_id"] == theory_packet_id
+    assert result.next_task.inputs["environment_feedback"]["capability_id"] == (
+        "generated_simulation_code_executed_locally"
+    )
+    assert result.next_task.inputs["environment_feedback"][
+        "failure_classification"
+    ] == "integrated_coding_agent_capability_gap"
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["previous_algorithm_sandbox_manifest_id"] == manifest[
+        "manifest_id"
+    ]
+    assert next_context["previous_simulation_manifest_id"] == simulation_manifest_id
+    assert next_context["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_simulation_code"
+    ] is True
+
+
+def test_algorithm_success_formalizes_after_generated_simulation_already_passed(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:algorithm-after-generated-simulation"
+    simulation_manifest_id = "simulation_manifest:generated_passed"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "custom_estimator",
+                        "name": "Custom conformal estimator",
+                        "algorithm_sketch": "Requires generated sandbox adapter.",
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "question": {"id": question.id, "title": question.title},
+                "theory_packet_id": theory_packet_id,
+                "simulation_passed": True,
+                "generated_simulation_sandbox_prototypes": [
+                    {
+                        "simulation_id": "generated_stress_passed",
+                        "executor": "generated_simulation_sandbox",
+                        "prototype_status": "EXECUTED",
+                        "smoke_passed": True,
+                    }
+                ],
+                "n_generated_simulation_sandbox_prototypes": 1,
+                "n_generated_simulation_sandbox_executed": 1,
+                "n_generated_simulation_sandbox_passed": 1,
+            },
+        },
+    )
+
+    class PassingAlgorithmEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "algorithm_engineer_proposal:passes-after-simulation",
+                "implementation_targets": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "registered_template_hint": "none",
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': 0.9,\n"
+                            "        'mean_width': 1.0 + (int(seed) % 7) / 100.0,\n"
+                            "        'replicates': n,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+            }
+
+    result = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "generated_algorithm_sandbox",
+        n_runs=12,
+        seed=20260630,
+        proposal_agent=PassingAlgorithmEngineer(),  # type: ignore[arg-type]
+        timeout_s=20,
+    ).run(
+        AgentTask(
+            task_id="algorithm:formalize-after-generated-simulation",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Formalize once generated simulation evidence exists.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "theory_packet_id": theory_packet_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                        "reason": "Capability eval requires generated code execution.",
+                    }
+                ],
+                "n_runs": 12,
+                "seed": 20260630,
+                "architect_context": {
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_algorithm_code": True,
+                        "capability_eval_requires_generated_simulation_code": True,
+                    },
+                },
+            },
+            expected_artifacts=("algorithm_sandbox_manifest",),
+        ),
+        blackboard,
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
+
+
 def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_code(
     tmp_path: Path,
 ) -> None:

@@ -5487,6 +5487,22 @@ class AlgorithmEngineerRuntimeSubsystem:
                 ),
                 stop_condition="repaired algorithm sandbox feedback recorded",
             )
+        elif _runtime_generated_simulation_required_before_formalization(
+            context=effective_context,
+            environment_feedback=environment_feedback,
+            blackboard=blackboard,
+            question=question,
+            theory_packet_id=packet_id,
+        ):
+            next_task = _generated_simulation_required_before_formalization_task(
+                question=question,
+                packet_id=packet_id,
+                simulation_manifest_id=simulation_manifest_id,
+                algorithm_sandbox_manifest_id=manifest_id,
+                architect_context=effective_context,
+                n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
+                seed=int(task.inputs.get("seed", self.seed) or self.seed),
+            )
         else:
             next_task = _formalization_task(
                 question=question,
@@ -5525,10 +5541,17 @@ class AlgorithmEngineerRuntimeSubsystem:
                 "runtime is routing local diagnostics back to AlgorithmEngineer for repair."
             )
         else:
-            algorithm_rationale = (
-                "AlgorithmEngineer recorded sandbox executable feedback for unregistered "
-                "LLM estimator specs and is routing to formalization/proof feedback."
-            )
+            if next_task.owner_subsystem == "SimulationEvaluator":
+                algorithm_rationale = (
+                    "AlgorithmEngineer recorded sandbox executable feedback, but "
+                    "the capability-eval contract still requires generated "
+                    "simulation sandbox evidence before formalization."
+                )
+            else:
+                algorithm_rationale = (
+                    "AlgorithmEngineer recorded sandbox executable feedback for unregistered "
+                    "LLM estimator specs and is routing to formalization/proof feedback."
+                )
         return AgentStepResult(
             status="REVISE" if revision_required else "REROUTE",
             rationale=algorithm_rationale,
@@ -30245,6 +30268,175 @@ def _runtime_requires_generated_simulation_code(
     ) or _runtime_environment_feedback_contract_flag(
         environment_feedback,
         flag="capability_eval_requires_generated_simulation_code",
+    )
+
+
+def _runtime_generated_simulation_sandbox_passed_observed(
+    blackboard: BlackboardState,
+    *,
+    question_id: str = "",
+    theory_packet_id: str = "",
+) -> bool:
+    for artifact in blackboard.artifacts.values():
+        if not isinstance(artifact, Mapping):
+            continue
+        if artifact.get("artifact_kind") != "RuntimeSimulationManifest":
+            continue
+        if question_id:
+            artifact_question = artifact.get("question", {})
+            artifact_question_id = (
+                str(artifact_question.get("id", "") or "")
+                if isinstance(artifact_question, Mapping)
+                else ""
+            )
+            if artifact_question_id and artifact_question_id != question_id:
+                continue
+        artifact_packet_id = str(artifact.get("theory_packet_id", "") or "")
+        if theory_packet_id and artifact_packet_id != theory_packet_id:
+            continue
+        if int(artifact.get("n_generated_simulation_sandbox_passed", 0) or 0) > 0:
+            return True
+        for row in artifact.get("generated_simulation_sandbox_prototypes", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            if (
+                str(row.get("executor", "") or "")
+                == "generated_simulation_sandbox"
+                and row.get("prototype_status") == "EXECUTED"
+                and row.get("smoke_passed") is True
+            ):
+                return True
+    return False
+
+
+def _runtime_generated_simulation_required_before_formalization(
+    *,
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None,
+    blackboard: BlackboardState,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+) -> bool:
+    if not _runtime_requires_generated_simulation_code(context, environment_feedback):
+        return False
+    return not _runtime_generated_simulation_sandbox_passed_observed(
+        blackboard,
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+    )
+
+
+def _generated_simulation_required_before_formalization_feedback(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+) -> dict[str, Any]:
+    return {
+        "feedback_type": "coding_agent_generated_code_capability_feedback",
+        "capability_id": "generated_simulation_code_executed_locally",
+        "target_component": "simulation",
+        "failure_classification": "integrated_coding_agent_capability_gap",
+        "target_behavior": (
+            "Produce a safe generated simulation_code_drafts entry and let "
+            "AgentRuntime execute it locally before formalization."
+        ),
+        "success_metric": (
+            "n_generated_simulation_sandbox_executed>0 and "
+            "n_generated_simulation_sandbox_passed>0"
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_simulation_code": True
+        },
+        "input_summary": {
+            "question_id": question.id,
+            "theory_packet_id": theory_packet_id,
+            "previous_simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+            "blocker": (
+                "AlgorithmEngineer completed, but the capability-eval contract "
+                "still has no passing generated simulation sandbox evidence for "
+                "this theory packet."
+            ),
+        },
+        "required_repair": (
+            "Capability-eval contract still requires generated simulation code "
+            "before formalization. Route to SimulationEngineer, produce exactly "
+            "one safe simulation_code_drafts run_sandbox(seed:int, "
+            "replicates:int)->dict draft, and let the integrated AgentRuntime "
+            "sandbox execute and metric-gate it. Registered simulator rows are "
+            "baseline diagnostics and do not satisfy this generated-code gate."
+        ),
+        "proof_evidence_status": (
+            "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This feedback is an orchestration contract. It is not simulation "
+            "evidence, algorithm evidence, or theorem proof evidence until the "
+            "current AgentRuntime records generated simulation sandbox execution."
+        ),
+    }
+
+
+def _generated_simulation_required_before_formalization_task(
+    *,
+    question: OpenResearchQuestion,
+    packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    architect_context: Mapping[str, Any],
+    n_runs: int,
+    seed: int,
+) -> AgentTask:
+    feedback = _generated_simulation_required_before_formalization_feedback(
+        question=question,
+        theory_packet_id=packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+    )
+    context = _runtime_context_with_environment_feedback_contract(
+        dict(architect_context),
+        feedback,
+        subsystem="SimulationEvaluator",
+    )
+    context["previous_simulation_manifest_id"] = simulation_manifest_id
+    context["previous_algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
+    return AgentTask(
+        task_id=(
+            f"simulation-required:{question.id}:"
+            f"{stable_hash([packet_id, simulation_manifest_id, algorithm_sandbox_manifest_id])[:8]}"
+        ),
+        owner_subsystem="SimulationEvaluator",
+        objective=(
+            "Run required LLM-generated simulation-code stress-test evidence "
+            "before formalization."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": packet_id,
+            "architect_context": context,
+            "environment_feedback": feedback,
+            "n_runs": n_runs,
+            "seed": seed,
+        },
+        allowed_tools=(
+            "model_backend",
+            "research_simulator",
+            "python",
+            "filesystem_sandbox",
+        ),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "SimulationEvaluator",
+            ("simulation_manifest", "implementation_gap_manifest"),
+        ),
+        acceptance_gate=_architect_acceptance_gate(
+            context,
+            "SimulationEvaluator",
+            "generated simulation draft executes safely before formalization",
+        ),
+        stop_condition="required generated simulation capability evidence recorded",
     )
 
 
