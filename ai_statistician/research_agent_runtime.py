@@ -10575,7 +10575,12 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
     if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
         classes.append("lean_type_mismatch")
     if (
-        "le real" in local_lean_text
+        "core-lean-only helper contract violation" in local_lean_text
+        or "no-import helper uses non-core" in local_lean_text
+        or "no-import diagnostic helper uses non-core" in local_lean_text
+        or "do not use real" in local_lean_text
+        or "do not use `real`" in local_lean_text
+        or "le real" in local_lean_text
         or "lt real" in local_lean_text
         or "ofnat real" in local_lean_text
         or (

@@ -9698,6 +9698,38 @@ def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
     assert "<=" in errors
 
 
+def test_core_lean_only_precheck_rejection_builds_repair_contract() -> None:
+    contract = runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+        [
+            {
+                "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                "precheck_errors": [
+                    (
+                        "core-Lean-only helper contract violation: no-import helper "
+                        "uses non-core arithmetic/API marker(s): Real, <=. Use only "
+                        "Prop, Not, arrows, lambda/fun, and `exact`, or add a verified "
+                        "import and route the dependency explicitly."
+                    )
+                ],
+                "lean_source_excerpt": (
+                    "theorem bad_helper (eta : Real) "
+                    "(h : eta <= eta) : True := by\n"
+                    "  trivial\n"
+                ),
+                "local_lean_attempted": False,
+                "local_lean_compiled": False,
+                "local_lean_skipped_reason": (
+                    "candidate_rejected_by_precheck_or_not_materialized"
+                ),
+            }
+        ]
+    )
+
+    assert "lean_no_import_noncore_arithmetic" in contract["diagnostic_classes"]
+    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
+    assert "core_prop_bridge" in contract["core_lean_only_helper_example"]
+
+
 def test_mathlib_root_unavailable_contract_precheck_rejects_no_import_real_helper(
     tmp_path: Path,
 ) -> None:
