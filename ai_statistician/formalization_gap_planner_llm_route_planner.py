@@ -1037,6 +1037,7 @@ def export_formalization_gap_planner_llm_route_planner(
     max_tokens: int = 9000,
     temperature: float = 0.1,
     max_estimated_prompt_input_tokens: int = 0,
+    max_route_requests: int = 0,
     max_repair_attempts: int = 1,
     invoke_provider: bool = False,
     response_json: Path | None = None,
@@ -1113,7 +1114,14 @@ def export_formalization_gap_planner_llm_route_planner(
             formalization_gap_planner_component_resource_registry_dir
         ),
     )
-    routes = _routes(input_payload)
+    input_routes = _routes(input_payload)
+    route_request_cap = _nonnegative_int(max_route_requests)
+    routes = (
+        input_routes[:route_request_cap]
+        if route_request_cap > 0
+        else input_routes
+    )
+    omitted_routes = input_routes[len(routes) :]
     provider = _normalize_provider_name(provider_name)
     normalized_model_tier = _normalize_model_tier(model_tier)
     request_packets = tuple(
@@ -1315,7 +1323,16 @@ def export_formalization_gap_planner_llm_route_planner(
         "max_estimated_prompt_input_tokens": _nonnegative_int(
             max_estimated_prompt_input_tokens
         ),
+        "max_route_requests": route_request_cap,
+        "n_input_routes": len(input_routes),
         "n_routes": len(routes),
+        "route_request_cap_applied": route_request_cap > 0,
+        "n_routes_omitted_by_max_route_requests": len(omitted_routes),
+        "omitted_route_ids_by_max_route_requests": [
+            str(route.get("route_id", "") or "")
+            for route in omitted_routes
+            if isinstance(route, Mapping)
+        ],
         "n_request_packets": len(request_packets),
         "n_requests_with_context_packet_inventory": sum(
             1
@@ -3951,7 +3968,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "max_tokens": nonnegative_integer,
             "temperature": nonnegative_number,
             "max_estimated_prompt_input_tokens": nonnegative_integer,
+            "max_route_requests": nonnegative_integer,
+            "n_input_routes": nonnegative_integer,
             "n_routes": nonnegative_integer,
+            "route_request_cap_applied": {"type": "boolean"},
+            "n_routes_omitted_by_max_route_requests": nonnegative_integer,
+            "omitted_route_ids_by_max_route_requests": string_array,
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,

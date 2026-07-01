@@ -2898,6 +2898,7 @@ class ResearchAgentRuntimeConfig:
     source_theorem_exact_semantic_definition_candidate_synthesis_lean_timeout: int = 90
     formalization_gap_planner_live_route_planner: bool = False
     formalization_gap_planner_live_max_handoffs: int = 1
+    formalization_gap_planner_live_max_route_requests_per_handoff: int = 1
     formalization_gap_planner_live_provider: str = "anthropic"
     formalization_gap_planner_live_model: str = ""
     formalization_gap_planner_live_model_tier: str = "auto"
@@ -12943,6 +12944,24 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 int(self.runtime_config.formalization_gap_planner_live_max_handoffs),
             )
 
+    def _live_route_planner_max_route_requests_per_handoff(
+        self,
+        task: AgentTask,
+    ) -> int:
+        raw = task.inputs.get(
+            "max_route_requests_per_handoff",
+            self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
+                ),
+            )
+
     def _live_route_planner_provider(self, task: AgentTask) -> str:
         provider = str(
             task.inputs.get(
@@ -13193,6 +13212,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
         max_tokens = self._live_route_planner_max_tokens(task)
         temperature = self._live_route_planner_temperature(task)
         max_repair_attempts = self._live_route_planner_max_repair_attempts(task)
+        max_route_requests_per_handoff = (
+            self._live_route_planner_max_route_requests_per_handoff(task)
+        )
         timeout_seconds = self._live_route_planner_timeout_seconds(task)
         generator_backend = self._live_route_planner_backend(
             provider=provider,
@@ -13236,6 +13258,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     max_estimated_prompt_input_tokens=(
                         RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
                     ),
+                    max_route_requests=max_route_requests_per_handoff,
                     max_repair_attempts=max_repair_attempts,
                     invoke_provider=True,
                     generator_backend=generator_backend,
@@ -13269,6 +13292,26 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             / "formalization_gap_planner_llm_route_planner_manifest.json"
                         ),
                         "all_ok": bool(payload.get("all_ok", False)),
+                        "max_route_requests": int(
+                            payload.get("max_route_requests", 0) or 0
+                        ),
+                        "n_input_routes": int(
+                            payload.get("n_input_routes", 0) or 0
+                        ),
+                        "route_request_cap_applied": bool(
+                            payload.get("route_request_cap_applied", False)
+                        ),
+                        "n_routes_omitted_by_max_route_requests": int(
+                            payload.get(
+                                "n_routes_omitted_by_max_route_requests",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "omitted_route_ids_by_max_route_requests": list(
+                            payload.get("omitted_route_ids_by_max_route_requests", [])
+                            or []
+                        ),
                         "n_request_packets": int(
                             payload.get("n_request_packets", 0) or 0
                         ),
@@ -13330,6 +13373,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "context_materialization": context_materialization,
                         "out_dir": str(out_dir),
                         "all_ok": False,
+                        "max_route_requests": max_route_requests_per_handoff,
+                        "n_input_routes": 0,
+                        "route_request_cap_applied": (
+                            max_route_requests_per_handoff > 0
+                        ),
+                        "n_routes_omitted_by_max_route_requests": 0,
+                        "omitted_route_ids_by_max_route_requests": [],
                         "n_request_packets": 0,
                         "n_response_present": 0,
                         "n_response_contract_ok": 0,
@@ -13353,6 +13403,16 @@ class FormalizationGapPlannerRuntimeSubsystem:
         counts = {
             "selected_handoffs": len(selected),
             "requested_max_handoffs": max_handoffs,
+            "requested_max_route_requests_per_handoff": (
+                max_route_requests_per_handoff
+            ),
+            "input_routes": sum(
+                int(row.get("n_input_routes", 0) or 0) for row in rows
+            ),
+            "routes_omitted_by_max_route_requests": sum(
+                int(row.get("n_routes_omitted_by_max_route_requests", 0) or 0)
+                for row in rows
+            ),
             "request_packets": sum(
                 int(row.get("n_request_packets", 0) or 0) for row in rows
             ),
@@ -13425,6 +13485,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "max_repair_attempts": max_repair_attempts,
+            "max_route_requests_per_handoff": max_route_requests_per_handoff,
             "timeout_seconds": timeout_seconds,
             "max_estimated_prompt_input_tokens": (
                 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
@@ -13464,6 +13525,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "max_repair_attempts": max_repair_attempts,
+                "max_route_requests_per_handoff": max_route_requests_per_handoff,
                 "timeout_seconds": timeout_seconds,
             },
             output_paths=tuple(output_paths),
@@ -13657,6 +13719,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             task.task_id,
                             selected_handoff_ids,
                             max_handoffs,
+                            self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff,
                             self.runtime_config.formalization_gap_planner_live_provider,
                             self.runtime_config.formalization_gap_planner_live_model,
                             self.runtime_config.formalization_gap_planner_live_model_tier,
@@ -13686,6 +13749,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     },
                     "invoke_live_route_planner": True,
                     "max_handoffs": max_handoffs,
+                    "max_route_requests_per_handoff": (
+                        self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
+                    ),
                     "provider": self.runtime_config.formalization_gap_planner_live_provider,
                     "model": self.runtime_config.formalization_gap_planner_live_model,
                     "model_tier": self.runtime_config.formalization_gap_planner_live_model_tier,
@@ -13705,6 +13771,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 ),
                 budget={
                     "max_handoffs": max_handoffs,
+                    "max_route_requests_per_handoff": (
+                        self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
+                    ),
                     "live_llm_invocation_required": True,
                 },
                 expected_artifacts=(
@@ -13802,6 +13871,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "live_route_planner_max_handoffs": int(
                 self.runtime_config.formalization_gap_planner_live_max_handoffs
+            ),
+            "live_route_planner_max_route_requests_per_handoff": int(
+                self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
             ),
             "live_route_planner_manifest_id": str(
                 live_route_planner_manifest.get("manifest_id", "") or ""

@@ -1651,6 +1651,7 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     assert result.next_task.task_id.startswith("gap-planner-live-route:")
     assert result.next_task.inputs["invoke_live_route_planner"] is True
     assert result.next_task.inputs["max_handoffs"] == 1
+    assert result.next_task.inputs["max_route_requests_per_handoff"] == 1
     assert result.next_task.inputs["provider"] == "anthropic"
     assert result.next_task.inputs["model_tier"] == "auto"
     assert result.next_task.inputs["timeout_seconds"] > 0
@@ -1669,6 +1670,7 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     assert manifest["live_route_planner_followup_required"] is True
     assert manifest["live_route_planner_followup_task_id"] == result.next_task.task_id
     assert manifest["live_route_planner_max_handoffs"] == 1
+    assert manifest["live_route_planner_max_route_requests_per_handoff"] == 1
     assert manifest["counts"]["llm_prompt_packets"] >= 1
     assert manifest["audit_payload"]["n_llm_prompt_awaiting_response"] >= 1
     assert any(
@@ -1729,13 +1731,18 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         ).write_text("{}", encoding="utf-8")
         return {
             "all_ok": True,
-            "n_request_packets": 2,
-            "n_response_present": 2,
-            "n_response_contract_ok": 2,
+            "max_route_requests": 1,
+            "n_input_routes": 3,
+            "route_request_cap_applied": True,
+            "n_routes_omitted_by_max_route_requests": 2,
+            "omitted_route_ids_by_max_route_requests": ["route:b", "route:c"],
+            "n_request_packets": 1,
+            "n_response_present": 1,
+            "n_response_contract_ok": 1,
             "n_provider_failures": 0,
             "n_awaiting_llm_response": 0,
             "n_route_adoption_ready": 1,
-            "n_route_adoption_pending_refinement": 1,
+            "n_route_adoption_pending_refinement": 0,
             "n_route_adoption_awaiting_llm_response": 0,
             "total_provider_input_tokens": 123,
             "total_provider_output_tokens": 45,
@@ -1760,6 +1767,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert calls[0]["invoke_provider"] is True
     assert calls[0]["provider_name"] == "anthropic"
     assert calls[0]["model_tier"] == "auto"
+    assert calls[0]["max_route_requests"] == 1
     assert Path(str(calls[0]["formalization_gap_planner_target_intake_dir"])).exists()
     manifest = next(
         artifact
@@ -1775,8 +1783,15 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     )
     assert manifest["live_llm_invoked"] is True
     assert manifest["live_route_planner_all_responses_recorded"] is True
-    assert manifest["live_route_planner_counts"]["response_present"] == 2
-    assert manifest["live_route_planner_counts"]["response_contract_ok"] == 2
+    assert manifest["live_route_planner_counts"]["response_present"] == 1
+    assert manifest["live_route_planner_counts"]["response_contract_ok"] == 1
+    assert manifest["live_route_planner_counts"]["input_routes"] == 3
+    assert (
+        manifest["live_route_planner_counts"][
+            "routes_omitted_by_max_route_requests"
+        ]
+        == 2
+    )
     assert live_manifest["all_live_route_planner_responses_recorded"] is True
     assert live_manifest["counts"]["provider_total_tokens"] == 168
     assert Path(live_manifest["manifest_path"]).exists()

@@ -5418,6 +5418,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         max_estimated_prompt_input_tokens=args.max_estimated_prompt_input_tokens,
+        max_route_requests=args.max_route_requests,
         max_repair_attempts=args.max_repair_attempts,
         invoke_provider=args.invoke_provider,
         response_json=Path(args.response_json) if args.response_json else None,
@@ -9794,6 +9795,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     1,
                 )
             ),
+            formalization_gap_planner_live_max_route_requests_per_handoff=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_route_requests_per_handoff",
+                    1,
+                )
+            ),
             formalization_gap_planner_live_provider=gap_planner_live_provider,
             formalization_gap_planner_live_model=str(
                 getattr(args, "formalization_gap_planner_live_model", "") or ""
@@ -13499,6 +13507,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional preflight cap on deterministic prompt input-token "
             "estimates before generation; 0 disables blocking"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-route-requests",
+        type=int,
+        default=0,
+        help=(
+            "optional cap on route-planner request packets generated from the "
+            "standalone seed; 0 plans every route"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
@@ -17354,6 +17371,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum runtime gap-planner handoffs to send to the live route "
             "planner when --formalization-gap-planner-live-route-planner is enabled"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-route-requests-per-handoff",
+        type=int,
+        default=1,
+        help=(
+            "maximum route-planner request packets generated inside each live "
+            "runtime gap-planner handoff; 0 permits every route in the handoff seed"
         ),
     )
     research_agent_runtime.add_argument(

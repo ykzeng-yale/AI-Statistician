@@ -2288,6 +2288,80 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
 
 
+def test_llm_route_planner_caps_route_request_packets_without_dropping_input_count() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_route_cap")
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    seed = json.loads(input_json.read_text(encoding="utf-8"))
+    second_route = deepcopy(seed["routes"][0])
+    second_route["route_id"] = "rank_route_second"
+    second_route["display_name"] = "distribution_free_rank_bound_second"
+    seed["routes"].append(second_route)
+    input_json.write_text(json.dumps(seed, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        max_route_requests=1,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_input_routes"] == 2
+    assert payload["max_route_requests"] == 1
+    assert payload["route_request_cap_applied"] is True
+    assert payload["n_routes"] == 1
+    assert payload["n_request_packets"] == 1
+    assert payload["n_routes_omitted_by_max_route_requests"] == 1
+    assert payload["omitted_route_ids_by_max_route_requests"] == [
+        "rank_route_second"
+    ]
+    assert payload["request_packets"][0]["route_id"] == "rank_route"
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["n_input_routes"] == 2
+    assert manifest["n_request_packets"] == 1
+
+
+def test_llm_route_planner_cli_caps_route_request_packets() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_cli_route_cap")
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    seed = json.loads(input_json.read_text(encoding="utf-8"))
+    second_route = deepcopy(seed["routes"][0])
+    second_route["route_id"] = "rank_route_second"
+    seed["routes"].append(second_route)
+    input_json.write_text(json.dumps(seed, indent=2), encoding="utf-8")
+
+    code = main(
+        [
+            "formalization-gap-planner-llm-route-planner",
+            "--input",
+            str(input_json),
+            "--max-route-requests",
+            "1",
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["n_input_routes"] == 2
+    assert manifest["n_request_packets"] == 1
+    assert manifest["route_request_cap_applied"] is True
+
+
 def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
     out_dir = root / "llm_route_planner"
