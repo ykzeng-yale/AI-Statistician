@@ -6211,6 +6211,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     or 0
                 )
                 == 0
+                and not _formalizer_repeated_syntax_fail_closed_packet_satisfies(
+                    proposal_packet=proposal_packet,
+                    environment_feedback=(
+                        task.inputs.get("environment_feedback", {})
+                        if isinstance(
+                            task.inputs.get("environment_feedback", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                )
             ):
                 validation_task = AgentTask(
                     task_id=task.task_id,
@@ -7188,13 +7199,51 @@ class FormalizationEvaluatorRuntimeSubsystem:
         if lean_candidate_repair_feedback is not None:
             next_inputs = dict(task.inputs)
             next_inputs["environment_feedback"] = lean_candidate_repair_feedback
-            next_task = AgentTask(
-                task_id=f"formalize-lean-repair:{question.id}:{stable_hash([manifest_id, lean_candidate_repair_feedback])[:8]}",
-                owner_subsystem="ProofEngineer",
-                objective=(
+            packet_reroute_required = (
+                _formalizer_repair_feedback_requires_repeated_syntax_packet_reroute(
+                    lean_candidate_repair_feedback
+                )
+            )
+            next_owner = (
+                "FormalizationEvaluator" if packet_reroute_required else "ProofEngineer"
+            )
+            next_task_prefix = (
+                "formalize-repair"
+                if packet_reroute_required
+                else "formalize-lean-repair"
+            )
+            next_objective = (
+                "Repair the Formalizer/ProofEngineer packet under repeated "
+                "parser/syntax fail-closed rules before requesting Lean/prover work."
+                if packet_reroute_required
+                else (
                     "Repair the exact materialized Lean candidate using local Lean "
                     "diagnostics and prover feedback before routing to CriticEvaluator."
+                )
+            )
+            next_acceptance_gate = (
+                "Formalizer packet emits an explicit source-theorem FORMAL_GAP row "
+                "or routes a parser-simple support candidate through a support/"
+                "source-to-bridge channel with required metadata; no executable "
+                "helper formal_targets are emitted after repeated parser failure"
+                if packet_reroute_required
+                else (
+                    "ProofEngineer repair candidate is non-vacuous and either "
+                    "passes local Lean/AXLE or records a precise formal blocker"
+                )
+            )
+            next_stop_condition = (
+                "repaired fail-closed packet or explicit formal blocker recorded"
+                if packet_reroute_required
+                else "repaired Lean candidate or explicit formal blocker recorded"
+            )
+            next_task = AgentTask(
+                task_id=(
+                    f"{next_task_prefix}:{question.id}:"
+                    f"{stable_hash([manifest_id, lean_candidate_repair_feedback])[:8]}"
                 ),
+                owner_subsystem=next_owner,
+                objective=next_objective,
                 inputs=next_inputs,
                 allowed_tools=tuple(
                     dict.fromkeys(
@@ -7210,17 +7259,24 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                 ),
                 expected_artifacts=task.expected_artifacts,
-                acceptance_gate=(
-                    "ProofEngineer repair candidate is non-vacuous and either "
-                    "passes local Lean/AXLE or records a precise formal blocker"
-                ),
-                stop_condition="repaired Lean candidate or explicit formal blocker recorded",
+                acceptance_gate=next_acceptance_gate,
+                stop_condition=next_stop_condition,
             )
             result_status = "REVISE"
             result_rationale = (
-                "Runtime checked the LLM Formalizer Lean candidate and found local "
-                "Lean/precheck failures; diagnostics are routed to the internal "
-                "ProofEngineer repair loop before CriticEvaluator summarization."
+                (
+                    "Runtime precheck rejected a repeated parser/syntax "
+                    "formal_targets retry; diagnostics are routed back as a "
+                    "Formalizer packet-construction repair before any Lean/prover "
+                    "work is requested."
+                )
+                if packet_reroute_required
+                else (
+                    "Runtime checked the LLM Formalizer Lean candidate and found "
+                    "local Lean/precheck failures; diagnostics are routed to the "
+                    "internal ProofEngineer repair loop before CriticEvaluator "
+                    "summarization."
+                )
             )
             failure_classification = str(
                 lean_candidate_repair_feedback.get(
@@ -7658,25 +7714,37 @@ def _formalizer_packet_validation_failure_result(
         repair_feedback["target_names"] = target_names
     next_inputs = dict(task.inputs)
     next_inputs["environment_feedback"] = repair_feedback
-    next_task_objective = (
-        "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
-        "source-theorem materialization candidate before requesting Lean/prover work."
-        if source_theorem_candidate_materialization_contract
-        else (
+    repeated_syntax_packet_repair = (
+        _formalizer_local_lean_contract_has_repeated_syntax_failure(
+            active_local_lean_repair_contract
+        )
+    )
+    if source_theorem_candidate_materialization_contract:
+        next_task_objective = (
+            "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
+            "source-theorem materialization candidate before requesting Lean/prover work."
+        )
+        next_task_acceptance_gate = (
+            "repaired Formalizer packet passes local materialization validation with an "
+            "exact source-theorem formal_targets Lean candidate; proof still requires "
+            "local Lean/AXLE kernel verification"
+        )
+    elif repeated_syntax_packet_repair:
+        next_task_objective = (
+            "Repair the Formalizer/ProofEngineer packet under repeated parser/syntax "
+            "fail-closed rules before materializing Lean candidates or requesting "
+            "prover work."
+        )
+        next_task_acceptance_gate = learning_row["acceptance_gate"]
+    else:
+        next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet using local validator "
             "feedback before materializing Lean candidates or requesting proof work."
         )
-    )
-    next_task_acceptance_gate = (
-        "repaired Formalizer packet passes local materialization validation with an "
-        "exact source-theorem formal_targets Lean candidate; proof still requires "
-        "local Lean/AXLE kernel verification"
-        if source_theorem_candidate_materialization_contract
-        else (
+        next_task_acceptance_gate = (
             "repaired Formalizer packet passes local validation; any Lean candidate "
             "still requires local Lean/AXLE kernel verification"
         )
-    )
     next_task = AgentTask(
         task_id=f"formalize-repair:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
         owner_subsystem="FormalizationEvaluator",
@@ -8345,6 +8413,87 @@ def _formalizer_local_lean_contract_has_repeated_syntax_failure(
         not diagnostic_classes
         or "lean_parser_or_syntax_error" in diagnostic_classes
     )
+
+
+def _formalizer_repeated_syntax_fail_closed_packet_satisfies(
+    *,
+    proposal_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(proposal_packet, Mapping):
+        return False
+    if not isinstance(environment_feedback, Mapping):
+        return False
+    contract = (
+        environment_feedback.get("local_lean_repair_contract", {})
+        if isinstance(
+            environment_feedback.get("local_lean_repair_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if not _formalizer_local_lean_contract_has_repeated_syntax_failure(contract):
+        return False
+    return _formalizer_packet_has_explicit_source_theorem_formal_gap_target(
+        proposal_packet
+    )
+
+
+def _formalizer_packet_has_explicit_source_theorem_formal_gap_target(
+    proposal_packet: Mapping[str, Any],
+) -> bool:
+    for row in proposal_packet.get("formal_targets", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("expected_status", "") or "") != "FORMAL_GAP":
+            continue
+        if str(row.get("lean_statement_sketch", "") or "").strip():
+            continue
+        provenance = row.get("source_theorem_target_provenance", {})
+        source_theorem_target_known = _source_theorem_target_known_value(provenance)
+        if source_theorem_target_known is False:
+            continue
+        if source_theorem_target_known is True:
+            return True
+        row_text = " ".join(
+            str(row.get(field, "") or "")
+            for field in ("id", "informal_source", "claim", "statement", "reason")
+        ).lower()
+        if "source theorem" in row_text or "coverage" in row_text:
+            return True
+    return False
+
+
+def _formalizer_repair_feedback_requires_repeated_syntax_packet_reroute(
+    feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    contract = (
+        feedback.get("local_lean_repair_contract", {})
+        if isinstance(feedback.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
+    if not _formalizer_local_lean_contract_has_repeated_syntax_failure(contract):
+        return False
+    if (
+        str(feedback.get("failure_classification", "") or "")
+        != "formalizer_lean_candidate_precheck_rejected"
+    ):
+        return False
+    for row in feedback.get("candidate_diagnostics", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("source_field", "") or "") != "formal_targets":
+            continue
+        precheck_text = " ".join(
+            str(error)
+            for error in row.get("precheck_errors", []) or []
+            if str(error)
+        ).lower()
+        if "executable formal_targets are gated" in precheck_text:
+            return True
+    return False
 
 
 def _formalizer_validation_failure_target_behavior(

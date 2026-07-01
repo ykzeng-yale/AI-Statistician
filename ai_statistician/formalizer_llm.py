@@ -123,6 +123,11 @@ class LLMFormalizerProofEngineerAgent:
         requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
             environment_feedback or {}
         )
+        requires_repeated_syntax_contract = (
+            _feedback_has_repeated_syntax_failure_contract(
+                environment_feedback or {}
+            )
+        )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_formalizer_packet(packet)
@@ -135,7 +140,7 @@ class LLMFormalizerProofEngineerAgent:
                     ),
                 )
             )
-            if requires_lean_candidate:
+            if requires_lean_candidate or requires_repeated_syntax_contract:
                 errors.extend(
                     _validate_capability_eval_formalizer_lean_candidate_packet(
                         packet,

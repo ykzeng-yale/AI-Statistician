@@ -10428,6 +10428,228 @@ def test_capability_eval_rejects_repeated_syntax_formal_targets_helper() -> None
     assert "source_to_bridge_premise_derivation_candidates" in joined
 
 
+def test_formalizer_validator_rejects_repeated_syntax_helper_without_capability_flag() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(
+            {
+                "formal_targets": [
+                    {
+                        "id": "aipw_helper_retry",
+                        "informal_source": (
+                            "helper retry after repeated parser failure"
+                        ),
+                        "lean_statement_sketch": (
+                            "theorem aipw_helper_retry "
+                            "(p q : Prop) (h : p -> q) (hp : p) : q := by\n"
+                            "  exact h hp\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": False,
+                        },
+                    }
+                ],
+                "lemma_dependency_plan": [
+                    {"from": "helper", "to": "source theorem"}
+                ],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["materialize helper"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "source_to_bridge_premise_derivation_candidates": [],
+                "gap_taxonomy": [
+                    {
+                        "gap": "source theorem remains blocked",
+                        "kind": "FORMAL_GAP",
+                    }
+                ],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": (
+                    "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+        ),
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer",
+            max_repair_attempts=0,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as caught:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:syntax-contract"},
+            simulation_manifest={
+                "manifest_id": "simulation:syntax-contract",
+                "simulation_passed": True,
+            },
+            algorithm_manifest={"manifest_id": "algorithm:syntax-contract"},
+            registered_problem={"problem_class": "causal_inference"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
+            environment_feedback={
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_precheck_rejected"
+                ),
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            },
+        )
+
+    joined = " ".join(caught.value.errors)
+    assert "executable formal_targets are gated" in joined
+    assert "source_to_bridge_premise_derivation_candidates" in joined
+
+
+def test_runtime_reroutes_repeated_syntax_formal_target_gate_to_formalizer(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class HelperFormalTargetRetry:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:helper_formal_target_retry",
+                "source_agent": "HelperFormalTargetRetry",
+                "formal_targets": [
+                    {
+                        "id": "aipw_source_theorem",
+                        "informal_source": "source theorem remains blocked",
+                        "lean_statement_sketch": "",
+                        "expected_status": "FORMAL_GAP",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": True,
+                            "target_lean_declaration": "aipw_source_theorem",
+                            "source_theorem_goal_id": "aipw_double_robustness",
+                        },
+                    },
+                    {
+                        "id": "aipw_positivity_ne_zero_helper",
+                        "informal_source": (
+                            "helper formal target retry after repeated parser failure"
+                        ),
+                        "lean_statement_sketch": (
+                            "theorem aipw_positivity_ne_zero_helper "
+                            "(p q : Prop) (h : p -> q) (hp : p) : q := by\n"
+                            "  exact h hp\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "diagnostic_helper_not_source_theorem": True,
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": False,
+                            "target_lean_declaration": (
+                                "aipw_positivity_ne_zero_helper"
+                            ),
+                            "source_theorem_goal_id": "aipw_double_robustness",
+                        },
+                    },
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["do not retry helper formal_targets"],
+                    "known_blockers": ["repeated parser failure"],
+                },
+                "proof_bank_obligation_requests": [],
+                "source_to_bridge_premise_derivation_candidates": [],
+                "gap_taxonomy": [
+                    {
+                        "gap": "source theorem remains blocked",
+                        "kind": "FORMAL_GAP",
+                    }
+                ],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": (
+                    "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    subsystem = ProofEngineerRuntimeSubsystem(
+        proposal_agent=HelperFormalTargetRetry(),  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:causal_ate_aipw:syntax_gate",
+        owner_subsystem="ProofEngineer",
+        objective="repair repeated syntax helper formal target",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_precheck_rejected"
+                ),
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalizer_lean_candidate_precheck_rejected"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.task_id.startswith("formalize-repair:")
+    assert "packet-construction" in result.rationale
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["candidate_diagnostics"][0]["precheck_status"] == (
+        "REJECTED_BY_RUNTIME_PRECHECK"
+    )
+    assert "executable formal_targets are gated" in " ".join(
+        feedback["candidate_diagnostics"][0]["precheck_errors"]
+    )
+    assert "helper formal_targets" in result.next_task.acceptance_gate
+
+
 def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contract() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     exc = PacketValidationError(
@@ -10491,6 +10713,9 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
         "target_behavior"
     ]
     assert "source-theorem FORMAL_GAP row" in feedback["acceptance_gate"]
+    assert result.next_task is not None
+    assert "repeated parser/syntax fail-closed rules" in result.next_task.objective
+    assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
 
 
 def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
