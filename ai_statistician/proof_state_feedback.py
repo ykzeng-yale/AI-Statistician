@@ -223,7 +223,11 @@ class LocalLeanProofStateFeedbackProvider:
     def _run_local_lean(self, statement: str) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="ai_stat_proof_state_") as tmp:
             lean_file = Path(tmp) / "ProofStateFeedback.lean"
-            lean_file.write_text(_lean_source(statement), encoding="utf-8")
+            source, source_diagnostics = _lean_source(
+                statement,
+                project_root=self.project_root,
+            )
+            lean_file.write_text(source, encoding="utf-8")
             command = (*self.lean_command, str(lean_file))
             try:
                 proc = subprocess.run(
@@ -251,6 +255,7 @@ class LocalLeanProofStateFeedbackProvider:
                 }
         combined = "\n".join(item for item in (proc.stdout, proc.stderr) if item).strip()
         diagnostics = _diagnostic_lines(combined)
+        diagnostics.extend(source_diagnostics)
         return {
             "attempt_status": "local_lean_scaffold_accepted" if proc.returncode == 0 else "local_lean_failed",
             "returncode": proc.returncode,
@@ -525,10 +530,45 @@ def _looks_like_lean_command(statement: str) -> bool:
     return False
 
 
-def _lean_source(statement: str) -> str:
+def _lean_source(
+    statement: str,
+    *,
+    project_root: Path | None = None,
+) -> tuple[str, list[str]]:
     if statement.lstrip().startswith("import "):
-        return statement
-    return "import Mathlib\n\n" + statement + "\n"
+        return statement, []
+    if _mathlib_root_import_available(project_root):
+        return "import Mathlib\n\n" + statement + "\n", []
+    return (
+        statement + "\n",
+        [
+            (
+                "implicit `import Mathlib` skipped: configured Lake project does "
+                "not expose Mathlib.olean; proof-state feedback used the candidate "
+                "source directly so parser/identifier diagnostics are not masked by "
+                "an umbrella-import environment error"
+            )
+        ],
+    )
+
+
+def _mathlib_root_import_available(project_root: Path | None) -> bool:
+    if project_root is None:
+        return True
+    root = Path(project_root)
+    candidate_paths = (
+        root / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
+        root
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib.olean",
+    )
+    return any(path.exists() for path in candidate_paths)
 
 
 def _diagnostic_lines(text: str, *, limit: int = 12) -> list[str]:

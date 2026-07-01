@@ -50621,6 +50621,55 @@ def test_local_lean_proof_state_provider_accepts_imported_lean_artifact() -> Non
     assert row.tool_call_trace[0]["tool"] == "local.lake_env_lean"
 
 
+def test_local_lean_proof_state_provider_skips_implicit_mathlib_when_root_missing(
+    tmp_path: Path,
+) -> None:
+    captured_source = tmp_path / "captured.lean"
+    fake_lean = tmp_path / "fake_lean.py"
+    fake_lean.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import sys",
+                f"Path({str(captured_source)!r}).write_text(",
+                "    Path(sys.argv[-1]).read_text(encoding='utf-8'),",
+                "    encoding='utf-8',",
+                ")",
+                "print('fake local Lean failed')",
+                "raise SystemExit(1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    provider = LocalLeanProofStateFeedbackProvider(
+        project_root=tmp_path,
+        lean_command=(sys.executable, str(fake_lean)),
+    )
+
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="no_import_candidate",
+                title="no import candidate",
+                status="FAILED",
+                claim="no import local Lean candidate",
+                lean_statement="theorem no_import_candidate : True := by\n  trivial\n",
+                errors=["local Lean failed"],
+            )
+        ]
+    )[0]
+
+    source = captured_source.read_text(encoding="utf-8")
+    assert not source.lstrip().startswith("import Mathlib")
+    assert "theorem no_import_candidate" in source
+    assert any(
+        "implicit `import Mathlib` skipped" in diagnostic
+        for diagnostic in row.diagnostics
+    )
+    assert row.attempt_status == "local_lean_failed"
+    assert row.local_lean_checked is True
+
+
 def test_lean_lsp_mcp_proof_state_provider_records_live_tool_trace(tmp_path: Path) -> None:
     (tmp_path / "lean-toolchain").write_text("leanprover/lean4:v4.14.0\n", encoding="utf-8")
     artifact = tmp_path / "Candidate.lean"
