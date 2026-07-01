@@ -15313,6 +15313,8 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     ) in prompt
     assert "target/DGP/estimator alignment" in prompt
     assert "wrong center" in prompt
+    assert "oracle truth from the DGP" in prompt
+    assert "do not hard-code true_ate" in prompt
     assert "vacuous all-covering" in prompt
     assert "utility diagnostics" in prompt
     assert "mean_width" in prompt
@@ -15957,6 +15959,8 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
         "and code_excerpt"
     ) in prompt
     assert "target/DGP/estimator alignment" in prompt
+    assert "oracle truth from the DGP" in prompt
+    assert "do not hard-code true_ate" in prompt
     assert "vacuous all-covering" in prompt
     assert "utility diagnostics" in prompt
     assert "mean_width" in prompt
