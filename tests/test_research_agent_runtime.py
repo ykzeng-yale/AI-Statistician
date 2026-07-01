@@ -18062,6 +18062,40 @@ def test_generated_simulation_sandbox_rejects_nested_degenerate_coverage_metric(
     assert "stress_grid.alpha0.1.coverage is degenerate zero coverage" in errors
 
 
+def test_generated_simulation_metric_gate_flags_hardcoded_oracle_truth() -> None:
+    code = (
+        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+        "    n = max(5, int(replicates))\n"
+        "    true_ate = 0.3\n"
+        "    mu1_true = [0.5 * i + 0.2 * i * i + 0.3 for i in range(n)]\n"
+        "    mu0_true = [0.1 * i - 0.1 * i * i for i in range(n)]\n"
+        "    return {\n"
+        "        'sandbox_failed': False,\n"
+        "        'coverage_95': 0.0,\n"
+        "        'mean_bias': 0.3,\n"
+        "        'true_ate': true_ate,\n"
+        "    }\n"
+    )
+
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage_95": 0.0,
+            "mean_bias": 0.3,
+            "true_ate": 0.3,
+        },
+        context={
+            "runtime_evaluation_mode": "capability_eval",
+            "target_coverage": 0.95,
+            "spec": {"artifact_kind": "generated_simulation_sandbox"},
+        },
+        code=code,
+    )
+
+    assert "coverage_95 below target_coverage" in errors
+    assert any("oracle truth appears hard-coded" in error for error in errors)
+
+
 def test_generated_sandbox_capability_eval_requires_seed_and_replicates_use() -> None:
     shallow_code = (
         "def run_sandbox(seed: int, replicates: int) -> dict:\n"

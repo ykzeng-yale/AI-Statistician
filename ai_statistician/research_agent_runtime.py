@@ -54279,6 +54279,15 @@ def _generated_sandbox_metric_gate_errors(
         if target_coverage is not None and value > (1.0 - target_coverage) + 1e-9:
             errors.append(f"{key} exceeds target miscoverage")
 
+    errors.extend(
+        _generated_simulation_oracle_truth_metric_gate_errors(
+            metrics,
+            context=context or {},
+            code=code,
+            existing_errors=errors,
+        )
+    )
+
     return sorted(set(errors))
 
 
@@ -54318,6 +54327,104 @@ def _generated_sandbox_code_quality_gate_errors(
             "capability_eval generated sandbox must use the replicates argument to scale local stress-test work"
         )
     return errors
+
+
+def _generated_simulation_oracle_truth_metric_gate_errors(
+    metrics: Mapping[str, Any],
+    *,
+    context: Mapping[str, Any],
+    code: str,
+    existing_errors: Sequence[str],
+) -> list[str]:
+    if (
+        not code.strip()
+        or not _generated_sandbox_is_capability_eval(context)
+        or not _generated_sandbox_is_generated_simulation_context(context)
+    ):
+        return []
+    if not existing_errors and not _generated_sandbox_has_large_point_error(metrics):
+        return []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    hardcoded_truth_names: set[str] = set()
+    truth_names = {
+        "oracle_ate",
+        "oracle_effect",
+        "target_ate",
+        "target_effect",
+        "true_ate",
+        "true_effect",
+    }
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            value = node.value
+            targets = [node.target]
+        if value is None:
+            continue
+        if not (
+            isinstance(value, ast.Constant)
+            and isinstance(value.value, (int, float))
+            and not isinstance(value.value, bool)
+        ):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id.lower() in truth_names:
+                hardcoded_truth_names.add(target.id)
+    if not hardcoded_truth_names:
+        return []
+    names = {
+        node.id.lower()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+    }
+    has_sample_level_potential_outcomes = (
+        any("mu1" in name or "y1" in name for name in names)
+        and any("mu0" in name or "y0" in name for name in names)
+    )
+    if not has_sample_level_potential_outcomes:
+        return []
+    return [
+        "generated simulation oracle truth appears hard-coded while the DGP "
+        "defines sample-level potential outcomes; compute true_ate/true_effect "
+        "from the simulated mu1/mu0 or a matching closed-form DGP before "
+        "coverage/bias metrics"
+    ]
+
+
+def _generated_sandbox_is_generated_simulation_context(
+    context: Mapping[str, Any],
+) -> bool:
+    spec = context.get("spec")
+    if isinstance(spec, Mapping) and spec.get("artifact_kind") == (
+        "generated_simulation_sandbox"
+    ):
+        return True
+    try:
+        text = json.dumps(context, default=str).lower()
+    except Exception:
+        text = str(context).lower()
+    return "generated_simulation_sandbox" in text
+
+
+def _generated_sandbox_has_large_point_error(metrics: Mapping[str, Any]) -> bool:
+    for key, value in _generated_sandbox_named_numeric_metrics(
+        metrics,
+        name_predicate=lambda name: (
+            "bias" in name.lower()
+            or "rmse" in name.lower()
+            or "point_error" in name.lower()
+        ),
+    ):
+        if value is not None and abs(float(value)) > 0.05:
+            return True
+    return False
 
 
 def _generated_sandbox_is_capability_eval(context: Mapping[str, Any]) -> bool:
