@@ -54605,6 +54605,7 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
     allowed_modules = {"math", "statistics", "random"}
     allowed_safe_methods = {
         "append",
+        "extend",
         "sort",
         "random",
         "uniform",
@@ -54662,6 +54663,8 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
             if isinstance(node.func, ast.Name):
                 name = node.func.id
                 allowed_calls = {
+                    "all",
+                    "any",
                     "abs",
                     "bool",
                     "dict",
@@ -54773,6 +54776,8 @@ def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 SAFE_BUILTINS = {
+    "all": all,
+    "any": any,
     "abs": abs,
     "bool": bool,
     "dict": dict,

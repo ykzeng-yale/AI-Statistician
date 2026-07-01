@@ -20,6 +20,8 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
         ],
         "allowed_globals": [
             "abs",
+            "all",
+            "any",
             "bool",
             "dict",
             "enumerate",
@@ -41,6 +43,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
         ],
         "allowed_methods": [
             "list.append",
+            "list.extend",
             "list.sort",
             "random.Random",
             "rng.random",
@@ -79,7 +82,7 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "file I/O, network, subprocess, eval, exec",
             "private/dunder names or attributes",
             "from-imported helper aliases; use plain module imports and module-qualified calls",
-            "method calls or attribute access outside math/statistics/random, rng random/shuffle methods, and list append/sort",
+            "method calls or attribute access outside math/statistics/random, rng random/shuffle methods, and list append/extend/sort",
         ],
         "safe_random_usage": (
             "Use local RNG objects such as rng = random.Random(seed + rep); "
@@ -113,7 +116,9 @@ def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) ->
         "statistics.stdev(values), and math.sqrt(x). For stochastic simulations, "
         "prefer local RNG objects such as rng = random.Random(seed + rep) and "
         "call rng.random(), rng.uniform(), rng.gauss(), rng.normalvariate(), or "
-        "rng.shuffle(local_list). "
+        "rng.shuffle(local_list). Use sandbox-local collection operations such "
+        "as values.append(value), values.extend(more_values), any(flags), and "
+        "all(flags). "
         "Do not hand-roll closure-based RNG state that requires nonlocal. "
     )
 

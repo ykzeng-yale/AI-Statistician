@@ -14647,6 +14647,41 @@ def test_generated_algorithm_sandbox_allows_local_rng_shuffle(tmp_path: Path) ->
     assert tool_call.exit_status == "0"
 
 
+def test_generated_algorithm_sandbox_allows_collection_predicates_and_extend(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="collection_predicate_probe",
+        spec={"id": "collection_predicate_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    n = max(5, int(replicates))\n"
+                "    values = []\n"
+                "    values.extend([float((int(seed) + i) % 3) for i in range(n)])\n"
+                "    flags = [value >= 0.0 for value in values]\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'any_nonzero': any(value > 0.0 for value in values),\n"
+                "        'all_finite_proxy': all(flags),\n"
+                "        'mean_value': sum(values) / max(1, len(values)),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260701,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["smoke_passed"] is True
+    assert prototype["safety_errors"] == []
+    assert prototype["metrics"]["any_nonzero"] is True
+    assert prototype["metrics"]["all_finite_proxy"] is True
+    assert tool_call.exit_status == "0"
+
+
 def test_generated_algorithm_feedback_names_forbidden_method_calls(
     tmp_path: Path,
 ) -> None:
@@ -15126,8 +15161,11 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert "sum(values) / len(values)" in prompt
     assert '"zip"' in prompt
     assert '"set"' in prompt
+    assert '"any"' in prompt
+    assert '"all"' in prompt
     assert "random.Random" in prompt
     assert "rng.shuffle" in prompt
+    assert "list.extend" in prompt
     assert "global/nonlocal" in prompt
     assert "method calls or attribute access outside math/statistics/random" in prompt
     assert "leave sandbox_code_drafts empty" in prompt
