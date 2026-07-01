@@ -975,6 +975,35 @@ def _runtime_learning_memory_formal_gap_next_action_stage(
     return "formal_gap_route"
 
 
+def _runtime_learning_memory_row_requires_candidate_materialization(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    if bool(row.get("candidate_materialization_required", False)) or bool(
+        input_summary.get("candidate_materialization_required", False)
+    ):
+        return True
+    materialization_failures = {
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_artifact_missing",
+    }
+    failure = str(row.get("failure_classification", "") or "")
+    input_failure = str(input_summary.get("failure_classification", "") or "")
+    if failure in materialization_failures or input_failure in materialization_failures:
+        return True
+    for probe_row in input_summary.get("signature_probe_rows", []) or []:
+        if not isinstance(probe_row, Mapping):
+            continue
+        probe_failure = str(probe_row.get("failure_classification", "") or "")
+        if bool(probe_row.get("candidate_materialization_required", False)):
+            return True
+        if probe_failure in materialization_failures:
+            return True
+    return False
+
+
 def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
@@ -1057,6 +1086,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 100
     if direct_verified_source_to_bridge_premise:
         return 98
+    if _runtime_learning_memory_row_requires_candidate_materialization(row):
+        return 97
     if environment_repair_status:
         return 96
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
@@ -1110,10 +1141,6 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return exact_semantic_definition_repair_priority
     if learning_task == "source_theorem_exact_semantic_definition_work_order":
         return 70
-    if bool(row.get("candidate_materialization_required", False)) or bool(
-        input_summary.get("candidate_materialization_required", False)
-    ):
-        return 60
     return 10
 
 
@@ -1129,6 +1156,13 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         or input_summary.get("target_theorem_name", "")
         or ""
     )
+    target_scope_values = _runtime_learning_memory_string_values(
+        row,
+        "target_ids",
+        "target_id",
+        "target_theorem_goal_ids",
+    )
+    target_scope = ",".join(sorted(target_scope_values)) or target
     placeholder = str(
         row.get("placeholder_symbol", "")
         or input_summary.get("placeholder_symbol", "")
@@ -1246,6 +1280,8 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         return "source_theorem_proof_body_adapter_feedback:" + target + ":" + ",".join(
             premise_names
         )
+    if _runtime_learning_memory_row_requires_candidate_materialization(row):
+        return "candidate_materialization_required:" + (target_scope or target)
     if _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(row):
         return (
             "exact_semantic_definition_repair:"
@@ -1428,10 +1464,6 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + (next_owner or "unknown_owner")
         )
-    if bool(row.get("candidate_materialization_required", False)) or bool(
-        input_summary.get("candidate_materialization_required", False)
-    ):
-        return "candidate_materialization_required:" + target
     return ""
 
 

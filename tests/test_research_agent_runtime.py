@@ -13235,6 +13235,96 @@ def test_runtime_learning_memory_loader_pins_candidate_materialization_blocker(
     assert summary["source_theorem_candidate_materialization_required"] is True
 
 
+def test_runtime_learning_memory_materialization_blocker_outprioritizes_environment_repair_when_tight(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    materialization_row = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_formal_environment_repair_feedback",
+        "target_theorem_name": "thm_aipw_normality",
+        "target_ids": ["aipw_asymptotic_normality"],
+        "candidate_materialization_required": True,
+        "candidate_materialization_statuses": [
+            "SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT"
+        ],
+        "input_summary": {
+            "candidate_materialization_required": True,
+            "failure_classification": "source_theorem_candidate_materialization_required",
+        },
+    }
+    environment_repair_row = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_formal_environment_repair_feedback",
+        "target_theorem_name": "thm_aipw_normality",
+        "target_ids": ["aipw_asymptotic_normality"],
+        "environment_repair_status": "PENDING_SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+        "failure_classification": "lean_syntax_or_import_environment_gap",
+    }
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in [materialization_row, environment_repair_row])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["rows_loaded"] == 1
+    assert memory["rows"][0]["candidate_materialization_required"] is True
+    assert memory["rows"][0]["target_ids"] == ["aipw_asymptotic_normality"]
+
+
+def test_runtime_learning_memory_materialization_pin_key_preserves_target_identity(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_formal_environment_repair_feedback",
+            "target_theorem_name": "thm_aipw_normality",
+            "target_ids": ["aipw_asymptotic_normality"],
+            "candidate_materialization_required": True,
+            "input_summary": {
+                "candidate_materialization_required": True,
+                "failure_classification": "source_theorem_candidate_materialization_required",
+            },
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_formal_environment_repair_feedback",
+            "target_theorem_name": "thm_aipw_normality",
+            "target_ids": ["thm_aipw_normality"],
+            "candidate_materialization_required": True,
+            "input_summary": {
+                "candidate_materialization_required": True,
+                "failure_classification": "source_theorem_candidate_materialization_required",
+            },
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "retrieval_to_theory_context",
+            "target_behavior": "latest filler",
+        },
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=2)
+    materialization_target_ids = {
+        tuple(row.get("target_ids", []))
+        for row in memory["rows"]
+        if row.get("candidate_materialization_required") is True
+    }
+
+    assert materialization_target_ids == {
+        ("aipw_asymptotic_normality",),
+        ("thm_aipw_normality",),
+    }
+
+
 def test_runtime_learning_memory_loader_pins_verified_premise_adapter_context(
     tmp_path: Path,
 ) -> None:
