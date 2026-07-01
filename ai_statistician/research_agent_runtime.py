@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15453,6 +15454,9 @@ def run_research_agent_runtime(
         )
     )
     gap_planner_bridge_rows = _runtime_formalization_gap_planner_bridge_rows(results)
+    gap_planner_live_route_planner_summary = (
+        _runtime_formalization_gap_planner_live_route_planner_summary(results)
+    )
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
     theorem_reduction_closure_work_orders_path = (
@@ -26645,6 +26649,7 @@ def run_research_agent_runtime(
     manifest["n_runtime_formalization_gap_planner_handoffs"] = len(
         gap_planner_handoff_rows
     )
+    manifest.update(gap_planner_live_route_planner_summary)
     _record_post_runtime_exact_semantic_definition_lean_repair_counts(
         manifest,
         _source_theorem_exact_semantic_definition_lean_repair_executor_counts(
@@ -53482,6 +53487,143 @@ def _runtime_formalization_gap_planner_bridge_rows(
                     _runtime_formalization_gap_planner_bridge_with_targets(artifact)
                 )
     return rows
+
+
+def _runtime_formalization_gap_planner_execution_manifests(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    manifests: list[dict[str, Any]] = []
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind")
+                == "RuntimeFormalizationGapPlannerExecutionManifest"
+            ):
+                manifests.append(dict(artifact))
+    return manifests
+
+
+def _runtime_formalization_gap_planner_live_route_planner_summary(
+    results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    execution_manifests = _runtime_formalization_gap_planner_execution_manifests(
+        results
+    )
+    count_keys = (
+        "selected_handoffs",
+        "request_packets",
+        "response_present",
+        "response_contract_ok",
+        "provider_failures",
+        "awaiting_llm_response",
+        "route_adoption_ready",
+        "route_adoption_pending_refinement",
+        "route_adoption_awaiting_llm_response",
+        "routes_omitted_by_max_route_requests",
+        "provider_input_tokens",
+        "provider_output_tokens",
+        "provider_total_tokens",
+    )
+    aggregate_counts: Counter[str] = Counter()
+    manifest_ids: list[str] = []
+    live_manifest_paths: list[str] = []
+    requested = 0
+    followups_required = 0
+    invocations = 0
+    responses_recorded = 0
+    for execution_manifest in execution_manifests:
+        manifest_id = str(execution_manifest.get("manifest_id", "") or "").strip()
+        if manifest_id:
+            manifest_ids.append(manifest_id)
+        if execution_manifest.get("live_route_planner_requested") is True:
+            requested += 1
+        if execution_manifest.get("live_route_planner_followup_required") is True:
+            followups_required += 1
+        if execution_manifest.get("live_llm_invoked") is True:
+            invocations += 1
+        if (
+            execution_manifest.get("live_route_planner_all_responses_recorded")
+            is True
+        ):
+            responses_recorded += 1
+        live_manifest_path = str(
+            execution_manifest.get("live_route_planner_manifest_path", "") or ""
+        ).strip()
+        if live_manifest_path:
+            live_manifest_paths.append(live_manifest_path)
+        live_counts = execution_manifest.get("live_route_planner_counts", {})
+        if not isinstance(live_counts, Mapping):
+            continue
+        for key in count_keys:
+            aggregate_counts[key] += int(live_counts.get(key, 0) or 0)
+
+    return {
+        "n_runtime_formalization_gap_planner_execution_manifests": len(
+            execution_manifests
+        ),
+        "runtime_formalization_gap_planner_execution_manifest_ids": manifest_ids,
+        "n_runtime_formalization_gap_planner_live_route_planner_requested": requested,
+        "n_runtime_formalization_gap_planner_live_route_planner_followups_required": (
+            followups_required
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations": (
+            invocations
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_manifests": len(
+            live_manifest_paths
+        ),
+        "runtime_formalization_gap_planner_live_route_planner_manifest_paths": (
+            live_manifest_paths
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": (
+            responses_recorded
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
+            aggregate_counts["selected_handoffs"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_request_packets": int(
+            aggregate_counts["request_packets"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_present": int(
+            aggregate_counts["response_present"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": int(
+            aggregate_counts["response_contract_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": int(
+            aggregate_counts["provider_failures"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
+            aggregate_counts["awaiting_llm_response"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_ready": int(
+            aggregate_counts["route_adoption_ready"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_pending_refinement": int(
+            aggregate_counts["route_adoption_pending_refinement"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_awaiting_llm_response": int(
+            aggregate_counts["route_adoption_awaiting_llm_response"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests": int(
+            aggregate_counts["routes_omitted_by_max_route_requests"]
+        ),
+        "runtime_formalization_gap_planner_live_route_planner_token_counts": {
+            "provider_input_tokens": int(aggregate_counts["provider_input_tokens"]),
+            "provider_output_tokens": int(aggregate_counts["provider_output_tokens"]),
+            "provider_total_tokens": int(aggregate_counts["provider_total_tokens"]),
+        },
+        "runtime_formalization_gap_planner_live_route_planner_boundary": (
+            "Integrated live FormalizationGapPlanner route-planner responses are "
+            "planning and feedback-loop evidence only. They are not theorem proof "
+            "evidence and cannot close formal gaps without source grounding and "
+            "target-prover replay."
+        ),
+    }
 
 
 def _runtime_formalization_gap_planner_bridge_target_ids(

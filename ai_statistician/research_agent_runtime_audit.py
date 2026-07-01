@@ -971,6 +971,141 @@ def audit_research_agent_runtime(
                 "runtime_formal_gap_planner_handoff_context_boundary"
             ]
         ),
+        "n_runtime_formalization_gap_planner_bridges": int(
+            manifest.get("n_runtime_formalization_gap_planner_bridges", 0) or 0
+        ),
+        "n_runtime_formalization_gap_planner_routes": int(
+            manifest.get("n_runtime_formalization_gap_planner_routes", 0) or 0
+        ),
+        "n_runtime_formalization_gap_planner_handoffs": int(
+            manifest.get("n_runtime_formalization_gap_planner_handoffs", 0) or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_manifests": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_manifests",
+                0,
+            )
+            or 0
+        ),
+        "runtime_formalization_gap_planner_execution_manifest_ids": list(
+            manifest.get(
+                "runtime_formalization_gap_planner_execution_manifest_ids",
+                [],
+            )
+            or []
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_requested": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_requested",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_followups_required": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_followups_required",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_invocations",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_manifests": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_response_manifests",
+                0,
+            )
+            or 0
+        ),
+        "runtime_formalization_gap_planner_live_route_planner_manifest_paths": list(
+            manifest.get(
+                "runtime_formalization_gap_planner_live_route_planner_manifest_paths",
+                [],
+            )
+            or []
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_request_packets": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_request_packets",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_present": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_response_present",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_provider_failures",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_ready": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_ready",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests",
+                0,
+            )
+            or 0
+        ),
+        "runtime_formalization_gap_planner_live_route_planner_token_counts": dict(
+            manifest.get(
+                "runtime_formalization_gap_planner_live_route_planner_token_counts",
+                {},
+            )
+            or {}
+        ),
+        "runtime_formalization_gap_planner_live_route_planner_boundary": str(
+            manifest.get(
+                "runtime_formalization_gap_planner_live_route_planner_boundary",
+                "",
+            )
+            or ""
+        ),
         "n_runtime_theorem_reduction_closure_work_orders": int(
             manifest.get("n_runtime_theorem_reduction_closure_work_orders", 0) or 0
         ),
@@ -5409,6 +5544,78 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_formal_gap_planner_handoff_count = max(
+        int(payload.get("n_runtime_formal_gap_planner_handoff_rows", 0) or 0),
+        int(payload.get("n_runtime_formalization_gap_planner_handoffs", 0) or 0),
+    )
+    runtime_gap_planner_live_requests = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_requested",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_followups_required = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_followups_required",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_invocations = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_invocations",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_request_packets = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_request_packets",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_response_contract_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_provider_failures = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_failures",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_awaiting_response = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_responses_recorded = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_followthrough_complete = (
+        runtime_formal_gap_planner_handoff_count <= 0
+        or (
+            runtime_gap_planner_live_invocations > 0
+            and runtime_gap_planner_live_request_packets > 0
+            and runtime_gap_planner_live_response_contract_ok
+            >= runtime_gap_planner_live_request_packets
+            and runtime_gap_planner_live_provider_failures <= 0
+            and runtime_gap_planner_live_awaiting_response <= 0
+            and runtime_gap_planner_live_responses_recorded > 0
+        )
+    )
     primary_typechecked_review_required = bool(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
@@ -5853,6 +6060,54 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context=0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formal_gap_planner_live_route_planner_followthrough",
+            runtime_gap_planner_live_followthrough_complete,
+            (
+                "handoffs="
+                f"{runtime_formal_gap_planner_handoff_count} "
+                "requested="
+                f"{runtime_gap_planner_live_requests} "
+                "followups_required="
+                f"{runtime_gap_planner_live_followups_required} "
+                "invocations="
+                f"{runtime_gap_planner_live_invocations} "
+                "request_packets="
+                f"{runtime_gap_planner_live_request_packets} "
+                "response_contract_ok="
+                f"{runtime_gap_planner_live_response_contract_ok} "
+                "provider_failures="
+                f"{runtime_gap_planner_live_provider_failures} "
+                "awaiting_response="
+                f"{runtime_gap_planner_live_awaiting_response} "
+                "responses_recorded="
+                f"{runtime_gap_planner_live_responses_recorded} "
+                "paths="
+                f"{payload.get('runtime_formalization_gap_planner_live_route_planner_manifest_paths')}"
+            ),
+            (
+                "formal-gap planner handoffs were staged, but the integrated "
+                "live LLM route-planner feedback path did not record "
+                "contract-valid responses; prompt packets or pending follow-up "
+                "tasks alone are not end-to-end FormalizationGapPlanner capacity"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationGapPlanner",
+                target_behavior=(
+                    "Resume the pending gap-planner live-route task or rerun "
+                    "full-live capability eval with "
+                    "--formalization-gap-planner-live-route-planner so bounded "
+                    "LLM route-planner responses are recorded after each staged "
+                    "runtime handoff."
+                ),
+                success_metric=(
+                    "n_runtime_formalization_gap_planner_live_route_planner_invocations>0, "
+                    "request_packets>0, response_contract_ok equals request_packets, "
+                    "provider_failures=0, and awaiting_llm_response=0"
                 ),
             ),
         ),

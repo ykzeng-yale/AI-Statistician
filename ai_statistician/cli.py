@@ -10364,6 +10364,50 @@ def _apply_research_agent_runtime_capability_eval_preset(
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
         args.formalizer_candidate_lean_lsp_mcp = True
+        args.formalization_gap_planner_live_route_planner = True
+        if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_handoffs",
+                    1,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.formalization_gap_planner_live_max_handoffs = 1
+        if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_route_requests_per_handoff",
+                    1,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.formalization_gap_planner_live_max_route_requests_per_handoff = 1
+        if (
+            float(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.formalization_gap_planner_live_timeout_seconds = (
+                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+            )
+        if str(
+            getattr(args, "formalization_gap_planner_live_provider", "same")
+            or "same"
+        ) in {"", "none", "static"}:
+            args.formalization_gap_planner_live_provider = "same"
         args.run_coding_agent_generated_code_repair_eval = True
         args.run_formalizer_lean_candidate_repair_eval = True
         args.source_theorem_exact_semantic_definition_authoring_worker = True
@@ -10728,6 +10772,75 @@ def _research_agent_runtime_capability_config_errors(
             "proof-state feedback path; missing "
             "--formalizer-candidate-lean-lsp-mcp"
         )
+    if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        if not bool(
+            getattr(args, "formalization_gap_planner_live_route_planner", False)
+        ):
+            errors.append(
+                "capability eval preset full-live requires the integrated live "
+                "FormalizationGapPlanner route-planner feedback path; missing "
+                "--formalization-gap-planner-live-route-planner"
+            )
+        route_provider_choice = str(
+            getattr(args, "formalization_gap_planner_live_provider", "same")
+            or "same"
+        )
+        route_provider = (
+            main_provider if route_provider_choice == "same" else route_provider_choice
+        )
+        if route_provider not in {"anthropic", "openai"}:
+            errors.append(
+                "capability eval preset full-live requires a live "
+                "FormalizationGapPlanner route-planner provider; "
+                "formalization_gap_planner_live_provider="
+                f"{route_provider_choice} resolves to {route_provider or 'none'}"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_handoffs",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires "
+                "--formalization-gap-planner-live-max-handoffs > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_route_requests_per_handoff",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded live "
+                "FormalizationGapPlanner route-planner fanout; set "
+                "--formalization-gap-planner-live-max-route-requests-per-handoff > 0"
+            )
+        if (
+            float(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_timeout_seconds",
+                    0.0,
+                )
+                or 0.0
+            )
+            <= 0.0
+        ):
+            errors.append(
+                "capability eval preset full-live requires "
+                "--formalization-gap-planner-live-timeout-seconds > 0"
+            )
     if (
         bool(getattr(args, "formalizer_candidate_local_lean", False))
         or bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False))
@@ -17446,8 +17559,9 @@ def build_parser() -> argparse.ArgumentParser:
             "populate strict live capability-eval defaults without weakening "
             "the scorecard gates. minimal-live enables live providers and the "
             "internal Lean/ProofEngineer paths; full-live also attaches the "
-            "coding-agent and Formalizer/Lean repair component gates. Static "
-            "fixtures never become capability evidence."
+            "coding-agent repair, Formalizer/Lean repair, live Lean-LSP/MCP, "
+            "and integrated FormalizationGapPlanner live route-planner gates. "
+            "Static fixtures never become capability evidence."
         ),
     )
     research_agent_runtime.add_argument(

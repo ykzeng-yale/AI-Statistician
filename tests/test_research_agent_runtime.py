@@ -130,6 +130,7 @@ from ai_statistician.research_agent_runtime import (
     _formalizer_source_theorem_semantic_primitive_work_orders,
     _formalizer_source_theorem_promotion_work_orders,
     _runtime_formalization_gap_planner_bridge,
+    _runtime_formalization_gap_planner_live_route_planner_summary,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer,
@@ -1807,6 +1808,79 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     )
 
 
+def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifest() -> None:
+    summary = _runtime_formalization_gap_planner_live_route_planner_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "runtime_formalization_gap_planner_execution_manifest:test": {
+                            "artifact_kind": (
+                                "RuntimeFormalizationGapPlannerExecutionManifest"
+                            ),
+                            "manifest_id": (
+                                "runtime_formalization_gap_planner_execution_manifest:test"
+                            ),
+                            "live_route_planner_requested": True,
+                            "live_route_planner_followup_required": False,
+                            "live_llm_invoked": True,
+                            "live_route_planner_all_responses_recorded": True,
+                            "live_route_planner_manifest_path": (
+                                "runtime_formalization_gap_planner_live_route_planner/"
+                                "runtime_formalization_gap_planner_live_route_planner_manifest.json"
+                            ),
+                            "live_route_planner_counts": {
+                                "selected_handoffs": 1,
+                                "request_packets": 1,
+                                "response_present": 1,
+                                "response_contract_ok": 1,
+                                "provider_failures": 0,
+                                "awaiting_llm_response": 0,
+                                "route_adoption_ready": 1,
+                                "routes_omitted_by_max_route_requests": 2,
+                                "provider_input_tokens": 123,
+                                "provider_output_tokens": 45,
+                                "provider_total_tokens": 168,
+                            },
+                        }
+                    }
+                }
+            }
+        ]
+    )
+
+    assert summary["n_runtime_formalization_gap_planner_execution_manifests"] == 1
+    assert (
+        summary["n_runtime_formalization_gap_planner_live_route_planner_requested"]
+        == 1
+    )
+    assert (
+        summary["n_runtime_formalization_gap_planner_live_route_planner_invocations"]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests"
+        ]
+        == 2
+    )
+    assert summary[
+        "runtime_formalization_gap_planner_live_route_planner_token_counts"
+    ]["provider_total_tokens"] == 168
+
+
 def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(
     tmp_path: Path,
 ) -> None:
@@ -2466,6 +2540,63 @@ def test_runtime_capability_scorecard_flags_formal_gap_planner_handoff_context_g
     assert "runtime_pending_task_environment_feedback" in handoff_score["evidence"]
     assert "executable CLI/path context" in handoff_score["blocker"]
     assert handoff_score["next_owner_subsystem"] == "FormalizationEvaluator"
+
+
+def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "runtime_dir": "runs/previous_capability_eval",
+            "manifest": "runs/previous_capability_eval/research_agent_runtime_manifest.json",
+            "n_runtime_formalization_gap_planner_handoffs": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_requested": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_invocations": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 0,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    followthrough = rows["formal_gap_planner_live_route_planner_followthrough"]
+
+    assert followthrough["passed"] is False
+    assert "followups_required=1" in followthrough["evidence"]
+    assert "contract-valid responses" in followthrough["blocker"]
+    assert followthrough["next_owner_subsystem"] == "FormalizationGapPlanner"
+    assert "--resume-runtime-manifest runs/previous_capability_eval/research_agent_runtime_manifest.json" in followthrough[
+        "recommended_capability_eval_command"
+    ]
+
+    payload.update(
+        {
+            "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_invocations": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is True
 
 
 def test_runtime_audit_markdown_reports_current_handoff_identity(
@@ -53563,6 +53694,11 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         source_theorem_exact_semantic_definition_candidate_synthesis=False,
         source_theorem_exact_semantic_definition_candidate_synthesis_local_lean=False,
         source_theorem_exact_semantic_definition_candidate_synthesis_lean_project="",
+        formalization_gap_planner_live_route_planner=False,
+        formalization_gap_planner_live_max_handoffs=0,
+        formalization_gap_planner_live_max_route_requests_per_handoff=0,
+        formalization_gap_planner_live_provider="same",
+        formalization_gap_planner_live_timeout_seconds=0.0,
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
         coding_agent_repair_eval_provider="same",
@@ -53776,6 +53912,11 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.formalizer_provider == "same"
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_lsp_mcp is True
+    assert args.formalization_gap_planner_live_route_planner is True
+    assert args.formalization_gap_planner_live_max_handoffs == 1
+    assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
+    assert args.formalization_gap_planner_live_provider == "same"
+    assert args.formalization_gap_planner_live_timeout_seconds > 0
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
@@ -53800,6 +53941,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert (
         "capability eval preset full-live requires the live Lean LSP/MCP "
         "proof-state feedback path; missing --formalizer-candidate-lean-lsp-mcp"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.formalizer_candidate_lean_lsp_mcp = True
+    args.formalization_gap_planner_live_route_planner = False
+    assert (
+        "capability eval preset full-live requires the integrated live "
+        "FormalizationGapPlanner route-planner feedback path; missing "
+        "--formalization-gap-planner-live-route-planner"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 
