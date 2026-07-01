@@ -31,6 +31,7 @@ from .research_agent_runtime import (
     _runtime_evidence_truth_table_from_manifest,
     _runtime_manifest_int_sum,
     _runtime_research_path_execution_summary,
+    _runtime_source_theorem_formal_environment_work_order_rows,
 )
 from .task_family import (
     explicit_task_family_list,
@@ -135,6 +136,78 @@ def _payload_cross_task_full_theorem_family_count(
     if explicit_count > 0:
         return explicit_count
     return 0
+
+
+def _runtime_source_theorem_formal_environment_work_order_recompute_summary(
+    *,
+    result_paths: list[Path],
+    manifest: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        if isinstance(payload, Mapping):
+            results.append(dict(payload))
+    rows = _runtime_source_theorem_formal_environment_work_order_rows(results)
+    manifest_count = int(
+        manifest.get("n_runtime_source_theorem_formal_environment_work_orders", 0)
+        or 0
+    )
+    by_status = Counter(
+        str(row.get("runtime_queue_status", "") or "NO_RUNTIME_QUEUE_STATUS")
+        for row in rows
+        if isinstance(row, Mapping)
+    )
+    by_failure = Counter(
+        str(row.get("failure_classification", "") or "NO_FAILURE_CLASSIFICATION")
+        for row in rows
+        if isinstance(row, Mapping)
+    )
+    target_ids: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for value in _compact_string_list(row.get("target_ids", [])):
+            target_ids.append(value)
+    return {
+        "artifact_kind": "RuntimeSourceTheoremFormalEnvironmentWorkOrderRecomputeSummary",
+        "source": "result_artifacts_recomputed",
+        "n_recomputed_work_orders": len(rows),
+        "n_manifest_work_orders": manifest_count,
+        "manifest_stale": len(rows) != manifest_count,
+        "target_ids": list(dict.fromkeys(target_ids)),
+        "by_runtime_queue_status": dict(sorted(by_status.items())),
+        "by_failure_classification": dict(sorted(by_failure.items())),
+        "manifest_snapshot": {
+            "n_runtime_source_theorem_formal_environment_work_orders": manifest_count,
+            "source_theorem_formal_environment_proofengineer_bridge_requested": bool(
+                manifest.get(
+                    "source_theorem_formal_environment_proofengineer_bridge_requested",
+                    False,
+                )
+            ),
+            "source_theorem_formal_environment_proofengineer_bridge_ran": bool(
+                manifest.get(
+                    "source_theorem_formal_environment_proofengineer_bridge_ran",
+                    False,
+                )
+            ),
+            "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": str(
+                manifest.get(
+                    "source_theorem_formal_environment_proofengineer_bridge_skipped_reason",
+                    "",
+                )
+                or ""
+            ),
+        },
+        "boundary": (
+            "This audit recomputes formal-environment work-order availability from "
+            "per-question result artifacts using the current AgentRuntime routing "
+            "logic. It does not imply that the bridge ran in the audited runtime, "
+            "and it is not proof evidence."
+        ),
+    }
 
 
 def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
@@ -458,6 +531,43 @@ def audit_research_agent_runtime(
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
     )
+    runtime_source_theorem_formal_environment_work_order_summary = (
+        _runtime_source_theorem_formal_environment_work_order_recompute_summary(
+            result_paths=result_paths,
+            manifest=manifest,
+            errors=errors,
+        )
+    )
+    source_theorem_formal_environment_bridge_ran = bool(
+        manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
+    ) or bool(
+        manifest.get(
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
+            False,
+        )
+    )
+    source_theorem_formal_environment_bridge_skipped_reason = str(
+        manifest.get("source_theorem_formal_environment_proofengineer_bridge_skipped_reason", "")
+        or manifest.get(
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
+            "",
+        )
+        or ""
+    )
+    if (
+        not source_theorem_formal_environment_bridge_ran
+        and int(
+            runtime_source_theorem_formal_environment_work_order_summary[
+                "n_recomputed_work_orders"
+            ]
+        )
+        > 0
+        and source_theorem_formal_environment_bridge_skipped_reason
+        == "no_source_theorem_formal_environment_work_orders"
+    ):
+        source_theorem_formal_environment_bridge_skipped_reason = (
+            "manifest_stale_no_bridge_run_recomputed_source_theorem_formal_environment_work_orders"
+        )
     formalizer_repair_sequences = max(
         int(
             manifest.get(
@@ -864,6 +974,32 @@ def audit_research_agent_runtime(
         "n_runtime_theorem_reduction_closure_work_orders": int(
             manifest.get("n_runtime_theorem_reduction_closure_work_orders", 0) or 0
         ),
+        "runtime_source_theorem_formal_environment_work_order_summary": (
+            runtime_source_theorem_formal_environment_work_order_summary
+        ),
+        "runtime_source_theorem_formal_environment_work_orders_source": str(
+            runtime_source_theorem_formal_environment_work_order_summary["source"]
+        ),
+        "runtime_source_theorem_formal_environment_manifest_stale": bool(
+            runtime_source_theorem_formal_environment_work_order_summary[
+                "manifest_stale"
+            ]
+        ),
+        "runtime_source_theorem_formal_environment_manifest_snapshot": dict(
+            runtime_source_theorem_formal_environment_work_order_summary[
+                "manifest_snapshot"
+            ]
+        ),
+        "n_runtime_source_theorem_formal_environment_work_orders": int(
+            runtime_source_theorem_formal_environment_work_order_summary[
+                "n_recomputed_work_orders"
+            ]
+        ),
+        "n_runtime_source_theorem_formal_environment_work_orders_manifest": int(
+            runtime_source_theorem_formal_environment_work_order_summary[
+                "n_manifest_work_orders"
+            ]
+        ),
         "has_kernel_evidence": n_kernel_verified_subclaims > 0,
         "has_real_kernel_evidence": n_real_kernel_verified_subclaims > 0,
         "has_non_real_kernel_evidence": n_non_real_kernel_verified_subclaims > 0,
@@ -1156,22 +1292,11 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
-        "source_theorem_formal_environment_proofengineer_bridge_ran": bool(
-            manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
-        )
-        or bool(
-            manifest.get(
-                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
-                False,
-            )
+        "source_theorem_formal_environment_proofengineer_bridge_ran": (
+            source_theorem_formal_environment_bridge_ran
         ),
-        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": str(
-            manifest.get("source_theorem_formal_environment_proofengineer_bridge_skipped_reason", "")
-            or manifest.get(
-                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
-                "",
-            )
-            or ""
+        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": (
+            source_theorem_formal_environment_bridge_skipped_reason
         ),
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": max(
             int(

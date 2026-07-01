@@ -47366,6 +47366,187 @@ def test_runtime_audit_accepts_budgeted_proofengineer_continuation(
     )
 
 
+def test_runtime_audit_recomputes_source_theorem_formal_environment_work_orders(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    trace_rows = [
+        {"subsystem": "RetrievalMemory"},
+        {"subsystem": "TheoryDeveloper"},
+        {"subsystem": "SimulationEvaluator"},
+        {"subsystem": "AlgorithmEngineer"},
+        {"subsystem": "FormalizationEvaluator"},
+        {"subsystem": "CriticEvaluator"},
+    ]
+    traces.write_text(
+        "\n".join(json.dumps(row) for row in trace_rows) + "\n",
+        encoding="utf-8",
+    )
+    agenda.write_text(
+        json.dumps({"id": "formal_gap:source_theorem_formal_environment_repair"})
+        + "\n",
+        encoding="utf-8",
+    )
+    learning.write_text(
+        json.dumps({"learning_task": "next_action_routing"}) + "\n",
+        encoding="utf-8",
+    )
+    result_path = runtime_dir / "aipw_runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "project_id": "ai_statistician:causal_ate_aipw",
+                    "artifacts": {
+                        "retrieval_memory_manifest:aipw": {},
+                        "theory_derivation:aipw": {},
+                        "simulation_manifest:aipw": {},
+                        "algorithm_sandbox_manifest:aipw": {"n_executed": 1},
+                        "formalizer_proposal:aipw": {
+                            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                            "packet_id": "formalizer_proposal:aipw",
+                            "formal_targets": [
+                                {
+                                    "id": "aipw_helper",
+                                    "lean_statement_sketch": (
+                                        "theorem aipw_helper (p : Prop) "
+                                        "(hp : p) : p := hp"
+                                    ),
+                                    "expected_status": "NEEDS_KERNEL_CHECK",
+                                    "source_theorem_target_provenance": {
+                                        "source_theorem_target_known": "false",
+                                        "target_lean_declaration": "aipw_helper",
+                                        "source_theorem_goal_id": (
+                                            "aipw_asymptotic_normality"
+                                        ),
+                                    },
+                                },
+                                {
+                                    "id": "thm_aipw_normality",
+                                    "lean_statement_sketch": "",
+                                    "expected_status": "FORMAL_GAP",
+                                    "source_theorem_target_provenance": {
+                                        "source_theorem_target_known": "true",
+                                        "target_lean_declaration": (
+                                            "thm_aipw_normality"
+                                        ),
+                                        "source_theorem_goal_id": (
+                                            "aipw_asymptotic_normality"
+                                        ),
+                                    },
+                                },
+                            ],
+                        },
+                        "formalization_manifest:aipw": {
+                            "artifact_kind": "RuntimeFormalizationManifest",
+                            "manifest_id": "formalization_manifest:aipw",
+                            "llm_formalizer_proof_engineer_proposal_id": (
+                                "formalizer_proposal:aipw"
+                            ),
+                            "counts": {
+                                "kernel_verified": 0,
+                                "formal_gap": 1,
+                            },
+                            "proof_bank_runtime_memory_summary": {
+                                "source_theorem_exact_candidate_environment_gap": False,
+                            },
+                            "formal_subclaims": [],
+                        },
+                        "critic_evaluator_manifest:aipw": {
+                            "next_action_agenda": [
+                                {
+                                    "id": (
+                                        "formal_gap:"
+                                        "source_theorem_formal_environment_repair"
+                                    )
+                                }
+                            ],
+                            "learning_rows": [
+                                {"learning_task": "next_action_routing"}
+                            ],
+                            "runtime_reroute_decision": {
+                                "reroute_to_theory_developer": False
+                            },
+                        },
+                    },
+                },
+                "traces": trace_rows,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_stage": (
+                    "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+                ),
+                "n_questions": 1,
+                "n_runtime_next_action_items": 1,
+                "n_runtime_learning_rows": 1,
+                "n_runtime_source_theorem_formal_environment_work_orders": 0,
+                "source_theorem_formal_environment_proofengineer_bridge_requested": True,
+                "source_theorem_formal_environment_proofengineer_bridge_ran": False,
+                "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": (
+                    "no_source_theorem_formal_environment_work_orders"
+                ),
+                "llm_runtime_topology": {
+                    "policy_status": "OK",
+                    "counts": {
+                        "unsupported_generator_backends_enabled": 0,
+                        "subsystem_model_tier_policy_mismatches": 0,
+                        "enabled_by_provider": {},
+                    },
+                    "policy": {
+                        "resolved_claude_models_by_tier": {
+                            "haiku": "claude-haiku-test",
+                            "sonnet": "claude-sonnet-test",
+                            "opus": "claude-opus-test",
+                        }
+                    },
+                },
+                "artifacts": {
+                    "per_question_results": [str(result_path)],
+                    "runtime_traces_jsonl": str(traces),
+                    "runtime_next_action_agenda_jsonl": str(agenda),
+                    "runtime_learning_rows_jsonl": str(learning),
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert audit["all_ok"] is True
+    assert audit["n_runtime_source_theorem_formal_environment_work_orders"] == 1
+    assert (
+        audit["n_runtime_source_theorem_formal_environment_work_orders_manifest"]
+        == 0
+    )
+    assert (
+        audit["runtime_source_theorem_formal_environment_work_orders_source"]
+        == "result_artifacts_recomputed"
+    )
+    assert audit["runtime_source_theorem_formal_environment_manifest_stale"] is True
+    assert audit[
+        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason"
+    ] == (
+        "manifest_stale_no_bridge_run_recomputed_source_theorem_formal_environment_work_orders"
+    )
+    assert audit["runtime_source_theorem_formal_environment_work_order_summary"][
+        "target_ids"
+    ] == ["aipw_asymptotic_normality"]
+
+
 def test_runtime_audit_keeps_budgeted_continuation_strict_without_pending_task(
     tmp_path: Path,
 ) -> None:

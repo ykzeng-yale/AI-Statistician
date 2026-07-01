@@ -428,6 +428,8 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
         "candidate_artifact_path": candidate_artifact_path,
+        "lean_statement_sketch": str(row.get("lean_statement_sketch", "") or ""),
+        "lean_imports": _str_list(row.get("lean_imports", []) or []),
         "source_theorem_target_known": bool(
             _source_theorem_target_known_value(source_target_provenance) is True
         ),
@@ -870,16 +872,27 @@ def _signature_probe_row(
     if not repair_packet_id:
         errors.append("repair_packet_id missing")
     if not candidate_raw:
-        candidate_materialization_required = True
-        candidate_materialization_contract = CANDIDATE_MATERIALIZATION_CONTRACT
-        candidate_precondition_failure = CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE
-        candidate_precondition_status = SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT
-        errors.extend(
-            _candidate_materialization_diagnostics(
-                packet,
-                reason="candidate_artifact_path missing",
+        source = _work_order_candidate_source(packet)
+        if source:
+            candidate_path = (
+                artifacts_dir
+                / f"{_safe_file_stem(target_theorem_name or probe_id)}_work_order_candidate.lean"
             )
-        )
+            candidate_path.write_text(source, encoding="utf-8")
+            candidate_raw = str(candidate_path)
+        else:
+            candidate_materialization_required = True
+            candidate_materialization_contract = CANDIDATE_MATERIALIZATION_CONTRACT
+            candidate_precondition_failure = CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE
+            candidate_precondition_status = (
+                SIGNATURE_PROBE_BLOCKED_NEEDS_CANDIDATE_ARTIFACT
+            )
+            errors.extend(
+                _candidate_materialization_diagnostics(
+                    packet,
+                    reason="candidate_artifact_path missing",
+                )
+            )
     elif not candidate_path.exists():
         candidate_materialization_required = True
         candidate_materialization_contract = CANDIDATE_MATERIALIZATION_CONTRACT
@@ -951,9 +964,9 @@ def _signature_probe_row(
         target_ids=tuple(target_ids),
         target_theorem_goal_ids=tuple(target_ids),
         target_lean_declaration=target_lean_declaration,
-        source_theorem_target_known=bool(
-            packet.get("source_theorem_target_known", False)
-            or source_target_provenance.get("source_theorem_target_known", False)
+        source_theorem_target_known=(
+            _source_theorem_target_known_value(packet) is True
+            or _source_theorem_target_known_value(source_target_provenance) is True
         ),
         source_theorem_target_provenance=source_target_provenance,
         semantic_alignment_constraints=tuple(semantic_alignment_constraints),
@@ -976,6 +989,22 @@ def _signature_probe_row(
         candidate_materialization_required=candidate_materialization_required,
         candidate_materialization_contract=candidate_materialization_contract,
     )
+
+
+def _work_order_candidate_source(packet: Mapping[str, Any]) -> str:
+    statement = str(packet.get("lean_statement_sketch", "") or "").strip()
+    if not statement or statement.startswith("FORMAL_GAP"):
+        return ""
+    imports: list[str] = []
+    for raw_import in _str_list(packet.get("lean_imports", []) or []):
+        import_name = raw_import.strip()
+        if not import_name:
+            continue
+        imports.append(
+            import_name if import_name.startswith("import ") else f"import {import_name}"
+        )
+    prefix = "\n".join(dict.fromkeys(imports))
+    return (prefix + "\n\n" if prefix else "") + statement + "\n"
 
 
 def _candidate_materialization_diagnostics(

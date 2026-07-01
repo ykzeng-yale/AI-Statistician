@@ -1418,6 +1418,71 @@ def test_signature_probe_routes_missing_candidate_as_materialization_request(
     ]
 
 
+def test_signature_probe_materializes_work_order_lean_statement_sketch(
+    tmp_path: Path,
+) -> None:
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": (
+                    "source_theorem_formal_environment_work_order:sketch"
+                ),
+                "question_id": "split_conformal",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": "true",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage (coverage_claim : Prop) "
+                    "(h : coverage_claim) : coverage_claim := by\n"
+                    "  exact h"
+                ),
+                "lean_imports": [],
+                "failure_classification": "lean_syntax_or_import_environment_gap",
+                "diagnostics": ["prior parser/import repair needed"],
+                "missing_formal_symbols": [],
+                "typeclass_blockers": [],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge_sketch",
+        queue_jsonl=queue_jsonl,
+        question_id="split_conformal",
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_signature_probe_rows"] == 1
+    assert manifest["n_signature_probes_reached_proof_body"] == 1
+    assert manifest["n_proof_body_work_orders"] == 1
+    assert manifest["n_proof_body_execution_queue_rows"] == 1
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_row = probe_manifest["rows"][0]
+    generated_candidate = Path(probe_row["source_candidate_artifact_path"])
+    assert generated_candidate.exists()
+    assert "theorem split_conformal_coverage" in generated_candidate.read_text(
+        encoding="utf-8"
+    )
+    assert probe_row["candidate_materialization_required"] is False
+    assert probe_row["source_theorem_target_known"] is True
+    assert probe_row["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
+
+
 def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
     tmp_path: Path,
 ) -> None:
