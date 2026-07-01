@@ -1234,6 +1234,98 @@ def test_critic_uses_explicit_handoff_artifact_ids_over_latest_blackboard() -> N
     assert critic_manifest["counts"]["formal_gaps"] == 0
 
 
+def test_critic_suppresses_formalizer_reroute_for_packet_validation_escalation() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:critic_packet_escalation"
+    formalization_id = "formalization_manifest:packet_escalation"
+    blackboard = BlackboardState(project_id="critic-packet-escalation-test")
+    blackboard.artifacts.update(
+        {
+            "retrieval_memory_manifest:test": {
+                "artifact_kind": "RuntimeRetrievalMemoryManifest",
+                "manifest_id": "retrieval_memory_manifest:test",
+                "counts": {"formal_source_hits": 1},
+            },
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:test": {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": "algorithm_sandbox_manifest:test",
+                "n_executed": 1,
+            },
+            formalization_id: {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": formalization_id,
+                "counts": {"proved": 0, "kernel_verified": 0, "formal_gap": 1},
+                "formal_subclaims": [
+                    {
+                        "id": "aipw_source_theorem_gap",
+                        "status": "FORMAL_GAP",
+                        "gap_reason": "repeated Formalizer packet validation failure",
+                    }
+                ],
+                "deterministic_theorem_goals": [
+                    {"id": "aipw_double_robustness", "status": "FORMAL_GAP"}
+                ],
+                "proof_bank_runtime_memory_summary": {
+                    "recommended_formalizer_target_mode": (
+                        "source_to_bridge_premise_derivation_required"
+                    ),
+                    "source_to_bridge_premise_derivation_required": True,
+                },
+            },
+        }
+    )
+    task = AgentTask(
+        task_id="formalizer-packet-blocker:causal_ate_aipw:test",
+        owner_subsystem="CriticEvaluator",
+        objective="Record repeated Formalizer packet-validation blocker.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "formalization_manifest_id": formalization_id,
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                }
+            },
+            "environment_feedback": {
+                "packet_validation_escalation": {
+                    "escalation_kind": (
+                        "formalizer_repeated_syntax_packet_validation_loop"
+                    ),
+                    "proof_evidence_status": (
+                        "FORMALIZER_REPEATED_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            },
+        },
+    )
+
+    result = runtime_module.CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    assert result.next_task is None
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    decision = critic_manifest["runtime_reroute_decision"]
+    assert decision["formalizer_packet_validation_escalation_active"] is True
+    assert decision["reroute_to_formalizer_proofengineer"] is False
+    assert "immediate Formalizer reroute is suppressed" in decision["reason"]
+
+
 def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(
     tmp_path: Path,
 ) -> None:
@@ -10716,6 +10808,110 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
     assert result.next_task is not None
     assert "repeated parser/syntax fail-closed rules" in result.next_task.objective
     assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
+
+
+def test_repeated_syntax_packet_validation_loop_escalates_to_critic() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "capability_eval repeated parser/syntax contract requires either "
+                "an explicit source-theorem FORMAL_GAP formal_targets row with "
+                "an empty Lean sketch, or one parser-simple support candidate in "
+                "source_to_bridge_premise_derivation_candidates with copied "
+                "source-binding metadata; packet has neither"
+            ),
+            "source_to_bridge_premise_derivation_candidates entry missing Lean candidate source",
+        ],
+        history=[{"attempt_index": 1, "ok": False}],
+    )
+    task = AgentTask(
+        task_id="formalize-repair:causal_ate_aipw:retry_loop",
+        owner_subsystem="FormalizationEvaluator",
+        objective="repair repeated syntax packet",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "environment_feedback": {
+                "feedback_type": "formalizer_packet_validation_feedback",
+                "failure_classification": "formalizer_packet_validation_failed",
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+                "candidate_diagnostics": [
+                    {
+                        "candidate_id": (
+                            "aipw_propensity_weight_cancel_bridge_helper_repaired"
+                        ),
+                        "source_field": "formal_targets",
+                        "precheck_errors": [
+                            "Lean parser/syntax error: `Type*` universe shorthand is rejected"
+                        ],
+                        "target_lean_declaration": (
+                            "aipw_propensity_weight_cancel_bridge_helper_repaired"
+                        ),
+                    }
+                ],
+                "formal_blocker_resource_requests": [
+                    {
+                        "request_id": "formal_blocker_resource_request:syntax",
+                        "blocker_kind": "lean_repeated_parser_or_syntax_failure",
+                        "proof_evidence_status": (
+                            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary={},
+        exc=exc,
+    )
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalizer_repeated_syntax_packet_validation_escalated"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    assert result.next_task.task_id.startswith("formalizer-packet-blocker:")
+    assert "deterministic formal blocker" in result.next_task.objective
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["failure_classification"] == (
+        "formalizer_repeated_syntax_packet_validation_escalated"
+    )
+    escalation = feedback["packet_validation_escalation"]
+    assert escalation["next_owner_subsystem"] == "CriticEvaluator"
+    assert escalation["formal_blocker_resource_requests"][0]["blocker_kind"] == (
+        "formalizer_repeated_syntax_packet_validation_loop"
+    )
+    assert "source-to-bridge binding metadata" in escalation["acceptance_gate"]
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["packet_validation_escalation"]["escalation_kind"] == (
+        "formalizer_repeated_syntax_packet_validation_loop"
+    )
+    learning_tasks = {
+        row["learning_task"] for row in artifact["learning_rows"]
+    }
+    assert "formalizer_packet_validation_feedback" in learning_tasks
+    assert "formalizer_repeated_syntax_packet_validation_escalation" in learning_tasks
 
 
 def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(

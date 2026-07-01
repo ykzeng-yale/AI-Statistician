@@ -7714,11 +7714,75 @@ def _formalizer_packet_validation_failure_result(
         repair_feedback["target_names"] = target_names
     next_inputs = dict(task.inputs)
     next_inputs["environment_feedback"] = repair_feedback
+    next_inputs.setdefault("question", _question_to_payload(question))
     repeated_syntax_packet_repair = (
         _formalizer_local_lean_contract_has_repeated_syntax_failure(
             active_local_lean_repair_contract
         )
     )
+    packet_validation_escalation = (
+        _formalizer_repeated_syntax_packet_validation_escalation(
+            task=task,
+            question=question,
+            validation_errors=validation_errors,
+            local_lean_repair_contract=active_local_lean_repair_contract,
+            candidate_diagnostics=active_candidate_diagnostics,
+            formal_blocker_resource_requests=(
+                active_formal_blocker_resource_requests
+            ),
+        )
+        if repeated_syntax_packet_repair
+        and packet_repair_retry_depth > 0
+        else {}
+    )
+    if packet_validation_escalation:
+        escalation_learning_row = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "question_id": question.id,
+            "question_title": question.title,
+            "learning_task": "formalizer_repeated_syntax_packet_validation_escalation",
+            "input_summary": {
+                "trigger": "REPEATED_FORMALIZER_PACKET_VALIDATION_FAILED",
+                "failed_subsystem": "FormalizationEvaluator",
+                "failure_classification": (
+                    "formalizer_repeated_syntax_packet_validation_escalated"
+                ),
+                "validation_errors": validation_errors,
+                "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
+                "packet_validation_escalation": packet_validation_escalation,
+            },
+            "target_behavior": packet_validation_escalation["target_behavior"],
+            "acceptance_gate": packet_validation_escalation["acceptance_gate"],
+            "proof_evidence_status": (
+                "FORMALIZER_REPEATED_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        learning_row["packet_validation_escalation"] = packet_validation_escalation
+        failure_artifact["packet_validation_escalation"] = packet_validation_escalation
+        failure_artifact["learning_rows"].append(escalation_learning_row)
+        repair_feedback["packet_validation_escalation"] = packet_validation_escalation
+        repair_feedback["failure_classification"] = (
+            "formalizer_repeated_syntax_packet_validation_escalated"
+        )
+        repair_feedback["formal_blocker_resource_requests"] = (
+            _merge_formal_blocker_resource_requests(
+                [
+                    row
+                    for row in repair_feedback.get(
+                        "formal_blocker_resource_requests",
+                        [],
+                    )
+                    or []
+                    if isinstance(row, Mapping)
+                ],
+                packet_validation_escalation.get(
+                    "formal_blocker_resource_requests",
+                    [],
+                ),
+            )
+        )
+        next_inputs["environment_feedback"] = repair_feedback
     if source_theorem_candidate_materialization_contract:
         next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
@@ -7729,6 +7793,12 @@ def _formalizer_packet_validation_failure_result(
             "exact source-theorem formal_targets Lean candidate; proof still requires "
             "local Lean/AXLE kernel verification"
         )
+    elif packet_validation_escalation:
+        next_task_objective = (
+            "Record a deterministic formal blocker/gap-planner handoff for repeated "
+            "Formalizer packet-validation failure before requesting another packet."
+        )
+        next_task_acceptance_gate = packet_validation_escalation["acceptance_gate"]
     elif repeated_syntax_packet_repair:
         next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet under repeated parser/syntax "
@@ -7746,14 +7816,43 @@ def _formalizer_packet_validation_failure_result(
             "still requires local Lean/AXLE kernel verification"
         )
     next_task = AgentTask(
-        task_id=f"formalize-repair:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
-        owner_subsystem="FormalizationEvaluator",
+        task_id=(
+            f"formalizer-packet-blocker:{question.id}:"
+            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+            if packet_validation_escalation
+            else f"formalize-repair:{question.id}:"
+            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+        ),
+        owner_subsystem=(
+            "CriticEvaluator" if packet_validation_escalation else "FormalizationEvaluator"
+        ),
         objective=next_task_objective,
         inputs=next_inputs,
-        allowed_tools=task.allowed_tools,
-        expected_artifacts=task.expected_artifacts,
+        allowed_tools=(
+            tuple(
+                dict.fromkeys(
+                    (
+                        *task.allowed_tools,
+                        "formal_source_retriever",
+                        "evidence_ledger",
+                        "runtime_next_action_agenda",
+                    )
+                )
+            )
+            if packet_validation_escalation
+            else task.allowed_tools
+        ),
+        expected_artifacts=(
+            ("critic_evaluator_manifest", "runtime_next_action_agenda")
+            if packet_validation_escalation
+            else task.expected_artifacts
+        ),
         acceptance_gate=next_task_acceptance_gate,
-        stop_condition="repaired formalizer packet or explicit formal blocker recorded",
+        stop_condition=(
+            "deterministic blocker agenda or gap-planner handoff recorded"
+            if packet_validation_escalation
+            else "repaired formalizer packet or explicit formal blocker recorded"
+        ),
     )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
@@ -7804,7 +7903,11 @@ def _formalizer_packet_validation_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="formalizer_packet_validation_failed",
+        failure_classification=(
+            "formalizer_repeated_syntax_packet_validation_escalated"
+            if packet_validation_escalation
+            else "formalizer_packet_validation_failed"
+        ),
     )
 
 
@@ -8494,6 +8597,123 @@ def _formalizer_repair_feedback_requires_repeated_syntax_packet_reroute(
         if "executable formal_targets are gated" in precheck_text:
             return True
     return False
+
+
+def _formalizer_repeated_syntax_packet_validation_escalation(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    validation_errors: Sequence[str],
+    local_lean_repair_contract: Mapping[str, Any],
+    candidate_diagnostics: Sequence[Any],
+    formal_blocker_resource_requests: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    if not _formalizer_local_lean_contract_has_repeated_syntax_failure(
+        local_lean_repair_contract
+    ):
+        return {}
+    if not str(task.task_id).startswith("formalize-repair:"):
+        return {}
+    error_text = " ".join(str(error) for error in validation_errors).lower()
+    if not any(
+        marker in error_text
+        for marker in (
+            "repeated parser/syntax contract",
+            "source_to_bridge_premise_derivation_candidates",
+            "executable formal_targets are gated",
+        )
+    ):
+        return {}
+
+    target_ids: list[str] = []
+    for row in candidate_diagnostics:
+        if not isinstance(row, Mapping):
+            continue
+        for key in ("target_lean_declaration", "candidate_id"):
+            value = str(row.get(key, "") or "").strip()
+            if value and value not in target_ids:
+                target_ids.append(value)
+    if not target_ids:
+        target_ids.append(question.id)
+
+    blocker = (
+        "Repeated Formalizer packet-validation failure under repeated Lean "
+        "parser/syntax fail-closed mode. The LLM did not emit either an explicit "
+        "source-theorem FORMAL_GAP row with empty Lean sketch or a concrete "
+        "source_to_bridge_premise_derivation_candidates object with Lean source "
+        "and copied source-binding metadata. Stop same-agent packet retries and "
+        "route to deterministic blocker/gap-planner handling."
+    )
+    request = {
+        "request_id": (
+            "formal_blocker_resource_request:"
+            + stable_hash(
+                [
+                    "formalizer_packet_validation_feedback",
+                    "formalizer_repeated_syntax_packet_validation_loop",
+                    task.task_id,
+                    validation_errors,
+                    target_ids,
+                ]
+            )[:20]
+        ),
+        "source": "formalizer_packet_validation_feedback",
+        "blocker_kind": "formalizer_repeated_syntax_packet_validation_loop",
+        "blocker": blocker,
+        "next_owner": "CriticEvaluator/FormalizationGapPlanner",
+        "target_ids": target_ids[:6],
+        "formal_source_queries": _formal_blocker_resource_request_queries(
+            blocker,
+            blocker_kind="formalizer_repeated_syntax_packet_validation_loop",
+            target_ids=target_ids,
+        )[:5],
+        "recommended_tools": [
+            "runtime_next_action_agenda",
+            "formalization_gap_planner",
+            "formal_source_retriever",
+            "source_binding_metadata_authoring",
+        ],
+        "required_resolution": (
+            "Record the source theorem as expected_status=FORMAL_GAP with the exact "
+            "parser/source-binding blocker, or produce source-binding metadata for a "
+            "future source_to_bridge_premise_derivation_candidates object before "
+            "asking Formalizer for another executable packet."
+        ),
+        "proof_evidence_status": (
+            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    upstream_request_ids = [
+        str(row.get("request_id", "") or "")
+        for row in formal_blocker_resource_requests
+        if isinstance(row, Mapping) and str(row.get("request_id", "") or "")
+    ]
+    return {
+        "artifact_kind": "RuntimeFormalizerRepeatedSyntaxPacketValidationEscalation",
+        "escalation_kind": "formalizer_repeated_syntax_packet_validation_loop",
+        "source_task_id": task.task_id,
+        "target_ids": target_ids[:6],
+        "validation_errors": [str(error) for error in validation_errors],
+        "upstream_formal_blocker_resource_request_ids": upstream_request_ids[:8],
+        "formal_blocker_resource_requests": [request],
+        "next_owner_subsystem": "CriticEvaluator",
+        "target_behavior": (
+            "Stop same-agent Formalizer packet retries after repeated parser/syntax "
+            "packet-validation failure; record a deterministic formal blocker and "
+            "route source-binding/gap-planner work before any new Lean/prover request."
+        ),
+        "acceptance_gate": (
+            "CriticEvaluator or runtime agenda records a non-proof formal blocker/"
+            "gap-planner handoff; no new Formalizer executable packet is requested "
+            "until source-theorem FORMAL_GAP metadata or source-to-bridge binding "
+            "metadata is available."
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_REPEATED_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
 
 
 def _formalizer_validation_failure_target_behavior(
@@ -12605,6 +12825,20 @@ def _critic_packet_validation_failure_bundle(
     return failure_id, failure_artifact, repair_feedback, observation, evidence
 
 
+def _critic_feedback_has_formalizer_packet_validation_escalation(
+    feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    escalation = feedback.get("packet_validation_escalation", {})
+    if not isinstance(escalation, Mapping):
+        return False
+    return (
+        str(escalation.get("escalation_kind", "") or "")
+        == "formalizer_repeated_syntax_packet_validation_loop"
+    )
+
+
 class CriticEvaluatorRuntimeSubsystem:
     name = "CriticEvaluator"
 
@@ -12761,6 +12995,18 @@ class CriticEvaluatorRuntimeSubsystem:
             context,
             self.runtime_config,
         )
+        critic_environment_feedback = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else context.get("environment_feedback", {})
+            if isinstance(context.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        formalizer_packet_validation_escalation_active = (
+            _critic_feedback_has_formalizer_packet_validation_escalation(
+                critic_environment_feedback
+            )
+        )
         should_repair = _critic_should_reroute_to_theory(
             agenda=agenda,
             formalization_manifest=formalization_manifest,
@@ -12768,7 +13014,8 @@ class CriticEvaluatorRuntimeSubsystem:
             max_critic_repair_rounds=max_critic_repair_rounds,
         )
         should_route_to_formalizer = (
-            not should_repair
+            not formalizer_packet_validation_escalation_active
+            and not should_repair
             and _critic_should_route_to_formalizer_proofengineer(
                 agenda=agenda,
                 formalization_manifest=formalization_manifest,
@@ -12793,13 +13040,6 @@ class CriticEvaluatorRuntimeSubsystem:
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None:
-            critic_environment_feedback = (
-                task.inputs.get("environment_feedback", {})
-                if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
-                else context.get("environment_feedback", {})
-                if isinstance(context.get("environment_feedback", {}), Mapping)
-                else {}
-            )
             try:
                 proposal_packet = self.proposal_agent.propose(
                     question=question,
@@ -12908,7 +13148,15 @@ class CriticEvaluatorRuntimeSubsystem:
                 "reroute_to_formalizer_proofengineer": (
                     should_route_to_formalizer
                 ),
+                "formalizer_packet_validation_escalation_active": (
+                    formalizer_packet_validation_escalation_active
+                ),
                 "reason": (
+                    "repeated Formalizer packet-validation escalation recorded; "
+                    "deterministic agenda remains the authority and immediate "
+                    "Formalizer reroute is suppressed"
+                    if formalizer_packet_validation_escalation_active
+                    else
                     "formal/proof feedback requires another theory-discovery pass"
                     if should_repair
                     else
@@ -12971,6 +13219,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     "reroute_to_theory_developer": should_repair,
                     "reroute_to_formalizer_proofengineer": (
                         should_route_to_formalizer
+                    ),
+                    "formalizer_packet_validation_escalation_active": (
+                        formalizer_packet_validation_escalation_active
                     ),
                 },
             )
