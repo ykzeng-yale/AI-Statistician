@@ -173,6 +173,43 @@ def _payload_specific_or_total_count(
     return int(payload.get(total_key, 0) or 0)
 
 
+def _payload_integrated_lean_lsp_mcp_live_calls(payload: Mapping[str, Any]) -> int:
+    explicit_integrated = payload.get("n_integrated_lean_lsp_mcp_live_calls")
+    if explicit_integrated not in (None, ""):
+        return int(explicit_integrated or 0)
+    total_calls = int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0)
+    attached_calls = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls",
+            0,
+        )
+        or 0
+    )
+    attached_live_component = (
+        bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
+                False,
+            )
+        )
+        and bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_live_generator",
+                False,
+            )
+        )
+        and not bool(
+            payload.get(
+                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
+                False,
+            )
+        )
+    )
+    if attached_live_component and attached_calls > 0:
+        return max(total_calls - attached_calls, 0)
+    return total_calls
+
+
 def _runtime_source_theorem_formal_environment_work_order_recompute_summary(
     *,
     result_paths: list[Path],
@@ -1793,9 +1830,14 @@ def audit_research_agent_runtime(
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_derived_from_results": (
             derived_formalizer_repair_sequences
         ),
-        "n_lean_lsp_mcp_live_calls": (
-            sum(row.n_lean_lsp_mcp_live_calls for row in rows)
-            + attached_formalizer_prior_feedback_live_lsp_calls
+        "n_integrated_lean_lsp_mcp_live_calls": sum(
+            row.n_lean_lsp_mcp_live_calls for row in rows
+        ),
+        "n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls": (
+            attached_formalizer_prior_feedback_live_lsp_calls
+        ),
+        "n_lean_lsp_mcp_live_calls": sum(
+            row.n_lean_lsp_mcp_live_calls for row in rows
         ),
         "source_theorem_promotion_proofengineer_bridge_ran": bool(
             manifest.get("source_theorem_promotion_proofengineer_bridge_ran", False)
@@ -6366,6 +6408,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         attached_formalizer_live_gate_passed
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
     )
+    integrated_lean_lsp_mcp_live_calls = (
+        _payload_integrated_lean_lsp_mcp_live_calls(payload)
+    )
     integrated_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
     )
@@ -8332,8 +8377,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "live_lean_lsp_mcp_called",
-            int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0) > 0,
-            f"n_lean_lsp_mcp_live_calls={payload.get('n_lean_lsp_mcp_live_calls')}",
+            integrated_lean_lsp_mcp_live_calls > 0,
+            (
+                "n_integrated_lean_lsp_mcp_live_calls="
+                f"{integrated_lean_lsp_mcp_live_calls} "
+                "n_lean_lsp_mcp_live_calls="
+                f"{payload.get('n_lean_lsp_mcp_live_calls')} "
+                "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
+                f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
+            ),
             "Lean LSP/MCP was not called live for proof-state diagnostics",
         ),
         _scorecard_row(

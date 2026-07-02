@@ -23644,7 +23644,9 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
     audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
     rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
 
-    assert audit["n_lean_lsp_mcp_live_calls"] == 3
+    assert audit["n_integrated_lean_lsp_mcp_live_calls"] == 0
+    assert audit["n_lean_lsp_mcp_live_calls"] == 0
+    assert audit["n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls"] == 3
     assert (
         audit[
             "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
@@ -23655,6 +23657,7 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
     assert rows[
         "formalizer_live_prover_tool_component_calibration"
     ]["passed"] is True
+    assert rows["live_lean_lsp_mcp_called"]["passed"] is False
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
@@ -53094,7 +53097,7 @@ def test_runtime_capability_scorecard_names_resume_architect_context_boundary() 
     ]
 
 
-def test_runtime_capability_scorecard_credits_attached_live_formalizer_lsp_tool_call() -> None:
+def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibration_separate() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
         "n_results": 1,
@@ -53128,7 +53131,10 @@ def test_runtime_capability_scorecard_credits_attached_live_formalizer_lsp_tool_
     assert scorecard["component_calibration"][
         "attached_formalizer_prover_tool_called"
     ] is True
-    assert rows["live_lean_lsp_mcp_called"]["passed"] is True
+    assert rows["live_lean_lsp_mcp_called"]["passed"] is False
+    assert "n_integrated_lean_lsp_mcp_live_calls=0" in rows[
+        "live_lean_lsp_mcp_called"
+    ]["evidence"]
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
