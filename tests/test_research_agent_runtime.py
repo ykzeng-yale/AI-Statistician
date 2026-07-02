@@ -2841,6 +2841,60 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
         repair_row["route_planner_contract_feedback_id"]
     )
 
+    context_rows = [
+        {
+            "artifact_kind": "RuntimeFormalizationGapPlannerHandoff",
+            "bridge_id": "bridge:gap-live",
+            "handoff_id": "handoff:gap-live",
+            "standalone_seed_path": "runs/current/seed.json",
+            "target_intake_path": "runs/current/target-intake.json",
+            "llm_route_planner_prompt_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner "
+                "--input runs/current/seed.json --out runs/current/prompt"
+            ),
+            "llm_route_planner_live_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-llm-route-planner "
+                "--input runs/current/seed.json --invoke-provider "
+                "--out runs/current/live"
+            ),
+            "reuse_smoke_cli": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-reuse-smoke "
+                "--input runs/current/target-intake.json "
+                "--out runs/current/reuse-smoke"
+            ),
+            "target_ids": ["route:a", "route:b", "route:c"],
+            "proof_evidence_status": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+            ),
+            "proof_evidence_boundary": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+            ),
+        }
+    ]
+    rows_to_enrich = [repair_row, agenda_row, generated_row]
+    runtime_module._runtime_formalization_gap_planner_enrich_next_action_rows(
+        rows_to_enrich,
+        context_rows=context_rows,
+    )
+    for enriched_row in rows_to_enrich:
+        contexts = enriched_row["formalization_gap_planner_execution_contexts"]
+        assert contexts[0]["handoff_id"] == "handoff:gap-live"
+        assert contexts[0]["target_intake_path"] == "runs/current/target-intake.json"
+        assert "--invoke-provider" in contexts[0]["llm_route_planner_live_cli"]
+        assert enriched_row["target_intake_path"] == "runs/current/target-intake.json"
+        assert enriched_row["input_summary"]["reuse_smoke_cli"].endswith(
+            "--out runs/current/reuse-smoke"
+        )
+    assert repair_row["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    assert agenda_row["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
 
 def test_runtime_gap_planner_nested_contract_feedback_routes_repair_agenda() -> None:
     feedback_row = {
@@ -5738,6 +5792,45 @@ def test_formal_gap_planner_handoff_context_uses_canonical_handoff_artifact() ->
     )
     assert (
         summary["n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"]
+        == 0
+    )
+
+    contract_repair_agenda_row = {
+        "id": "formal_gap:live_route_planner_contract_repair:test",
+        "trigger": "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR",
+        "owner_subsystem": "FormalizationGapPlanner/ArchitectCoordinator",
+        "formalization_gap_planner_bridge_id": (
+            "runtime_formalization_gap_planner_bridge:artifact"
+        ),
+        "formalization_gap_planner_handoff_id": (
+            "runtime_formalization_gap_planner_handoff:artifact"
+        ),
+        "standalone_seed_path": "runs/test/seed.json",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+        "proof_evidence_boundary": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+        ),
+    }
+    contract_summary = _runtime_formal_gap_planner_handoff_context_audit_summary(
+        agenda_rows=[contract_repair_agenda_row],
+        learning_rows=[],
+        handoff_artifact_rows=[canonical_handoff],
+    )
+
+    assert contract_summary["n_runtime_formal_gap_planner_handoff_rows"] == 2
+    assert (
+        contract_summary[
+            "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context"
+        ]
+        == 1
+    )
+    assert (
+        contract_summary[
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+        ]
         == 0
     )
 

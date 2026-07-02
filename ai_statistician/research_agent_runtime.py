@@ -30871,6 +30871,29 @@ def _runtime_formalization_gap_planner_row_contexts(
     return tuple(deduped)
 
 
+def _runtime_formalization_gap_planner_context_enrichment_score(
+    context: Mapping[str, Any],
+) -> int:
+    score = 0
+    for key in (
+        "target_intake_path",
+        "target_intake_cli",
+        "component_resource_registry_cli",
+        "standalone_plan_cli",
+        "llm_route_planner_prompt_cli",
+        "llm_route_planner_live_cli",
+        "reuse_smoke_cli",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    ):
+        if context.get(key) not in (None, "", [], {}):
+            score += 1
+    live_cli = str(context.get("llm_route_planner_live_cli", "") or "")
+    if "--invoke-provider" in live_cli:
+        score += 1
+    return score
+
+
 def _runtime_formalization_gap_planner_enrich_next_action_rows(
     rows: list[dict[str, Any]],
     *,
@@ -30912,10 +30935,15 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
         )
         if not is_formal_gap_next_action:
             continue
-        if (
-            _runtime_learning_memory_formal_gap_next_action_stage(row, input_summary)
-            != "gap_planner_handoff"
-        ):
+        next_action_stage = _runtime_learning_memory_formal_gap_next_action_stage(
+            row,
+            input_summary,
+        )
+        if next_action_stage not in {
+            "gap_planner_handoff",
+            "gap_planner_contract_repair",
+            "target_prover_replay_route_revision",
+        }:
             continue
         lookup_values = list(
             _runtime_learning_row_string_values(
@@ -31031,7 +31059,11 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
                     continue
                 matched_contexts.extend(context_row_contexts)
             contexts = matched_contexts
-        if not contexts and len(fallback_contexts) == 1:
+        if (
+            not contexts
+            and next_action_stage == "gap_planner_handoff"
+            and len(fallback_contexts) == 1
+        ):
             contexts = fallback_contexts
         if not contexts:
             continue
@@ -31044,11 +31076,13 @@ def _runtime_formalization_gap_planner_enrich_next_action_rows(
         existing_contexts = list(
             _runtime_formalization_gap_planner_row_contexts(row, input_summary)
         )
-        merged_contexts = list(
+        merged_contexts = sorted(
             {
                 stable_hash(context): context
                 for context in [*existing_contexts, *deduped_contexts]
-            }.values()
+            }.values(),
+            key=_runtime_formalization_gap_planner_context_enrichment_score,
+            reverse=True,
         )
         if not merged_contexts:
             continue

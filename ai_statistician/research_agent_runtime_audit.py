@@ -9330,6 +9330,45 @@ def _runtime_formal_gap_planner_context_cover_keys(
                 target_key,
             )
         )
+    for source in (row, input_summary):
+        for label, aliases in (
+            (
+                "bridge_id",
+                (
+                    "bridge_id",
+                    "formalization_gap_planner_bridge_id",
+                ),
+            ),
+            (
+                "handoff_id",
+                (
+                    "handoff_id",
+                    "formalization_gap_planner_handoff_id",
+                ),
+            ),
+            (
+                "standalone_seed_artifact_id",
+                (
+                    "standalone_seed_artifact_id",
+                    "formalization_gap_planner_standalone_seed_artifact_id",
+                ),
+            ),
+            (
+                "standalone_seed_path",
+                (
+                    "standalone_seed_path",
+                    "standalone_seed_artifact_path",
+                ),
+            ),
+            ("target_intake_path", ("target_intake_path",)),
+        ):
+            for alias in aliases:
+                value = str(source.get(alias, "") or "").strip()
+                if not value:
+                    continue
+                keys.add((label, value, ""))
+                if target_key:
+                    keys.add((label, value, target_key))
     return keys
 
 
