@@ -220,6 +220,8 @@ from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
     _manifest_or_proof_summary_count,
+    _runtime_capability_gap_routing_contract_summary,
+    _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
@@ -3066,6 +3068,59 @@ def test_runtime_capability_gaps_separate_component_calibration() -> None:
     assert _runtime_component_calibration_gaps_from_scorecard(scorecard) == [
         "attached component calibration missing"
     ]
+
+
+def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> None:
+    payload: dict[str, object] = {
+        "runtime_evaluation_mode": "debug",
+        "runtime_resumable_manifest_path": "runs/debug/research_agent_runtime_manifest.json",
+        "runtime_learning_rows_jsonl": "runs/debug/runtime_learning_rows.jsonl",
+    }
+    scorecard = _runtime_capability_scorecard(payload)
+    failed_scorecard_rows = [
+        row for row in scorecard["rows"] if row.get("passed") is not True
+    ]
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    summary = _runtime_capability_gap_routing_contract_summary(
+        scorecard=scorecard,
+        routing_rows=routing_rows,
+    )
+
+    assert summary["runtime_capability_gap_routing_contract_complete"] is True
+    assert summary["n_runtime_capability_scorecard_failed_rows"] == len(
+        failed_scorecard_rows
+    )
+    assert summary["n_runtime_capability_gap_routing_rows"] == len(
+        failed_scorecard_rows
+    )
+    assert summary["n_runtime_capability_gap_routing_missing_rows"] == 0
+    assert summary["n_runtime_capability_gap_routing_missing_owner"] == 0
+    assert summary["n_runtime_capability_gap_routing_missing_target_behavior"] == 0
+    assert summary["n_runtime_capability_gap_routing_missing_success_metric"] == 0
+    assert summary["n_runtime_capability_gap_routing_missing_command"] == 0
+    assert summary["n_runtime_capability_gap_routing_missing_boundary"] == 0
+    rows_by_requirement = {row["requirement_id"]: row for row in routing_rows}
+    live_generator_row = rows_by_requirement["live_generator_agents_enabled"]
+    assert live_generator_row["artifact_kind"] == "RuntimeCapabilityGapRoutingRow"
+    assert live_generator_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert "live Anthropic/OpenAI" in live_generator_row["target_behavior"]
+    assert "research-agent-runtime" in live_generator_row[
+        "recommended_capability_eval_command"
+    ]
+    assert (
+        live_generator_row["proof_evidence_status"]
+        == "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof" in live_generator_row["routing_boundary"]
+    assert (
+        rows_by_requirement["live_lean_lsp_mcp_called"]["next_owner_subsystem"]
+        == "FormalizationEvaluator"
+    )
+    assert (
+        rows_by_requirement["runtime_progress_observable"]["next_owner_subsystem"]
+        == "AgentRuntimeOrchestrator"
+    )
 
 
 def test_runtime_target_identity_audit_flags_route_critical_targetless_rows() -> None:
@@ -50996,6 +51051,64 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
     assert scorecard["runtime_evaluation_mode"] == "debug"
     assert scorecard["ready"] is False
+    capability_gap_routing_path = Path(audit["runtime_capability_gap_routing_jsonl"])
+    assert capability_gap_routing_path.exists()
+    capability_gap_routing_rows = [
+        json.loads(line)
+        for line in capability_gap_routing_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    failed_scorecard_requirement_ids = {
+        row["requirement_id"]
+        for row in scorecard["rows"]
+        if row.get("passed") is not True
+    }
+    assert audit["runtime_capability_gap_routing_contract_complete"] is True
+    assert audit["n_runtime_capability_scorecard_failed_rows"] == scorecard[
+        "n_failed"
+    ]
+    assert audit["n_runtime_capability_gap_routing_rows"] == scorecard["n_failed"]
+    assert len(capability_gap_routing_rows) == scorecard["n_failed"]
+    assert {
+        row["requirement_id"] for row in capability_gap_routing_rows
+    } == failed_scorecard_requirement_ids
+    assert all(
+        row.get("artifact_kind") == "RuntimeCapabilityGapRoutingRow"
+        for row in capability_gap_routing_rows
+    )
+    assert all(row.get("next_owner_subsystem") for row in capability_gap_routing_rows)
+    assert all(row.get("target_behavior") for row in capability_gap_routing_rows)
+    assert all(row.get("success_metric") for row in capability_gap_routing_rows)
+    assert all(
+        row.get("recommended_capability_eval_command")
+        for row in capability_gap_routing_rows
+    )
+    assert all(
+        row.get("proof_evidence_status") == "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+        or row.get("proof_evidence_status")
+        == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+        for row in capability_gap_routing_rows
+    )
+    assert audit["n_runtime_capability_gap_routing_missing_rows"] == 0
+    assert audit["n_runtime_capability_gap_routing_missing_owner"] == 0
+    assert audit["n_runtime_capability_gap_routing_missing_target_behavior"] == 0
+    assert audit["n_runtime_capability_gap_routing_missing_success_metric"] == 0
+    assert audit["n_runtime_capability_gap_routing_missing_command"] == 0
+    assert audit["n_runtime_capability_gap_routing_missing_boundary"] == 0
+    capability_gap_rows_by_requirement = {
+        row["requirement_id"]: row for row in capability_gap_routing_rows
+    }
+    assert capability_gap_rows_by_requirement["live_generator_agents_enabled"][
+        "next_owner_subsystem"
+    ] == "ArchitectCoordinator"
+    assert capability_gap_rows_by_requirement["live_lean_lsp_mcp_called"][
+        "next_owner_subsystem"
+    ] == "FormalizationEvaluator"
+    assert capability_gap_rows_by_requirement["full_frontier_theorem_kernel_proved"][
+        "next_owner_subsystem"
+    ] == "FormalizationEvaluator"
     ladder = audit["capability_ladder"]
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
     assert ladder["max_contiguous_level"] == 0

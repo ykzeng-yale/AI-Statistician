@@ -5976,6 +5976,92 @@ def audit_research_agent_runtime(
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
     payload["evidence_truth_table"] = _runtime_evidence_truth_table(payload)
+    capability_gap_routing_rows = _runtime_capability_gap_routing_rows(
+        capability_scorecard,
+        payload,
+    )
+    capability_gap_routing_summary = (
+        _runtime_capability_gap_routing_contract_summary(
+            scorecard=capability_scorecard,
+            routing_rows=capability_gap_routing_rows,
+        )
+    )
+    payload["runtime_capability_gap_routing_rows"] = capability_gap_routing_rows
+    payload["runtime_capability_gap_routing_jsonl"] = ""
+    payload["runtime_capability_gap_routing_contract_audit_summary"] = (
+        capability_gap_routing_summary
+    )
+    payload["runtime_capability_gap_routing_contract_complete"] = bool(
+        capability_gap_routing_summary[
+            "runtime_capability_gap_routing_contract_complete"
+        ]
+    )
+    payload["n_runtime_capability_scorecard_failed_rows"] = int(
+        capability_gap_routing_summary["n_runtime_capability_scorecard_failed_rows"]
+    )
+    payload["n_runtime_capability_gap_routing_rows"] = int(
+        capability_gap_routing_summary["n_runtime_capability_gap_routing_rows"]
+    )
+    payload["n_runtime_capability_gap_routing_missing_rows"] = int(
+        capability_gap_routing_summary["n_runtime_capability_gap_routing_missing_rows"]
+    )
+    payload["n_runtime_capability_gap_routing_extra_rows"] = int(
+        capability_gap_routing_summary["n_runtime_capability_gap_routing_extra_rows"]
+    )
+    payload["n_runtime_capability_gap_routing_duplicate_rows"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_duplicate_rows"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_missing_schema_version"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_missing_schema_version"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_wrong_artifact_kind"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_wrong_artifact_kind"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_missing_owner"] = int(
+        capability_gap_routing_summary["n_runtime_capability_gap_routing_missing_owner"]
+    )
+    payload["n_runtime_capability_gap_routing_missing_target_behavior"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_missing_target_behavior"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_missing_success_metric"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_missing_success_metric"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_missing_command"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_missing_command"
+        ]
+    )
+    payload["n_runtime_capability_gap_routing_missing_boundary"] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_missing_boundary"
+        ]
+    )
+    payload["runtime_capability_gap_routing_owner_subsystems"] = dict(
+        capability_gap_routing_summary[
+            "runtime_capability_gap_routing_owner_subsystems"
+        ]
+    )
+    payload["runtime_capability_gap_routing_scopes"] = dict(
+        capability_gap_routing_summary["runtime_capability_gap_routing_scopes"]
+    )
+    payload["runtime_capability_gap_routing_requirement_ids"] = list(
+        capability_gap_routing_summary[
+            "runtime_capability_gap_routing_requirement_ids"
+        ]
+    )
+    payload["runtime_capability_gap_routing_issues"] = list(
+        capability_gap_routing_summary["runtime_capability_gap_routing_issues"]
+    )
     capability_gaps = _runtime_capability_gaps_from_scorecard(capability_scorecard)
     component_calibration_gaps = (
         _runtime_component_calibration_gaps_from_scorecard(capability_scorecard)
@@ -6009,6 +6095,11 @@ def audit_research_agent_runtime(
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_out = out_dir / "research_agent_runtime_audit_manifest.json"
         report_out = out_dir / "research_agent_runtime_audit.md"
+        capability_gap_routing_out = out_dir / "runtime_capability_gap_routing.jsonl"
+        payload["runtime_capability_gap_routing_jsonl"] = str(
+            capability_gap_routing_out
+        )
+        _write_jsonl(capability_gap_routing_out, capability_gap_routing_rows)
         manifest_out.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
         report_out.write_text(_markdown_report(payload), encoding="utf-8")
     return payload
@@ -7111,6 +7202,396 @@ def _runtime_scorecard_gaps_from_scorecard(
         if blocker:
             gaps.append(blocker)
     return gaps
+
+
+def _runtime_capability_gap_default_owner(
+    requirement_id: str,
+    scope: str,
+) -> str:
+    requirement = requirement_id.lower()
+    if scope == "component_calibration":
+        if "formalizer" in requirement or "lean" in requirement or "prover" in requirement:
+            return "FormalizationEvaluator"
+        if "simulation" in requirement:
+            return "SimulationEvaluator"
+        if "coding" in requirement or "algorithm" in requirement:
+            return "AlgorithmEngineer"
+    if (
+        requirement.startswith("runtime_")
+        or "ledger" in requirement
+        or "progress" in requirement
+        or "handoff_artifact" in requirement
+    ):
+        return "AgentRuntimeOrchestrator"
+    if "architect" in requirement or "live_generator" in requirement:
+        return "ArchitectCoordinator"
+    if "theory" in requirement:
+        return "TheoryDeveloper"
+    if "algorithm" in requirement or "coding" in requirement:
+        return "AlgorithmEngineer"
+    if "simulation" in requirement:
+        return "SimulationEvaluator"
+    if (
+        "formal" in requirement
+        or "proof" in requirement
+        or "lean" in requirement
+        or "kernel" in requirement
+        or "frontier" in requirement
+        or "source_theorem" in requirement
+    ):
+        return "FormalizationEvaluator"
+    return "AgentRuntimeOrchestrator"
+
+
+def _runtime_capability_gap_default_target_behavior(
+    requirement_id: str,
+    blocker: str,
+) -> str:
+    defaults = {
+        "runtime_marked_capability_eval": (
+            "Rerun the runtime in capability-eval mode with the full-live preset "
+            "instead of treating a debug or smoke run as autonomous readiness."
+        ),
+        "runtime_result_present": (
+            "Produce at least one per-question runtime result artifact before "
+            "auditing autonomous capability."
+        ),
+        "live_generator_agents_enabled": (
+            "Run Architect, theory, simulation, algorithm, formalizer, and critic "
+            "agents against a live Anthropic/OpenAI-capable backend instead of "
+            "static replay or deterministic-only packets."
+        ),
+        "architect_orchestrated": (
+            "Resume or rerun through ArchitectCoordinator so research path, "
+            "evidence contract, and downstream task routing originate from the "
+            "architect agent."
+        ),
+        "algorithm_sandbox_executed": (
+            "Drive the AlgorithmEngineer to generate and execute a sandboxed "
+            "prototype with captured metric/safety feedback."
+        ),
+        "runtime_progress_observable": (
+            "Regenerate runtime_progress.jsonl with trace-matched start and finish "
+            "events for every subsystem iteration."
+        ),
+        "source_theorem_promotion_proofengineer_bridge_ran": (
+            "Run the source-theorem promotion ProofEngineer bridge in the same "
+            "runtime when source theorem promotion work orders exist."
+        ),
+        "source_theorem_formal_environment_bridge_ran": (
+            "Run the source-theorem formal-environment ProofEngineer bridge so "
+            "formal environment work orders are materialized into prover-facing "
+            "artifacts."
+        ),
+        "source_theorem_signature_probe_reached_proof_body": (
+            "Resolve exact source theorem target/signature/proof-body context until "
+            "the proof-body goal is reached, while keeping result rows pre-proof "
+            "until kernel verification exists."
+        ),
+        "source_theorem_proof_body_executor_ran": (
+            "Run the exact source-theorem proof-body executor for queued proof-body "
+            "work orders."
+        ),
+        "source_theorem_proof_body_local_lean_gate_requested": (
+            "Require the exact source-theorem proof-body executor to request the "
+            "local Lean gate before any source-theorem proof evidence is accepted."
+        ),
+        "live_lean_lsp_mcp_called": (
+            "Drive live Lean LSP/MCP proof-state diagnostics from integrated "
+            "formalizer/proof-engineering work, not only offline artifacts."
+        ),
+        "real_kernel_subclaim_verified": (
+            "Produce at least one real AXLE/local Lean kernel-verified subclaim "
+            "with verifier provenance before claiming proof progress."
+        ),
+        "full_frontier_theorem_kernel_proved": (
+            "Close the current source/frontier theorem target with real "
+            "kernel-verified evidence and no unsupported proof promotion."
+        ),
+    }
+    if requirement_id in defaults:
+        return defaults[requirement_id]
+    blocker_text = blocker.strip()
+    if blocker_text:
+        return f"Resolve scorecard blocker: {blocker_text}"
+    return f"Make capability scorecard requirement {requirement_id!r} pass."
+
+
+def _runtime_capability_gap_routing_rows(
+    scorecard: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    *,
+    include_component_calibration: bool = True,
+) -> list[dict[str, Any]]:
+    rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
+    routing_rows: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, Mapping) or row.get("passed") is True:
+            continue
+        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        if scope == "component_calibration" and not include_component_calibration:
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        if not requirement_id:
+            continue
+        blocker = str(row.get("blocker", "") or "").strip()
+        evidence = str(row.get("evidence", "") or "").strip()
+        owner = str(row.get("next_owner_subsystem", "") or "").strip()
+        if not owner:
+            owner = _runtime_capability_gap_default_owner(requirement_id, scope)
+        target_behavior = str(row.get("target_behavior", "") or "").strip()
+        if not target_behavior:
+            target_behavior = _runtime_capability_gap_default_target_behavior(
+                requirement_id,
+                blocker,
+            )
+        success_metric = str(row.get("success_metric", "") or "").strip()
+        if not success_metric:
+            success_metric = (
+                f"capability_scorecard.rows[{requirement_id}].passed=true in a "
+                "follow-up audit with the same or broader target scope"
+            )
+        proof_evidence_status = str(
+            row.get("proof_evidence_status", "") or ""
+        ).strip()
+        if not proof_evidence_status:
+            proof_evidence_status = "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+        routing_boundary = str(row.get("routing_boundary", "") or "").strip()
+        if not routing_boundary:
+            routing_boundary = (
+                "This row is capability-gap routing for follow-up LLM/coding/prover "
+                "work. It is not proof, simulation, generated-code, or verifier "
+                "evidence; readiness changes only when a later runtime records the "
+                "requested evidence and the scorecard row passes."
+            )
+        recommended_command = str(
+            row.get("recommended_capability_eval_command", "") or ""
+        ).strip()
+        if not recommended_command:
+            recommended_command = _capability_feedback_command(
+                payload,
+                max_iterations=FULL_LIVE_RERUN_MIN_ITERATIONS,
+            )
+        routing_rows.append(
+            {
+                "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                "id": f"capability_gap:{scope}:{requirement_id}",
+                "requirement_id": requirement_id,
+                "scope": scope,
+                "priority": index,
+                "gap_status": "OPEN",
+                "next_owner_subsystem": owner,
+                "target_behavior": target_behavior,
+                "success_metric": success_metric,
+                "recommended_capability_eval_command": recommended_command,
+                "blocker": blocker,
+                "evidence": evidence,
+                "proof_evidence_status": proof_evidence_status,
+                "routing_boundary": routing_boundary,
+                "source_artifact_kind": str(
+                    scorecard.get("artifact_kind", "RuntimeCapabilityScorecard")
+                    or "RuntimeCapabilityScorecard"
+                ),
+                "source_scorecard_ready": bool(scorecard.get("ready", False)),
+                "source_scorecard_runtime_evaluation_mode": str(
+                    scorecard.get("runtime_evaluation_mode", "") or ""
+                ),
+                "fingerprint": stable_hash(
+                    {
+                        "requirement_id": requirement_id,
+                        "scope": scope,
+                        "blocker": blocker,
+                        "evidence": evidence,
+                        "owner": owner,
+                        "target_behavior": target_behavior,
+                        "success_metric": success_metric,
+                    }
+                ),
+            }
+        )
+    return routing_rows
+
+
+def _runtime_capability_gap_routing_contract_summary(
+    *,
+    scorecard: Mapping[str, Any],
+    routing_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    scorecard_rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
+    failed_keys: set[tuple[str, str]] = set()
+    for row in scorecard_rows:
+        if not isinstance(row, Mapping) or row.get("passed") is True:
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        if not requirement_id:
+            continue
+        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        failed_keys.add((scope, requirement_id))
+
+    routing_keys: set[tuple[str, str]] = set()
+    duplicate_keys = 0
+    missing_schema = 0
+    wrong_artifact_kind = 0
+    missing_owner = 0
+    missing_target = 0
+    missing_success = 0
+    missing_command = 0
+    missing_boundary = 0
+    issues: list[dict[str, Any]] = []
+    owners: Counter[str] = Counter()
+    scopes: Counter[str] = Counter()
+    for row_index, row in enumerate(routing_rows):
+        if not isinstance(row, Mapping):
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_row_not_object",
+                trace_index=row_index,
+                detail="runtime capability gap routing row is not an object",
+            )
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        key = (scope, requirement_id)
+        if key in routing_keys:
+            duplicate_keys += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_duplicate_requirement",
+                trace_index=row_index,
+                detail=f"duplicate capability gap routing key={key!r}",
+            )
+        routing_keys.add(key)
+        if not str(row.get("schema_version", "") or "").strip():
+            missing_schema += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_schema_version",
+                trace_index=row_index,
+                detail="capability gap routing row has no schema_version",
+            )
+        if str(row.get("artifact_kind", "") or "").strip() != (
+            "RuntimeCapabilityGapRoutingRow"
+        ):
+            wrong_artifact_kind += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_wrong_artifact_kind",
+                trace_index=row_index,
+                detail="capability gap routing row has wrong artifact_kind",
+            )
+        owner = str(row.get("next_owner_subsystem", "") or "").strip()
+        if owner:
+            owners[owner] += 1
+        else:
+            missing_owner += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_owner",
+                trace_index=row_index,
+                detail="capability gap routing row has no next_owner_subsystem",
+            )
+        if scope:
+            scopes[scope] += 1
+        if not str(row.get("target_behavior", "") or "").strip():
+            missing_target += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_target_behavior",
+                trace_index=row_index,
+                detail="capability gap routing row has no target_behavior",
+            )
+        if not str(row.get("success_metric", "") or "").strip():
+            missing_success += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_success_metric",
+                trace_index=row_index,
+                detail="capability gap routing row has no success_metric",
+            )
+        if not str(row.get("recommended_capability_eval_command", "") or "").strip():
+            missing_command += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_command",
+                trace_index=row_index,
+                detail="capability gap routing row has no recommended command",
+            )
+        if not (
+            str(row.get("proof_evidence_status", "") or "").strip()
+            and str(row.get("routing_boundary", "") or "").strip()
+        ):
+            missing_boundary += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_gap_routing_missing_boundary",
+                trace_index=row_index,
+                detail=(
+                    "capability gap routing row has no proof_evidence_status "
+                    "and routing_boundary"
+                ),
+            )
+    missing_rows = sorted(failed_keys - routing_keys)
+    extra_rows = sorted(routing_keys - failed_keys)
+    for scope, requirement_id in missing_rows:
+        _append_handoff_issue(
+            issues,
+            issue="runtime_capability_gap_routing_missing_failed_requirement",
+            detail=(
+                "failed scorecard requirement has no routing row: "
+                f"{scope}:{requirement_id}"
+            ),
+        )
+    for scope, requirement_id in extra_rows:
+        _append_handoff_issue(
+            issues,
+            issue="runtime_capability_gap_routing_extra_requirement",
+            detail=(
+                "capability gap routing row has no failed scorecard requirement: "
+                f"{scope}:{requirement_id}"
+            ),
+        )
+    complete = (
+        not missing_rows
+        and not extra_rows
+        and duplicate_keys == 0
+        and missing_schema == 0
+        and wrong_artifact_kind == 0
+        and missing_owner == 0
+        and missing_target == 0
+        and missing_success == 0
+        and missing_command == 0
+        and missing_boundary == 0
+    )
+    return {
+        "artifact_kind": "RuntimeCapabilityGapRoutingContractAudit",
+        "runtime_capability_gap_routing_contract_complete": complete,
+        "n_runtime_capability_scorecard_failed_rows": len(failed_keys),
+        "n_runtime_capability_gap_routing_rows": len(routing_rows),
+        "n_runtime_capability_gap_routing_missing_rows": len(missing_rows),
+        "n_runtime_capability_gap_routing_extra_rows": len(extra_rows),
+        "n_runtime_capability_gap_routing_duplicate_rows": duplicate_keys,
+        "n_runtime_capability_gap_routing_missing_schema_version": missing_schema,
+        "n_runtime_capability_gap_routing_wrong_artifact_kind": wrong_artifact_kind,
+        "n_runtime_capability_gap_routing_missing_owner": missing_owner,
+        "n_runtime_capability_gap_routing_missing_target_behavior": missing_target,
+        "n_runtime_capability_gap_routing_missing_success_metric": missing_success,
+        "n_runtime_capability_gap_routing_missing_command": missing_command,
+        "n_runtime_capability_gap_routing_missing_boundary": missing_boundary,
+        "runtime_capability_gap_routing_owner_subsystems": dict(sorted(owners.items())),
+        "runtime_capability_gap_routing_scopes": dict(sorted(scopes.items())),
+        "runtime_capability_gap_routing_requirement_ids": [
+            row.get("requirement_id")
+            for row in routing_rows
+            if isinstance(row, Mapping)
+        ],
+        "runtime_capability_gap_routing_issues": issues,
+        "boundary": (
+            "Runtime capability gap routing rows are work-allocation records derived "
+            "from failed scorecard rows. They are not capability evidence or proof "
+            "evidence; they only describe what a later live runtime must produce."
+        ),
+    }
 
 
 def _runtime_handoff_artifact_missing_audit_summary(
@@ -12408,6 +12889,12 @@ def _load_json(path: Path, errors: list[str]) -> dict[str, Any]:
     return payload
 
 
+def _write_jsonl(path: Path, rows: list[Mapping[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, default=str) + "\n")
+
+
 def _load_jsonl(path: Path, errors: list[str], *, required: bool) -> list[dict[str, Any]]:
     if not path.exists():
         if required:
@@ -12497,15 +12984,17 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- runtime learning rows contract complete / missing boundary: "
         f"{payload.get('runtime_learning_rows_contract_complete')} / "
         f"{payload.get('n_runtime_learning_rows_missing_evidence_boundary')}",
+        "- runtime capability gap routing contract complete / rows: "
+        f"{payload.get('runtime_capability_gap_routing_contract_complete')} / "
+        f"{payload.get('n_runtime_capability_gap_routing_rows')}",
         "",
         "## Capability Routing",
     ]
     routed_rows = [
         row
-        for row in payload.get("capability_scorecard", {}).get("rows", []) or []
+        for row in payload.get("runtime_capability_gap_routing_rows", []) or []
         if (
             isinstance(row, Mapping)
-            and row.get("passed") is not True
             and str(row.get("recommended_capability_eval_command", "") or "").strip()
         )
     ]
