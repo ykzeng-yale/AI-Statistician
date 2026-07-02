@@ -35,6 +35,7 @@ from .research_agent_runtime import (
     _generated_sandbox_repair_sequence_counts,
     _runtime_architect_recommended_formal_verification_policy,
     _runtime_architect_recommended_research_path,
+    _runtime_architect_initial_routing_summary,
     _runtime_attached_component_gate_source,
     _runtime_component_gate_summary,
     _runtime_evidence_summary,
@@ -2544,6 +2545,13 @@ def audit_research_agent_runtime(
         manifest=manifest,
         errors=errors,
     )
+    runtime_architect_initial_routing_summary = (
+        _runtime_architect_initial_routing_summary_from_results(
+            result_paths=result_paths,
+            manifest=manifest,
+            errors=errors,
+        )
+    )
 
     runtime_handoff_artifact_missing_summary = (
         _runtime_handoff_artifact_missing_audit_summary(
@@ -2904,6 +2912,26 @@ def audit_research_agent_runtime(
         ),
         "runtime_research_path_manifest_snapshot": (
             runtime_research_path_control["runtime_research_path_manifest_snapshot"]
+        ),
+        "runtime_architect_initial_routing": (
+            runtime_architect_initial_routing_summary[
+                "runtime_architect_initial_routing"
+            ]
+        ),
+        "runtime_architect_initial_routing_manifest_present": bool(
+            runtime_architect_initial_routing_summary[
+                "runtime_architect_initial_routing_manifest_present"
+            ]
+        ),
+        "runtime_architect_initial_routing_manifest_stale": bool(
+            runtime_architect_initial_routing_summary[
+                "runtime_architect_initial_routing_manifest_stale"
+            ]
+        ),
+        "runtime_architect_initial_routing_manifest_snapshot": (
+            runtime_architect_initial_routing_summary[
+                "runtime_architect_initial_routing_manifest_snapshot"
+            ]
         ),
         "n_results": len(rows),
         "question_ids": sorted(
@@ -6267,6 +6295,67 @@ def _runtime_research_path_control_from_results(
         "runtime_research_path_execution_summary_source": "result_artifacts_recomputed",
         "runtime_research_path_manifest_stale": manifest_stale,
         "runtime_research_path_manifest_snapshot": manifest_snapshot,
+    }
+
+
+def _runtime_architect_initial_routing_summary_from_results(
+    *,
+    result_paths: list[Path],
+    manifest: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        if isinstance(payload, Mapping):
+            results.append(dict(payload))
+    summary = _runtime_architect_initial_routing_summary(results)
+    manifest_summary = (
+        dict(manifest.get("runtime_architect_initial_routing", {}) or {})
+        if isinstance(manifest.get("runtime_architect_initial_routing", {}), Mapping)
+        else {}
+    )
+    manifest_top_level = {
+        key: manifest.get(key)
+        for key in (
+            "n_results_with_architect_initial_routing",
+            "n_architect_initial_routing_decisions",
+            "n_architect_initial_routing_prerequisite_theory",
+            "architect_initial_routing_selected_subsystems",
+            "architect_initial_routing_requested_subsystems",
+        )
+        if key in manifest
+    }
+    recomputed_top_level = {
+        key: summary.get(key)
+        for key in (
+            "n_results_with_architect_initial_routing",
+            "n_architect_initial_routing_decisions",
+            "n_architect_initial_routing_prerequisite_theory",
+            "architect_initial_routing_selected_subsystems",
+            "architect_initial_routing_requested_subsystems",
+        )
+    }
+    summary_stale = bool(manifest_summary) and manifest_summary != summary
+    top_level_stale = bool(manifest_top_level) and (
+        manifest_top_level != recomputed_top_level
+    )
+    manifest_stale = summary_stale or top_level_stale
+    if manifest_stale:
+        errors.append(
+            "runtime Architect initial routing manifest summary does not match "
+            "per-question traces"
+        )
+    return {
+        "runtime_architect_initial_routing": summary,
+        "runtime_architect_initial_routing_manifest_present": bool(
+            manifest_summary or manifest_top_level
+        ),
+        "runtime_architect_initial_routing_manifest_stale": manifest_stale,
+        "runtime_architect_initial_routing_manifest_snapshot": {
+            "runtime_architect_initial_routing": manifest_summary,
+            **manifest_top_level,
+        },
     }
 
 

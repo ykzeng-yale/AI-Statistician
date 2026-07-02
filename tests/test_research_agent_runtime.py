@@ -190,6 +190,7 @@ from ai_statistician.research_agent_runtime import (
     _effective_formal_verification_policy,
     _runtime_environment_feedback_with_architect_directive,
     _runtime_architect_recommended_formal_verification_policy,
+    _runtime_architect_initial_routing_summary,
     _effective_recommended_research_path,
     _runtime_architect_recommended_research_path,
     _runtime_requested_evidence_contract,
@@ -8287,6 +8288,28 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
     assert records[0]["requested_subsystem"] == "FormalizationEvaluator"
     assert records[0]["requires_prerequisite_theory"] is True
     assert _architect_initial_routing_record_errors(records) == []
+    summary = _runtime_architect_initial_routing_summary(
+        [
+            {
+                "question_id": "route-case",
+                "question_title": "Route case",
+                "traces": traces,
+            }
+        ]
+    )
+    assert summary["artifact_kind"] == "RuntimeArchitectInitialRoutingSummary"
+    assert summary["n_results_with_architect_initial_routing"] == 1
+    assert summary["n_architect_initial_routing_decisions"] == 1
+    assert summary["n_architect_initial_routing_prerequisite_theory"] == 1
+    assert summary["architect_initial_routing_selected_subsystems"] == {
+        "TheoryDeveloper": 1
+    }
+    assert summary["architect_initial_routing_requested_subsystems"] == {
+        "FormalizationEvaluator": 1
+    }
+    assert summary["rows"][0]["question_id"] == "route-case"
+    assert "not execute tools" in summary["boundary"]
+    assert "prove a theorem" in summary["boundary"]
     assert _runtime_audit_expected_subsystem_sequence(
         architect_enabled=True,
         architect_resume=False,
@@ -51439,11 +51462,35 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert any(row["evidence_type"] == "formalization_gap_planner_runtime_bridge" for row in result["blackboard"]["evidence_ledger"])
     assert any(row["evidence_type"] == "llm_critic_evaluator_proposal" for row in result["blackboard"]["evidence_ledger"])
     assert result["blackboard"]["evidence_ledger"][-1]["evidence_type"] == "critic_evaluator"
+    route_summary = manifest["runtime_architect_initial_routing"]
+    assert route_summary["artifact_kind"] == "RuntimeArchitectInitialRoutingSummary"
+    assert route_summary["n_results_with_architect_initial_routing"] == 1
+    assert route_summary["n_architect_initial_routing_decisions"] == 1
+    assert route_summary["n_architect_initial_routing_prerequisite_theory"] == 0
+    assert route_summary["architect_initial_routing_selected_subsystems"] == {
+        "RetrievalMemory": 1
+    }
+    assert route_summary["architect_initial_routing_requested_subsystems"] == {
+        "RetrievalMemory": 1
+    }
+    assert route_summary["rows"][0]["question_id"] == question.id
+    assert route_summary["control_plane_only"] is True
+    assert "not execute tools" in route_summary["boundary"]
+    assert "prove a theorem" in route_summary["boundary"]
+    assert manifest["n_results_with_architect_initial_routing"] == route_summary[
+        "n_results_with_architect_initial_routing"
+    ]
+    assert manifest["n_architect_initial_routing_decisions"] == route_summary[
+        "n_architect_initial_routing_decisions"
+    ]
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
     assert audit["result_errors"] == []
     assert audit["n_result_errors"] == 0
+    assert audit["runtime_architect_initial_routing"] == route_summary
+    assert audit["runtime_architect_initial_routing_manifest_present"] is True
+    assert audit["runtime_architect_initial_routing_manifest_stale"] is False
     assert audit["n_results_with_architect_initial_routing"] == 1
     assert audit["n_architect_initial_routing_decisions"] == 1
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
@@ -58178,6 +58225,18 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["runtime_evidence_summary"]["artifact_kind"] == "RuntimeEvidenceSummary"
     assert manifest["runtime_evidence_truth_table"]["artifact_kind"] == "RuntimeEvidenceTruthTable"
     assert manifest["runtime_evidence_truth_table"]["source_theorem_kernel_verified"] is False
+    route_summary = manifest["runtime_architect_initial_routing"]
+    assert route_summary["artifact_kind"] == "RuntimeArchitectInitialRoutingSummary"
+    assert route_summary["n_results_with_architect_initial_routing"] == 0
+    assert route_summary["n_architect_initial_routing_decisions"] == 0
+    assert route_summary["n_architect_initial_routing_prerequisite_theory"] == 0
+    assert route_summary["architect_initial_routing_selected_subsystems"] == {}
+    assert route_summary["architect_initial_routing_requested_subsystems"] == {}
+    assert route_summary["rows"] == []
+    assert route_summary["control_plane_only"] is True
+    assert "not execute tools" in route_summary["boundary"]
+    assert manifest["n_results_with_architect_initial_routing"] == 0
+    assert manifest["n_architect_initial_routing_decisions"] == 0
     coding_capability = manifest["runtime_coding_agent_capability"]
     assert coding_capability["artifact_kind"] == "RuntimeCodingAgentCapabilityTable"
     assert coding_capability["coding_agent_capability_ready"] is False
@@ -58486,6 +58545,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_runtime_learning_memory_input_rows"] == 1
     assert audit["n_results_with_runtime_capability_gap_routing_input"] == 1
     assert audit["n_runtime_capability_gap_routing_input_rows"] == 1
+    assert audit["runtime_architect_initial_routing"] == route_summary
+    assert audit["runtime_architect_initial_routing_manifest_present"] is True
+    assert audit["runtime_architect_initial_routing_manifest_stale"] is False
     assert audit["n_results_with_architect_initial_routing"] == 0
     assert audit["n_architect_initial_routing_decisions"] == 0
 

@@ -17190,6 +17190,9 @@ def run_research_agent_runtime(
     completion_summary = _runtime_completion_summary(results)
     failure_summary = _runtime_failure_summary(completion_summary)
     evidence_summary = _runtime_evidence_summary(results)
+    architect_initial_routing_summary = _runtime_architect_initial_routing_summary(
+        results
+    )
     proof_control_summary = evidence_summary["proof"]["proof_obligation_control"]
     llm_topology_summary = _runtime_llm_topology_summary(llm_topology)
     if not initial_task_overrides:
@@ -17230,6 +17233,32 @@ def run_research_agent_runtime(
         "runtime_architect_coordinator_registered": architect_coordinator is not None,
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
+        "runtime_architect_initial_routing": architect_initial_routing_summary,
+        "n_results_with_architect_initial_routing": (
+            architect_initial_routing_summary[
+                "n_results_with_architect_initial_routing"
+            ]
+        ),
+        "n_architect_initial_routing_decisions": (
+            architect_initial_routing_summary[
+                "n_architect_initial_routing_decisions"
+            ]
+        ),
+        "n_architect_initial_routing_prerequisite_theory": (
+            architect_initial_routing_summary[
+                "n_architect_initial_routing_prerequisite_theory"
+            ]
+        ),
+        "architect_initial_routing_selected_subsystems": (
+            architect_initial_routing_summary[
+                "architect_initial_routing_selected_subsystems"
+            ]
+        ),
+        "architect_initial_routing_requested_subsystems": (
+            architect_initial_routing_summary[
+                "architect_initial_routing_requested_subsystems"
+            ]
+        ),
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),
@@ -60708,6 +60737,174 @@ def _runtime_research_path_execution_summary(
             "the chosen path was mathematically optimal."
         ),
     }
+
+
+def _runtime_architect_initial_routing_summary(
+    results: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    selected_subsystems: list[str] = []
+    requested_subsystems: list[str] = []
+    n_results_with_routing = 0
+    n_decisions = 0
+    n_prerequisite_theory = 0
+    for result_index, result in enumerate(results):
+        traces = result.get("traces", []) if isinstance(result, Mapping) else []
+        trace_rows = (
+            traces
+            if isinstance(traces, Sequence) and not isinstance(traces, (str, bytes))
+            else []
+        )
+        records = _runtime_architect_initial_routing_records_from_traces(trace_rows)
+        if not records:
+            continue
+        question_identity = _runtime_result_question_identity(result, trace_rows)
+        n_results_with_routing += 1
+        n_decisions += len(records)
+        selected = tuple(
+            dict.fromkeys(
+                str(record.get("selected_subsystem", "") or "").strip()
+                for record in records
+                if str(record.get("selected_subsystem", "") or "").strip()
+            )
+        )
+        requested = tuple(
+            dict.fromkeys(
+                str(record.get("requested_subsystem", "") or "").strip()
+                for record in records
+                if str(record.get("requested_subsystem", "") or "").strip()
+            )
+        )
+        selected_subsystems.extend(selected)
+        requested_subsystems.extend(requested)
+        result_prerequisite_theory = sum(
+            1 for record in records if record.get("requires_prerequisite_theory") is True
+        )
+        n_prerequisite_theory += result_prerequisite_theory
+        rows.append(
+            {
+                "result_index": result_index,
+                "question_id": question_identity["question_id"],
+                "question_title": question_identity["question_title"],
+                "n_architect_initial_routing_decisions": len(records),
+                "n_architect_initial_routing_prerequisite_theory": (
+                    result_prerequisite_theory
+                ),
+                "selected_subsystems": list(selected),
+                "requested_subsystems": list(requested),
+                "decisions": records,
+            }
+        )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeArchitectInitialRoutingSummary",
+        "n_results_with_architect_initial_routing": n_results_with_routing,
+        "n_architect_initial_routing_decisions": n_decisions,
+        "n_architect_initial_routing_prerequisite_theory": n_prerequisite_theory,
+        "architect_initial_routing_selected_subsystems": dict(
+            sorted(Counter(selected_subsystems).items())
+        ),
+        "architect_initial_routing_requested_subsystems": dict(
+            sorted(Counter(requested_subsystems).items())
+        ),
+        "rows": rows,
+        "proof_evidence_status": (
+            "ARCHITECT_INITIAL_ROUTING_SUMMARY_NOT_PROOF_EVIDENCE"
+        ),
+        "control_plane_only": True,
+        "boundary": (
+            "This summary reports ArchitectCoordinator initial routing decisions "
+            "observed in runtime traces. It is orchestration metadata only: it "
+            "does not execute tools, validate generated code or simulations, "
+            "prove a theorem, or certify statistical correctness."
+        ),
+    }
+
+
+def _runtime_result_question_identity(
+    result: Mapping[str, Any],
+    traces: Sequence[Any],
+) -> dict[str, str]:
+    question_id = str(result.get("question_id", "") or "").strip()
+    question_title = str(result.get("question_title", "") or "").strip()
+    question_payload = (
+        result.get("question", {}) if isinstance(result.get("question", {}), Mapping) else {}
+    )
+    if not question_id:
+        question_id = str(question_payload.get("id", "") or "").strip()
+    if not question_title:
+        question_title = str(question_payload.get("title", "") or "").strip()
+    for trace in traces:
+        if question_id and question_title:
+            break
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        trace_question = (
+            inputs.get("question", {})
+            if isinstance(inputs.get("question", {}), Mapping)
+            else {}
+        )
+        if not question_id:
+            question_id = str(trace_question.get("id", "") or "").strip()
+        if not question_title:
+            question_title = str(trace_question.get("title", "") or "").strip()
+    return {"question_id": question_id, "question_title": question_title}
+
+
+def _runtime_architect_initial_routing_records_from_traces(
+    traces: Sequence[Any],
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        context = (
+            inputs.get("architect_context", {})
+            if isinstance(inputs.get("architect_context"), Mapping)
+            else {}
+        )
+        _append_runtime_architect_initial_routing_record(
+            records,
+            seen,
+            context.get("architect_initial_routing", {}),
+        )
+        for observation in trace.get("observations", []) or []:
+            if not isinstance(observation, Mapping):
+                continue
+            payload = (
+                observation.get("payload", {})
+                if isinstance(observation.get("payload"), Mapping)
+                else {}
+            )
+            _append_runtime_architect_initial_routing_record(
+                records,
+                seen,
+                payload.get("initial_routing", {}),
+            )
+    return records
+
+
+def _append_runtime_architect_initial_routing_record(
+    records: list[dict[str, Any]],
+    seen: set[str],
+    value: Any,
+) -> None:
+    if not (
+        isinstance(value, Mapping)
+        and value.get("artifact_kind") == "ArchitectInitialRoutingDecision"
+    ):
+        return
+    record = dict(value)
+    fingerprint = json.dumps(record, sort_keys=True, default=str)
+    if fingerprint in seen:
+        return
+    seen.add(fingerprint)
+    records.append(record)
 
 
 def _proof_bank_obligation_request_ids(
