@@ -14163,6 +14163,32 @@ def _runtime_formalization_gap_planner_task_runtime_learning_rows(
             if isinstance(row, Mapping):
                 rows.append(dict(row))
 
+    def append_environment_feedback_row(raw_row: Mapping[str, Any]) -> None:
+        input_summary = (
+            raw_row.get("input_summary", {})
+            if isinstance(raw_row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        legacy_route_contract_feedback = bool(
+            str(raw_row.get("route_planner_contract_feedback_id", "") or "").strip()
+        )
+        route_revision_overlay_feedback = bool(
+            str(
+                raw_row.get("route_revision_overlay_dir", "")
+                or input_summary.get("route_revision_overlay_dir", "")
+                or raw_row.get("route_revision_overlay_manifest", "")
+                or input_summary.get("route_revision_overlay_manifest", "")
+                or ""
+            ).strip()
+        )
+        if legacy_route_contract_feedback or route_revision_overlay_feedback or (
+            _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+                raw_row,
+                input_summary,
+            )
+        ):
+            rows.append(dict(raw_row))
+
     runtime_learning_memory = inputs.get("runtime_learning_memory", {})
     if isinstance(runtime_learning_memory, Mapping):
         extend_rows(runtime_learning_memory.get("rows", []))
@@ -14176,24 +14202,10 @@ def _runtime_formalization_gap_planner_task_runtime_learning_rows(
             extend_rows(architect_runtime_learning_memory.get("rows", []))
     environment_feedback = inputs.get("environment_feedback", {})
     if isinstance(environment_feedback, Mapping):
-        input_summary = (
-            environment_feedback.get("input_summary", {})
-            if isinstance(environment_feedback.get("input_summary", {}), Mapping)
-            else {}
-        )
-        legacy_route_contract_feedback = bool(
-            str(
-                environment_feedback.get("route_planner_contract_feedback_id", "")
-                or ""
-            ).strip()
-        )
-        if legacy_route_contract_feedback or (
-            _runtime_learning_memory_row_is_formal_gap_next_action_routing(
-                environment_feedback,
-                input_summary,
-            )
-        ):
-            rows.append(dict(environment_feedback))
+        append_environment_feedback_row(environment_feedback)
+        for row in environment_feedback.get("high_priority_agenda", []) or []:
+            if isinstance(row, Mapping):
+                append_environment_feedback_row(row)
 
     deduped_rows: list[dict[str, Any]] = []
     seen: set[str] = set()

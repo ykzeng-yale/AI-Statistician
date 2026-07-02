@@ -1849,6 +1849,115 @@ def test_formalization_gap_planner_runtime_subsystem_replays_route_revision_over
     assert str(overlay_dir) in live_stage["required_inputs"]
 
 
+def test_formalization_gap_planner_runtime_subsystem_replays_route_revision_overlay_from_high_priority_agenda(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    overlay_dir = tmp_path / "agenda_route_revision_overlay"
+    overlay_dir.mkdir()
+    overlay_manifest = (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    overlay_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "all_ok": True,
+                "n_overlay_rows": 1,
+                "n_routes_with_revision": 1,
+                "n_orphan_rows": 0,
+                "rows": [
+                    {
+                        "route_revision_overlay_id": (
+                            "formalization_gap_planner_route_revision_overlay:"
+                            "agenda-feedback"
+                        ),
+                        "route_id": "route:agenda-feedback",
+                        "target_primitives": list(bridge["target_ids"]),
+                        "revision_status": "ROUTE_REVISION_APPLIED",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    agenda_row = {
+        "schema_version": 1,
+        "id": "formal_gap:target_prover_replay_route_revision:agenda-feedback",
+        "owner_subsystem": "FormalizationGapPlanner/Formalizer/ProofEngineer",
+        "trigger": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+        ),
+        "runtime_queue_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+        ),
+        "route_revision_proposal_id": "route-revision:agenda-feedback",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "target_ids": list(bridge["target_ids"]),
+        "route_revision_overlay_dir": str(overlay_dir),
+        "route_revision_overlay_manifest": str(overlay_manifest),
+        "n_route_revision_overlay_rows": 1,
+        "n_route_revision_overlay_routes_with_revision": 1,
+        "n_route_revision_overlay_orphan_rows": 0,
+        "proof_boundary": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+        ),
+    }
+    blackboard = BlackboardState(
+        project_id="gap-planner-agenda-route-revision-feedback-test"
+    )
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:agenda-route-revision",
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Replay high-priority target-prover route-revision agenda feedback "
+            "into the next gap-planner handoff."
+        ),
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {"high_priority_agenda": [agenda_row]},
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    handoff = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+    )
+    assert manifest["counts"]["runtime_learning_rows"] == 1
+    assert manifest["counts"]["route_revision_overlay_rows"] == 1
+    assert handoff["route_revision_overlay_dir"] == str(overlay_dir)
+    assert handoff["route_revision_overlay_manifest"] == str(overlay_manifest)
+    assert str(overlay_dir) in handoff["llm_route_planner_prompt_cli"]
+    assert str(overlay_dir) in handoff["llm_route_planner_live_cli"]
+    prompt_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_prompt"
+    )
+    live_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_live_optional"
+    )
+    assert str(overlay_dir) in prompt_stage["required_inputs"]
+    assert str(overlay_dir) in live_stage["required_inputs"]
+
+
 def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when_enabled(
     tmp_path: Path,
 ) -> None:
