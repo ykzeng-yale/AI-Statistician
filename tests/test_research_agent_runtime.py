@@ -64,6 +64,7 @@ from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
     _normalize_architect_packet,
+    architect_capability_gap_routing_agenda,
     build_architect_coordinator_prompt,
     validate_architect_coordinator_packet,
 )
@@ -7959,6 +7960,152 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert "equation_chain" in prompt
     assert "assumption_ledger" in prompt
     assert "formalization_handoff" in prompt
+
+
+def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    architect_context = {
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {
+                "rows_seen": 2,
+                "rows_loaded": 2,
+                "errors": 0,
+                "max_rows": 5,
+            },
+            "source_paths": ["runs/audit/runtime_capability_gap_routing.jsonl"],
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "live_generator_agents_enabled",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "ArchitectCoordinator",
+                    "target_behavior": (
+                        "rerun with live Claude generator agents enabled"
+                    ),
+                    "success_metric": "live_generator_agents_enabled.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --provider anthropic --capability-eval"
+                    ),
+                    "blocker": "static providers flattened the coding-agent loop",
+                    "routing_boundary": "routing only; not proof evidence",
+                },
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "live_lean_lsp_mcp_called",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "drive Lean LSP proof-state feedback before proof promotion"
+                    ),
+                    "success_metric": "live_lean_lsp_mcp_called.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --formalizer-provider anthropic "
+                        "--proof-state-provider lean-lsp-mcp"
+                    ),
+                    "blocker": "proof-state diagnostics were not called live",
+                    "routing_boundary": "routing only; not verifier evidence",
+                },
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+
+    agenda = architect_capability_gap_routing_agenda(architect_context)
+    prompt = build_architect_coordinator_prompt(
+        question=question,
+        architect_context=architect_context,
+        runtime_config={
+            "formal_verification_policy": "required",
+            "recommended_research_path": "dual_track",
+        },
+    )
+
+    assert agenda["artifact_kind"] == "ArchitectCapabilityGapRoutingAgenda"
+    assert agenda["owner_subsystems"] == [
+        "ArchitectCoordinator",
+        "FormalizationEvaluator",
+    ]
+    assert agenda["rows"][0]["requirement_id"] == "live_generator_agents_enabled"
+    assert agenda["rows"][1]["requirement_id"] == "live_lean_lsp_mcp_called"
+    assert "not proof evidence" in agenda["boundary"]
+    assert '"runtime_capability_gap_routing_agenda"' in prompt
+    assert '"ArchitectCapabilityGapRoutingAgenda"' in prompt
+    assert "open capability obligation" in prompt
+    assert "live_generator_agents_enabled" in prompt
+    assert "live_lean_lsp_mcp_called" in prompt
+    assert "rerun with live Claude generator agents enabled" in prompt
+    assert "drive Lean LSP proof-state feedback" in prompt
+    assert "success_metric" in prompt
+    assert "recommended_capability_eval_command" in prompt
+    assert "not proof evidence" in prompt
+
+
+def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    architect_context = {
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "live_generator_agents_enabled",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "ArchitectCoordinator",
+                    "target_behavior": (
+                        "rerun with live generator agents and evidence gates"
+                    ),
+                    "success_metric": "live_generator_agents_enabled.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --provider anthropic --capability-eval"
+                    ),
+                    "routing_boundary": "routing only; not proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(),
+    )
+    task = AgentTask(
+        task_id="architect:gap-routing",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Plan runtime work from capability-gap routing context.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="gap-routing-test"))
+
+    assert result.next_task is not None
+    runtime_plan = result.next_task.inputs["architect_context"]["architect_runtime_plan"]
+    agenda = runtime_plan["runtime_capability_gap_routing_agenda"]
+    assert agenda["artifact_kind"] == "ArchitectCapabilityGapRoutingAgenda"
+    assert agenda["rows"][0]["requirement_id"] == "live_generator_agents_enabled"
+    assert agenda["rows"][0]["success_metric"] == (
+        "live_generator_agents_enabled.passed=true"
+    )
+    assert "not proof evidence" in agenda["boundary"]
+    assert {
+        entry.evidence_type for entry in result.evidence_entries
+    } == {"llm_architect_coordinator_proposal"}
+    assert "runtime_capability_gap_routing" not in {
+        entry.evidence_type for entry in result.evidence_entries
+    }
 
 
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:

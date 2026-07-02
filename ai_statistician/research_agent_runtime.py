@@ -27,6 +27,7 @@ from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
     LLMArchitectCoordinatorAgent,
+    architect_capability_gap_routing_agenda,
 )
 from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
@@ -4227,6 +4228,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
         )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
+        capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
+            context
+        )
         context["architect_runtime_plan"] = {
             "subsystem_execution_plan": packet.get("subsystem_execution_plan", []),
             "problem_analysis": packet.get("problem_analysis", {}),
@@ -4238,6 +4242,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
             "evidence_gates": packet.get("evidence_gates", []),
             "boundary": packet.get("evidence_boundary", ARCHITECT_COORDINATOR_BOUNDARY),
         }
+        if capability_gap_routing_agenda:
+            context["architect_runtime_plan"][
+                "runtime_capability_gap_routing_agenda"
+            ] = capability_gap_routing_agenda
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, packet_id])[:20],
             task_id=task.task_id,

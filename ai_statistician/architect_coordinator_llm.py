@@ -20,6 +20,12 @@ ARCHITECT_COORDINATOR_BOUNDARY = (
     "or prove theorems. Runtime validators and AXLE/local Lean remain the "
     "authority gates."
 )
+ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY = (
+    "Runtime capability-gap routing is Architect orchestration input only. "
+    "It may prioritize subsystem work and capability-eval reruns, but it is "
+    "not proof evidence, simulation evidence, generated-code evidence, or "
+    "verifier evidence."
+)
 
 LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
     "problem_analysis_before_retrieval": [
@@ -124,6 +130,9 @@ def build_architect_coordinator_prompt(
     architect_context: Mapping[str, Any],
     runtime_config: Mapping[str, Any],
 ) -> str:
+    capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
+        architect_context
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -149,6 +158,7 @@ def build_architect_coordinator_prompt(
             "algorithm sandbox evidence is not production promotion",
             "AXLE/local Lean/kernel evidence is required for theorem proof claims",
         ],
+        "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
         "requested_evidence_contract": {
             "formal_verification_policy": str(
@@ -215,9 +225,119 @@ def build_architect_coordinator_prompt(
         "asking SimulationEngineer, AlgorithmEngineer, or FormalizerProofEngineer to "
         "consume the trace. Treat this as orchestration repair memory only, not proof "
         "evidence. "
+        "If runtime_capability_gap_routing_agenda contains rows, treat each row as "
+        "an open capability obligation: reflect its next_owner_subsystem, "
+        "target_behavior, and success_metric in subsystem_execution_plan, "
+        "risk_register, or next_actions as appropriate before broad retrieval or "
+        "final acceptance. Use recommended_capability_eval_command only as a rerun "
+        "hint, and never mark the capability gap resolved until runtime evidence "
+        "satisfies the listed success_metric. Capability-gap routing is "
+        "orchestration input, not proof evidence. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
+
+
+def architect_capability_gap_routing_agenda(
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compress runtime capability-gap routing rows into Architect obligations."""
+    if not isinstance(architect_context, Mapping):
+        return {}
+    context = architect_context.get("runtime_capability_gap_routing", {})
+    if not (
+        isinstance(context, Mapping)
+        and context.get("artifact_kind") == "RuntimeCapabilityGapRoutingContext"
+    ):
+        return {}
+    raw_rows = context.get("rows", [])
+    if not isinstance(raw_rows, list):
+        return {}
+    rows: list[dict[str, Any]] = []
+    owner_subsystems: set[str] = set()
+    for raw_row in raw_rows:
+        if not isinstance(raw_row, Mapping):
+            continue
+        requirement_id = _clean_architect_gap_text(
+            raw_row.get("requirement_id") or raw_row.get("id")
+        )
+        if not requirement_id:
+            continue
+        next_owner = _clean_architect_gap_text(
+            raw_row.get("next_owner_subsystem") or "ArchitectCoordinator"
+        )
+        if next_owner:
+            owner_subsystems.add(next_owner)
+        rows.append(
+            {
+                "requirement_id": requirement_id,
+                "scope": _clean_architect_gap_text(raw_row.get("scope")),
+                "gap_status": _clean_architect_gap_text(raw_row.get("gap_status"))
+                or "OPEN",
+                "next_owner_subsystem": next_owner or "ArchitectCoordinator",
+                "target_behavior": _clean_architect_gap_text(
+                    raw_row.get("target_behavior")
+                ),
+                "success_metric": _clean_architect_gap_text(
+                    raw_row.get("success_metric")
+                ),
+                "blocker": _clean_architect_gap_text(raw_row.get("blocker")),
+                "recommended_capability_eval_command": _clean_architect_gap_text(
+                    raw_row.get("recommended_capability_eval_command")
+                ),
+                "routing_boundary": _clean_architect_gap_text(
+                    raw_row.get("routing_boundary")
+                )
+                or ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
+            }
+        )
+    if not rows:
+        return {}
+    counts = context.get("counts", {})
+    if not isinstance(counts, Mapping):
+        counts = {}
+    return {
+        "artifact_kind": "ArchitectCapabilityGapRoutingAgenda",
+        "source_artifact_kind": "RuntimeCapabilityGapRoutingContext",
+        "counts": {
+            "rows_loaded": _architect_gap_int(
+                counts.get("rows_loaded"), fallback=len(rows)
+            ),
+            "rows_seen": _architect_gap_int(
+                counts.get("rows_seen"), fallback=len(rows)
+            ),
+            "errors": _architect_gap_int(counts.get("errors"), fallback=0),
+            "max_rows": _architect_gap_int(counts.get("max_rows"), fallback=0),
+        },
+        "owner_subsystems": sorted(owner_subsystems),
+        "rows": rows,
+        "required_architect_behavior": [
+            "allocate each open capability gap to its next_owner_subsystem",
+            "keep target_behavior and success_metric visible in next_actions",
+            "do not promote routing rows to proof, simulation, code, or verifier evidence",
+        ],
+        "source_paths": _architect_gap_source_paths(context.get("source_paths", [])),
+        "boundary": ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
+    }
+
+
+def _clean_architect_gap_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _architect_gap_int(value: Any, *, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(fallback)
+
+
+def _architect_gap_source_paths(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(path) for path in value]
+    if value in (None, ""):
+        return []
+    return [str(value)]
 
 
 ARCHITECT_COORDINATOR_SYSTEM_PROMPT = """\
