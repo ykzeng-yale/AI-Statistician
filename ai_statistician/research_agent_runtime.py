@@ -3573,6 +3573,7 @@ class ResearchAgentRuntimeConfig:
     max_critic_repair_rounds: int = 1
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
+    formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
     resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
     recommended_research_path: str = ""
@@ -3728,6 +3729,7 @@ def _runtime_requested_evidence_contract(
     evaluation_mode: str = "debug",
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
+    formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0,
 ) -> dict[str, Any]:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     path = _normalized_recommended_research_path(
@@ -3781,6 +3783,17 @@ def _runtime_requested_evidence_contract(
         contract[
             "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
         ] = simulation_yield_after_attempts
+    formalizer_yield_after_attempts = max(
+        0,
+        int(
+            formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+            or 0
+        ),
+    )
+    if capability_eval and formalizer_yield_after_attempts > 0:
+        contract[
+            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+        ] = formalizer_yield_after_attempts
     return contract
 
 
@@ -3792,6 +3805,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     evaluation_mode: str = "debug",
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
+    formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0,
 ) -> dict[str, Any]:
     payload = dict(context or {})
     requested_contract = _runtime_requested_evidence_contract(
@@ -3803,6 +3817,9 @@ def _runtime_architect_context_with_requested_evidence_contract(
         ),
         simulation_evaluator_generated_code_repair_yield_after_attempts=(
             simulation_evaluator_generated_code_repair_yield_after_attempts
+        ),
+        formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=(
+            formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
         ),
     )
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
@@ -3824,6 +3841,17 @@ def _runtime_architect_context_with_requested_evidence_contract(
         requested_contract[
             "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
         ] = simulation_yield_after_attempts
+    formalizer_yield_after_attempts = max(
+        0,
+        int(
+            formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+            or 0
+        ),
+    )
+    if formalizer_yield_after_attempts > 0:
+        requested_contract[
+            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+        ] = formalizer_yield_after_attempts
     payload["runtime_requested_evidence_contract"] = requested_contract
     return payload
 
@@ -8589,87 +8617,170 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     lean_candidate_repair_feedback
                 )
             )
-            next_owner = (
-                "FormalizationEvaluator" if packet_reroute_required else "ProofEngineer"
-            )
-            next_task_prefix = (
-                "formalize-repair"
-                if packet_reroute_required
-                else "formalize-lean-repair"
-            )
-            next_objective = (
-                "Repair the Formalizer/ProofEngineer packet under repeated "
-                "parser/syntax fail-closed rules before requesting Lean/prover work."
-                if packet_reroute_required
-                else (
-                    "Repair the exact materialized Lean candidate using local Lean "
-                    "diagnostics and prover feedback before routing to CriticEvaluator."
-                )
-            )
-            next_acceptance_gate = (
-                "Formalizer packet emits an explicit source-theorem FORMAL_GAP row "
-                "or routes a parser-simple support candidate through a support/"
-                "source-to-bridge channel with required metadata; no executable "
-                "helper formal_targets are emitted after repeated parser failure"
-                if packet_reroute_required
-                else (
-                    "ProofEngineer repair candidate is non-vacuous and either "
-                    "passes local Lean/AXLE or records a precise formal blocker"
-                )
-            )
-            next_stop_condition = (
-                "repaired fail-closed packet or explicit formal blocker recorded"
-                if packet_reroute_required
-                else "repaired Lean candidate or explicit formal blocker recorded"
-            )
-            next_task = AgentTask(
-                task_id=(
-                    f"{next_task_prefix}:{question.id}:"
-                    f"{stable_hash([manifest_id, lean_candidate_repair_feedback])[:8]}"
-                ),
-                owner_subsystem=next_owner,
-                objective=next_objective,
-                inputs=next_inputs,
-                allowed_tools=tuple(
-                    dict.fromkeys(
-                        (
-                            *task.allowed_tools,
-                            "model_backend",
-                            "local_lean",
-                            "lean_lsp_mcp",
-                            "formal_source_retrieval",
-                            "proof_search",
-                            "proof_bank_memory",
+            try:
+                repair_attempts_used = max(
+                    0,
+                    int(
+                        lean_candidate_repair_feedback.get(
+                            "formalizer_lean_repair_retry_depth",
+                            0,
                         )
+                        or 0
+                    ),
+                )
+            except (TypeError, ValueError):
+                repair_attempts_used = 0
+            yield_after_attempts = (
+                _runtime_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts(
+                    context,
+                    lean_candidate_repair_feedback,
+                )
+            )
+            gap_planner_bridge_id = str(gap_planner_bridge.get("bridge_id", "") or "")
+            gap_planner_yield_required = (
+                not packet_reroute_required
+                and yield_after_attempts > 0
+                and repair_attempts_used >= yield_after_attempts
+                and bool(gap_planner_bridge_id.strip())
+            )
+            if gap_planner_yield_required:
+                next_task = (
+                    _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
+                        question=question,
+                        theory_packet_id=packet_id,
+                        formalization_manifest_id=manifest_id,
+                        gap_planner_bridge_id=gap_planner_bridge_id,
+                        architect_context=context,
+                        lean_candidate_repair_feedback=lean_candidate_repair_feedback,
+                        source_subsystem=subsystem_name,
+                        repair_attempts_used=repair_attempts_used,
+                        yield_after_attempts=yield_after_attempts,
                     )
-                ),
-                expected_artifacts=task.expected_artifacts,
-                acceptance_gate=next_acceptance_gate,
-                stop_condition=next_stop_condition,
-            )
-            result_status = "REVISE"
-            result_rationale = (
-                (
-                    "Runtime precheck rejected a repeated parser/syntax "
-                    "formal_targets retry; diagnostics are routed back as a "
-                    "Formalizer packet-construction repair before any Lean/prover "
-                    "work is requested."
                 )
-                if packet_reroute_required
-                else (
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+                        ),
+                        summary=(
+                            "Formalizer/ProofEngineer Lean-candidate repair "
+                            "budget was exhausted; routing the current bridge to "
+                            "FormalizationGapPlanner while keeping the Lean "
+                            "candidate blocker open."
+                        ),
+                        payload={
+                            "formalization_manifest_id": manifest_id,
+                            "formalization_gap_planner_bridge_id": (
+                                gap_planner_bridge_id
+                            ),
+                            "repair_attempts_used": repair_attempts_used,
+                            "yield_after_attempts": yield_after_attempts,
+                            "source_failure_classification": str(
+                                lean_candidate_repair_feedback.get(
+                                    "failure_classification",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                result_status = "REVISE"
+                result_rationale = (
                     "Runtime checked the LLM Formalizer Lean candidate and found "
-                    "local Lean/precheck failures; diagnostics are routed to the "
-                    "internal ProofEngineer repair loop before CriticEvaluator "
-                    "summarization."
+                    "local Lean/precheck failures after the bounded "
+                    "Formalizer/ProofEngineer repair budget; routing the current "
+                    "formal-gap bridge to FormalizationGapPlanner so live "
+                    "route-planner feedback is not starved."
                 )
-            )
-            failure_classification = str(
-                lean_candidate_repair_feedback.get(
-                    "failure_classification",
-                    "formalizer_lean_candidate_local_lean_failed",
+                failure_classification = (
+                    "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
                 )
-                or "formalizer_lean_candidate_local_lean_failed"
-            )
+            else:
+                next_owner = (
+                    "FormalizationEvaluator"
+                    if packet_reroute_required
+                    else "ProofEngineer"
+                )
+                next_task_prefix = (
+                    "formalize-repair"
+                    if packet_reroute_required
+                    else "formalize-lean-repair"
+                )
+                next_objective = (
+                    "Repair the Formalizer/ProofEngineer packet under repeated "
+                    "parser/syntax fail-closed rules before requesting Lean/prover work."
+                    if packet_reroute_required
+                    else (
+                        "Repair the exact materialized Lean candidate using local Lean "
+                        "diagnostics and prover feedback before routing to CriticEvaluator."
+                    )
+                )
+                next_acceptance_gate = (
+                    "Formalizer packet emits an explicit source-theorem FORMAL_GAP row "
+                    "or routes a parser-simple support candidate through a support/"
+                    "source-to-bridge channel with required metadata; no executable "
+                    "helper formal_targets are emitted after repeated parser failure"
+                    if packet_reroute_required
+                    else (
+                        "ProofEngineer repair candidate is non-vacuous and either "
+                        "passes local Lean/AXLE or records a precise formal blocker"
+                    )
+                )
+                next_stop_condition = (
+                    "repaired fail-closed packet or explicit formal blocker recorded"
+                    if packet_reroute_required
+                    else "repaired Lean candidate or explicit formal blocker recorded"
+                )
+                next_task = AgentTask(
+                    task_id=(
+                        f"{next_task_prefix}:{question.id}:"
+                        f"{stable_hash([manifest_id, lean_candidate_repair_feedback])[:8]}"
+                    ),
+                    owner_subsystem=next_owner,
+                    objective=next_objective,
+                    inputs=next_inputs,
+                    allowed_tools=tuple(
+                        dict.fromkeys(
+                            (
+                                *task.allowed_tools,
+                                "model_backend",
+                                "local_lean",
+                                "lean_lsp_mcp",
+                                "formal_source_retrieval",
+                                "proof_search",
+                                "proof_bank_memory",
+                            )
+                        )
+                    ),
+                    expected_artifacts=task.expected_artifacts,
+                    acceptance_gate=next_acceptance_gate,
+                    stop_condition=next_stop_condition,
+                )
+                result_status = "REVISE"
+                result_rationale = (
+                    (
+                        "Runtime precheck rejected a repeated parser/syntax "
+                        "formal_targets retry; diagnostics are routed back as a "
+                        "Formalizer packet-construction repair before any Lean/prover "
+                        "work is requested."
+                    )
+                    if packet_reroute_required
+                    else (
+                        "Runtime checked the LLM Formalizer Lean candidate and found "
+                        "local Lean/precheck failures; diagnostics are routed to the "
+                        "internal ProofEngineer repair loop before CriticEvaluator "
+                        "summarization."
+                    )
+                )
+                failure_classification = str(
+                    lean_candidate_repair_feedback.get(
+                        "failure_classification",
+                        "formalizer_lean_candidate_local_lean_failed",
+                    )
+                    or "formalizer_lean_candidate_local_lean_failed"
+                )
         else:
             next_task = AgentTask(
                 task_id=f"critic:{question.id}:{stable_hash(manifest_id)[:8]}",
@@ -17269,6 +17380,9 @@ def run_research_agent_runtime(
             ),
             simulation_evaluator_generated_code_repair_yield_after_attempts=(
                 config.simulation_evaluator_generated_code_repair_yield_after_attempts
+            ),
+            formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=(
+                config.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
             ),
         )
     )
@@ -36073,6 +36187,19 @@ def _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
         key=(
             "capability_eval_simulation_evaluator_generated_code_repair_"
             "yield_after_attempts"
+        ),
+    )
+
+
+def _runtime_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> int:
+    return _runtime_positive_int_from_contract_sources(
+        (context, environment_feedback),
+        key=(
+            "capability_eval_formalizer_lean_candidate_repair_"
+            "yield_to_gap_planner_after_attempts"
         ),
     )
 
@@ -64060,6 +64187,119 @@ def _simulation_evaluator_repair_budget_yield_to_formalization_task(
         stop_condition=(
             "formalization/proof feedback recorded with the generated simulation "
             "blocker kept open"
+        ),
+    )
+
+
+def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    formalization_manifest_id: str,
+    gap_planner_bridge_id: str,
+    architect_context: Mapping[str, Any],
+    lean_candidate_repair_feedback: Mapping[str, Any],
+    source_subsystem: str,
+    repair_attempts_used: int,
+    yield_after_attempts: int,
+) -> AgentTask:
+    feedback = {
+        "feedback_type": (
+            "formalizer_lean_candidate_repair_budget_gap_planner_handoff"
+        ),
+        "source_feedback_type": str(
+            lean_candidate_repair_feedback.get("feedback_type", "")
+        ),
+        "failure_classification": (
+            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        ),
+        "source_failure_classification": str(
+            lean_candidate_repair_feedback.get("failure_classification", "")
+        ),
+        "formalization_manifest_id": formalization_manifest_id,
+        "formalization_gap_planner_bridge_ids": [gap_planner_bridge_id],
+        "source_manifest_id": str(
+            lean_candidate_repair_feedback.get("source_manifest_id", "") or ""
+        ),
+        "formalizer_lean_repair_attempts_used": int(repair_attempts_used),
+        "formalizer_lean_repair_yield_to_gap_planner_after_attempts": int(
+            yield_after_attempts
+        ),
+        "lean_candidate_repair_feedback": dict(lean_candidate_repair_feedback),
+        "target_behavior": (
+            "Execute FormalizationGapPlanner on the current formal-gap bridge "
+            "after the bounded Formalizer/ProofEngineer Lean-candidate repair "
+            "budget is exhausted, so live route-planner and target-prover "
+            "feedback are not starved by repeated Lean repair turns."
+        ),
+        "acceptance_gate": (
+            "FormalizationGapPlanner records executable handoff context and, "
+            "when enabled, bounded live route-planner feedback without treating "
+            "failed Lean candidates or route plans as theorem proof evidence."
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts": int(
+                yield_after_attempts
+            ),
+        },
+        "proof_evidence_status": (
+            "FORMALIZER_LEAN_REPAIR_GAP_PLANNER_YIELD_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This handoff is scheduling and diagnostic feedback only. It does "
+            "not prove a theorem, validate the failed Lean candidate, or close "
+            "any formal gap."
+        ),
+    }
+    context = dict(architect_context)
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": source_subsystem,
+        "handoff": "formalizer_lean_candidate_repair_budget_yield_to_gap_planner",
+        "formalization_manifest_id": formalization_manifest_id,
+        "formalization_gap_planner_bridge_id": gap_planner_bridge_id,
+        "formalizer_lean_repair_attempts_used": int(repair_attempts_used),
+        "formalizer_lean_repair_yield_to_gap_planner_after_attempts": int(
+            yield_after_attempts
+        ),
+    }
+    return AgentTask(
+        task_id=(
+            f"gap-planner-handoff:{question.id}:"
+            f"{stable_hash([formalization_manifest_id, gap_planner_bridge_id, repair_attempts_used])[:8]}"
+        ),
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Execute runtime FormalizationGapPlanner after the bounded "
+            "Formalizer/ProofEngineer Lean-candidate repair budget is exhausted."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": context,
+            "environment_feedback": feedback,
+            "formalization_manifest_id": formalization_manifest_id,
+            "theory_packet_id": theory_packet_id,
+        },
+        allowed_tools=(
+            "formalization_gap_planner",
+            "formal_source_retriever",
+            "evidence_ledger",
+            "model_backend",
+        ),
+        expected_artifacts=(
+            "runtime_formalization_gap_planner_execution_manifest",
+            "runtime_formalization_gap_planner_handoffs",
+        ),
+        acceptance_gate=feedback["acceptance_gate"],
+        stop_condition=(
+            "offline gap-planner replay, prompt staging, or bounded live route "
+            "planning completed with proof boundary preserved"
         ),
     )
 

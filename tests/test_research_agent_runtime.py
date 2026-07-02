@@ -11305,6 +11305,7 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
         evaluation_mode="capability_eval",
         algorithm_engineer_generated_code_repair_yield_after_attempts=1,
         simulation_evaluator_generated_code_repair_yield_after_attempts=1,
+        formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=1,
     )
     merged_contract = merged_context["runtime_requested_evidence_contract"]
     assert merged_contract["existing_context_flag"] == "keep"
@@ -11317,6 +11318,12 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
     assert (
         merged_contract[
             "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
+        ]
+        == 1
+    )
+    assert (
+        merged_contract[
+            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
         ]
         == 1
     )
@@ -21066,6 +21073,169 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     ]["allowed_tools"]
     assert formalizer.seen_environment_feedback[-1]["repair_owner_agent"] == (
         "ProofEngineer"
+    )
+
+
+def test_agent_runtime_yields_formalizer_lean_repair_budget_to_gap_planner(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class BadLeanFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:gap_planner_yield_bad_lean",
+                "source_agent": "BadLeanFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "gap_planner_yield_bad_lean",
+                        "informal_source": "deliberately unknown Lean identifier",
+                        "lean_statement_sketch": (
+                            "theorem gap_planner_yield_bad_lean : "
+                            "DefinitelyUnknownLeanIdentifier := by\n"
+                            "  trivial\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["run local Lean"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": (
+                    "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    class RecordingGapPlanner:
+        name = "FormalizationGapPlanner"
+
+        def __init__(self) -> None:
+            self.tasks: list[AgentTask] = []
+            self.bridge_seen = False
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.tasks.append(task)
+            self.bridge_seen = any(
+                isinstance(artifact, dict)
+                and artifact.get("artifact_kind")
+                == "RuntimeFormalizationGapPlannerBridge"
+                for artifact in blackboard.artifacts.values()
+            )
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="recorded gap-planner handoff after bounded Lean repair",
+            )
+
+    blackboard = BlackboardState(
+        project_id="formalizer-gap-planner-yield-test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    gap_planner = RecordingGapPlanner()
+    runtime = AgentRuntime(
+        subsystems={
+            "ProofEngineer": ProofEngineerRuntimeSubsystem(
+                proposal_agent=BadLeanFormalizer(),
+                proof_verifier=MockProofVerifier(),
+                max_proof_obligations=0,
+                lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+                lean_candidate_local_lean=True,
+            ),
+            "FormalizationGapPlanner": gap_planner,
+        },
+        blackboard=blackboard,
+    )
+    initial_task = AgentTask(
+        task_id="formalize-lean-repair:conformal_prediction_coverage:yield",
+        owner_subsystem="ProofEngineer",
+        objective="yield repeated Lean candidate failure to gap planner",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts": 1,
+                },
+            },
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "repair_owner_agent": "ProofEngineer",
+            },
+        },
+        allowed_tools=("model_backend", "local_lean", "lean_lsp_mcp"),
+    )
+
+    result = runtime.run(initial_task, max_iterations=2)
+
+    assert result.status == "ACCEPTED"
+    assert result.traces[0].subsystem == "ProofEngineer"
+    assert result.traces[0].status == "REVISE"
+    assert result.traces[0].failure_classification == (
+        "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+    )
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.traces[1].subsystem == "FormalizationGapPlanner"
+    assert len(gap_planner.tasks) == 1
+    assert gap_planner.bridge_seen is True
+
+    yielded_task = gap_planner.tasks[0]
+    feedback = yielded_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "formalizer_lean_candidate_repair_budget_gap_planner_handoff"
+    )
+    assert feedback["failure_classification"] == (
+        "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+    )
+    assert feedback["formalizer_lean_repair_attempts_used"] == 1
+    assert (
+        feedback["formalizer_lean_repair_yield_to_gap_planner_after_attempts"]
+        == 1
+    )
+    assert feedback["proof_evidence_status"] == (
+        "FORMALIZER_LEAN_REPAIR_GAP_PLANNER_YIELD_NOT_PROOF_EVIDENCE"
+    )
+    assert feedback["formalization_gap_planner_bridge_ids"]
+    assert (
+        yielded_task.inputs["architect_context"]["runtime_feedback_loop"][
+            "handoff"
+        ]
+        == "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+    )
+    assert any(
+        obs.observation_type
+        == "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        for obs in result.traces[0].observations
     )
 
 
@@ -61532,6 +61702,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalization_gap_planner_live_provider="same",
         formalization_gap_planner_live_timeout_seconds=0.0,
         simulation_evaluator_generated_code_repair_yield_after_attempts=0,
+        formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=0,
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
         coding_agent_repair_eval_provider="same",
@@ -61758,6 +61929,10 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         args.simulation_evaluator_generated_code_repair_yield_after_attempts
         == 1
     )
+    assert (
+        args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+        == 1
+    )
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
@@ -61806,6 +61981,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         "capability eval preset full-live requires bounded "
         "SimulationEvaluator generated-simulation repair scheduling; set "
         "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+    args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 0
+    assert (
+        "capability eval preset full-live requires bounded "
+        "Formalizer/ProofEngineer Lean-candidate repair scheduling; set "
+        "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 
