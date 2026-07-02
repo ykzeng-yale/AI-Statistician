@@ -2656,6 +2656,46 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
+    clean_progress_payload = {
+        "n_runtime_progress_events": 4,
+        "n_runtime_traces": 2,
+        "n_runtime_progress_start_rows": 2,
+        "n_runtime_progress_finish_rows": 2,
+        "n_runtime_progress_missing_start_rows": 0,
+        "n_runtime_progress_missing_finish_rows": 0,
+        "n_runtime_progress_unknown_start_finish_rows": 0,
+        "n_runtime_progress_mismatched_start_finish_rows": 0,
+        "runtime_progress_export_complete": True,
+        "runtime_progress_export_issues": [],
+    }
+    clean_progress_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_progress_payload)["rows"]
+    }
+    assert clean_progress_rows["runtime_progress_observable"]["passed"] is True
+
+    progress_payload = dict(clean_progress_payload)
+    progress_payload.update(
+        {
+            "n_runtime_progress_finish_rows": 1,
+            "n_runtime_progress_missing_finish_rows": 1,
+            "n_runtime_progress_mismatched_start_finish_rows": 1,
+            "runtime_progress_export_complete": False,
+            "runtime_progress_export_issues": [
+                {"issue": "runtime_trace_missing_progress_finish"}
+            ],
+        }
+    )
+    progress_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(progress_payload)["rows"]
+    }
+    progress_row = progress_rows["runtime_progress_observable"]
+    assert progress_row["passed"] is False
+    assert "missing_finish=1" in progress_row["evidence"]
+    assert "mismatched=1" in progress_row["evidence"]
+    assert "trace-matched start/finish" in progress_row["blocker"]
+
     clean_evidence_payload = {
         "n_runtime_blackboard_evidence_ledger_rows": 2,
         "n_runtime_evidence_ledger_export_rows": 2,
@@ -49920,9 +49960,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert progress_rows[0]["event_type"] == "subsystem_start"
     assert progress_rows[0]["subsystem"] == "ArchitectCoordinator"
+    start_rows = [
+        row for row in progress_rows if row["event_type"] == "subsystem_start"
+    ]
     finish_rows = [
         row for row in progress_rows if row["event_type"] == "subsystem_finish"
     ]
+    assert len(start_rows) == len(result["traces"])
+    assert len(finish_rows) == len(result["traces"])
     assert finish_rows
     handoff_ledger = result["blackboard"]["handoff_ledger"]
     assert handoff_ledger[0]["from_subsystem"] == "ArchitectCoordinator"
@@ -50728,6 +50773,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_result_errors"] == 0
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["runtime_progress_export_complete"] is True
+    assert audit["n_runtime_trace_progress_start_rows"] == len(result["traces"])
+    assert audit["n_runtime_trace_progress_finish_rows"] == len(result["traces"])
+    assert audit["n_runtime_progress_start_rows"] == len(start_rows)
+    assert audit["n_runtime_progress_finish_rows"] == len(finish_rows)
+    assert audit["n_runtime_progress_missing_start_rows"] == 0
+    assert audit["n_runtime_progress_missing_finish_rows"] == 0
+    assert audit["n_runtime_progress_unknown_start_finish_rows"] == 0
+    assert audit["n_runtime_progress_mismatched_start_finish_rows"] == 0
     assert audit["runtime_evidence_ledger_export_complete"] is True
     assert (
         audit["n_runtime_blackboard_evidence_ledger_rows"]
@@ -50810,6 +50864,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
+    assert scorecard_rows["runtime_progress_observable"]["passed"] is True
     assert (
         scorecard_rows["runtime_evidence_ledger_export_complete"]["passed"]
         is True

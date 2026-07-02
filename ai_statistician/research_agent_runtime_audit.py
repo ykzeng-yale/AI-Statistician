@@ -651,6 +651,254 @@ def _runtime_task_handoff_ledger_mismatches(
     return mismatches
 
 
+def _runtime_progress_export_audit_summary(
+    *,
+    result_paths: list[Path],
+    progress_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    expected_start_by_key: dict[
+        tuple[str, str, str, str, str], Mapping[str, Any]
+    ] = {}
+    expected_finish_by_key: dict[
+        tuple[str, str, str, str, str], Mapping[str, Any]
+    ] = {}
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        question_id = str(blackboard.get("project_id", "") or "").split(":", 1)[-1]
+        traces = (
+            payload.get("traces", [])
+            if isinstance(payload.get("traces", []), list)
+            else []
+        )
+        for trace_index, trace in enumerate(traces):
+            if not isinstance(trace, Mapping):
+                continue
+            task = (
+                trace.get("task", {})
+                if isinstance(trace.get("task", {}), Mapping)
+                else {}
+            )
+            iteration = int(trace.get("iteration", 0) or 0)
+            task_id = str(task.get("task_id", "") or "")
+            owner_subsystem = str(task.get("owner_subsystem", "") or "")
+            subsystem = str(trace.get("subsystem", "") or owner_subsystem)
+            start_key = _runtime_progress_export_key(
+                event_type="subsystem_start",
+                question_id=question_id,
+                iteration=iteration,
+                task_id=task_id,
+                subsystem=subsystem,
+            )
+            finish_key = _runtime_progress_export_key(
+                event_type="subsystem_finish",
+                question_id=question_id,
+                iteration=iteration,
+                task_id=task_id,
+                subsystem=subsystem,
+            )
+            expected_start_by_key[start_key] = {
+                "event_type": "subsystem_start",
+                "question_id": question_id,
+                "iteration": iteration,
+                "task_id": task_id,
+                "owner_subsystem": owner_subsystem,
+                "subsystem": subsystem,
+                "status": "",
+                "rationale": "",
+                "produced_artifact_ids": (),
+                "evidence_ids": (),
+                "handoff_id": "",
+                "next_task_id": "",
+                "failure_classification": "",
+            }
+            expected_finish_by_key[finish_key] = {
+                "event_type": "subsystem_finish",
+                "question_id": question_id,
+                "iteration": iteration,
+                "task_id": task_id,
+                "owner_subsystem": owner_subsystem,
+                "subsystem": subsystem,
+                "status": str(trace.get("status", "") or ""),
+                "rationale": str(trace.get("rationale", "") or ""),
+                "produced_artifact_ids": _handoff_string_tuple(
+                    trace.get("produced_artifact_ids", [])
+                ),
+                "evidence_ids": _handoff_string_tuple(trace.get("evidence_ids", [])),
+                "handoff_id": str(trace.get("handoff_id", "") or ""),
+                "next_task_id": str(trace.get("next_task_id", "") or ""),
+                "failure_classification": str(
+                    trace.get("failure_classification", "") or ""
+                ),
+            }
+
+    export_start_by_key: dict[
+        tuple[str, str, str, str, str], Mapping[str, Any]
+    ] = {}
+    export_finish_by_key: dict[
+        tuple[str, str, str, str, str], Mapping[str, Any]
+    ] = {}
+    n_progress_start_rows = 0
+    n_progress_finish_rows = 0
+    n_progress_retry_rows = 0
+    n_progress_exception_rows = 0
+    n_progress_other_rows = 0
+    n_unknown_rows = 0
+    n_mismatched_rows = 0
+    for row_index, row in enumerate(progress_rows):
+        event_type = str(row.get("event_type", "") or "")
+        if event_type == "subsystem_retry":
+            n_progress_retry_rows += 1
+            continue
+        if event_type == "subsystem_exception":
+            n_progress_exception_rows += 1
+            continue
+        if event_type not in {"subsystem_start", "subsystem_finish"}:
+            n_progress_other_rows += 1
+            continue
+        key = _runtime_progress_export_key(
+            event_type=event_type,
+            question_id=row.get("question_id", ""),
+            iteration=row.get("iteration", 0),
+            task_id=row.get("task_id", ""),
+            subsystem=row.get("subsystem", ""),
+        )
+        if event_type == "subsystem_start":
+            n_progress_start_rows += 1
+            export_by_key = export_start_by_key
+            expected_by_key = expected_start_by_key
+            duplicate_issue = "runtime_progress_start_duplicate_key"
+            unknown_issue = "runtime_progress_start_unknown_row"
+        else:
+            n_progress_finish_rows += 1
+            export_by_key = export_finish_by_key
+            expected_by_key = expected_finish_by_key
+            duplicate_issue = "runtime_progress_finish_duplicate_key"
+            unknown_issue = "runtime_progress_finish_unknown_row"
+        if key in export_by_key:
+            n_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue=duplicate_issue,
+                trace_index=row_index,
+                detail=f"runtime_progress.jsonl repeats {event_type} key",
+            )
+            continue
+        export_by_key[key] = row
+        expected = expected_by_key.get(key)
+        if expected is None:
+            n_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue=unknown_issue,
+                trace_index=row_index,
+                detail=f"runtime_progress.jsonl {event_type} row has no matching trace",
+            )
+            continue
+        mismatches = [
+            field
+            for field in (
+                "event_type",
+                "question_id",
+                "iteration",
+                "task_id",
+                "owner_subsystem",
+                "subsystem",
+                "status",
+                "rationale",
+                "handoff_id",
+                "next_task_id",
+                "failure_classification",
+            )
+            if str(row.get(field, "") or "") != str(expected.get(field, "") or "")
+        ]
+        for field in ("produced_artifact_ids", "evidence_ids"):
+            if _handoff_string_tuple(row.get(field, [])) != _handoff_string_tuple(
+                expected.get(field, [])
+            ):
+                mismatches.append(field)
+        if mismatches:
+            n_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_progress_trace_mismatch",
+                trace_index=row_index,
+                detail=",".join(mismatches),
+            )
+
+    missing_start_keys = sorted(set(expected_start_by_key) - set(export_start_by_key))
+    missing_finish_keys = sorted(set(expected_finish_by_key) - set(export_finish_by_key))
+    for key in missing_start_keys[:20]:
+        _append_handoff_issue(
+            issues,
+            issue="runtime_trace_missing_progress_start",
+            detail="runtime_progress.jsonl missing start key=" + repr(key),
+        )
+    for key in missing_finish_keys[:20]:
+        _append_handoff_issue(
+            issues,
+            issue="runtime_trace_missing_progress_finish",
+            detail="runtime_progress.jsonl missing finish key=" + repr(key),
+        )
+    n_trace_rows = len(expected_start_by_key)
+    complete = (
+        (n_trace_rows <= 0 and n_progress_start_rows <= 0 and n_progress_finish_rows <= 0)
+        or (
+            not missing_start_keys
+            and not missing_finish_keys
+            and n_unknown_rows == 0
+            and n_mismatched_rows == 0
+            and n_progress_start_rows == n_trace_rows
+            and n_progress_finish_rows == n_trace_rows
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeProgressExportAudit",
+        "runtime_progress_export_complete": complete,
+        "n_runtime_trace_progress_start_rows": n_trace_rows,
+        "n_runtime_trace_progress_finish_rows": len(expected_finish_by_key),
+        "n_runtime_progress_start_rows": n_progress_start_rows,
+        "n_runtime_progress_finish_rows": n_progress_finish_rows,
+        "n_runtime_progress_retry_rows": n_progress_retry_rows,
+        "n_runtime_progress_exception_rows": n_progress_exception_rows,
+        "n_runtime_progress_other_rows": n_progress_other_rows,
+        "n_runtime_progress_missing_start_rows": len(missing_start_keys),
+        "n_runtime_progress_missing_finish_rows": len(missing_finish_keys),
+        "n_runtime_progress_unknown_start_finish_rows": n_unknown_rows,
+        "n_runtime_progress_mismatched_start_finish_rows": n_mismatched_rows,
+        "runtime_progress_export_issues": issues,
+        "boundary": (
+            "Runtime progress rows are orchestration observability records. "
+            "They prove that AgentRuntime emitted start/finish telemetry for "
+            "each subsystem iteration, not that downstream statistical, code, "
+            "simulation, or proof claims are correct."
+        ),
+    }
+
+
+def _runtime_progress_export_key(
+    *,
+    event_type: Any,
+    question_id: Any,
+    iteration: Any,
+    task_id: Any,
+    subsystem: Any,
+) -> tuple[str, str, str, str, str]:
+    return (
+        str(event_type or ""),
+        str(question_id or ""),
+        str(_safe_int(iteration)),
+        str(task_id or ""),
+        str(subsystem or ""),
+    )
+
+
 def _runtime_observation_export_audit_summary(
     *,
     result_paths: list[Path],
@@ -1963,6 +2211,11 @@ def audit_research_agent_runtime(
             agenda_rows=agenda_rows,
         )
     )
+    runtime_progress_export_summary = _runtime_progress_export_audit_summary(
+        result_paths=result_paths,
+        progress_rows=progress_rows,
+        errors=errors,
+    )
     runtime_task_handoff_ledger_summary = (
         _runtime_task_handoff_ledger_audit_summary(
             result_paths=result_paths,
@@ -2402,6 +2655,50 @@ def audit_research_agent_runtime(
         "by_status": dict(sorted(by_status.items())),
         "n_runtime_progress_events": len(progress_rows),
         "n_runtime_traces": len(trace_rows),
+        "runtime_progress_export_audit_summary": runtime_progress_export_summary,
+        "runtime_progress_export_complete": bool(
+            runtime_progress_export_summary["runtime_progress_export_complete"]
+        ),
+        "n_runtime_trace_progress_start_rows": int(
+            runtime_progress_export_summary["n_runtime_trace_progress_start_rows"]
+        ),
+        "n_runtime_trace_progress_finish_rows": int(
+            runtime_progress_export_summary["n_runtime_trace_progress_finish_rows"]
+        ),
+        "n_runtime_progress_start_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_start_rows"]
+        ),
+        "n_runtime_progress_finish_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_finish_rows"]
+        ),
+        "n_runtime_progress_retry_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_retry_rows"]
+        ),
+        "n_runtime_progress_exception_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_exception_rows"]
+        ),
+        "n_runtime_progress_other_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_other_rows"]
+        ),
+        "n_runtime_progress_missing_start_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_missing_start_rows"]
+        ),
+        "n_runtime_progress_missing_finish_rows": int(
+            runtime_progress_export_summary["n_runtime_progress_missing_finish_rows"]
+        ),
+        "n_runtime_progress_unknown_start_finish_rows": int(
+            runtime_progress_export_summary[
+                "n_runtime_progress_unknown_start_finish_rows"
+            ]
+        ),
+        "n_runtime_progress_mismatched_start_finish_rows": int(
+            runtime_progress_export_summary[
+                "n_runtime_progress_mismatched_start_finish_rows"
+            ]
+        ),
+        "runtime_progress_export_issues": list(
+            runtime_progress_export_summary["runtime_progress_export_issues"]
+        ),
         "runtime_evidence_ledger_export_audit_summary": (
             runtime_evidence_ledger_export_summary
         ),
@@ -8548,6 +8845,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
+    legacy_progress_observable = (
+        int(payload.get("n_runtime_progress_events", 0) or 0)
+        >= 2 * int(payload.get("n_runtime_traces", 0) or 0)
+        and int(payload.get("n_runtime_traces", 0) or 0) > 0
+    )
+    raw_progress_export_complete = payload.get("runtime_progress_export_complete")
+    runtime_progress_export_complete = (
+        legacy_progress_observable
+        if raw_progress_export_complete is None
+        else raw_progress_export_complete is True
+    )
     runtime_task_handoff_trace_rows = int(
         payload.get("n_runtime_task_handoff_trace_rows", 0) or 0
     )
@@ -9989,14 +10297,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "runtime_progress_observable",
-            int(payload.get("n_runtime_progress_events", 0) or 0)
-            >= 2 * int(payload.get("n_runtime_traces", 0) or 0)
-            and int(payload.get("n_runtime_traces", 0) or 0) > 0,
+            runtime_progress_export_complete,
             (
                 f"progress_events={payload.get('n_runtime_progress_events')} "
-                f"runtime_traces={payload.get('n_runtime_traces')}"
+                f"runtime_traces={payload.get('n_runtime_traces')} "
+                "start_rows="
+                f"{payload.get('n_runtime_progress_start_rows')} "
+                "finish_rows="
+                f"{payload.get('n_runtime_progress_finish_rows')} "
+                "missing_start="
+                f"{payload.get('n_runtime_progress_missing_start_rows')} "
+                "missing_finish="
+                f"{payload.get('n_runtime_progress_missing_finish_rows')} "
+                "unknown="
+                f"{payload.get('n_runtime_progress_unknown_start_finish_rows')} "
+                "mismatched="
+                f"{payload.get('n_runtime_progress_mismatched_start_finish_rows')} "
+                "issues="
+                f"{payload.get('runtime_progress_export_issues')}"
             ),
-            "runtime progress JSONL did not record start/finish events for every trace",
+            (
+                "runtime progress JSONL did not record trace-matched start/"
+                "finish events for every subsystem iteration"
+            ),
         ),
         _scorecard_row(
             "runtime_evidence_ledger_export_complete",
@@ -11556,6 +11879,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
+        "- runtime progress export complete / start / finish: "
+        f"{payload.get('runtime_progress_export_complete')} / "
+        f"{payload.get('n_runtime_progress_start_rows')} / "
+        f"{payload.get('n_runtime_progress_finish_rows')}",
         "- runtime evidence ledger export complete / rows: "
         f"{payload.get('runtime_evidence_ledger_export_complete')} / "
         f"{payload.get('n_runtime_evidence_ledger_export_rows')}",
