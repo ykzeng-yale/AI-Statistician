@@ -13015,6 +13015,13 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["n_staged_followup_target_prover_replay_candidates"] == 2
     assert payload["n_staged_followup_target_prover_replay_route_blocked"] == 0
     assert payload["n_staged_followup_target_prover_replay_rejected"] == 0
+    assert payload["n_staged_followup_assembled_seed_rows"] == 1
+    assert payload["n_standalone_seed_source_rows"] == 2
+    assert payload["n_standalone_seed_direct_source_rows"] == 1
+    assert payload["n_standalone_seed_staged_assembled_source_rows"] == 1
+    assert payload["standalone_replay_gate_ok"] is True
+    assert payload["n_standalone_replay_route_candidates"] == 1
+    assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
     assembly = payload["staged_followup_assembly_rows"][0]
     assert assembly["assembly_status"] == "ASSEMBLED_FULL_ROUTE_CONTRACT_OK"
     assert assembly["assembled_response_contract_ok"] is True
@@ -13027,6 +13034,27 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert assembled_row["provider_name"] == "staged_followup_assembler"
     assert assembled_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
     assert assembled_row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+    seed_selection = payload["standalone_seed"][
+        "llm_route_planner_seed_route_selection"
+    ]
+    assert seed_selection["selection_status"] == "accepted_llm_routes_ranked"
+    assert seed_selection["selected_llm_route_planner_row_id"] == assembled_row[
+        "llm_route_planner_row_id"
+    ]
+    assert seed_selection["selected_route_adoptable_for_standalone_replay"] is True
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["replan_metadata"]["llm_route_planner_provider"] == (
+        "staged_followup_assembler"
+    )
+    queue_hooks = [
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if "llm_route_planner_formal_attempt_queue_index" in hook
+    ]
+    assert [
+        hook["llm_route_planner_formal_attempt_queue_index"]
+        for hook in queue_hooks
+    ] == [0, 1]
     assembled_payload = assembly["assembled_response"]["response_payload"]
     assert assembled_payload["minimal_delta_plan"]["selected_primitives"] == [
         "exchangeability",
@@ -13064,6 +13092,60 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
         for row in replay_rows
     )
+    assembled_seed_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_assembled_seed_rows.jsonl"
+    )
+    assembled_seed_rows = [
+        json.loads(line)
+        for line in assembled_seed_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert assembled_seed_rows == payload["staged_followup_assembled_seed_rows"]
+    assert assembled_seed_rows[0]["llm_route_planner_row_id"] == assembled_row[
+        "llm_route_planner_row_id"
+    ]
+    assert validate_llm_route_planner_manifest(payload) == []
+    persisted_manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert validate_llm_route_planner_manifest(persisted_manifest) == []
+    drifted_seed_count_payload = deepcopy(payload)
+    drifted_seed_count_payload[
+        "n_standalone_seed_staged_assembled_source_rows"
+    ] = 0
+    assert (
+        "n_standalone_seed_staged_assembled_source_rows must match staged assembled seed rows"
+        in validate_llm_route_planner_manifest(drifted_seed_count_payload)
+    )
+    plan_dir = root / "standalone_plan_from_staged_assembly_seed"
+    refinement_queue_dir = root / "refinement_queue_from_staged_assembly_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_rows = [
+        row
+        for row in queue_payload["rows"]
+        if row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_formal_attempt_queue_index"
+        )
+        is not None
+    ]
+    assert len(queue_rows) == 2
+    assert queue_payload["n_formal_attempt_dependency_rows"] == 2
+    assert queue_payload["n_formal_attempt_dependency_initial_ready"] == 1
+    assert queue_payload["n_formal_attempt_dependency_waiting"] == 1
+    assert queue_payload["n_formal_attempt_dependency_missing_prerequisites"] == 0
+    assert {row["hook_kind"] for row in queue_rows} == {"proof_state_feedback"}
     report = (
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
@@ -13072,6 +13154,7 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         "Staged followup target-prover replay rows: 2 candidates=2 route-blocked=0"
         in report
     )
+    assert "Standalone seed source rows: 2 direct=1 staged-assembled=1" in report
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

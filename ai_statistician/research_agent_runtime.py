@@ -13578,6 +13578,27 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             )
                             or []
                         ),
+                        "n_staged_followup_assembled_seed_rows": int(
+                            payload.get(
+                                "n_staged_followup_assembled_seed_rows",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_standalone_seed_source_rows": int(
+                            payload.get("n_standalone_seed_source_rows", 0) or 0
+                        ),
+                        "n_standalone_seed_direct_source_rows": int(
+                            payload.get("n_standalone_seed_direct_source_rows", 0)
+                            or 0
+                        ),
+                        "n_standalone_seed_staged_assembled_source_rows": int(
+                            payload.get(
+                                "n_standalone_seed_staged_assembled_source_rows",
+                                0,
+                            )
+                            or 0
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13671,6 +13692,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followup_target_prover_replay_route_blocked": 0,
                         "n_staged_followup_target_prover_replay_rejected": 0,
                         "staged_followup_target_prover_replay_rows": [],
+                        "n_staged_followup_assembled_seed_rows": 0,
+                        "n_standalone_seed_source_rows": 0,
+                        "n_standalone_seed_direct_source_rows": 0,
+                        "n_standalone_seed_staged_assembled_source_rows": 0,
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13814,6 +13839,28 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 int(
                     row.get(
                         "n_staged_followup_target_prover_replay_rejected",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_assembled_seed_rows": sum(
+                int(row.get("n_staged_followup_assembled_seed_rows", 0) or 0)
+                for row in rows
+            ),
+            "standalone_seed_source_rows": sum(
+                int(row.get("n_standalone_seed_source_rows", 0) or 0)
+                for row in rows
+            ),
+            "standalone_seed_direct_source_rows": sum(
+                int(row.get("n_standalone_seed_direct_source_rows", 0) or 0)
+                for row in rows
+            ),
+            "standalone_seed_staged_assembled_source_rows": sum(
+                int(
+                    row.get(
+                        "n_standalone_seed_staged_assembled_source_rows",
                         0,
                     )
                     or 0
@@ -54026,6 +54073,10 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "staged_followup_target_prover_replay_candidates",
         "staged_followup_target_prover_replay_route_blocked",
         "staged_followup_target_prover_replay_rejected",
+        "staged_followup_assembled_seed_rows",
+        "standalone_seed_source_rows",
+        "standalone_seed_direct_source_rows",
+        "standalone_seed_staged_assembled_source_rows",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -54150,6 +54201,18 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rejected": int(
             aggregate_counts["staged_followup_target_prover_replay_rejected"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_seed_rows": int(
+            aggregate_counts["staged_followup_assembled_seed_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_source_rows": int(
+            aggregate_counts["standalone_seed_source_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_direct_source_rows": int(
+            aggregate_counts["standalone_seed_direct_source_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_staged_assembled_source_rows": int(
+            aggregate_counts["standalone_seed_staged_assembled_source_rows"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]

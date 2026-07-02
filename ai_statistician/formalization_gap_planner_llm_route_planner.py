@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -1366,6 +1366,13 @@ def export_formalization_gap_planner_llm_route_planner(
     staged_followup_target_prover_replay_rows = (
         _staged_followup_target_prover_replay_rows(staged_followup_assembly_rows)
     )
+    staged_followup_assembled_seed_rows = _staged_followup_assembled_rows_for_seed(
+        staged_followup_assembly_rows
+    )
+    standalone_seed_rows = (*rows, *staged_followup_assembled_seed_rows)
+    standalone_seed_row_dicts = [
+        _jsonable_mapping(asdict(row)) for row in standalone_seed_rows
+    ]
     provider_usage_rows = _provider_usage_rows(row_dicts)
     provider_usage_summary = _provider_usage_summary(provider_usage_rows)
     staged_followup_stage_provider_usage_rows = _provider_usage_rows(
@@ -1396,8 +1403,11 @@ def export_formalization_gap_planner_llm_route_planner(
         for row in rows
         for ledger_row in row.repair_attempt_ledger
     )
-    standalone_seed = _standalone_seed(input_payload, rows)
-    standalone_replay_gate = _standalone_replay_gate(row_dicts, standalone_seed)
+    standalone_seed = _standalone_seed(input_payload, standalone_seed_rows)
+    standalone_replay_gate = _standalone_replay_gate(
+        standalone_seed_row_dicts,
+        standalone_seed,
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2825,6 +2835,18 @@ def export_formalization_gap_planner_llm_route_planner(
             for row in staged_followup_target_prover_replay_rows
             if row.get("replay_gate_status")
             == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS
+        ),
+        "staged_followup_assembled_seed_rows": [
+            _jsonable_mapping(asdict(row))
+            for row in staged_followup_assembled_seed_rows
+        ],
+        "n_staged_followup_assembled_seed_rows": len(
+            staged_followup_assembled_seed_rows
+        ),
+        "n_standalone_seed_source_rows": len(standalone_seed_rows),
+        "n_standalone_seed_direct_source_rows": len(rows),
+        "n_standalone_seed_staged_assembled_source_rows": len(
+            staged_followup_assembled_seed_rows
         ),
         "n_awaiting_llm_response": by_acceptance_status.get(
             "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
@@ -4574,6 +4596,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             },
             "request_packets": object_array,
             "rows": object_array,
+            "staged_followup_assembled_seed_rows": object_array,
+            "n_staged_followup_assembled_seed_rows": nonnegative_integer,
+            "n_standalone_seed_source_rows": nonnegative_integer,
+            "n_standalone_seed_direct_source_rows": nonnegative_integer,
+            "n_standalone_seed_staged_assembled_source_rows": nonnegative_integer,
             "standalone_seed": {"type": "object"},
             "standalone_replay_gate": {
                 "type": "object",
@@ -6205,8 +6232,64 @@ def validate_llm_route_planner_manifest(
     for field_name, expected_value in provider_usage_count_checks:
         if int(manifest.get(field_name, 0) or 0) != int(expected_value or 0):
             errors.append(f"{field_name} must match provider_usage_summary")
+    staged_followup_assembly_rows = _dict_tuple(
+        manifest.get("staged_followup_assembly_rows", [])
+    )
+    staged_followup_assembled_seed_rows = _staged_followup_assembled_rows_for_seed(
+        staged_followup_assembly_rows
+    )
+    expected_standalone_seed_rows = (
+        *_llm_route_planner_rows_from_mappings(manifest_rows),
+        *staged_followup_assembled_seed_rows,
+    )
+    expected_standalone_seed_row_dicts = [
+        _jsonable_mapping(asdict(row)) for row in expected_standalone_seed_rows
+    ]
+    if (
+        "n_staged_followup_assembled_seed_rows" in manifest
+        and int(manifest.get("n_staged_followup_assembled_seed_rows", 0) or 0)
+        != len(staged_followup_assembled_seed_rows)
+    ):
+        errors.append(
+            "n_staged_followup_assembled_seed_rows must match staged_followup_assembly_rows"
+        )
+    if (
+        "staged_followup_assembled_seed_rows" in manifest
+        and _dict_tuple(manifest.get("staged_followup_assembled_seed_rows", []))
+        != tuple(
+            _jsonable_mapping(asdict(row))
+            for row in staged_followup_assembled_seed_rows
+        )
+    ):
+        errors.append(
+            "staged_followup_assembled_seed_rows must match staged_followup_assembly_rows"
+        )
+    if (
+        "n_standalone_seed_source_rows" in manifest
+        and int(manifest.get("n_standalone_seed_source_rows", 0) or 0)
+        != len(expected_standalone_seed_rows)
+    ):
+        errors.append(
+            "n_standalone_seed_source_rows must match rows plus staged assembled seed rows"
+        )
+    if (
+        "n_standalone_seed_direct_source_rows" in manifest
+        and int(manifest.get("n_standalone_seed_direct_source_rows", 0) or 0)
+        != len(manifest_rows)
+    ):
+        errors.append("n_standalone_seed_direct_source_rows must match rows")
+    if (
+        "n_standalone_seed_staged_assembled_source_rows" in manifest
+        and int(
+            manifest.get("n_standalone_seed_staged_assembled_source_rows", 0) or 0
+        )
+        != len(staged_followup_assembled_seed_rows)
+    ):
+        errors.append(
+            "n_standalone_seed_staged_assembled_source_rows must match staged assembled seed rows"
+        )
     expected_standalone_replay_gate = _standalone_replay_gate(
-        manifest_rows,
+        expected_standalone_seed_row_dicts,
         _dict_value(manifest, "standalone_seed"),
     )
     observed_standalone_replay_gate = _dict_value(
@@ -15119,6 +15202,133 @@ def _staged_followup_target_prover_replay_row(
             ]
         ),
     }
+
+
+def _staged_followup_assembled_rows_for_seed(
+    assembly_rows: Iterable[Mapping[str, object]],
+) -> tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...]:
+    rows: list[FormalizationGapPlannerLLMRoutePlannerRow] = []
+    seen_row_ids: set[str] = set()
+    for assembly in assembly_rows:
+        if not bool(assembly.get("assembled_response_contract_ok", False)):
+            continue
+        assembled_row = _dict_value(assembly, "assembled_llm_route_planner_row")
+        if not bool(assembled_row.get("response_contract_ok", False)):
+            continue
+        if not _dict_value(assembled_row, "standalone_route"):
+            continue
+        row = _llm_route_planner_row_from_mapping(assembled_row)
+        if row.llm_route_planner_row_id in seen_row_ids:
+            continue
+        seen_row_ids.add(row.llm_route_planner_row_id)
+        rows.append(row)
+    return tuple(rows)
+
+
+def _llm_route_planner_rows_from_mappings(
+    row_dicts: Iterable[Mapping[str, object]],
+) -> tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...]:
+    return tuple(_llm_route_planner_row_from_mapping(row) for row in row_dicts)
+
+
+_LLM_ROUTE_PLANNER_ROW_STR_TUPLE_FIELDS = frozenset(
+    {
+        "uncertainty_flags",
+        "semantic_alignment_risks",
+        "source_refs",
+        "generation_errors",
+        "route_adoption_blockers",
+        "errors",
+    }
+)
+_LLM_ROUTE_PLANNER_ROW_DICT_TUPLE_FIELDS = frozenset(
+    {
+        "informal_knowledge_dag_nodes",
+        "informal_knowledge_dag_edges",
+        "formal_realization_dag_nodes",
+        "formal_realization_dag_edges",
+        "lean_realization_dag_nodes",
+        "route_alignment_edges",
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+        "formal_attempt_queue",
+        "source_snippets",
+        "source_grounding_rows",
+        "residual_goal_contexts",
+        "repair_error_history",
+        "repair_attempt_ledger",
+    }
+)
+_LLM_ROUTE_PLANNER_ROW_DICT_FIELDS = frozenset(
+    {
+        "model_tier_decision_evidence",
+        "minimal_delta_plan",
+        "standalone_route",
+        "realization_coverage_witness",
+        "primitive_evidence_matrix_witness",
+        "quality_control_obligations",
+        "feedback_loop_summary",
+        "target_theorem_context_packet",
+        "route_planning_brief",
+        "route_adoption_preconditions",
+        "source_grounding_obligations",
+        "context_packet_inventory",
+        "generator_metadata",
+    }
+)
+_LLM_ROUTE_PLANNER_ROW_BOOL_FIELDS = frozenset(
+    {
+        "response_present",
+        "response_contract_ok",
+        "provider_failure",
+        "ok",
+    }
+)
+_LLM_ROUTE_PLANNER_ROW_INT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "repair_attempts",
+    }
+)
+
+
+def _llm_route_planner_row_from_mapping(
+    row: Mapping[str, object],
+) -> FormalizationGapPlannerLLMRoutePlannerRow:
+    values: dict[str, object] = {}
+    for field in fields(FormalizationGapPlannerLLMRoutePlannerRow):
+        name = field.name
+        raw_value = row.get(name, _llm_route_planner_row_default(name))
+        if name in _LLM_ROUTE_PLANNER_ROW_STR_TUPLE_FIELDS:
+            values[name] = _str_tuple(raw_value)
+        elif name in _LLM_ROUTE_PLANNER_ROW_DICT_TUPLE_FIELDS:
+            values[name] = _dict_tuple(raw_value)
+        elif name in _LLM_ROUTE_PLANNER_ROW_DICT_FIELDS:
+            values[name] = _dict_value(row, name)
+        elif name in _LLM_ROUTE_PLANNER_ROW_BOOL_FIELDS:
+            values[name] = bool(raw_value)
+        elif name in _LLM_ROUTE_PLANNER_ROW_INT_FIELDS:
+            values[name] = _nonnegative_int(raw_value)
+        else:
+            values[name] = str(raw_value or "")
+    return FormalizationGapPlannerLLMRoutePlannerRow(**values)
+
+
+def _llm_route_planner_row_default(field_name: str) -> object:
+    if field_name == "schema_version":
+        return FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION
+    if field_name in _LLM_ROUTE_PLANNER_ROW_BOOL_FIELDS:
+        return False
+    if field_name in _LLM_ROUTE_PLANNER_ROW_INT_FIELDS:
+        return 0
+    if field_name in _LLM_ROUTE_PLANNER_ROW_DICT_FIELDS:
+        return {}
+    if field_name in _LLM_ROUTE_PLANNER_ROW_STR_TUPLE_FIELDS:
+        return ()
+    if field_name in _LLM_ROUTE_PLANNER_ROW_DICT_TUPLE_FIELDS:
+        return ()
+    return ""
 
 
 def _empty_provider_usage_bucket() -> dict[str, int]:
@@ -31189,6 +31399,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         ),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_assembled_seed_rows.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("staged_followup_assembled_seed_rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("staged_followup_assembled_seed_rows") else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -31355,6 +31577,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
         f"- Standalone replay gate OK: {payload.get('standalone_replay_gate_ok')}",
         f"- Standalone replay adoptable candidates: {payload.get('n_standalone_replay_adoptable_route_candidates')}/{payload.get('n_standalone_replay_route_candidates')}",
+        f"- Standalone seed source rows: {payload.get('n_standalone_seed_source_rows')} direct={payload.get('n_standalone_seed_direct_source_rows')} staged-assembled={payload.get('n_standalone_seed_staged_assembled_source_rows')}",
         f"- Standalone replay blockers: {payload.get('standalone_replay_gate_blockers')}",
         f"- Route adoption blocker counts: {payload.get('route_adoption_blocker_counts')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",

@@ -1757,6 +1757,10 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "n_staged_followup_target_prover_replay_candidates": 0,
             "n_staged_followup_target_prover_replay_route_blocked": 2,
             "n_staged_followup_target_prover_replay_rejected": 0,
+            "n_staged_followup_assembled_seed_rows": 1,
+            "n_standalone_seed_source_rows": 2,
+            "n_standalone_seed_direct_source_rows": 1,
+            "n_standalone_seed_staged_assembled_source_rows": 1,
             "n_awaiting_llm_response": 0,
             "n_route_adoption_ready": 0,
             "n_route_adoption_pending_refinement": 1,
@@ -1835,6 +1839,21 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         ]
         == 0
     )
+    assert (
+        manifest["live_route_planner_counts"]["staged_followup_assembled_seed_rows"]
+        == 1
+    )
+    assert manifest["live_route_planner_counts"]["standalone_seed_source_rows"] == 2
+    assert (
+        manifest["live_route_planner_counts"]["standalone_seed_direct_source_rows"]
+        == 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "standalone_seed_staged_assembled_source_rows"
+        ]
+        == 1
+    )
     assert manifest["live_route_planner_counts"]["input_routes"] == 3
     assert (
         manifest["live_route_planner_counts"][
@@ -1906,6 +1925,10 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "staged_followup_target_prover_replay_candidates": 0,
                                 "staged_followup_target_prover_replay_route_blocked": 2,
                                 "staged_followup_target_prover_replay_rejected": 0,
+                                "staged_followup_assembled_seed_rows": 1,
+                                "standalone_seed_source_rows": 2,
+                                "standalone_seed_direct_source_rows": 1,
+                                "standalone_seed_staged_assembled_source_rows": 1,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
@@ -2035,6 +2058,30 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rejected"
         ]
         == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_seed_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_source_rows"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_direct_source_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_staged_assembled_source_rows"
+        ]
+        == 1
     )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"
