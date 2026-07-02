@@ -5545,6 +5545,103 @@ def test_formal_gap_planner_handoff_context_allows_compact_sibling_marker() -> N
     )
 
 
+def test_formal_gap_planner_handoff_context_uses_canonical_handoff_artifact() -> None:
+    compact_agenda_row = {
+        "id": "formal_gap:gap_planner_handoff",
+        "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "owner_subsystem": "FormalizationGapPlanner",
+    }
+    canonical_handoff = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationGapPlannerHandoff",
+        "handoff_id": "runtime_formalization_gap_planner_handoff:artifact",
+        "bridge_id": "runtime_formalization_gap_planner_bridge:artifact",
+        "standalone_seed_artifact_id": (
+            "runtime_formalization_gap_planner_standalone_seed:artifact"
+        ),
+        "standalone_seed_path": "runs/test/seed.json",
+        "target_intake_path": "runs/test/target-intake.json",
+        "llm_route_planner_prompt_cli": (
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-llm-route-planner "
+            "--input runs/test/seed.json --out runs/test/prompt"
+        ),
+        "llm_route_planner_live_cli": (
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-llm-route-planner "
+            "--input runs/test/seed.json --invoke-provider --out runs/test/live"
+        ),
+        "reuse_smoke_cli": (
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-reuse-smoke "
+            "--input runs/test/target-intake.json --out runs/test/reuse"
+        ),
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "proof_evidence_status": (
+            "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+        ),
+    }
+
+    summary = _runtime_formal_gap_planner_handoff_context_audit_summary(
+        agenda_rows=[compact_agenda_row],
+        learning_rows=[],
+        handoff_artifact_rows=[canonical_handoff],
+    )
+
+    assert summary["n_runtime_formal_gap_planner_handoff_rows"] == 2
+    assert (
+        summary["n_runtime_formal_gap_planner_handoff_rows_with_execution_context"]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context"
+        ]
+        == 1
+    )
+    assert (
+        summary["n_formal_gap_planner_handoff_artifact_rows_with_execution_context"]
+        == 1
+    )
+    assert (
+        summary["n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"]
+        == 0
+    )
+
+    invalid_handoff = dict(canonical_handoff)
+    invalid_handoff["llm_route_planner_live_cli"] = (
+        "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner"
+    )
+    invalid_summary = _runtime_formal_gap_planner_handoff_context_audit_summary(
+        agenda_rows=[compact_agenda_row],
+        learning_rows=[],
+        handoff_artifact_rows=[invalid_handoff],
+    )
+
+    assert (
+        invalid_summary[
+            "n_runtime_formal_gap_planner_handoff_rows_covered_by_sibling_execution_context"
+        ]
+        == 0
+    )
+    assert (
+        invalid_summary[
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+        ]
+        == 2
+    )
+    assert (
+        invalid_summary["runtime_formal_gap_planner_handoff_rows_missing_execution_context"][
+            1
+        ]["missing_fields"]
+        == ["llm_route_planner_live_cli_missing_invoke_provider"]
+    )
+
+
 def _structured_theory_trace_alignment_fixture() -> dict[str, object]:
     return {
         "referenced_derivation_steps": ["score", "remainder"],

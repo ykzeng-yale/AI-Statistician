@@ -2414,6 +2414,10 @@ def audit_research_agent_runtime(
     )
     agenda_path = _resolve_path(runtime_dir, artifacts.get("runtime_next_action_agenda_jsonl", ""))
     learning_path = _resolve_path(runtime_dir, artifacts.get("runtime_learning_rows_jsonl", ""))
+    gap_planner_handoffs_path = _resolve_path(
+        runtime_dir,
+        artifacts.get("runtime_formalization_gap_planner_handoffs_jsonl", ""),
+    )
     pending_task_raw_path = artifacts.get("runtime_pending_next_task_json", "")
     pending_task_payload = (
         _load_json(_resolve_path(runtime_dir, pending_task_raw_path), errors)
@@ -2478,6 +2482,13 @@ def audit_research_agent_runtime(
     )
     agenda_rows = _load_jsonl(agenda_path, errors, required=True)
     learning_rows = _load_jsonl(learning_path, errors, required=True)
+    gap_planner_handoff_rows = _load_jsonl(
+        gap_planner_handoffs_path,
+        errors,
+        required=bool(
+            artifacts.get("runtime_formalization_gap_planner_handoffs_jsonl")
+        ),
+    )
     exact_semantic_definition_authoring_task_rows = (
         _runtime_exact_semantic_definition_authoring_task_rows(
             runtime_dir=runtime_dir,
@@ -2491,6 +2502,13 @@ def audit_research_agent_runtime(
         errors.append("manifest n_runtime_next_action_items does not match agenda JSONL")
     if int(manifest.get("n_runtime_learning_rows", -1)) != len(learning_rows):
         errors.append("manifest n_runtime_learning_rows does not match learning JSONL")
+    if "n_runtime_formalization_gap_planner_handoffs" in manifest and int(
+        manifest.get("n_runtime_formalization_gap_planner_handoffs", -1)
+    ) != len(gap_planner_handoff_rows):
+        errors.append(
+            "manifest n_runtime_formalization_gap_planner_handoffs does not "
+            "match runtime_formalization_gap_planner_handoffs JSONL"
+        )
     if len(trace_rows) != sum(row.n_traces for row in rows):
         errors.append("runtime_traces.jsonl row count does not match per-question traces")
     if "n_runtime_evidence_ledger_rows" in manifest and int(
@@ -2624,6 +2642,7 @@ def audit_research_agent_runtime(
             ),
             learning_rows=learning_rows,
             agenda_rows=agenda_rows,
+            handoff_artifact_rows=gap_planner_handoff_rows,
         )
     )
     runtime_next_action_agenda_contract_summary = (
@@ -3774,6 +3793,16 @@ def audit_research_agent_runtime(
         "n_formal_gap_planner_handoff_learning_rows_with_execution_context": int(
             runtime_formal_gap_planner_handoff_context_summary[
                 "n_formal_gap_planner_handoff_learning_rows_with_execution_context"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_artifact_rows": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_artifact_rows"
+            ]
+        ),
+        "n_formal_gap_planner_handoff_artifact_rows_with_execution_context": int(
+            runtime_formal_gap_planner_handoff_context_summary[
+                "n_formal_gap_planner_handoff_artifact_rows_with_execution_context"
             ]
         ),
         "n_pending_formal_gap_planner_handoff_agenda_rows": int(
@@ -8611,6 +8640,7 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
     learning_rows: list[Any],
     pending_task_payload: Mapping[str, Any] | None = None,
     pending_memory_rows: list[Any] | None = None,
+    handoff_artifact_rows: list[Any] | None = None,
 ) -> dict[str, Any]:
     missing_rows: list[dict[str, Any]] = []
     channels: set[str] = set()
@@ -8619,6 +8649,10 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
     row_sources: list[tuple[str, list[Any]]] = [
         ("runtime_next_action_agenda", agenda_rows),
         ("runtime_learning_rows", learning_rows or []),
+        (
+            "runtime_formalization_gap_planner_handoffs",
+            handoff_artifact_rows or [],
+        ),
     ]
     if isinstance(pending_task_payload, Mapping) and pending_task_payload:
         row_sources.extend(
@@ -8728,6 +8762,12 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
         ],
         "n_formal_gap_planner_handoff_learning_rows_with_execution_context": (
             channel_context_counts["runtime_learning_rows"]
+        ),
+        "n_formal_gap_planner_handoff_artifact_rows": channel_counts[
+            "runtime_formalization_gap_planner_handoffs"
+        ],
+        "n_formal_gap_planner_handoff_artifact_rows_with_execution_context": (
+            channel_context_counts["runtime_formalization_gap_planner_handoffs"]
         ),
         "n_pending_formal_gap_planner_handoff_agenda_rows": pending_agenda_rows,
         "n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context": (
@@ -9271,6 +9311,18 @@ def _runtime_formal_gap_planner_context_cover_keys(
     keys: set[tuple[str, str, str]] = set()
     if agenda_id and trigger and target_key:
         keys.add((agenda_id, trigger, target_key))
+    if (
+        str(row.get("artifact_kind", "") or "").strip()
+        == "RuntimeFormalizationGapPlannerHandoff"
+        and target_key
+    ):
+        keys.add(
+            (
+                FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID,
+                FORMAL_GAP_PLANNER_HANDOFF_TRIGGER,
+                target_key,
+            )
+        )
     return keys
 
 
@@ -11506,6 +11558,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "learning_rows="
                 f"{payload.get('n_formal_gap_planner_handoff_learning_rows')}/"
                 f"{payload.get('n_formal_gap_planner_handoff_learning_rows_with_execution_context')} "
+                "artifact_rows="
+                f"{payload.get('n_formal_gap_planner_handoff_artifact_rows')}/"
+                f"{payload.get('n_formal_gap_planner_handoff_artifact_rows_with_execution_context')} "
                 "pending_agenda_rows="
                 f"{payload.get('n_pending_formal_gap_planner_handoff_agenda_rows')}/"
                 f"{payload.get('n_pending_formal_gap_planner_handoff_agenda_rows_with_execution_context')} "
