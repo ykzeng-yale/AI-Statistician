@@ -53407,6 +53407,59 @@ def test_runtime_evidence_truth_table_separates_support_from_source_theorem() ->
     assert rows["formal_gaps"]["status"] == "OPEN"
 
 
+def test_runtime_evidence_truth_table_reports_live_exact_semantic_authoring_boundary() -> None:
+    payload = {
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_algorithm_sandbox_executed": 1,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": "anthropic",
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": "static",
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        "n_formal_gaps": 1,
+    }
+
+    table = _runtime_evidence_truth_table_from_manifest(payload)
+    rows = {row["evidence_id"]: row for row in table["rows"]}
+    authoring_row = rows["exact_semantic_definition_authoring_live_attempt"]
+
+    assert table["exact_semantic_definition_authoring_required"] is True
+    assert table["exact_semantic_definition_authoring_live_attempted"] is False
+    assert table["n_exact_semantic_definition_authoring_llm_attempted"] == 1
+    assert table["n_exact_semantic_definition_authoring_live_llm_attempted"] == 0
+    assert table["exact_semantic_definition_authoring_provider_name"] == "anthropic"
+    assert (
+        table["exact_semantic_definition_authoring_backend_provider_name"]
+        == "static"
+    )
+    assert authoring_row["status"] == "STATIC_OR_REPLAY_ATTEMPTED"
+    assert authoring_row["count"] == 1
+    assert authoring_row["proof_evidence"] is False
+    assert "no live Claude/OpenAI backend attempt" in authoring_row["blocker"]
+    assert "backend_provider=static" in authoring_row["blocker"]
+    assert "n_live_llm_attempted=0" in authoring_row["blocker"]
+    assert "static/replay attempts" in authoring_row["boundary"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name"
+    ] = "anthropic"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] = 1
+    table = _runtime_evidence_truth_table_from_manifest(payload)
+    rows = {row["evidence_id"]: row for row in table["rows"]}
+    authoring_row = rows["exact_semantic_definition_authoring_live_attempt"]
+
+    assert table["exact_semantic_definition_authoring_live_attempted"] is True
+    assert table["n_exact_semantic_definition_authoring_live_llm_attempted"] == 1
+    assert authoring_row["status"] == "LIVE_LLM_ATTEMPTED"
+    assert authoring_row["blocker"] == ""
+
+
 def test_runtime_manifest_truth_table_separates_support_from_source_theorem() -> None:
     payload = {
         "runtime_stage": "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop",

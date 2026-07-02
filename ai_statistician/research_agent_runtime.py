@@ -621,6 +621,76 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims",
     )
+    exact_semantic_authoring_required = (
+        bool(
+            payload.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_required",
+                False,
+            )
+        )
+        or _runtime_manifest_int(
+            payload,
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+        )
+        > 0
+    )
+    exact_semantic_authoring_live_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+    )
+    exact_semantic_authoring_generic_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+    )
+    exact_semantic_authoring_tasks = _runtime_manifest_int(
+        payload,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks",
+    )
+    exact_semantic_authoring_ran = bool(
+        payload.get("source_theorem_exact_semantic_definition_authoring_worker_ran")
+        is True
+    )
+    exact_semantic_authoring_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+    )
+    exact_semantic_authoring_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_provider_name",
+            "",
+        )
+        or ""
+    )
+    exact_semantic_authoring_backend_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name",
+            "",
+        )
+        or ""
+    )
+    if not exact_semantic_authoring_required:
+        exact_semantic_authoring_status = "NOT_REQUIRED"
+    elif exact_semantic_authoring_live_attempts > 0:
+        exact_semantic_authoring_status = "LIVE_LLM_ATTEMPTED"
+    elif exact_semantic_authoring_generic_attempts > 0:
+        exact_semantic_authoring_status = "STATIC_OR_REPLAY_ATTEMPTED"
+    elif exact_semantic_authoring_ran or exact_semantic_authoring_prompt_packets > 0:
+        exact_semantic_authoring_status = "STAGED_OR_BLOCKED"
+    else:
+        exact_semantic_authoring_status = "MISSING"
+    exact_semantic_authoring_blocker = ""
+    if (
+        exact_semantic_authoring_required
+        and exact_semantic_authoring_live_attempts <= 0
+    ):
+        exact_semantic_authoring_blocker = (
+            "exact semantic-definition authoring was required, but no live "
+            "Claude/OpenAI backend attempt was recorded; provider="
+            f"{exact_semantic_authoring_provider_name} backend_provider="
+            f"{exact_semantic_authoring_backend_provider_name} "
+            f"n_llm_attempted={exact_semantic_authoring_generic_attempts} "
+            f"n_live_llm_attempted={exact_semantic_authoring_live_attempts}"
+        )
     architect_truth = _runtime_architect_control_truth(payload)
     rows = [
         _runtime_manifest_truth_row(
@@ -669,6 +739,22 @@ def _runtime_evidence_truth_table_from_manifest(
             source_semantic_count,
             "Source-semantic primitives are support evidence unless the full source theorem is verified.",
             proof_evidence=source_semantic_count > 0,
+        ),
+        _runtime_manifest_truth_row(
+            "exact_semantic_definition_authoring_live_attempt",
+            exact_semantic_authoring_status,
+            exact_semantic_authoring_live_attempts
+            or exact_semantic_authoring_generic_attempts
+            or exact_semantic_authoring_prompt_packets
+            or exact_semantic_authoring_tasks,
+            (
+                "Exact semantic-definition authoring is agentic definition "
+                "synthesis evidence only when the actual backend provider is "
+                "live Claude/OpenAI; static/replay attempts and prompt staging "
+                "are plumbing evidence, not theorem proof."
+            ),
+            proof_evidence=False,
+            blocker=exact_semantic_authoring_blocker,
         ),
         _runtime_manifest_truth_row(
             "exact_source_proof_body_attempt",
@@ -749,6 +835,24 @@ def _runtime_evidence_truth_table_from_manifest(
             source_kernel_target_binding[
                 "source_theorem_kernel_verified_target_binding_missing"
             ]
+        ),
+        "exact_semantic_definition_authoring_required": (
+            exact_semantic_authoring_required
+        ),
+        "exact_semantic_definition_authoring_live_attempted": (
+            exact_semantic_authoring_live_attempts > 0
+        ),
+        "n_exact_semantic_definition_authoring_live_llm_attempted": (
+            exact_semantic_authoring_live_attempts
+        ),
+        "n_exact_semantic_definition_authoring_llm_attempted": (
+            exact_semantic_authoring_generic_attempts
+        ),
+        "exact_semantic_definition_authoring_provider_name": (
+            exact_semantic_authoring_provider_name
+        ),
+        "exact_semantic_definition_authoring_backend_provider_name": (
+            exact_semantic_authoring_backend_provider_name
         ),
         "formal_gaps_open": _runtime_manifest_int(payload, "n_formal_gaps") > 0,
         "current_exact_proof_body_blocker": proof_body_blocker,
