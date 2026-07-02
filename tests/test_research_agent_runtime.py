@@ -2619,6 +2619,111 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         for row in result.evidence_entries
     )
 
+    contract_invalid_calls: list[dict[str, object]] = []
+
+    def fake_contract_invalid_export(
+        standalone_input_json: Path,
+        out_dir: Path | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        contract_invalid_calls.append(
+            {
+                "standalone_input_json": standalone_input_json,
+                "out_dir": out_dir,
+                **kwargs,
+            }
+        )
+        assert out_dir is not None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text("{}", encoding="utf-8")
+        return {
+            "all_ok": False,
+            "max_route_requests": 1,
+            "n_input_routes": 3,
+            "route_request_cap_applied": True,
+            "n_routes_omitted_by_max_route_requests": 2,
+            "omitted_route_ids_by_max_route_requests": ["route:b", "route:c"],
+            "n_request_packets": 1,
+            "n_response_present": 1,
+            "n_response_contract_ok": 0,
+            "n_provider_failures": 0,
+            "n_staged_followups_required": 1,
+            "n_staged_followups_due_to_max_tokens": 1,
+            "n_staged_followup_stage_attempt_rows": 3,
+            "n_staged_followup_stage_response_contract_ok": 1,
+            "n_staged_followup_stage_provider_failures": 0,
+            "n_staged_followup_stage_calls_blocked_by_budget": 0,
+            "n_staged_followup_assembly_rows": 1,
+            "n_staged_followup_assembled_responses": 0,
+            "n_staged_followup_assembled_response_contract_ok": 0,
+            "n_staged_followup_assembled_route_adoption_ready": 0,
+            "n_staged_followup_assembly_incomplete": 1,
+            "n_staged_followup_target_prover_replay_rows": 0,
+            "n_staged_followup_target_prover_replay_candidates": 0,
+            "n_staged_followup_target_prover_replay_route_blocked": 0,
+            "n_staged_followup_target_prover_replay_rejected": 0,
+            "n_staged_followup_assembled_seed_rows": 0,
+            "n_standalone_seed_source_rows": 1,
+            "n_standalone_seed_direct_source_rows": 1,
+            "n_standalone_seed_staged_assembled_source_rows": 0,
+            "n_awaiting_llm_response": 0,
+            "n_route_adoption_ready": 0,
+            "n_route_adoption_pending_refinement": 0,
+            "n_route_adoption_awaiting_llm_response": 0,
+            "total_provider_input_tokens": 111,
+            "total_provider_output_tokens": 9000,
+            "total_provider_total_tokens": 9111,
+            "total_staged_followup_stage_provider_total_tokens": 59539,
+            "total_provider_total_tokens_including_staged_followups": 68650,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "export_formalization_gap_planner_llm_route_planner",
+        fake_contract_invalid_export,
+    )
+
+    contract_invalid_result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path / "contract_invalid_live",
+    ).run(task, blackboard)
+
+    assert contract_invalid_result.status == "ACCEPTED"
+    assert contract_invalid_result.failure_classification == ""
+    assert len(contract_invalid_calls) == 1
+    contract_invalid_live_manifest = next(
+        artifact
+        for artifact in contract_invalid_result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest"
+    )
+    assert (
+        contract_invalid_live_manifest["all_live_route_planner_responses_recorded"]
+        is False
+    )
+    assert contract_invalid_live_manifest["target_prover_replay_complete"] is True
+    assert contract_invalid_live_manifest["route_revision_feedback_recorded"] is True
+    assert contract_invalid_live_manifest["feedback_loop_recorded"] is True
+    assert (
+        contract_invalid_live_manifest["counts"][
+            "target_prover_replay_route_revision_overlay_rows"
+        ]
+        >= 1
+    )
+    assert any(
+        tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
+        and tool.exit_status == "passed"
+        for tool in contract_invalid_result.tool_calls
+    )
+    assert any(
+        row.evidence_type == "formalization_gap_planner_runtime_execution"
+        and row.status
+        == "LIVE_ROUTE_PLANNER_ROUTE_REVISION_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
+        for row in contract_invalid_result.evidence_entries
+    )
+
 
 def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda() -> None:
     live_manifest = {
@@ -5167,6 +5272,30 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
     assert rows[
         "formal_gap_planner_live_route_planner_followthrough"
     ]["passed"] is True
+
+    route_revision_only_payload = dict(payload)
+    route_revision_only_payload.update(
+        {
+            "n_runtime_formalization_gap_planner_live_route_planner_response_present": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(route_revision_only_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    route_revision_only_followthrough = rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]
+
+    assert route_revision_only_followthrough["passed"] is True
+    assert "contract_response_path=0" in route_revision_only_followthrough[
+        "evidence"
+    ]
+    assert "route_revision_feedback_path=1" in route_revision_only_followthrough[
+        "evidence"
+    ]
 
 
 def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(

@@ -16011,6 +16011,22 @@ class FormalizationGapPlannerRuntimeSubsystem:
             and counts["target_prover_replay_refinement_evidence_contract_ok"]
             >= counts["target_prover_replay_proof_state_feedback_items"]
         )
+        route_revision_feedback_recorded = (
+            target_prover_replay_complete
+            and counts["response_present"] > 0
+            and counts["provider_failures"] == 0
+            and counts["awaiting_llm_response"] == 0
+            and counts["target_prover_replay_route_revision_proposals"] > 0
+            and counts["target_prover_replay_route_revision_overlay_rows"] > 0
+            and counts[
+                "target_prover_replay_route_revision_overlay_routes_with_revision"
+            ]
+            > 0
+            and not errors
+        )
+        feedback_loop_recorded = (
+            all_responses_recorded or route_revision_feedback_recorded
+        )
         manifest_id = (
             "runtime_formalization_gap_planner_live_route_planner_manifest:"
             + stable_hash([task.task_id, selected, rows, counts])[:20]
@@ -16049,6 +16065,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "live_llm_invoked": counts["selected_handoffs"] > 0,
             "all_live_route_planner_responses_recorded": all_responses_recorded,
             "target_prover_replay_complete": target_prover_replay_complete,
+            "route_revision_feedback_recorded": (
+                route_revision_feedback_recorded
+            ),
+            "feedback_loop_recorded": feedback_loop_recorded,
             "counts": counts,
             "rows": rows,
             "errors": errors,
@@ -16088,7 +16108,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             output_paths=tuple(output_paths),
             input_hash=stable_hash([task.task_id, selected]),
             output_hash=stable_hash([rows, counts, errors]),
-            exit_status="passed" if all_responses_recorded else "failed",
+            exit_status="passed" if feedback_loop_recorded else "failed",
             stdout_summary=(
                 f"handoffs={counts['selected_handoffs']} "
                 f"requests={counts['request_packets']} "
@@ -16096,7 +16116,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 f"contract_ok={counts['response_contract_ok']} "
                 f"provider_failures={counts['provider_failures']} "
                 f"replay_ok={counts['target_prover_replay_all_ok']}/"
-                f"{counts['target_prover_replay_attempts']}"
+                f"{counts['target_prover_replay_attempts']} "
+                "route_revision_feedback="
+                f"{int(route_revision_feedback_recorded)}"
             ),
             safety_boundary=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
         )
@@ -16255,6 +16277,17 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "target_prover_replay_complete",
                 False,
             )
+        )
+        live_route_planner_route_revision_feedback_recorded = bool(
+            live_route_planner_manifest.get(
+                "route_revision_feedback_recorded",
+                False,
+            )
+        )
+        live_route_planner_feedback_loop_recorded = bool(
+            live_route_planner_all_responses_recorded
+            or live_route_planner_route_revision_feedback_recorded
+            or live_route_planner_manifest.get("feedback_loop_recorded", False)
         )
         live_route_planner_followup_required = (
             all_ok
@@ -16481,6 +16514,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "live_route_planner_target_prover_replay_complete": (
                 live_route_planner_target_prover_replay_complete
             ),
+            "live_route_planner_route_revision_feedback_recorded": (
+                live_route_planner_route_revision_feedback_recorded
+            ),
+            "live_route_planner_feedback_loop_recorded": (
+                live_route_planner_feedback_loop_recorded
+            ),
             "live_llm_invoked": bool(
                 live_route_planner_manifest.get("live_llm_invoked", False)
             ),
@@ -16508,6 +16547,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
                 if invoke_live_route_planner
                 and live_route_planner_all_responses_recorded
+                else "LIVE_ROUTE_PLANNER_ROUTE_REVISION_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
+                if invoke_live_route_planner
+                and live_route_planner_route_revision_feedback_recorded
                 else "LIVE_ROUTE_PLANNER_BLOCKED_NOT_PROOF_EVIDENCE"
                 if invoke_live_route_planner
                 else "OFFLINE_HANDOFF_SMOKE_EXECUTED_LIVE_ROUTE_PLANNER_PENDING_NOT_PROOF_EVIDENCE"
@@ -16530,6 +16572,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_target_prover_replay_complete": (
                     live_route_planner_target_prover_replay_complete
                 ),
+                "live_route_planner_route_revision_feedback_recorded": (
+                    live_route_planner_route_revision_feedback_recorded
+                ),
+                "live_route_planner_feedback_loop_recorded": (
+                    live_route_planner_feedback_loop_recorded
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -16547,7 +16595,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 f"live_followup_required={live_route_planner_followup_required} "
                 f"live_responses={live_counts.get('response_present', 0)} "
                 "target_prover_replay_ok="
-                f"{live_counts.get('target_prover_replay_all_ok', 0)}"
+                f"{live_counts.get('target_prover_replay_all_ok', 0)} "
+                "route_revision_feedback="
+                f"{int(live_route_planner_route_revision_feedback_recorded)}"
             ),
             payload={
                 **manifest["counts"],
@@ -16559,6 +16609,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_target_prover_replay_complete": (
                     live_route_planner_target_prover_replay_complete
                 ),
+                "live_route_planner_route_revision_feedback_recorded": (
+                    live_route_planner_route_revision_feedback_recorded
+                ),
+                "live_route_planner_feedback_loop_recorded": (
+                    live_route_planner_feedback_loop_recorded
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -16566,19 +16622,25 @@ class FormalizationGapPlannerRuntimeSubsystem:
         )
         if invoke_live_route_planner:
             status = (
-                "ACCEPTED" if live_route_planner_all_responses_recorded else "BLOCKED"
+                "ACCEPTED" if live_route_planner_feedback_loop_recorded else "BLOCKED"
             )
             rationale = (
                 "FormalizationGapPlanner invoked the bounded live route planner "
                 "and recorded contract-valid LLM route-planner responses as "
                 "non-proof planning evidence."
                 if live_route_planner_all_responses_recorded
+                else "FormalizationGapPlanner recorded target-prover replay "
+                "route-revision feedback and a planner-consumable overlay from "
+                "a contract-invalid live route-planner attempt; the route still "
+                "requires revision before any proof promotion."
+                if live_route_planner_route_revision_feedback_recorded
                 else "FormalizationGapPlanner could not record contract-valid "
-                "bounded live route-planner responses for the staged handoffs."
+                "bounded live route-planner responses or target-prover replay "
+                "route-revision feedback for the staged handoffs."
             )
             failure_classification = (
                 ""
-                if live_route_planner_all_responses_recorded
+                if live_route_planner_feedback_loop_recorded
                 else "formalization_gap_planner_live_route_planner_blocked"
             )
         elif live_route_planner_followup_required:
@@ -59402,6 +59464,7 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
     invocations = 0
     responses_recorded = 0
     target_prover_replay_complete = 0
+    route_revision_feedback_recorded = 0
     for execution_manifest in execution_manifests:
         manifest_id = str(execution_manifest.get("manifest_id", "") or "").strip()
         if manifest_id:
@@ -59424,6 +59487,17 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             is True
         ):
             target_prover_replay_complete += 1
+        if (
+            execution_manifest.get(
+                "live_route_planner_route_revision_feedback_recorded"
+            )
+            is True
+            or execution_manifest.get("live_route_planner_feedback_loop_recorded")
+            is True
+            and execution_manifest.get("live_route_planner_all_responses_recorded")
+            is not True
+        ):
+            route_revision_feedback_recorded += 1
         live_manifest_path = str(
             execution_manifest.get("live_route_planner_manifest_path", "") or ""
         ).strip()
@@ -59458,6 +59532,9 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": (
             target_prover_replay_complete
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": (
+            route_revision_feedback_recorded
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
             aggregate_counts["selected_handoffs"]

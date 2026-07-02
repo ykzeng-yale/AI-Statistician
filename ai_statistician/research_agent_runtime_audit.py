@@ -4037,6 +4037,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded",
+                0,
+            )
+            or 0
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
             manifest.get(
                 "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs",
@@ -10842,6 +10849,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_gap_planner_live_response_present = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_response_present",
+            0,
+        )
+        or 0
+    )
     runtime_gap_planner_live_response_contract_ok = int(
         payload.get(
             "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
@@ -10873,6 +10887,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_gap_planner_live_target_replay_complete = int(
         payload.get(
             "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_route_revision_feedback_recorded = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded",
             0,
         )
         or 0
@@ -11016,16 +11037,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_target_prover_replay_route_revision_overlay_manifests > 0
         )
     )
+    runtime_gap_planner_live_contract_response_path_complete = (
+        runtime_gap_planner_live_response_contract_ok
+        >= runtime_gap_planner_live_request_packets
+        and runtime_gap_planner_live_responses_recorded > 0
+    )
+    runtime_gap_planner_live_route_revision_feedback_path_complete = (
+        runtime_gap_planner_live_response_present > 0
+        and runtime_gap_planner_live_target_replay_route_revision_proposals > 0
+        and (
+            runtime_gap_planner_live_route_revision_feedback_recorded > 0
+            or runtime_gap_planner_live_target_replay_route_revision_proposals > 0
+        )
+        and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
+    )
     runtime_gap_planner_live_followthrough_complete = (
         runtime_formal_gap_planner_handoff_count <= 0
         or (
             runtime_gap_planner_live_invocations > 0
             and runtime_gap_planner_live_request_packets > 0
-            and runtime_gap_planner_live_response_contract_ok
-            >= runtime_gap_planner_live_request_packets
             and runtime_gap_planner_live_provider_failures <= 0
             and runtime_gap_planner_live_awaiting_response <= 0
-            and runtime_gap_planner_live_responses_recorded > 0
             and runtime_gap_planner_live_target_replay_complete > 0
             and runtime_gap_planner_live_target_replay_attempts
             >= runtime_gap_planner_live_invocations
@@ -11036,6 +11068,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_gap_planner_live_target_replay_contract_ok
             >= runtime_gap_planner_live_target_replay_proof_items
             and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
+            and (
+                runtime_gap_planner_live_contract_response_path_complete
+                or runtime_gap_planner_live_route_revision_feedback_path_complete
+            )
         )
     )
     primary_typechecked_review_required = bool(
@@ -11607,6 +11643,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_gap_planner_live_invocations} "
                 "request_packets="
                 f"{runtime_gap_planner_live_request_packets} "
+                "response_present="
+                f"{runtime_gap_planner_live_response_present} "
                 "response_contract_ok="
                 f"{runtime_gap_planner_live_response_contract_ok} "
                 "provider_failures="
@@ -11617,6 +11655,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_gap_planner_live_responses_recorded} "
                 "target_replay_complete="
                 f"{runtime_gap_planner_live_target_replay_complete} "
+                "route_revision_feedback_recorded="
+                f"{runtime_gap_planner_live_route_revision_feedback_recorded} "
+                "contract_response_path="
+                f"{int(runtime_gap_planner_live_contract_response_path_complete)} "
+                "route_revision_feedback_path="
+                f"{int(runtime_gap_planner_live_route_revision_feedback_path_complete)} "
                 "target_replay_attempts="
                 f"{runtime_gap_planner_live_target_replay_attempts} "
                 "target_replay_all_ok="
@@ -11659,10 +11703,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "formal-gap planner handoffs were staged, but the integrated "
                 "live LLM route-planner feedback path did not record "
-                "contract-valid responses plus target-prover replay through the "
-                "refinement queue, local proof-state adapter, and refinement "
-                "evidence, including route-revision feedback rows that re-enter "
-                "learning memory, agenda, and generated next-action routing, plus "
+                "either contract-valid responses plus target-prover replay or "
+                "contract-invalid responses with complete target-prover "
+                "route-revision feedback through the refinement queue, local "
+                "proof-state adapter, and refinement evidence, including "
+                "route-revision feedback rows that re-enter learning memory, "
+                "agenda, and generated next-action routing, plus "
                 "planner-consumable route-revision overlay artifacts; "
                 "prompt packets or raw LLM responses alone are not end-to-end "
                 "FormalizationGapPlanner capacity"
@@ -11680,7 +11726,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_runtime_formalization_gap_planner_live_route_planner_invocations>0, "
-                    "request_packets>0, response_contract_ok equals request_packets, "
+                    "request_packets>0, either response_contract_ok equals "
+                    "request_packets and responses_recorded>0 or "
+                    "route_revision_feedback_path=1, "
                     "provider_failures=0, awaiting_llm_response=0, "
                     "target_prover_replay_all_ok covers invocations, "
                     "proof_state_feedback_items>0, local_proof_state_responses>0, "
