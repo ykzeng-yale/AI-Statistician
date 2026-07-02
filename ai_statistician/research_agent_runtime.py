@@ -14859,6 +14859,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             )
                             or 0
                         ),
+                        "n_staged_followups_due_to_prompt_token_budget_preflight": int(
+                            payload.get(
+                                "n_staged_followups_due_to_prompt_token_budget_preflight",
+                                0,
+                            )
+                            or 0
+                        ),
                         "staged_followup_rows": list(
                             payload.get("staged_followup_rows", []) or []
                         ),
@@ -15129,6 +15136,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_provider_failures": 1,
                         "n_staged_followups_required": 0,
                         "n_staged_followups_due_to_max_tokens": 0,
+                        "n_staged_followups_due_to_prompt_token_budget_preflight": 0,
                         "staged_followup_rows": [],
                         "n_staged_followup_stage_attempt_rows": 0,
                         "n_staged_followup_stage_response_contract_ok": 0,
@@ -15206,6 +15214,16 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "staged_followups_due_to_max_tokens": sum(
                 int(row.get("n_staged_followups_due_to_max_tokens", 0) or 0)
+                for row in rows
+            ),
+            "staged_followups_due_to_prompt_token_budget_preflight": sum(
+                int(
+                    row.get(
+                        "n_staged_followups_due_to_prompt_token_budget_preflight",
+                        0,
+                    )
+                    or 0
+                )
                 for row in rows
             ),
             "staged_followup_stage_attempt_rows": sum(
@@ -49388,7 +49406,81 @@ def _formalization_gap_planner_live_route_planner_contract_failure_classificatio
         return (
             "formalization_gap_planner_live_route_planner_staged_followup_incomplete"
         )
+    if (
+        _runtime_manifest_int(live_row, "n_staged_followup_assembled_responses")
+        > _runtime_manifest_int(
+            live_row,
+            "n_staged_followup_assembled_response_contract_ok",
+        )
+    ):
+        return (
+            "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+        )
     return "formalization_gap_planner_live_route_planner_response_contract_failed"
+
+
+def _formalization_gap_planner_live_route_planner_staged_assembly_error_summary(
+    live_row: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for assembly in live_row.get("staged_followup_assembly_rows", []) or []:
+        if not isinstance(assembly, Mapping):
+            continue
+        errors = [
+            str(error)
+            for error in assembly.get("errors", []) or []
+            if str(error).strip()
+        ]
+        suppressed_errors = [
+            str(error)
+            for error in assembly.get("assembly_suppressed_request_errors", []) or []
+            if str(error).strip()
+        ]
+        if not errors and bool(assembly.get("assembled_response_contract_ok", False)):
+            continue
+        summaries.append(
+            {
+                "assembly_row_id": str(assembly.get("assembly_row_id", "") or ""),
+                "assembly_status": str(assembly.get("assembly_status", "") or ""),
+                "assembled_response_present": bool(
+                    assembly.get("assembled_response_present", False)
+                ),
+                "assembled_response_contract_ok": bool(
+                    assembly.get("assembled_response_contract_ok", False)
+                ),
+                "assembled_route_adoption_status": str(
+                    assembly.get("assembled_route_adoption_status", "") or ""
+                ),
+                "assembled_route_adoption_blockers": list(
+                    _runtime_row_string_values(
+                        assembly,
+                        "assembled_route_adoption_blockers",
+                    )
+                )[:8],
+                "missing_stage_ids": list(
+                    _runtime_row_string_values(assembly, "missing_stage_ids")
+                )[:8],
+                "rejected_stage_ids": list(
+                    _runtime_row_string_values(assembly, "rejected_stage_ids")
+                )[:8],
+                "suppressed_request_errors": suppressed_errors[:8],
+                "error_count": len(errors),
+                "error_preview": errors[:20],
+            }
+        )
+    return summaries[:4]
+
+
+def _formalization_gap_planner_live_route_planner_staged_assembly_error_preview(
+    summaries: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    preview: list[str] = []
+    for summary in summaries:
+        for error in summary.get("error_preview", []) or []:
+            text = str(error).strip()
+            if text:
+                preview.append(text)
+    return list(dict.fromkeys(preview))[:24]
 
 
 def _formalization_gap_planner_live_route_planner_contract_feedback_learning_rows(
@@ -49420,6 +49512,14 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
             live_row,
             "n_staged_followup_assembled_response_contract_ok",
         )
+        staged_followups_required = _runtime_manifest_int(
+            live_row,
+            "n_staged_followups_required",
+        )
+        staged_assembled_responses = _runtime_manifest_int(
+            live_row,
+            "n_staged_followup_assembled_responses",
+        )
         route_adoption_ready = _runtime_manifest_int(
             live_row,
             "n_route_adoption_ready",
@@ -49429,9 +49529,25 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
             "n_awaiting_llm_response",
         )
         provider_failures = _runtime_manifest_int(live_row, "n_provider_failures")
-        unrepaired_contract_failure = (
+        primary_response_contract_failure = (
             response_present > response_contract_ok
             and staged_assembled_contract_ok <= 0
+        )
+        staged_followup_contract_failure = (
+            staged_followups_required > 0
+            and staged_assembled_contract_ok <= 0
+            and (
+                staged_assembled_responses > 0
+                or _runtime_manifest_int(
+                    live_row,
+                    "n_staged_followup_assembly_incomplete",
+                )
+                > 0
+                or response_present <= 0
+            )
+        )
+        unrepaired_contract_failure = (
+            (primary_response_contract_failure or staged_followup_contract_failure)
             and route_adoption_ready <= 0
             and awaiting_llm_response <= 0
             and provider_failures <= 0
@@ -49448,6 +49564,16 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
             _formalization_gap_planner_live_route_planner_contract_failure_classification(
                 artifact,
                 live_row,
+            )
+        )
+        assembly_error_summary = (
+            _formalization_gap_planner_live_route_planner_staged_assembly_error_summary(
+                live_row
+            )
+        )
+        assembly_error_preview = (
+            _formalization_gap_planner_live_route_planner_staged_assembly_error_preview(
+                assembly_error_summary
             )
         )
         provider_token_counts = {
@@ -49489,6 +49615,10 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
                 live_row,
                 "n_staged_followups_due_to_max_tokens",
             ),
+            "staged_followups_due_to_prompt_token_budget_preflight": _runtime_manifest_int(
+                live_row,
+                "n_staged_followups_due_to_prompt_token_budget_preflight",
+            ),
             "staged_followup_stage_attempt_rows": _runtime_manifest_int(
                 live_row,
                 "n_staged_followup_stage_attempt_rows",
@@ -49501,6 +49631,7 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
                 live_row,
                 "n_staged_followup_stage_calls_blocked_by_budget",
             ),
+            "staged_followup_assembled_responses": staged_assembled_responses,
             "staged_followup_assembled_response_contract_ok": (
                 staged_assembled_contract_ok
             ),
@@ -49566,6 +49697,8 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
                 for error in live_row.get("errors", []) or []
                 if str(error).strip()
             ][:12],
+            "staged_followup_assembly_error_summary": assembly_error_summary,
+            "staged_followup_assembly_error_preview": assembly_error_preview,
             "runtime_queue_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
             ),
@@ -49597,6 +49730,8 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
                 "target_ids": target_ids,
                 "contract_counts": contract_counts,
                 "provider_token_counts": provider_token_counts,
+                "staged_followup_assembly_error_summary": assembly_error_summary,
+                "staged_followup_assembly_error_preview": assembly_error_preview,
                 "input_summary": row_input_summary,
                 "target_behavior": (
                     "Rerun the live route planner for this handoff as a compact "
@@ -50224,6 +50359,35 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
                 if isinstance(input_summary.get("provider_token_counts", {}), Mapping)
                 else {}
             ),
+            "staged_followup_assembly_error_summary": (
+                list(row.get("staged_followup_assembly_error_summary", []) or [])
+                if isinstance(
+                    row.get("staged_followup_assembly_error_summary", []),
+                    list,
+                )
+                else list(
+                    input_summary.get(
+                        "staged_followup_assembly_error_summary",
+                        [],
+                    )
+                    or []
+                )
+                if isinstance(
+                    input_summary.get(
+                        "staged_followup_assembly_error_summary",
+                        [],
+                    ),
+                    list,
+                )
+                else []
+            ),
+            "staged_followup_assembly_error_preview": list(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "staged_followup_assembly_error_preview",
+                )
+            )[:24],
             "runtime_queue_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
             ),
@@ -57750,6 +57914,7 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "provider_failures",
         "staged_followups_required",
         "staged_followups_due_to_max_tokens",
+        "staged_followups_due_to_prompt_token_budget_preflight",
         "staged_followup_stage_attempt_rows",
         "staged_followup_stage_response_contract_ok",
         "staged_followup_stage_provider_failures",
@@ -57874,6 +58039,9 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_max_tokens": int(
             aggregate_counts["staged_followups_due_to_max_tokens"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_prompt_token_budget_preflight": int(
+            aggregate_counts["staged_followups_due_to_prompt_token_budget_preflight"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_attempt_rows": int(
             aggregate_counts["staged_followup_stage_attempt_rows"]

@@ -2151,6 +2151,147 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
     )
 
 
+def test_runtime_gap_planner_staged_assembly_contract_failure_routes_repair_agenda() -> None:
+    live_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+        "manifest_id": "runtime_formalization_gap_planner_live_route_planner_manifest:staged",
+        "manifest_path": "runs/current/staged_live_route_planner_manifest.json",
+        "rows_path": "runs/current/staged_live_route_planner_rows.jsonl",
+        "question": {"id": "q-route", "title": "Route planner staged failure"},
+        "provider_name": "anthropic",
+        "model": "claude-sonnet",
+        "model_tier": "sonnet",
+        "max_tokens": 9000,
+        "max_route_requests_per_handoff": 1,
+        "rows": [
+            {
+                "handoff_id": "handoff:gap-staged",
+                "bridge_id": "bridge:gap-staged",
+                "standalone_seed_path": "runs/current/staged_seed.json",
+                "manifest_path": "runs/current/handoff/staged_live_manifest.json",
+                "n_input_routes": 1,
+                "max_route_requests": 1,
+                "route_request_cap_applied": False,
+                "n_routes_omitted_by_max_route_requests": 0,
+                "omitted_route_ids_by_max_route_requests": [],
+                "n_request_packets": 1,
+                "n_response_present": 0,
+                "n_response_contract_ok": 0,
+                "n_provider_failures": 0,
+                "n_awaiting_llm_response": 0,
+                "n_staged_followups_required": 1,
+                "n_staged_followups_due_to_max_tokens": 0,
+                "n_staged_followups_due_to_prompt_token_budget_preflight": 1,
+                "n_staged_followup_stage_attempt_rows": 3,
+                "n_staged_followup_stage_response_contract_ok": 3,
+                "n_staged_followup_stage_calls_blocked_by_budget": 0,
+                "n_staged_followup_assembly_rows": 1,
+                "n_staged_followup_assembled_responses": 1,
+                "n_staged_followup_assembled_response_contract_ok": 0,
+                "n_staged_followup_assembly_incomplete": 0,
+                "n_route_adoption_ready": 0,
+                "n_route_adoption_pending_refinement": 0,
+                "n_route_adoption_awaiting_llm_response": 0,
+                "staged_followup_rows": [
+                    {
+                        "staged_followup_id": "followup:route-a",
+                        "route_id": "route:a",
+                        "followup_reason": "prompt_token_budget_preflight_blocked",
+                    }
+                ],
+                "staged_followup_assembly_rows": [
+                    {
+                        "assembly_row_id": "assembly:route-a",
+                        "assembly_status": "ASSEMBLED_FULL_ROUTE_CONTRACT_REJECTED",
+                        "assembled_response_present": True,
+                        "assembled_response_contract_ok": False,
+                        "assembled_route_adoption_status": "REJECTED_LLM_ROUTE_PLAN",
+                        "assembled_route_adoption_blockers": [
+                            "response_not_accepted"
+                        ],
+                        "assembly_suppressed_request_errors": [
+                            "estimated prompt input tokens 39400 exceed max_estimated_prompt_input_tokens 30000"
+                        ],
+                        "errors": [
+                            "formal_attempt_queue[0] does not resolve to a supported prover/formal-library hook family",
+                            "minimal_delta_plan.and_or_cost_graph selected route option is not minimal",
+                            "route_alignment_edges missing selected primitive positivity",
+                        ],
+                    }
+                ],
+                "total_provider_input_tokens": 0,
+                "total_provider_output_tokens": 0,
+                "total_provider_total_tokens": 0,
+                "total_staged_followup_stage_provider_total_tokens": 59235,
+                "total_provider_total_tokens_including_staged_followups": 59235,
+                "errors": [],
+            }
+        ],
+    }
+
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {"live": live_manifest}}}]
+    )
+    repair_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+    ]
+
+    assert len(repair_rows) == 1
+    repair_row = repair_rows[0]
+    assert repair_row["failure_classification"] == (
+        "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+    )
+    assert (
+        repair_row["contract_counts"][
+            "staged_followups_due_to_prompt_token_budget_preflight"
+        ]
+        == 1
+    )
+    assert repair_row["contract_counts"]["staged_followup_assembled_responses"] == 1
+    assert (
+        repair_row["provider_token_counts"][
+            "provider_total_tokens_including_staged_followups"
+        ]
+        == 59235
+    )
+    assert repair_row["staged_followup_assembly_error_summary"][0][
+        "assembly_status"
+    ] == "ASSEMBLED_FULL_ROUTE_CONTRACT_REJECTED"
+    assert any(
+        "formal_attempt_queue[0]" in error
+        for error in repair_row["staged_followup_assembly_error_preview"]
+    )
+    assert not any(
+        "estimated prompt input tokens" in error
+        for error in repair_row["staged_followup_assembly_error_preview"]
+    )
+    assert repair_row["input_summary"]["staged_followup_assembly_error_preview"] == (
+        repair_row["staged_followup_assembly_error_preview"]
+    )
+
+    agenda_rows: list[dict[str, object]] = []
+    append_contract_repair_agenda_rows = (
+        runtime_module._append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows
+    )
+    appended = append_contract_repair_agenda_rows(agenda_rows, repair_rows)
+    assert len(appended) == 1
+    agenda_row = appended[0]
+    assert agenda_row["failure_classification"] == (
+        "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+    )
+    assert any(
+        "selected route option is not minimal" in error
+        for error in agenda_row["staged_followup_assembly_error_preview"]
+    )
+    assert agenda_row["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifest() -> None:
     summary = _runtime_formalization_gap_planner_live_route_planner_summary(
         [
@@ -2184,6 +2325,7 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "routes_omitted_by_max_route_requests": 2,
                                 "staged_followups_required": 1,
                                 "staged_followups_due_to_max_tokens": 1,
+                                "staged_followups_due_to_prompt_token_budget_preflight": 1,
                                 "staged_followup_stage_attempt_rows": 2,
                                 "staged_followup_stage_response_contract_ok": 2,
                                 "staged_followup_stage_provider_failures": 0,
@@ -2261,6 +2403,12 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
     assert (
         summary[
             "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_max_tokens"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_prompt_token_budget_preflight"
         ]
         == 1
     )
