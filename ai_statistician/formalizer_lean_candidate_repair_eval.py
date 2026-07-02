@@ -7,7 +7,12 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
-from .model_backend import OpenAIResponsesGeneratorBackend, default_generator_model
+from .model_backend import (
+    OpenAIResponsesGeneratorBackend,
+    default_generator_model,
+    generator_backend_provider_name,
+    is_live_generator_backend,
+)
 from .proof_state_feedback import (
     LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
@@ -77,6 +82,7 @@ def run_formalizer_lean_candidate_repair_eval(
         static_response_file=static_response_file,
         llm_timeout_seconds=llm_timeout_seconds,
     )
+    backend_provider_name = generator_backend_provider_name(provider, provider_name)
     resolved_model = default_generator_model(
         provider_name,
         model,
@@ -311,7 +317,7 @@ def run_formalizer_lean_candidate_repair_eval(
     n_precheck_rejected = int(
         latest_materialization.get("n_precheck_rejected", 0) or 0
     )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     repair_loop_observed = bool(n_repair_sequences > 0)
     proofengineer_repair_task_observed = any(
         str(row.get("task_id", "") or "").startswith("formalize-lean-repair:")
@@ -359,6 +365,7 @@ def run_formalizer_lean_candidate_repair_eval(
         "source_question_id": source_question.id,
         "question_title": question.title,
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "Formalizer/ProofEngineer Lean-candidate repair",
@@ -437,15 +444,19 @@ def write_formalizer_lean_candidate_repair_eval_failure_manifest(
     model: str,
     question_id: str,
     exc: Exception,
+    backend_provider_name: str = "",
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     provider_name = provider_name.strip().lower()
+    backend_provider_name = (
+        backend_provider_name.strip().lower() if backend_provider_name else provider_name
+    )
     resolved_model = default_generator_model(
         provider_name,
         model,
         model_tier="sonnet",
     )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     manifest_path = out_dir / "formalizer_lean_candidate_repair_eval_manifest.json"
     manifest = {
         "schema_version": 1,
@@ -453,6 +464,7 @@ def write_formalizer_lean_candidate_repair_eval_failure_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question_id": question_id,
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "Formalizer/ProofEngineer Lean-candidate repair",

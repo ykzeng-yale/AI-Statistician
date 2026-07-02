@@ -5387,6 +5387,8 @@ class SystemTests(unittest.TestCase):
             json.dumps(
                 {
                     "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
                     "model": "claude-haiku-4-5-20251001",
                     "live_generator": True,
                     "capability_evidence_ok": True,
@@ -5410,6 +5412,8 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(overlay["available"])
         self.assertTrue(overlay["live_generator"])
         self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["backend_provider_name"], "anthropic")
+        self.assertEqual(overlay["component_backend_provider_names"], ["anthropic"])
         self.assertTrue(overlay["algorithm_capability_evidence_ok"])
         self.assertTrue(overlay["simulation_capability_evidence_ok"])
         self.assertEqual(overlay["algorithm_repair_sequences"], 2)
@@ -5428,7 +5432,36 @@ class SystemTests(unittest.TestCase):
         manifest_path.write_text(
             json.dumps(
                 {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "static",
+                    "component_backend_provider_names": ["static"],
+                    "model": "claude-haiku-4-5-20251001",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "algorithm_capability_evidence_ok": True,
+                    "simulation_capability_evidence_ok": True,
+                    "algorithm_repair_sequences": 2,
+                    "simulation_repair_sequences": 3,
+                    "fixture_plumbing_ok": False,
+                    "static_or_fixture_only": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        mislabel_overlay = _coding_agent_generated_code_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertFalse(mislabel_overlay["live_generator"])
+        self.assertFalse(mislabel_overlay["capability_evidence_ok"])
+        self.assertEqual(mislabel_overlay["backend_provider_name"], "static")
+        self.assertTrue(mislabel_overlay["static_or_fixture_only"])
+
+        manifest_path.write_text(
+            json.dumps(
+                {
                     "provider_name": "static",
+                    "backend_provider_name": "static",
+                    "component_backend_provider_names": ["static"],
                     "model": "fixture",
                     "live_generator": False,
                     "capability_evidence_ok": True,
@@ -5466,6 +5499,7 @@ class SystemTests(unittest.TestCase):
             json.dumps(
                 {
                     "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
                     "model": "claude-sonnet-4-6",
                     "live_generator": True,
                     "capability_evidence_ok": True,
@@ -5490,6 +5524,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(overlay["available"])
         self.assertTrue(overlay["live_generator"])
         self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["backend_provider_name"], "anthropic")
         self.assertTrue(overlay["candidate_kernel_verified"])
         self.assertFalse(overlay["source_theorem_kernel_verified"])
         self.assertEqual(overlay["repair_sequences"], 1)
@@ -5500,7 +5535,34 @@ class SystemTests(unittest.TestCase):
         manifest_path.write_text(
             json.dumps(
                 {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "static",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "candidate_kernel_verified": True,
+                    "source_theorem_kernel_verified": False,
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                    "n_formalizer_lean_candidate_local_lean_checked": 1,
+                    "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                    "static_or_fixture_only": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        mislabel_overlay = _formalizer_lean_candidate_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertFalse(mislabel_overlay["live_generator"])
+        self.assertFalse(mislabel_overlay["capability_evidence_ok"])
+        self.assertEqual(mislabel_overlay["backend_provider_name"], "static")
+        self.assertTrue(mislabel_overlay["static_or_fixture_only"])
+
+        manifest_path.write_text(
+            json.dumps(
+                {
                     "provider_name": "static",
+                    "backend_provider_name": "static",
                     "model": "fixture",
                     "live_generator": False,
                     "capability_evidence_ok": True,
@@ -5536,6 +5598,7 @@ class SystemTests(unittest.TestCase):
             json.dumps(
                 {
                     "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
                     "model": "claude-sonnet-4-6",
                     "live_generator": True,
                     "capability_evidence_ok": True,
@@ -5560,6 +5623,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(overlay["available"])
         self.assertTrue(overlay["live_generator"])
         self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["backend_provider_name"], "anthropic")
         self.assertEqual(overlay["n_cases"], 3)
         self.assertEqual(overlay["n_cases_ok"], 3)
         self.assertEqual(overlay["n_with_problem_analysis"], 3)
@@ -5573,7 +5637,35 @@ class SystemTests(unittest.TestCase):
         manifest_path.write_text(
             json.dumps(
                 {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "static",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "n_cases": 3,
+                    "n_cases_ok": 3,
+                    "n_with_problem_analysis": 3,
+                    "n_with_stat_knowledge_bank_plan": 3,
+                    "n_with_literature_fair_comparison_plan": 3,
+                    "all_cases_ok": True,
+                    "static_or_fixture_only": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        mislabel_overlay = _architect_research_path_policy_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertFalse(mislabel_overlay["live_generator"])
+        self.assertFalse(mislabel_overlay["capability_evidence_ok"])
+        self.assertEqual(mislabel_overlay["backend_provider_name"], "static")
+        self.assertTrue(mislabel_overlay["static_or_fixture_only"])
+
+        manifest_path.write_text(
+            json.dumps(
+                {
                     "provider_name": "static",
+                    "backend_provider_name": "static",
                     "model": "fixture",
                     "live_generator": False,
                     "capability_evidence_ok": True,

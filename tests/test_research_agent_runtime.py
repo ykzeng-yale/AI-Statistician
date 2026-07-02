@@ -23708,6 +23708,8 @@ def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
 
     assert manifest["repair_loop_observed"] is True
     assert manifest["sandbox_clean_after_repair"] is True
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["live_generator"] is False
     assert manifest["capability_evidence_ok"] is False
     assert manifest["static_or_fixture_only"] is True
     assert (
@@ -23740,6 +23742,46 @@ def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
     )
     assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_algorithm_engineer_generated_code_repair_eval_rejects_static_backend_mislabel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai_statistician.algorithm_engineer_generated_code_repair_eval as repair_eval_module
+
+    static_response_file = _write_algorithm_repair_static_response(tmp_path)
+    original_provider_factory = repair_eval_module._repair_eval_provider
+
+    def static_backend_factory(**_: object) -> object:
+        return original_provider_factory(
+            provider_name="static",
+            static_response_file=static_response_file,
+            llm_timeout_seconds=None,
+        )
+
+    monkeypatch.setattr(
+        repair_eval_module,
+        "_repair_eval_provider",
+        static_backend_factory,
+    )
+
+    manifest = repair_eval_module.run_algorithm_engineer_generated_code_repair_eval(
+        question_file=Path("examples/research_questions.json"),
+        question_id="conformal_prediction_coverage",
+        out_dir=tmp_path / "repair_eval_mislabel",
+        provider_name="anthropic",
+        n_runs=20,
+        seed=20260623,
+        target_coverage=0.9,
+    )
+
+    assert manifest["provider_name"] == "anthropic"
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["repair_loop_observed"] is True
+    assert manifest["live_generator"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["static_or_fixture_only"] is True
 
 
 def test_algorithm_engineer_repair_eval_feedback_requires_design_safe_metric_repair() -> None:
@@ -23796,6 +23838,7 @@ def test_algorithm_engineer_generated_code_repair_eval_failure_manifest(
     assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
+    assert manifest["backend_provider_name"] == "anthropic"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["sandbox_clean_after_repair"] is False
@@ -23821,6 +23864,8 @@ def test_simulation_engineer_generated_code_repair_eval_static_fixture(
 
     assert manifest["repair_loop_observed"] is True
     assert manifest["sandbox_clean_after_repair"] is True
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["live_generator"] is False
     assert manifest["capability_evidence_ok"] is False
     assert manifest["static_or_fixture_only"] is True
     assert (
@@ -23855,6 +23900,46 @@ def test_simulation_engineer_generated_code_repair_eval_static_fixture(
     )
     assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_simulation_engineer_generated_code_repair_eval_rejects_static_backend_mislabel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai_statistician.simulation_engineer_generated_code_repair_eval as repair_eval_module
+
+    static_response_file = _write_simulation_repair_static_response(tmp_path)
+    original_provider_factory = repair_eval_module._repair_eval_provider
+
+    def static_backend_factory(**_: object) -> object:
+        return original_provider_factory(
+            provider_name="static",
+            static_response_file=static_response_file,
+            llm_timeout_seconds=None,
+        )
+
+    monkeypatch.setattr(
+        repair_eval_module,
+        "_repair_eval_provider",
+        static_backend_factory,
+    )
+
+    manifest = repair_eval_module.run_simulation_engineer_generated_code_repair_eval(
+        question_file=Path("examples/research_questions.json"),
+        question_id="conformal_prediction_coverage",
+        out_dir=tmp_path / "simulation_repair_eval_mislabel",
+        provider_name="anthropic",
+        n_runs=20,
+        seed=20260623,
+        target_coverage=0.9,
+    )
+
+    assert manifest["provider_name"] == "anthropic"
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["repair_loop_observed"] is True
+    assert manifest["live_generator"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["static_or_fixture_only"] is True
 
 
 def test_simulation_engineer_repair_eval_feedback_requires_design_safe_metric_repair() -> None:
@@ -23911,6 +23996,7 @@ def test_simulation_engineer_generated_code_repair_eval_failure_manifest(
     assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
+    assert manifest["backend_provider_name"] == "anthropic"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["sandbox_clean_after_repair"] is False
@@ -23938,6 +24024,9 @@ def test_coding_agent_generated_code_repair_eval_static_fixture_is_not_capabilit
 
     assert manifest["algorithm_capability_evidence_ok"] is False
     assert manifest["simulation_capability_evidence_ok"] is False
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["component_backend_provider_names"] == ["static"]
+    assert manifest["live_generator"] is False
     assert manifest["capability_evidence_ok"] is False
     assert manifest["fixture_plumbing_ok"] is True
     assert manifest["static_or_fixture_only"] is True
@@ -23957,6 +24046,56 @@ def test_coding_agent_generated_code_repair_eval_static_fixture_is_not_capabilit
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
     assert Path(manifest["algorithm_manifest"]["path"]).exists()
     assert Path(manifest["simulation_manifest"]["path"]).exists()
+
+
+def test_coding_agent_generated_code_repair_eval_rejects_static_child_backend_mislabel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai_statistician.coding_agent_generated_code_repair_eval as repair_eval_module
+
+    child_manifest = {
+        "provider_name": "anthropic",
+        "backend_provider_name": "static",
+        "live_generator": True,
+        "capability_evidence_ok": True,
+        "sandbox_clean_after_repair": True,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "artifacts": {"manifest_json": str(tmp_path / "child_manifest.json")},
+    }
+    simulation_child_manifest = {
+        **child_manifest,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+    }
+    monkeypatch.setattr(
+        repair_eval_module,
+        "run_algorithm_engineer_generated_code_repair_eval",
+        lambda **_: dict(child_manifest),
+    )
+    monkeypatch.setattr(
+        repair_eval_module,
+        "run_simulation_engineer_generated_code_repair_eval",
+        lambda **_: dict(simulation_child_manifest),
+    )
+
+    manifest = repair_eval_module.run_coding_agent_generated_code_repair_eval(
+        question_file=Path("examples/research_questions.json"),
+        question_id="conformal_prediction_coverage",
+        out_dir=tmp_path / "coding_agent_repair_eval_mislabel",
+        provider_name="anthropic",
+    )
+
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["component_backend_provider_names"] == ["static"]
+    assert manifest["algorithm_live_generator"] is False
+    assert manifest["simulation_live_generator"] is False
+    assert manifest["live_generator"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["static_or_fixture_only"] is True
 
 
 def test_coding_agent_generated_code_repair_eval_cli_static_is_not_capability(
@@ -24009,6 +24148,8 @@ def test_formalizer_lean_candidate_repair_eval_static_fixture_is_not_capability(
         "formalize-lean-repair:"
     )
     assert manifest["candidate_kernel_verified"] is True
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["live_generator"] is False
     assert manifest["capability_evidence_ok"] is False
     assert manifest["capability_evidence_requirements"] == {
         "live_generator": False,
@@ -24030,6 +24171,45 @@ def test_formalizer_lean_candidate_repair_eval_static_fixture_is_not_capability(
     assert manifest["full_frontier_theorem_proved"] is False
     assert manifest["proof_evidence_status"].endswith("NOT_SOURCE_THEOREM_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_formalizer_lean_candidate_repair_eval_rejects_static_backend_mislabel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai_statistician.formalizer_lean_candidate_repair_eval as repair_eval_module
+
+    static_response_file = _write_formalizer_lean_repair_static_response(tmp_path)
+    original_provider_factory = repair_eval_module._formalizer_repair_eval_provider
+
+    def static_backend_factory(**_: object) -> object:
+        return original_provider_factory(
+            provider_name="static",
+            static_response_file=static_response_file,
+            llm_timeout_seconds=None,
+        )
+
+    monkeypatch.setattr(
+        repair_eval_module,
+        "_formalizer_repair_eval_provider",
+        static_backend_factory,
+    )
+
+    manifest = repair_eval_module.run_formalizer_lean_candidate_repair_eval(
+        question_file=Path("examples/research_questions.json"),
+        question_id="conformal_prediction_coverage",
+        out_dir=tmp_path / "formalizer_repair_eval_mislabel",
+        provider_name="anthropic",
+        lean_timeout=10,
+    )
+
+    assert manifest["provider_name"] == "anthropic"
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["repair_loop_observed"] is True
+    assert manifest["candidate_kernel_verified"] is True
+    assert manifest["live_generator"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["static_or_fixture_only"] is True
 
 
 def test_formalizer_lean_candidate_repair_eval_can_use_lean_lsp_mcp_provider(
@@ -24100,6 +24280,7 @@ def test_formalizer_lean_candidate_repair_eval_failure_manifest(
     assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
+    assert manifest["backend_provider_name"] == "anthropic"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["candidate_kernel_verified"] is False
@@ -24122,12 +24303,49 @@ def test_architect_research_path_policy_eval_static_fixture_is_not_capability(
     assert manifest["n_cases"] == 3
     assert manifest["n_cases_ok"] == 3
     assert manifest["all_cases_ok"] is True
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["live_generator"] is False
     assert manifest["capability_evidence_ok"] is False
     assert manifest["static_or_fixture_only"] is True
     assert manifest["runtime_executed"] is False
     assert manifest["kernel_verified"] is False
     assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_architect_research_path_policy_eval_rejects_static_backend_mislabel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai_statistician.architect_research_path_policy_eval as policy_eval_module
+
+    static_response_file = _write_architect_policy_static_responses(tmp_path)
+    original_provider_factory = policy_eval_module._architect_path_policy_eval_provider
+
+    def static_backend_factory(**_: object) -> object:
+        return original_provider_factory(
+            provider_name="static",
+            static_response_file=static_response_file,
+            llm_timeout_seconds=None,
+        )
+
+    monkeypatch.setattr(
+        policy_eval_module,
+        "_architect_path_policy_eval_provider",
+        static_backend_factory,
+    )
+
+    manifest = policy_eval_module.run_architect_research_path_policy_eval(
+        out_dir=tmp_path / "architect_policy_eval_mislabel",
+        provider_name="anthropic",
+    )
+
+    assert manifest["provider_name"] == "anthropic"
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["all_cases_ok"] is True
+    assert manifest["live_generator"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert manifest["static_or_fixture_only"] is True
 
 
 def test_architect_research_path_policy_eval_cli_static_is_not_capability(
@@ -24161,6 +24379,7 @@ def test_architect_research_path_policy_eval_failure_manifest(
     assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
+    assert manifest["backend_provider_name"] == "anthropic"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["runtime_executed"] is False

@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .model_backend import (
+    is_live_generator_backend,
+    normalize_generator_provider_name,
+)
 from .frontier_backlog_audit import audit_frontier_backlog
 from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_discover_and_prove_prompt_packets import (
@@ -8904,6 +8908,7 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
         "available": False,
         "manifest_path": "",
         "provider_name": "",
+        "backend_provider_name": "",
         "model": "",
         "live_generator": False,
         "capability_evidence_ok": False,
@@ -8921,11 +8926,30 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return empty
-    provider_name = str(payload.get("provider_name", ""))
-    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
-        "anthropic",
-        "openai",
-    }
+    provider_name = normalize_generator_provider_name(payload.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        payload.get("backend_provider_name", provider_name)
+    )
+    raw_component_backend_provider_names = payload.get(
+        "component_backend_provider_names",
+        [],
+    )
+    if isinstance(raw_component_backend_provider_names, str):
+        raw_component_backend_provider_names = [raw_component_backend_provider_names]
+    elif not isinstance(raw_component_backend_provider_names, (list, tuple)):
+        raw_component_backend_provider_names = []
+    component_backend_provider_names = [
+        normalize_generator_provider_name(name)
+        for name in raw_component_backend_provider_names
+        if normalize_generator_provider_name(name)
+    ]
+    if not component_backend_provider_names and backend_provider_name:
+        component_backend_provider_names = [backend_provider_name]
+    backend_live = bool(component_backend_provider_names) and all(
+        is_live_generator_backend(provider_name, name)
+        for name in component_backend_provider_names
+    )
+    live_generator = bool(payload.get("live_generator", False) and backend_live)
     algorithm_capability_evidence_ok = bool(
         payload.get("algorithm_capability_evidence_ok", False)
     )
@@ -8942,6 +8966,8 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
         "available": True,
         "manifest_path": str(manifest_path),
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "component_backend_provider_names": component_backend_provider_names,
         "model": str(payload.get("model", "")),
         "live_generator": live_generator,
         "capability_evidence_ok": capability_evidence_ok,
@@ -8954,7 +8980,9 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
             payload.get("simulation_repair_sequences", 0) or 0
         ),
         "fixture_plumbing_ok": bool(payload.get("fixture_plumbing_ok", False)),
-        "static_or_fixture_only": bool(payload.get("static_or_fixture_only", False)),
+        "static_or_fixture_only": bool(
+            payload.get("static_or_fixture_only", False) or not live_generator
+        ),
         "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
     }
 
@@ -8984,6 +9012,7 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         "available": False,
         "manifest_path": "",
         "provider_name": "",
+        "backend_provider_name": "",
         "model": "",
         "live_generator": False,
         "capability_evidence_ok": False,
@@ -9003,11 +9032,14 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return empty
-    provider_name = str(payload.get("provider_name", ""))
-    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
-        "anthropic",
-        "openai",
-    }
+    provider_name = normalize_generator_provider_name(payload.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        payload.get("backend_provider_name", provider_name)
+    )
+    live_generator = bool(
+        payload.get("live_generator", False)
+        and is_live_generator_backend(provider_name, backend_provider_name)
+    )
     repair_sequences = int(
         payload.get(
             "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
@@ -9037,7 +9069,9 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         and candidate_kernel_verified
         and payload.get("capability_evidence_ok", False)
     )
-    static_or_fixture_only = bool(payload.get("static_or_fixture_only", False))
+    static_or_fixture_only = bool(
+        payload.get("static_or_fixture_only", False) or not live_generator
+    )
     fixture_plumbing_ok = bool(
         static_or_fixture_only
         and repair_sequences > 0
@@ -9048,6 +9082,7 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         "available": True,
         "manifest_path": str(manifest_path),
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": str(payload.get("model", "")),
         "live_generator": live_generator,
         "capability_evidence_ok": capability_evidence_ok,
@@ -9090,6 +9125,7 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         "available": False,
         "manifest_path": "",
         "provider_name": "",
+        "backend_provider_name": "",
         "model": "",
         "live_generator": False,
         "capability_evidence_ok": False,
@@ -9108,11 +9144,14 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return empty
-    provider_name = str(payload.get("provider_name", ""))
-    live_generator = bool(payload.get("live_generator", False)) and provider_name in {
-        "anthropic",
-        "openai",
-    }
+    provider_name = normalize_generator_provider_name(payload.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        payload.get("backend_provider_name", provider_name)
+    )
+    live_generator = bool(
+        payload.get("live_generator", False)
+        and is_live_generator_backend(provider_name, backend_provider_name)
+    )
     n_cases = int(payload.get("n_cases", 0) or 0)
     n_cases_ok = int(payload.get("n_cases_ok", 0) or 0)
     n_with_problem_analysis = int(payload.get("n_with_problem_analysis", 0) or 0)
@@ -9130,11 +9169,14 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         and n_with_fair_comparison == n_cases
         and payload.get("all_cases_ok", False)
     )
-    static_or_fixture_only = bool(payload.get("static_or_fixture_only", False))
+    static_or_fixture_only = bool(
+        payload.get("static_or_fixture_only", False) or not live_generator
+    )
     return {
         "available": True,
         "manifest_path": str(manifest_path),
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": str(payload.get("model", "")),
         "live_generator": live_generator,
         "capability_evidence_ok": bool(

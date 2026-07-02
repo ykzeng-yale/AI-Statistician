@@ -13,6 +13,8 @@ from .generated_metric_repair_policy import (
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
+    generator_backend_provider_name,
+    is_live_generator_backend,
 )
 from .research_agent_runtime import (
     SimulationEvaluatorRuntimeSubsystem,
@@ -69,6 +71,7 @@ def run_simulation_engineer_generated_code_repair_eval(
         static_response_file=static_response_file,
         llm_timeout_seconds=llm_timeout_seconds,
     )
+    backend_provider_name = generator_backend_provider_name(provider, provider_name)
     resolved_model = default_generator_model(
         provider_name,
         model,
@@ -264,7 +267,7 @@ def run_simulation_engineer_generated_code_repair_eval(
         )
         or 0
     )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     repair_loop_observed = bool(n_repair_sequences > 0)
     live_attempt_failed_then_passed = bool(n_live_repair_sequences > 0)
     sandbox_clean = bool(
@@ -280,6 +283,7 @@ def run_simulation_engineer_generated_code_repair_eval(
         "question_id": question.id,
         "question_title": question.title,
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "SimulationEngineer generated-code repair",
@@ -406,17 +410,21 @@ def write_simulation_engineer_generated_code_repair_eval_failure_manifest(
     model: str,
     question_id: str,
     exc: Exception,
+    backend_provider_name: str = "",
 ) -> dict[str, Any]:
     """Write an inspectable failure manifest for provider/runtime exceptions."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
     provider_name = provider_name.strip().lower()
+    backend_provider_name = (
+        backend_provider_name.strip().lower() if backend_provider_name else provider_name
+    )
     resolved_model = default_generator_model(
         provider_name,
         model,
         model_tier="haiku",
     )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     manifest_path = out_dir / "simulation_engineer_generated_code_repair_eval_manifest.json"
     manifest = {
         "schema_version": 1,
@@ -424,6 +432,7 @@ def write_simulation_engineer_generated_code_repair_eval_failure_manifest(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question_id": question_id,
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "SimulationEngineer generated-code repair",

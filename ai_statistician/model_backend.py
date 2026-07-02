@@ -84,6 +84,37 @@ ANTHROPIC_MODEL_ID_VERSIONING_POLICY = (
     "IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen "
     "aliases; newer releases require explicit constant updates."
 )
+
+
+def normalize_generator_provider_name(provider_name: object) -> str:
+    return str(provider_name or "").strip().lower()
+
+
+def generator_backend_provider_name(
+    provider: object,
+    configured_provider_name: str = "",
+) -> str:
+    return normalize_generator_provider_name(
+        getattr(provider, "provider_name", configured_provider_name)
+    )
+
+
+def is_live_generator_backend(
+    configured_provider_name: object,
+    backend_provider_name: object | None = None,
+) -> bool:
+    configured = normalize_generator_provider_name(configured_provider_name)
+    backend = normalize_generator_provider_name(
+        configured_provider_name
+        if backend_provider_name is None
+        else backend_provider_name
+    )
+    return (
+        configured in SUPPORTED_LIVE_GENERATOR_PROVIDERS
+        and backend in SUPPORTED_LIVE_GENERATOR_PROVIDERS
+    )
+
+
 ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
     "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",

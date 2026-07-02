@@ -16,6 +16,8 @@ from .model_backend import (
     GeneratorResponse,
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
+    generator_backend_provider_name,
+    is_live_generator_backend,
 )
 from .research_architect import AnthropicArchitectLLMProvider, StaticArchitectLLMProvider
 from .research_schema import OpenResearchQuestion
@@ -62,6 +64,7 @@ def run_architect_research_path_policy_eval(
         static_response_file=static_response_file,
         llm_timeout_seconds=llm_timeout_seconds,
     )
+    backend_provider_name = generator_backend_provider_name(provider, provider_name)
     resolved_model = default_generator_model(
         provider_name,
         model,
@@ -136,7 +139,7 @@ def run_architect_research_path_policy_eval(
                 ),
             }
         )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     n_cases = len(rows)
     n_cases_ok = sum(1 for row in rows if row["case_ok"])
     n_with_problem_analysis = sum(1 for row in rows if row["has_problem_analysis"])
@@ -158,6 +161,7 @@ def run_architect_research_path_policy_eval(
         "artifact_kind": "ArchitectResearchPathPolicyEvalManifest",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "ArchitectCoordinator research path policy",
@@ -212,21 +216,26 @@ def write_architect_research_path_policy_eval_failure_manifest(
     provider_name: str,
     model: str,
     exc: Exception,
+    backend_provider_name: str = "",
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     provider_name = provider_name.strip().lower()
+    backend_provider_name = (
+        backend_provider_name.strip().lower() if backend_provider_name else provider_name
+    )
     resolved_model = default_generator_model(
         provider_name,
         model,
         model_tier="sonnet",
     )
-    live_generator = provider_name in {"anthropic", "openai"}
+    live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     manifest_path = out_dir / "architect_research_path_policy_eval_manifest.json"
     manifest = {
         "schema_version": 1,
         "artifact_kind": "ArchitectResearchPathPolicyEvalManifest",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "ArchitectCoordinator research path policy",

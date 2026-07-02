@@ -10,7 +10,11 @@ from .algorithm_engineer_generated_code_repair_eval import (
     run_algorithm_engineer_generated_code_repair_eval,
     write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
 )
-from .model_backend import default_generator_model
+from .model_backend import (
+    default_generator_model,
+    is_live_generator_backend,
+    normalize_generator_provider_name,
+)
 from .simulation_engineer_generated_code_repair_eval import (
     SIMULATION_REPAIR_EVAL_NOT_PROOF_EVIDENCE,
     run_simulation_engineer_generated_code_repair_eval,
@@ -113,7 +117,53 @@ def run_coding_agent_generated_code_repair_eval(
 
     algorithm_ok = bool(algorithm_manifest.get("capability_evidence_ok"))
     simulation_ok = bool(simulation_manifest.get("capability_evidence_ok"))
-    live_generator = provider_name in {"anthropic", "openai"}
+    algorithm_provider_name = normalize_generator_provider_name(
+        algorithm_manifest.get("provider_name", provider_name)
+    )
+    simulation_provider_name = normalize_generator_provider_name(
+        simulation_manifest.get("provider_name", provider_name)
+    )
+    algorithm_backend_provider_name = normalize_generator_provider_name(
+        algorithm_manifest.get("backend_provider_name", algorithm_provider_name)
+    )
+    simulation_backend_provider_name = normalize_generator_provider_name(
+        simulation_manifest.get("backend_provider_name", simulation_provider_name)
+    )
+    backend_provider_names = list(
+        dict.fromkeys(
+            name
+            for name in (
+                algorithm_backend_provider_name,
+                simulation_backend_provider_name,
+            )
+            if name
+        )
+    )
+    backend_provider_name = (
+        backend_provider_names[0]
+        if len(backend_provider_names) == 1
+        else ",".join(backend_provider_names)
+    )
+    algorithm_live_generator = bool(
+        algorithm_manifest.get("live_generator", False)
+        and is_live_generator_backend(
+            algorithm_provider_name,
+            algorithm_backend_provider_name,
+        )
+    )
+    simulation_live_generator = bool(
+        simulation_manifest.get("live_generator", False)
+        and is_live_generator_backend(
+            simulation_provider_name,
+            simulation_backend_provider_name,
+        )
+    )
+    live_generator = bool(
+        algorithm_live_generator
+        and simulation_live_generator
+        and is_live_generator_backend(provider_name, algorithm_backend_provider_name)
+        and is_live_generator_backend(provider_name, simulation_backend_provider_name)
+    )
     algorithm_live_repair_sequences = int(
         algorithm_manifest.get(
             "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
@@ -187,11 +237,15 @@ def run_coding_agent_generated_code_repair_eval(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question_id": question_id,
         "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "component_backend_provider_names": backend_provider_names,
         "model": resolved_model,
         "live_generator": live_generator,
         "component_eval": "AlgorithmEngineer + SimulationEngineer generated-code repair",
         "algorithm_capability_evidence_ok": algorithm_ok,
         "simulation_capability_evidence_ok": simulation_ok,
+        "algorithm_live_generator": algorithm_live_generator,
+        "simulation_live_generator": simulation_live_generator,
         "capability_evidence_ok": capability_evidence_ok,
         "fixture_plumbing_ok": fixture_plumbing_ok,
         "static_or_fixture_only": not live_generator,
