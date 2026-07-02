@@ -38292,23 +38292,36 @@ def _normalize_source_to_bridge_metadata_authoring_request_row(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
     normalized = dict(row)
+    input_summary = (
+        normalized.get("input_summary", {})
+        if isinstance(normalized.get("input_summary", {}), Mapping)
+        else {}
+    )
     request_raw = normalized.get(
         "source_to_bridge_premise_derivation_candidate_request",
         {},
     )
+    if not isinstance(request_raw, Mapping) or not request_raw:
+        request_raw = input_summary.get(
+            "source_to_bridge_premise_derivation_candidate_request",
+            {},
+        )
     request = dict(request_raw) if isinstance(request_raw, Mapping) else {}
     premise_name = str(
         normalized.get("premise_name", "")
+        or input_summary.get("premise_name", "")
         or request.get("premise_name", "")
         or ""
     ).strip()
     target_theorem_name = str(
         normalized.get("target_theorem_name", "")
+        or input_summary.get("target_theorem_name", "")
         or request.get("target_theorem_name", "")
         or ""
     ).strip()
     target_lean_declaration = str(
         normalized.get("target_lean_declaration", "")
+        or input_summary.get("target_lean_declaration", "")
         or request.get("target_lean_declaration", "")
         or target_theorem_name
         or ""
@@ -38316,6 +38329,8 @@ def _normalize_source_to_bridge_metadata_authoring_request_row(
     premise_candidate_declaration_name = str(
         normalized.get("premise_candidate_declaration_name", "")
         or normalized.get("source_to_bridge_premise_candidate_declaration_name", "")
+        or input_summary.get("premise_candidate_declaration_name", "")
+        or input_summary.get("source_to_bridge_premise_candidate_declaration_name", "")
         or request.get("premise_candidate_declaration_name", "")
         or request.get("source_to_bridge_premise_candidate_declaration_name", "")
         or ""
@@ -38345,6 +38360,110 @@ def _normalize_source_to_bridge_metadata_authoring_request_row(
             _runtime_set_text_if_missing(request, key, value)
     if request:
         normalized["source_to_bridge_premise_derivation_candidate_request"] = request
+    return normalized
+
+
+def _runtime_learning_row_with_source_to_bridge_declaration_contract(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(row)
+    request_rows = stb_metadata.memory_metadata_authoring_request_rows(
+        [normalized],
+        row_trigger=_runtime_learning_row_trigger,
+    )
+    if not request_rows:
+        return normalized
+    contract_row = _normalize_source_to_bridge_metadata_authoring_request_row(
+        request_rows[0]
+    )
+    contract_request = contract_row.get(
+        "source_to_bridge_premise_derivation_candidate_request",
+        {},
+    )
+    contract_request = (
+        dict(contract_request) if isinstance(contract_request, Mapping) else {}
+    )
+    existing_request = normalized.get(
+        "source_to_bridge_premise_derivation_candidate_request",
+        {},
+    )
+    merged_request = (
+        dict(existing_request) if isinstance(existing_request, Mapping) else {}
+    )
+    for key, value in contract_request.items():
+        if value not in (None, "", [], {}) and merged_request.get(key) in (
+            None,
+            "",
+            [],
+            {},
+        ):
+            merged_request[key] = value
+    if merged_request:
+        normalized["source_to_bridge_premise_derivation_candidate_request"] = (
+            merged_request
+        )
+    input_summary = normalized.get("input_summary", {})
+    mutable_input_summary = (
+        dict(input_summary) if isinstance(input_summary, Mapping) else {}
+    )
+    input_request = mutable_input_summary.get(
+        "source_to_bridge_premise_derivation_candidate_request",
+        {},
+    )
+    merged_input_request = (
+        dict(input_request) if isinstance(input_request, Mapping) else {}
+    )
+    for key, value in contract_request.items():
+        if value not in (None, "", [], {}) and merged_input_request.get(key) in (
+            None,
+            "",
+            [],
+            {},
+        ):
+            merged_input_request[key] = value
+    contract_fields = (
+        "candidate_request_id",
+        "source_to_bridge_premise_derivation_candidate_request_id",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "premise_name",
+        "premise_target_type",
+        "premise_candidate_declaration_name",
+        "source_to_bridge_premise_candidate_declaration_name",
+        "semantic_anchor_reference_gate",
+        "candidate_contract",
+    )
+    sequence_fields = (
+        "target_theorem_goal_ids",
+        "premise_names",
+        "premise_semantic_dependency_requirements",
+        "exact_source_theorem_binders",
+        "premise_semantic_anchor_binders",
+        "premise_semantic_anchor_binder_names",
+        "required_semantic_anchor_reference_names",
+        "adapter_object_names_requiring_source_instantiation",
+        "required_candidate_fields",
+        "missing_required_metadata_fields",
+    )
+    for key in (*contract_fields, *sequence_fields):
+        value = contract_row.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if normalized.get(key) in (None, "", [], {}):
+            normalized[key] = value
+        if mutable_input_summary and mutable_input_summary.get(key) in (
+            None,
+            "",
+            [],
+            {},
+        ):
+            mutable_input_summary[key] = value
+    if merged_input_request:
+        mutable_input_summary[
+            "source_to_bridge_premise_derivation_candidate_request"
+        ] = merged_input_request
+    if mutable_input_summary:
+        normalized["input_summary"] = mutable_input_summary
     return normalized
 
 
@@ -51952,7 +52071,7 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
 
 
 def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
-    normalized = dict(row)
+    normalized = _runtime_learning_row_with_source_to_bridge_declaration_contract(row)
     learning_task = str(normalized.get("learning_task", "") or "")
     normalized.setdefault("schema_version", RUNTIME_SCHEMA_VERSION)
     normalized.setdefault("artifact_kind", "RuntimeLearningRow")

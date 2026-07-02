@@ -58,6 +58,7 @@ from .research_agent_runtime import (
     _runtime_research_path_execution_summary,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
     _runtime_source_theorem_formal_environment_work_order_rows,
+    _normalize_source_to_bridge_metadata_authoring_request_row,
 )
 from .task_family import (
     explicit_task_family_list,
@@ -8385,8 +8386,14 @@ def _runtime_source_to_bridge_feedback_contract_audit_summary(
                 continue
             contract_rows += 1
             channels.add(channel)
+            effective_row = (
+                _runtime_source_to_bridge_feedback_effective_contract_row(
+                    row,
+                    channel,
+                )
+            )
             missing_fields = _runtime_source_to_bridge_feedback_missing_contract_fields(
-                row
+                effective_row
             )
             if not missing_fields:
                 continue
@@ -8427,6 +8434,20 @@ def _runtime_source_to_bridge_feedback_contract_audit_summary(
             "repair; they are routing metadata, not proof evidence."
         ),
     }
+
+
+def _runtime_source_to_bridge_feedback_effective_contract_row(
+    row: Any,
+    channel: str,
+) -> Any:
+    if channel not in {
+        "runtime_learning_rows",
+        "runtime_pending_task_memory",
+    }:
+        return row
+    if not isinstance(row, Mapping):
+        return row
+    return _normalize_source_to_bridge_metadata_authoring_request_row(row)
 
 
 def _runtime_pending_task_source_to_bridge_feedback_row_sources(

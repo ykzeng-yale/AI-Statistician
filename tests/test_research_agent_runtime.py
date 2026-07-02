@@ -4021,6 +4021,73 @@ def test_runtime_learning_rows_writer_normalizes_evidence_boundaries(
     assert summary["n_runtime_learning_rows_missing_evidence_boundary"] == 0
 
 
+def test_runtime_learning_rows_writer_normalizes_source_to_bridge_declaration_contract(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    expected_declaration = (
+        "split_conformal_finite_sample_coverage_hRankUniform_source_to_bridge_derivation"
+    )
+    learning_rows = [
+        {
+            "learning_task": "source_to_bridge_metadata_authoring_request",
+            "trigger": "SOURCE_TO_BRIDGE_METADATA_AUTHORED_REQUEST",
+            "candidate_request_id": "request:hRankUniform",
+            "premise_name": "hRankUniform",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_lean_declaration": "split_conformal_finite_sample_coverage",
+            "source_to_bridge_premise_derivation_candidate_request": {
+                "candidate_request_id": "request:hRankUniform",
+                "premise_name": "hRankUniform",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "exact_source_theorem_binders": [{"name": "n", "type": "Nat"}],
+                "premise_semantic_anchor_binder_names": ["hRank"],
+                "required_semantic_anchor_reference_names": ["hRank"],
+                "adapter_object_names_requiring_source_instantiation": [
+                    "coverage_event"
+                ],
+            },
+            "proof_evidence_status": (
+                "SOURCE_TO_BRIDGE_METADATA_AUTHORING_REQUEST_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+
+    runtime_module._write_jsonl(learning_path, learning_rows)
+
+    written_rows = [
+        json.loads(line)
+        for line in learning_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    written = written_rows[0]
+    nested_request = written[
+        "source_to_bridge_premise_derivation_candidate_request"
+    ]
+    assert written["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        written["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+    assert nested_request["premise_candidate_declaration_name"] == expected_declaration
+    assert (
+        nested_request["source_to_bridge_premise_candidate_declaration_name"]
+        == expected_declaration
+    )
+
+    summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
+        learning_rows=written_rows
+    )
+    assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+        ]
+        == 0
+    )
+
+
 def test_runtime_learning_rows_contract_accepts_compact_formal_gap_feedback() -> None:
     compact_feedback_row = {
         "schema_version": 1,
@@ -5032,6 +5099,40 @@ def test_runtime_source_to_bridge_feedback_contract_audit_accepts_normalized_dec
         },
         pending_memory_rows=[],
         learning_rows=[],
+    )
+
+    assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_source_to_bridge_feedback_rows_missing_declaration_contract"
+        ]
+        == 0
+    )
+
+
+def test_runtime_source_to_bridge_feedback_contract_audit_normalizes_learning_memory() -> None:
+    summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
+        learning_rows=[
+            {
+                "learning_task": "source_to_bridge_metadata_authoring_request",
+                "trigger": "SOURCE_TO_BRIDGE_METADATA_AUTHORED_REQUEST",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": (
+                    "split_conformal_finite_sample_coverage"
+                ),
+                "premise_name": "hRankUniform",
+                "source_to_bridge_premise_derivation_candidate_request": {
+                    "candidate_request_id": "request:hRankUniform",
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "premise_name": "hRankUniform",
+                },
+            }
+        ]
     )
 
     assert summary["n_runtime_source_to_bridge_feedback_contract_rows"] == 1
