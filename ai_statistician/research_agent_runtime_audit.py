@@ -651,6 +651,200 @@ def _runtime_task_handoff_ledger_mismatches(
     return mismatches
 
 
+def _runtime_observation_export_audit_summary(
+    *,
+    result_paths: list[Path],
+    observation_export_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    expected_by_key: dict[tuple[str, str, str, str, str, str, str], Mapping[str, Any]] = {}
+    n_trace_observations = 0
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        question_id = str(blackboard.get("project_id", "") or "").split(":", 1)[-1]
+        traces = (
+            payload.get("traces", [])
+            if isinstance(payload.get("traces", []), list)
+            else []
+        )
+        for trace_index, trace in enumerate(traces):
+            if not isinstance(trace, Mapping):
+                continue
+            task = (
+                trace.get("task", {})
+                if isinstance(trace.get("task", {}), Mapping)
+                else {}
+            )
+            observations = (
+                trace.get("observations", [])
+                if isinstance(trace.get("observations", []), list)
+                else []
+            )
+            for observation_index, observation in enumerate(observations):
+                if not isinstance(observation, Mapping):
+                    _append_handoff_issue(
+                        issues,
+                        path=path,
+                        issue="trace_observation_not_object",
+                        trace_index=trace_index,
+                        detail=f"observation_index={observation_index} is not an object",
+                    )
+                    continue
+                n_trace_observations += 1
+                key = _runtime_observation_export_key(
+                    question_id=question_id,
+                    trace_index=trace_index,
+                    iteration=trace.get("iteration", 0),
+                    task_id=task.get("task_id", ""),
+                    subsystem=trace.get("subsystem", ""),
+                    observation_index=observation_index,
+                    observation_type=observation.get("observation_type", ""),
+                )
+                expected_by_key[key] = {
+                    "question_id": question_id,
+                    "trace_index": trace_index,
+                    "iteration": int(trace.get("iteration", 0) or 0),
+                    "task_id": str(task.get("task_id", "") or ""),
+                    "subsystem": str(trace.get("subsystem", "") or ""),
+                    "observation_index": observation_index,
+                    "observation_type": str(
+                        observation.get("observation_type", "") or ""
+                    ),
+                    "summary": str(observation.get("summary", "") or ""),
+                    "payload_hash": _runtime_observation_payload_hash(
+                        observation.get("payload", {})
+                    ),
+                }
+
+    export_by_key: dict[tuple[str, str, str, str, str, str, str], Mapping[str, Any]] = {}
+    n_export_unknown_rows = 0
+    n_export_mismatched_rows = 0
+    for row_index, row in enumerate(observation_export_rows):
+        key = _runtime_observation_export_key(
+            question_id=row.get("question_id", ""),
+            trace_index=row.get("trace_index", 0),
+            iteration=row.get("iteration", 0),
+            task_id=row.get("task_id", ""),
+            subsystem=row.get("subsystem", ""),
+            observation_index=row.get("observation_index", 0),
+            observation_type=row.get("observation_type", ""),
+        )
+        if key in export_by_key:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_observation_export_duplicate_key",
+                trace_index=row_index,
+                detail="runtime_observations.jsonl repeats a trace/observation key",
+            )
+            continue
+        export_by_key[key] = row
+        expected = expected_by_key.get(key)
+        if expected is None:
+            n_export_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_observation_export_unknown_row",
+                trace_index=row_index,
+                detail="runtime_observations.jsonl row is absent from per-question traces",
+            )
+            continue
+        mismatches = [
+            field
+            for field in (
+                "question_id",
+                "trace_index",
+                "iteration",
+                "task_id",
+                "subsystem",
+                "observation_index",
+                "observation_type",
+                "summary",
+            )
+            if str(row.get(field, "") or "") != str(expected.get(field, "") or "")
+        ]
+        if _runtime_observation_payload_hash(row.get("payload", {})) != expected[
+            "payload_hash"
+        ]:
+            mismatches.append("payload")
+        if mismatches:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_observation_export_trace_mismatch",
+                trace_index=row_index,
+                detail=",".join(mismatches),
+            )
+
+    missing_keys = sorted(set(expected_by_key) - set(export_by_key))
+    for key in missing_keys[:20]:
+        _append_handoff_issue(
+            issues,
+            issue="trace_observation_missing_export_row",
+            detail="runtime_observations.jsonl missing key=" + repr(key),
+        )
+    n_missing_export_rows = len(missing_keys)
+    complete = (
+        (n_trace_observations <= 0 and not observation_export_rows)
+        or (
+            n_missing_export_rows == 0
+            and n_export_unknown_rows == 0
+            and n_export_mismatched_rows == 0
+            and len(observation_export_rows) == n_trace_observations
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeObservationExportAudit",
+        "runtime_observation_export_complete": complete,
+        "n_runtime_trace_observation_rows": n_trace_observations,
+        "n_runtime_observation_export_rows": len(observation_export_rows),
+        "n_runtime_observation_export_missing_rows": n_missing_export_rows,
+        "n_runtime_observation_export_unknown_rows": n_export_unknown_rows,
+        "n_runtime_observation_export_mismatched_rows": n_export_mismatched_rows,
+        "runtime_observation_export_issues": issues,
+        "boundary": (
+            "Runtime observation export rows are observe-loop feedback records. "
+            "They support routing, debugging, and audits, but are not proof, "
+            "simulation, generated-code, or verifier evidence unless separately "
+            "recorded in the evidence ledger."
+        ),
+    }
+
+
+def _runtime_observation_export_key(
+    *,
+    question_id: Any,
+    trace_index: Any,
+    iteration: Any,
+    task_id: Any,
+    subsystem: Any,
+    observation_index: Any,
+    observation_type: Any,
+) -> tuple[str, str, str, str, str, str, str]:
+    return (
+        str(question_id or ""),
+        str(_safe_int(trace_index)),
+        str(_safe_int(iteration)),
+        str(task_id or ""),
+        str(subsystem or ""),
+        str(_safe_int(observation_index)),
+        str(observation_type or ""),
+    )
+
+
+def _runtime_observation_payload_hash(payload: Any) -> str:
+    try:
+        return stable_hash(json.loads(json.dumps(payload, sort_keys=True, default=str)))
+    except Exception:
+        return stable_hash(str(payload))
+
+
 def _runtime_tool_call_export_audit_summary(
     *,
     result_paths: list[Path],
@@ -1377,6 +1571,10 @@ def audit_research_agent_runtime(
         runtime_dir,
         artifacts.get("runtime_task_handoffs_jsonl", ""),
     )
+    observation_path = _resolve_path(
+        runtime_dir,
+        artifacts.get("runtime_observations_jsonl", ""),
+    )
     tool_call_path = _resolve_path(
         runtime_dir,
         artifacts.get("runtime_tool_calls_jsonl", ""),
@@ -1430,6 +1628,11 @@ def audit_research_agent_runtime(
         errors,
         required=bool(artifacts.get("runtime_task_handoffs_jsonl")),
     )
+    observation_export_rows = _load_jsonl(
+        observation_path,
+        errors,
+        required=bool(artifacts.get("runtime_observations_jsonl")),
+    )
     tool_call_export_rows = _load_jsonl(
         tool_call_path,
         errors,
@@ -1457,6 +1660,12 @@ def audit_research_agent_runtime(
     ) != len(handoff_export_rows):
         errors.append(
             "manifest n_runtime_task_handoffs does not match runtime_task_handoffs JSONL"
+        )
+    if "n_runtime_observations" in manifest and int(
+        manifest.get("n_runtime_observations", -1)
+    ) != len(observation_export_rows):
+        errors.append(
+            "manifest n_runtime_observations does not match runtime_observations JSONL"
         )
     if "n_runtime_tool_calls" in manifest and int(
         manifest.get("n_runtime_tool_calls", -1)
@@ -1545,6 +1754,11 @@ def audit_research_agent_runtime(
             handoff_export_rows=handoff_export_rows,
             errors=errors,
         )
+    )
+    runtime_observation_export_summary = _runtime_observation_export_audit_summary(
+        result_paths=result_paths,
+        observation_export_rows=observation_export_rows,
+        errors=errors,
     )
     runtime_tool_call_export_summary = _runtime_tool_call_export_audit_summary(
         result_paths=result_paths,
@@ -2046,6 +2260,44 @@ def audit_research_agent_runtime(
         "runtime_task_handoff_ledger_issues": list(
             runtime_task_handoff_ledger_summary[
                 "runtime_task_handoff_ledger_issues"
+            ]
+        ),
+        "runtime_observation_export_audit_summary": (
+            runtime_observation_export_summary
+        ),
+        "runtime_observation_export_complete": bool(
+            runtime_observation_export_summary[
+                "runtime_observation_export_complete"
+            ]
+        ),
+        "n_runtime_trace_observation_rows": int(
+            runtime_observation_export_summary[
+                "n_runtime_trace_observation_rows"
+            ]
+        ),
+        "n_runtime_observation_export_rows": int(
+            runtime_observation_export_summary[
+                "n_runtime_observation_export_rows"
+            ]
+        ),
+        "n_runtime_observation_export_missing_rows": int(
+            runtime_observation_export_summary[
+                "n_runtime_observation_export_missing_rows"
+            ]
+        ),
+        "n_runtime_observation_export_unknown_rows": int(
+            runtime_observation_export_summary[
+                "n_runtime_observation_export_unknown_rows"
+            ]
+        ),
+        "n_runtime_observation_export_mismatched_rows": int(
+            runtime_observation_export_summary[
+                "n_runtime_observation_export_mismatched_rows"
+            ]
+        ),
+        "runtime_observation_export_issues": list(
+            runtime_observation_export_summary[
+                "runtime_observation_export_issues"
             ]
         ),
         "runtime_tool_call_export_audit_summary": runtime_tool_call_export_summary,
@@ -8049,6 +8301,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and not runtime_pending_task_handoff_lineage_required
         else raw_pending_task_handoff_lineage_complete is True
     )
+    raw_observation_export_complete = payload.get(
+        "runtime_observation_export_complete"
+    )
+    runtime_observation_export_complete = (
+        True
+        if raw_observation_export_complete is None
+        and int(payload.get("n_runtime_trace_observation_rows", 0) or 0) <= 0
+        else raw_observation_export_complete is True
+    )
     raw_tool_call_export_complete = payload.get("runtime_tool_call_export_complete")
     runtime_tool_call_export_complete = (
         True
@@ -9455,6 +9716,43 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "runtime_observation_export_complete",
+            runtime_observation_export_complete,
+            (
+                "trace_observations="
+                f"{payload.get('n_runtime_trace_observation_rows')} "
+                "export_rows="
+                f"{payload.get('n_runtime_observation_export_rows')} "
+                "missing="
+                f"{payload.get('n_runtime_observation_export_missing_rows')} "
+                "unknown="
+                f"{payload.get('n_runtime_observation_export_unknown_rows')} "
+                "mismatched="
+                f"{payload.get('n_runtime_observation_export_mismatched_rows')} "
+                "issues="
+                f"{payload.get('runtime_observation_export_issues')}"
+            ),
+            (
+                "AgentRuntime observations were not preserved as a central "
+                "runtime_observations.jsonl contract; observe-loop feedback is "
+                "not auditable end to end"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Rerun with the current runtime so every trace observation "
+                    "is exported to runtime_observations.jsonl with matching "
+                    "task/subsystem identity and payload hash."
+                ),
+                success_metric=(
+                    "runtime_observation_export_complete=true with export rows "
+                    "matching every trace observation and zero unknown or "
+                    "mismatched rows"
+                ),
+            ),
         ),
         _scorecard_row(
             "runtime_tool_call_export_complete",
@@ -10934,6 +11232,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
+        "- runtime observation export complete / rows: "
+        f"{payload.get('runtime_observation_export_complete')} / "
+        f"{payload.get('n_runtime_observation_export_rows')}",
         "- runtime tool-call export complete / rows: "
         f"{payload.get('runtime_tool_call_export_complete')} / "
         f"{payload.get('n_runtime_tool_call_export_rows')}",

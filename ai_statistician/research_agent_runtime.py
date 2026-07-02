@@ -16527,6 +16527,7 @@ def run_research_agent_runtime(
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
     handoff_rows: list[dict[str, Any]] = []
+    observation_rows: list[dict[str, Any]] = []
     tool_call_rows: list[dict[str, Any]] = []
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
@@ -16802,6 +16803,33 @@ def run_research_agent_runtime(
                     **trace,
                 }
             )
+            task_payload = (
+                trace.get("task", {})
+                if isinstance(trace.get("task", {}), Mapping)
+                else {}
+            )
+            raw_observations = (
+                trace.get("observations", [])
+                if isinstance(trace.get("observations", []), list)
+                else []
+            )
+            for observation_index, observation in enumerate(raw_observations):
+                if not isinstance(observation, Mapping):
+                    continue
+                observation_rows.append(
+                    {
+                        "schema_version": RUNTIME_SCHEMA_VERSION,
+                        "question_id": question.id,
+                        "question_title": question.title,
+                        "trace_index": trace_index,
+                        "iteration": int(trace.get("iteration", 0) or 0),
+                        "task_id": str(task_payload.get("task_id", "") or ""),
+                        "subsystem": str(trace.get("subsystem", "") or ""),
+                        "status": str(trace.get("status", "") or ""),
+                        "observation_index": observation_index,
+                        **dict(observation),
+                    }
+                )
             raw_tool_calls = (
                 trace.get("tool_calls", [])
                 if isinstance(trace.get("tool_calls", []), list)
@@ -16810,11 +16838,6 @@ def run_research_agent_runtime(
             for tool_call_index, tool_call in enumerate(raw_tool_calls):
                 if not isinstance(tool_call, Mapping):
                     continue
-                task_payload = (
-                    trace.get("task", {})
-                    if isinstance(trace.get("task", {}), Mapping)
-                    else {}
-                )
                 tool_call_rows.append(
                     {
                         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -16834,6 +16857,8 @@ def run_research_agent_runtime(
     _write_jsonl(traces_path, trace_rows)
     task_handoffs_path = out_dir / "runtime_task_handoffs.jsonl"
     _write_jsonl(task_handoffs_path, handoff_rows)
+    observations_path = out_dir / "runtime_observations.jsonl"
+    _write_jsonl(observations_path, observation_rows)
     tool_calls_path = out_dir / "runtime_tool_calls.jsonl"
     _write_jsonl(tool_calls_path, tool_call_rows)
     llm_topology_path = out_dir / "runtime_llm_topology.json"
@@ -16892,6 +16917,7 @@ def run_research_agent_runtime(
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
         "n_runtime_task_handoffs": len(handoff_rows),
+        "n_runtime_observations": len(observation_rows),
         "n_runtime_tool_calls": len(tool_call_rows),
         "status_counts": dict(sorted(status_counts.items())),
         "runtime_completion_summary": completion_summary,
@@ -17268,6 +17294,12 @@ def run_research_agent_runtime(
             "They preserve subsystem routing, artifact, and evidence references "
             "but are not statistical, simulation, generated-code, or proof evidence."
         ),
+        "runtime_observation_boundary": (
+            "Runtime observation rows are feedback and environment observations "
+            "from subsystem execution. They can guide later tasks and audits, "
+            "but they are not proof, simulation, generated-code, or verifier "
+            "evidence unless separately recorded in the evidence ledger."
+        ),
         "runtime_tool_call_boundary": (
             "Runtime tool-call rows are environment execution transcripts. "
             "They can support simulation, coding, retrieval, or prover feedback "
@@ -17279,6 +17311,7 @@ def run_research_agent_runtime(
             "runtime_progress_jsonl": str(progress_path),
             "runtime_traces_jsonl": str(traces_path),
             "runtime_task_handoffs_jsonl": str(task_handoffs_path),
+            "runtime_observations_jsonl": str(observations_path),
             "runtime_tool_calls_jsonl": str(tool_calls_path),
             "runtime_llm_topology_json": str(llm_topology_path),
             "per_question_results": [str(row["artifact_path"]) for row in results],

@@ -2656,6 +2656,47 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
+    clean_observation_payload = {
+        "n_runtime_trace_observation_rows": 2,
+        "n_runtime_observation_export_rows": 2,
+        "n_runtime_observation_export_missing_rows": 0,
+        "n_runtime_observation_export_unknown_rows": 0,
+        "n_runtime_observation_export_mismatched_rows": 0,
+        "runtime_observation_export_complete": True,
+        "runtime_observation_export_issues": [],
+    }
+    clean_observation_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            clean_observation_payload
+        )["rows"]
+    }
+    assert (
+        clean_observation_rows["runtime_observation_export_complete"]["passed"]
+        is True
+    )
+
+    observation_payload = dict(clean_observation_payload)
+    observation_payload.update(
+        {
+            "n_runtime_observation_export_rows": 1,
+            "n_runtime_observation_export_missing_rows": 1,
+            "runtime_observation_export_complete": False,
+            "runtime_observation_export_issues": [
+                {"issue": "trace_observation_missing_export_row"}
+            ],
+        }
+    )
+    observation_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(observation_payload)["rows"]
+    }
+    observation_row = observation_rows["runtime_observation_export_complete"]
+    assert observation_row["passed"] is False
+    assert "missing=1" in observation_row["evidence"]
+    assert "runtime_observations.jsonl" in observation_row["blocker"]
+    assert observation_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
     clean_tool_payload = {
         "n_runtime_trace_tool_call_rows": 2,
         "n_runtime_tool_call_export_rows": 2,
@@ -49823,6 +49864,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_learning_rows_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_task_handoffs_jsonl"]).exists()
+    assert Path(manifest["artifacts"]["runtime_observations_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_tool_calls_jsonl"]).exists()
     result_path = Path(manifest["artifacts"]["per_question_results"][0])
     result = json.loads(result_path.read_text(encoding="utf-8"))
@@ -49856,6 +49898,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert task_handoff_rows[0]["question_id"] == question.id
     assert task_handoff_rows[0]["project_id"] == result["blackboard"]["project_id"]
     assert task_handoff_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
+    runtime_observation_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_observations_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    expected_observations = sum(
+        len(row.get("observations", [])) for row in result["traces"]
+    )
+    assert expected_observations > 0
+    assert manifest["n_runtime_observations"] == len(runtime_observation_rows)
+    assert len(runtime_observation_rows) == expected_observations
+    assert runtime_observation_rows[0]["question_id"] == question.id
+    assert runtime_observation_rows[0]["observation_type"]
     runtime_tool_call_rows = [
         json.loads(line)
         for line in Path(
@@ -50608,6 +50665,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["runtime_task_handoff_ledger_complete"] is True
+    assert audit["runtime_observation_export_complete"] is True
+    assert audit["n_runtime_trace_observation_rows"] == expected_observations
+    assert audit["n_runtime_observation_export_rows"] == len(
+        runtime_observation_rows
+    )
+    assert audit["n_runtime_observation_export_missing_rows"] == 0
+    assert audit["n_runtime_observation_export_unknown_rows"] == 0
+    assert audit["n_runtime_observation_export_mismatched_rows"] == 0
     assert audit["runtime_tool_call_export_complete"] is True
     assert audit["n_runtime_trace_tool_call_rows"] == expected_tool_calls
     assert audit["n_runtime_tool_call_export_rows"] == len(runtime_tool_call_rows)
@@ -50665,6 +50730,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
+    assert scorecard_rows["runtime_observation_export_complete"]["passed"] is True
     assert scorecard_rows["runtime_tool_call_export_complete"]["passed"] is True
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
