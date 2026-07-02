@@ -10818,7 +10818,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "architect_research_path_control_propagated",
-            payload.get("runtime_research_path_control_propagated") is True,
+            _runtime_research_path_control_scorecard_passed(payload),
             (
                 "effective_policy="
                 f"{payload.get('effective_formal_verification_policy')} "
@@ -13152,6 +13152,31 @@ def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
         f"{summary.get('current_artifacts_missing_architect_control_ids')} "
         "subsystems="
         f"{summary.get('controlled_subsystems')}"
+    )
+
+
+def _runtime_research_path_control_scorecard_passed(payload: Mapping[str, Any]) -> bool:
+    if payload.get("runtime_research_path_control_propagated") is not True:
+        return False
+    summary = payload.get("runtime_research_path_execution_summary", {})
+    if not isinstance(summary, Mapping):
+        return False
+    n_current = _safe_int(summary.get("n_current_artifacts"))
+    n_controlled = _safe_int(summary.get("n_controlled_artifacts"))
+    n_with_contract = _safe_int(
+        summary.get("n_controlled_artifacts_with_evidence_contract")
+    )
+    return bool(
+        summary.get("path_control_propagated") is True
+        and n_current > 0
+        and n_current == n_controlled
+        and n_controlled == n_with_contract
+        and _safe_int(summary.get("n_current_artifacts_missing_architect_control"))
+        == 0
+        and _safe_int(summary.get("n_produced_artifact_ids_missing_from_blackboard"))
+        == 0
+        and _safe_int(summary.get("n_policy_mismatches")) == 0
+        and _safe_int(summary.get("n_path_mismatches")) == 0
     )
 
 

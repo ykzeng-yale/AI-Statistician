@@ -54336,8 +54336,13 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "effective_formal_verification_policy": "required",
         "effective_recommended_research_path": "proof_first",
         "runtime_research_path_execution_summary": {
+            "path_control_propagated": True,
+            "n_current_artifacts": 2,
             "n_controlled_artifacts": 2,
             "n_controlled_artifacts_with_evidence_contract": 2,
+            "n_current_artifacts_missing_architect_control": 0,
+            "current_artifacts_missing_architect_control_ids": [],
+            "n_produced_artifact_ids_missing_from_blackboard": 0,
             "n_policy_mismatches": 0,
             "n_path_mismatches": 0,
             "controlled_subsystems": ["RetrievalMemory", "TheoryDeveloper"],
@@ -54526,6 +54531,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload["n_theory_trace_alignment_contracts_with_unsupported_anchors"] = 0
     payload["runtime_research_path_control_propagated"] = False
     payload["runtime_research_path_execution_summary"] = {
+        "path_control_propagated": False,
         "n_current_artifacts": 3,
         "n_controlled_artifacts": 2,
         "n_controlled_artifacts_with_evidence_contract": 1,
@@ -54554,10 +54560,33 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["blocker"]
 
     payload["runtime_research_path_control_propagated"] = True
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["architect_research_path_control_propagated"]["passed"] is False
+    assert "current=3" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
+    assert "controlled=2" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
+
+    payload["runtime_research_path_execution_summary"] = {
+        "path_control_propagated": True,
+        "n_current_artifacts": 2,
+        "n_controlled_artifacts": 2,
+        "n_controlled_artifacts_with_evidence_contract": 2,
+        "n_current_artifacts_missing_architect_control": 0,
+        "current_artifacts_missing_architect_control_ids": [],
+        "n_produced_artifact_ids_missing_from_blackboard": 0,
+        "n_policy_mismatches": 0,
+        "n_path_mismatches": 0,
+        "controlled_subsystems": ["RetrievalMemory", "TheoryDeveloper"],
+    }
     payload["requested_recommended_research_path"] = "simulation_first"
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
+    assert rows["architect_research_path_control_propagated"]["passed"] is True
     assert rows[
         "research_path_selected_by_architect_not_manual_override"
     ]["passed"] is False
