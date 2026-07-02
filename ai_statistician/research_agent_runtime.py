@@ -3572,6 +3572,7 @@ class ResearchAgentRuntimeConfig:
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
+    simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
     recommended_research_path: str = ""
@@ -3726,6 +3727,7 @@ def _runtime_requested_evidence_contract(
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
+    simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
 ) -> dict[str, Any]:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     path = _normalized_recommended_research_path(
@@ -3771,6 +3773,14 @@ def _runtime_requested_evidence_contract(
         contract[
             "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
         ] = yield_after_attempts
+    simulation_yield_after_attempts = max(
+        0,
+        int(simulation_evaluator_generated_code_repair_yield_after_attempts or 0),
+    )
+    if capability_eval and simulation_yield_after_attempts > 0:
+        contract[
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
+        ] = simulation_yield_after_attempts
     return contract
 
 
@@ -3781,6 +3791,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
+    simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
 ) -> dict[str, Any]:
     payload = dict(context or {})
     requested_contract = _runtime_requested_evidence_contract(
@@ -3789,6 +3800,9 @@ def _runtime_architect_context_with_requested_evidence_contract(
         evaluation_mode=evaluation_mode,
         algorithm_engineer_generated_code_repair_yield_after_attempts=(
             algorithm_engineer_generated_code_repair_yield_after_attempts
+        ),
+        simulation_evaluator_generated_code_repair_yield_after_attempts=(
+            simulation_evaluator_generated_code_repair_yield_after_attempts
         ),
     )
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
@@ -3802,6 +3816,14 @@ def _runtime_architect_context_with_requested_evidence_contract(
         requested_contract[
             "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
         ] = yield_after_attempts
+    simulation_yield_after_attempts = max(
+        0,
+        int(simulation_evaluator_generated_code_repair_yield_after_attempts or 0),
+    )
+    if simulation_yield_after_attempts > 0:
+        requested_contract[
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
+        ] = simulation_yield_after_attempts
     payload["runtime_requested_evidence_contract"] = requested_contract
     return payload
 
@@ -6098,42 +6120,127 @@ class SimulationEvaluatorRuntimeSubsystem:
                 boundary=SIMULATION_NOT_PROOF_BOUNDARY,
                 failure_classification=generated_simulation_failure_classification,
             )
-            revision_context = dict(effective_context)
-            revision_context["previous_simulation_manifest_id"] = manifest_id
-            next_task = AgentTask(
-                task_id=f"simulation-revise:{question.id}:{stable_hash(feedback)[:8]}",
-                owner_subsystem="SimulationEvaluator",
-                objective=(
-                    "Repair the LLM-generated simulation stress-test draft using "
-                    "local sandbox diagnostics before downstream algorithm/formalization."
-                ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": packet_id,
-                    "architect_context": revision_context,
-                    "environment_feedback": feedback,
-                    "n_runs": n_runs,
-                    "seed": seed,
-                },
-                allowed_tools=("model_backend", "python", "filesystem_sandbox"),
-                expected_artifacts=_architect_expected_artifacts(
-                    context,
-                    "SimulationEvaluator",
-                    ("simulation_manifest", "implementation_gap_manifest"),
-                ),
-                acceptance_gate=_architect_acceptance_gate(
-                    context,
-                    "SimulationEvaluator",
-                    "generated simulation draft executes safely or is removed with an explicit blocker",
-                ),
-                stop_condition="repaired generated simulation feedback recorded",
+            yield_after_attempts = (
+                _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
+                    effective_context,
+                    feedback,
+                )
             )
+            repair_attempts_used = (
+                _runtime_simulation_evaluator_generated_code_repair_attempts_used(
+                    effective_context
+                )
+            )
+            if (
+                requires_generated_simulation_code
+                and yield_after_attempts > 0
+                and repair_attempts_used >= yield_after_attempts
+            ):
+                algorithm_sandbox_manifest_id = str(
+                    task.inputs.get("algorithm_sandbox_manifest_id", "") or ""
+                ).strip()
+                next_task = (
+                    _simulation_evaluator_repair_budget_yield_to_formalization_task(
+                        question=question,
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=manifest_id,
+                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                        architect_context=effective_context,
+                        simulation_feedback=feedback,
+                        failure_classification=(
+                            generated_simulation_failure_classification
+                        ),
+                        repair_attempts_used=repair_attempts_used,
+                        yield_after_attempts=yield_after_attempts,
+                    )
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "simulation_evaluator_repair_budget_yield_to_formalization"
+                        ),
+                        summary=(
+                            "SimulationEvaluator generated-code repair budget "
+                            "was exhausted; routing diagnostics to "
+                            "FormalizationEvaluator while keeping the generated "
+                            "simulation blocker open."
+                        ),
+                        payload={
+                            "simulation_manifest_id": manifest_id,
+                            "failure_classification": (
+                                generated_simulation_failure_classification
+                            ),
+                            "repair_attempts_used": repair_attempts_used,
+                            "yield_after_attempts": yield_after_attempts,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                simulation_rationale = (
+                    "Generated simulation sandbox did not satisfy the required "
+                    "generated-simulation evidence after the bounded repair "
+                    "budget; runtime is routing the blocker to "
+                    "FormalizationEvaluator so proof and formal-gap feedback are "
+                    "not starved."
+                )
+            else:
+                revision_context = dict(effective_context)
+                revision_context["previous_simulation_manifest_id"] = manifest_id
+                revision_context["runtime_feedback_loop"] = {
+                    **(
+                        dict(revision_context.get("runtime_feedback_loop", {}))
+                        if isinstance(
+                            revision_context.get("runtime_feedback_loop", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    "source_subsystem": "SimulationEvaluator",
+                    "handoff": "simulation_evaluator_generated_code_repair",
+                    "simulation_manifest_id": manifest_id,
+                    "simulation_evaluator_generated_code_repair_attempts_used": (
+                        repair_attempts_used + 1
+                    ),
+                    "simulation_evaluator_generated_code_repair_yield_after_attempts": (
+                        yield_after_attempts
+                    ),
+                }
+                next_task = AgentTask(
+                    task_id=f"simulation-revise:{question.id}:{stable_hash(feedback)[:8]}",
+                    owner_subsystem="SimulationEvaluator",
+                    objective=(
+                        "Repair the LLM-generated simulation stress-test draft using "
+                        "local sandbox diagnostics before downstream algorithm/formalization."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "theory_packet_id": packet_id,
+                        "architect_context": revision_context,
+                        "environment_feedback": feedback,
+                        "n_runs": n_runs,
+                        "seed": seed,
+                    },
+                    allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+                    expected_artifacts=_architect_expected_artifacts(
+                        context,
+                        "SimulationEvaluator",
+                        ("simulation_manifest", "implementation_gap_manifest"),
+                    ),
+                    acceptance_gate=_architect_acceptance_gate(
+                        context,
+                        "SimulationEvaluator",
+                        "generated simulation draft executes safely or is removed with an explicit blocker",
+                    ),
+                    stop_condition="repaired generated simulation feedback recorded",
+                )
+                simulation_rationale = (
+                    "Generated simulation sandbox produced no acceptable "
+                    "stress-test evidence; routing diagnostics back to "
+                    "SimulatorEngineer."
+                )
             return AgentStepResult(
                 status="REVISE",
-                rationale=(
-                    "Generated simulation sandbox produced no acceptable stress-test "
-                    "evidence; routing diagnostics back to SimulatorEngineer."
-                ),
+                rationale=simulation_rationale,
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 tool_calls=(
@@ -17159,6 +17266,9 @@ def run_research_agent_runtime(
             evaluation_mode=config.evaluation_mode,
             algorithm_engineer_generated_code_repair_yield_after_attempts=(
                 config.algorithm_engineer_generated_code_repair_yield_after_attempts
+            ),
+            simulation_evaluator_generated_code_repair_yield_after_attempts=(
+                config.simulation_evaluator_generated_code_repair_yield_after_attempts
             ),
         )
     )
@@ -35954,6 +36064,19 @@ def _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
     )
 
 
+def _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> int:
+    return _runtime_positive_int_from_contract_sources(
+        (context, environment_feedback),
+        key=(
+            "capability_eval_simulation_evaluator_generated_code_repair_"
+            "yield_after_attempts"
+        ),
+    )
+
+
 def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     context: Mapping[str, Any],
 ) -> int:
@@ -35963,6 +36086,23 @@ def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     for key in (
         "algorithm_engineer_generated_code_repair_attempts_used",
         "algorithm_engineer_generated_code_repair_turns",
+    ):
+        try:
+            return max(0, int(loop.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    return 0
+
+
+def _runtime_simulation_evaluator_generated_code_repair_attempts_used(
+    context: Mapping[str, Any],
+) -> int:
+    loop = context.get("runtime_feedback_loop", {})
+    if not isinstance(loop, Mapping):
+        return 0
+    for key in (
+        "simulation_evaluator_generated_code_repair_attempts_used",
+        "simulation_evaluator_generated_code_repair_turns",
     ):
         try:
             return max(0, int(loop.get(key, 0) or 0))
@@ -63822,6 +63962,104 @@ def _algorithm_engineer_repair_budget_yield_to_formalization_task(
         stop_condition=(
             "formalization/proof feedback recorded with the algorithm blocker "
             "kept open"
+        ),
+    )
+
+
+def _simulation_evaluator_repair_budget_yield_to_formalization_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    architect_context: Mapping[str, Any],
+    simulation_feedback: Mapping[str, Any],
+    failure_classification: str,
+    repair_attempts_used: int,
+    yield_after_attempts: int,
+) -> AgentTask:
+    feedback = {
+        "feedback_type": "simulation_evaluator_repair_budget_yield_feedback",
+        "source_feedback_type": str(simulation_feedback.get("feedback_type", "")),
+        "failure_classification": failure_classification,
+        "simulation_manifest_id": simulation_manifest_id,
+        "simulation_repair_attempts_used": int(repair_attempts_used),
+        "simulation_repair_yield_after_attempts": int(yield_after_attempts),
+        "generated_simulation_feedback": dict(simulation_feedback),
+        "target_behavior": (
+            "Run formalization/proof-gap evaluation with the generated simulation "
+            "blocker still open, so proof-state, formal-gap planner, and Lean "
+            "feedback are not starved by a bounded simulation-code repair loop."
+        ),
+        "acceptance_gate": (
+            "FormalizationEvaluator records formal targets, proof-state or Lean "
+            "feedback, and open gaps without treating the failed generated "
+            "simulation manifest as passing simulation evidence."
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_simulation_code": True,
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": int(
+                yield_after_attempts
+            ),
+        },
+        "proof_evidence_status": "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
+        "execution_evidence_status": (
+            "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
+        ),
+        "boundary": (
+            "This handoff is scheduling and diagnostic feedback only. It does "
+            "not prove a theorem, validate the failed generated simulation, or "
+            "close any formal gap."
+        ),
+    }
+    context = dict(architect_context)
+    context["previous_simulation_manifest_id"] = simulation_manifest_id
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "handoff": "simulation_evaluator_repair_budget_yield_to_formalization",
+        "simulation_manifest_id": simulation_manifest_id,
+        "simulation_evaluator_generated_code_repair_attempts_used": int(
+            repair_attempts_used
+        ),
+        "simulation_evaluator_generated_code_repair_yield_after_attempts": int(
+            yield_after_attempts
+        ),
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem="FormalizationEvaluator",
+    )
+    task = _formalization_task(
+        question=question,
+        packet_id=theory_packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        architect_context=context,
+    )
+    inputs = dict(task.inputs)
+    inputs["environment_feedback"] = feedback
+    return replace(
+        task,
+        task_id=(
+            f"formalize-simulation-yield:{question.id}:"
+            f"{stable_hash([simulation_manifest_id, repair_attempts_used])[:8]}"
+        ),
+        objective=(
+            "Run formalization/proof feedback after the bounded "
+            "SimulationEvaluator generated-code repair budget is exhausted."
+        ),
+        inputs=inputs,
+        acceptance_gate=feedback["acceptance_gate"],
+        stop_condition=(
+            "formalization/proof feedback recorded with the generated simulation "
+            "blocker kept open"
         ),
     )
 

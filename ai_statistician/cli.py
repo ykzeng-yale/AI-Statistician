@@ -10000,6 +10000,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
+            simulation_evaluator_generated_code_repair_yield_after_attempts=int(
+                getattr(
+                    args,
+                    "simulation_evaluator_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            ),
             resume_through_architect=resume_through_architect,
             formal_verification_policy=str(
                 getattr(args, "formal_verification_policy", "optional") or "optional"
@@ -11019,6 +11027,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             int(
                 getattr(
                     args,
+                    "simulation_evaluator_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+        if (
+            int(
+                getattr(
+                    args,
                     "formalization_gap_planner_live_max_handoffs",
                     1,
                 )
@@ -11475,6 +11495,22 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded "
                 "AlgorithmEngineer generated-code repair scheduling; set "
                 "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "simulation_evaluator_generated_code_repair_yield_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded "
+                "SimulationEvaluator generated-simulation repair scheduling; set "
+                "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
             )
         if (
             int(
@@ -18206,6 +18242,17 @@ def build_parser() -> argparse.ArgumentParser:
             "in capability-eval, route unresolved AlgorithmEngineer generated-code "
             "diagnostics to FormalizationEvaluator after this many self-repair "
             "attempts; 0 keeps the legacy unbounded self-repair routing"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--simulation-evaluator-generated-code-repair-yield-after-attempts",
+        type=int,
+        default=0,
+        help=(
+            "in capability-eval, route unresolved SimulationEvaluator "
+            "generated-simulation diagnostics to FormalizationEvaluator after "
+            "this many self-repair attempts; 0 keeps the legacy unbounded "
+            "self-repair routing"
         ),
     )
     research_agent_runtime.add_argument(

@@ -11304,12 +11304,19 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
         recommended_research_path="simulation_first",
         evaluation_mode="capability_eval",
         algorithm_engineer_generated_code_repair_yield_after_attempts=1,
+        simulation_evaluator_generated_code_repair_yield_after_attempts=1,
     )
     merged_contract = merged_context["runtime_requested_evidence_contract"]
     assert merged_contract["existing_context_flag"] == "keep"
     assert (
         merged_contract[
             "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
+        ]
+        == 1
+    )
+    assert (
+        merged_contract[
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
         ]
         == 1
     )
@@ -25396,6 +25403,162 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
         and row["failure_classification"]
         == "generated_simulation_sandbox_metric_gate_failed"
         for row in learning_rows
+    )
+
+
+def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-yield"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {
+                    "aim": "force generated simulation yield after repeated failure"
+                },
+            }
+        },
+    )
+
+    class AlwaysFailingSimulationEngineer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            return {
+                "packet_id": (
+                    "simulation_engineer_proposal:yield_failure:"
+                    + str(self.calls)
+                ),
+                "simulation_targets": [
+                    {
+                        "procedure_id": "split_conformal_interval",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260623,
+                },
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "coverage_stress_yield",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': 0.0,\n"
+                            "        'mean_width': 1.0,\n"
+                            "        'replicates': max(5, int(replicates)),\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    class RecordingFormalizationSubsystem:
+        name = "FormalizationEvaluator"
+
+        def __init__(self) -> None:
+            self.tasks: list[AgentTask] = []
+
+        def run(
+            self,
+            task: AgentTask,
+            _blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.tasks.append(task)
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="recorded formalization work after simulation yield",
+            )
+
+    proposal_agent = AlwaysFailingSimulationEngineer()
+    formalizer = RecordingFormalizationSubsystem()
+    runtime = AgentRuntime(
+        blackboard=blackboard,
+        subsystems={
+            "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
+                proposal_agent=proposal_agent,
+                sandbox_root=tmp_path / "generated_simulation_sandbox",
+            ),
+            "FormalizationEvaluator": formalizer,
+        },
+    )
+    initial_task = AgentTask(
+        task_id="simulation:integrated-generated-yield",
+        owner_subsystem="SimulationEvaluator",
+        objective="Yield unresolved generated simulation diagnostics to formalization.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 12,
+            "seed": 20260623,
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+                },
+            },
+        },
+        expected_artifacts=("simulation_manifest",),
+    )
+
+    result = runtime.run(initial_task, max_iterations=3)
+
+    assert result.status == "ACCEPTED"
+    assert proposal_agent.calls == 2
+    assert result.traces[0].status == "REVISE"
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.traces[1].status == "REVISE"
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
+    assert "bounded repair budget" in result.traces[1].rationale
+    assert result.traces[2].subsystem == "FormalizationEvaluator"
+    assert len(formalizer.tasks) == 1
+
+    yielded_task = formalizer.tasks[0]
+    feedback = yielded_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "simulation_evaluator_repair_budget_yield_feedback"
+    )
+    assert feedback["failure_classification"] == (
+        "generated_simulation_sandbox_metric_gate_failed"
+    )
+    assert feedback["simulation_repair_attempts_used"] == 1
+    assert feedback["simulation_repair_yield_after_attempts"] == 1
+    assert feedback["execution_evidence_status"] == (
+        "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
+    )
+    assert feedback["proof_evidence_status"] == (
+        "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE"
+    )
+    assert (
+        yielded_task.inputs["architect_context"]["runtime_feedback_loop"][
+            "handoff"
+        ]
+        == "simulation_evaluator_repair_budget_yield_to_formalization"
     )
 
 
@@ -61368,6 +61531,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalization_gap_planner_live_max_route_requests_per_handoff=0,
         formalization_gap_planner_live_provider="same",
         formalization_gap_planner_live_timeout_seconds=0.0,
+        simulation_evaluator_generated_code_repair_yield_after_attempts=0,
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
         coding_agent_repair_eval_provider="same",
@@ -61590,6 +61754,10 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
         == 1
     )
+    assert (
+        args.simulation_evaluator_generated_code_repair_yield_after_attempts
+        == 1
+    )
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
@@ -61630,6 +61798,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         "capability eval preset full-live requires bounded "
         "AlgorithmEngineer generated-code repair scheduling; set "
         "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.algorithm_engineer_generated_code_repair_yield_after_attempts = 1
+    args.simulation_evaluator_generated_code_repair_yield_after_attempts = 0
+    assert (
+        "capability eval preset full-live requires bounded "
+        "SimulationEvaluator generated-simulation repair scheduling; set "
+        "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 
