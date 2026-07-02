@@ -899,6 +899,131 @@ def _runtime_progress_export_key(
     )
 
 
+def _runtime_learning_rows_contract_audit_summary(
+    *,
+    learning_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    n_missing_learning_task = 0
+    n_missing_routing = 0
+    n_missing_boundary = 0
+    n_exact_duplicate_rows = 0
+    seen_hashes: set[str] = set()
+    learning_tasks: Counter[str] = Counter()
+    for row_index, row in enumerate(learning_rows):
+        if not isinstance(row, Mapping):
+            _append_handoff_issue(
+                issues,
+                issue="runtime_learning_row_not_object",
+                trace_index=row_index,
+                detail="runtime_learning_rows.jsonl row is not an object",
+            )
+            continue
+        try:
+            row_hash = stable_hash(
+                json.loads(json.dumps(row, sort_keys=True, default=str))
+            )
+        except Exception:
+            row_hash = stable_hash(str(row))
+        if row_hash in seen_hashes:
+            n_exact_duplicate_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_learning_row_exact_duplicate",
+                trace_index=row_index,
+                detail="runtime_learning_rows.jsonl repeats an identical row",
+            )
+        seen_hashes.add(row_hash)
+        learning_task = str(row.get("learning_task", "") or "").strip()
+        if learning_task:
+            learning_tasks[learning_task] += 1
+        else:
+            n_missing_learning_task += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_learning_row_missing_learning_task",
+                trace_index=row_index,
+                detail="runtime learning row has no learning_task",
+            )
+        routing_values = [
+            row.get("next_owner_subsystem", ""),
+            row.get("next_owner_agent", ""),
+            row.get("owner_subsystem", ""),
+            row.get("target_owner_subsystem", ""),
+            row.get("next_action", ""),
+            row.get("target_behavior", ""),
+            row.get("acceptance_gate", ""),
+        ]
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        routing_values.extend(
+            [
+                input_summary.get("next_owner_subsystem", ""),
+                input_summary.get("next_owner_agent", ""),
+                input_summary.get("owner_subsystem", ""),
+                input_summary.get("target_behavior", ""),
+                input_summary.get("agenda_id", ""),
+            ]
+        )
+        if not any(str(value or "").strip() for value in routing_values):
+            n_missing_routing += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_learning_row_missing_routing_contract",
+                trace_index=row_index,
+                detail=(
+                    "runtime learning row has no next owner, next action, "
+                    "target behavior, acceptance gate, or agenda id"
+                ),
+            )
+        boundary_values = [
+            row.get("proof_evidence_status", ""),
+            row.get("proof_evidence_boundary", ""),
+            row.get("boundary", ""),
+            row.get("memory_boundary", ""),
+            row.get("routing_boundary", ""),
+            row.get("evidence_boundary", ""),
+            row.get("feedback_boundary", ""),
+        ]
+        if not any(str(value or "").strip() for value in boundary_values):
+            n_missing_boundary += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_learning_row_missing_evidence_boundary",
+                trace_index=row_index,
+                detail=(
+                    "runtime learning row has no proof_evidence_status, "
+                    "proof_evidence_boundary, or equivalent boundary field"
+                ),
+            )
+    complete = (
+        n_missing_learning_task == 0
+        and n_missing_routing == 0
+        and n_missing_boundary == 0
+        and n_exact_duplicate_rows == 0
+    )
+    return {
+        "artifact_kind": "RuntimeLearningRowsContractAudit",
+        "runtime_learning_rows_contract_complete": complete,
+        "n_runtime_learning_rows_contract_checked": len(learning_rows),
+        "n_runtime_learning_rows_missing_learning_task": n_missing_learning_task,
+        "n_runtime_learning_rows_missing_routing_contract": n_missing_routing,
+        "n_runtime_learning_rows_missing_evidence_boundary": n_missing_boundary,
+        "n_runtime_learning_rows_exact_duplicate_rows": n_exact_duplicate_rows,
+        "runtime_learning_row_learning_tasks": dict(sorted(learning_tasks.items())),
+        "runtime_learning_rows_contract_issues": issues,
+        "boundary": (
+            "Runtime learning rows are memory and repair-routing records. "
+            "They may guide later LLM/coding/prover work, but they are not proof, "
+            "simulation, generated-code, or verifier evidence unless a dedicated "
+            "evidence ledger row and verifier gate says so."
+        ),
+    }
+
+
 def _runtime_observation_export_audit_summary(
     *,
     result_paths: list[Path],
@@ -2211,6 +2336,11 @@ def audit_research_agent_runtime(
             agenda_rows=agenda_rows,
         )
     )
+    runtime_learning_rows_contract_summary = (
+        _runtime_learning_rows_contract_audit_summary(
+            learning_rows=learning_rows,
+        )
+    )
     runtime_progress_export_summary = _runtime_progress_export_audit_summary(
         result_paths=result_paths,
         progress_rows=progress_rows,
@@ -2994,6 +3124,49 @@ def audit_research_agent_runtime(
         ),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
+        "runtime_learning_rows_contract_audit_summary": (
+            runtime_learning_rows_contract_summary
+        ),
+        "runtime_learning_rows_contract_complete": bool(
+            runtime_learning_rows_contract_summary[
+                "runtime_learning_rows_contract_complete"
+            ]
+        ),
+        "n_runtime_learning_rows_contract_checked": int(
+            runtime_learning_rows_contract_summary[
+                "n_runtime_learning_rows_contract_checked"
+            ]
+        ),
+        "n_runtime_learning_rows_missing_learning_task": int(
+            runtime_learning_rows_contract_summary[
+                "n_runtime_learning_rows_missing_learning_task"
+            ]
+        ),
+        "n_runtime_learning_rows_missing_routing_contract": int(
+            runtime_learning_rows_contract_summary[
+                "n_runtime_learning_rows_missing_routing_contract"
+            ]
+        ),
+        "n_runtime_learning_rows_missing_evidence_boundary": int(
+            runtime_learning_rows_contract_summary[
+                "n_runtime_learning_rows_missing_evidence_boundary"
+            ]
+        ),
+        "n_runtime_learning_rows_exact_duplicate_rows": int(
+            runtime_learning_rows_contract_summary[
+                "n_runtime_learning_rows_exact_duplicate_rows"
+            ]
+        ),
+        "runtime_learning_row_learning_tasks": dict(
+            runtime_learning_rows_contract_summary[
+                "runtime_learning_row_learning_tasks"
+            ]
+        ),
+        "runtime_learning_rows_contract_issues": list(
+            runtime_learning_rows_contract_summary[
+                "runtime_learning_rows_contract_issues"
+            ]
+        ),
         "n_runtime_pending_task_memory_rows": len(runtime_pending_task_memory_rows),
         "n_runtime_handoff_artifact_missing_feedback_rows": int(
             runtime_handoff_artifact_missing_summary[
@@ -8845,6 +9018,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
+    raw_learning_rows_contract_complete = payload.get(
+        "runtime_learning_rows_contract_complete"
+    )
+    runtime_learning_rows_contract_complete = (
+        True
+        if raw_learning_rows_contract_complete is None
+        else raw_learning_rows_contract_complete is True
+    )
     legacy_progress_observable = (
         int(payload.get("n_runtime_progress_events", 0) or 0)
         >= 2 * int(payload.get("n_runtime_traces", 0) or 0)
@@ -10319,6 +10500,48 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "runtime progress JSONL did not record trace-matched start/"
                 "finish events for every subsystem iteration"
+            ),
+        ),
+        _scorecard_row(
+            "runtime_learning_rows_contract_complete",
+            runtime_learning_rows_contract_complete,
+            (
+                "learning_rows="
+                f"{payload.get('n_runtime_learning_rows')} "
+                "checked="
+                f"{payload.get('n_runtime_learning_rows_contract_checked')} "
+                "missing_task="
+                f"{payload.get('n_runtime_learning_rows_missing_learning_task')} "
+                "missing_routing="
+                f"{payload.get('n_runtime_learning_rows_missing_routing_contract')} "
+                "missing_boundary="
+                f"{payload.get('n_runtime_learning_rows_missing_evidence_boundary')} "
+                "duplicates="
+                f"{payload.get('n_runtime_learning_rows_exact_duplicate_rows')} "
+                "tasks="
+                f"{payload.get('runtime_learning_row_learning_tasks')} "
+                "issues="
+                f"{payload.get('runtime_learning_rows_contract_issues')}"
+            ),
+            (
+                "runtime learning rows were not preserved as bounded "
+                "repair-memory records with learning_task, routing/target "
+                "behavior, and explicit non-proof evidence boundaries"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Regenerate runtime_learning_rows.jsonl so every row has "
+                    "a learning_task, a next owner/action or target behavior, "
+                    "and proof_evidence_status/proof_evidence_boundary or an "
+                    "equivalent boundary field."
+                ),
+                success_metric=(
+                    "runtime_learning_rows_contract_complete=true with zero "
+                    "missing learning_task, routing, boundary, or exact "
+                    "duplicate rows"
+                ),
             ),
         ),
         _scorecard_row(
@@ -11894,6 +12117,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_runtime_tool_call_export_rows')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
+        "- runtime learning rows contract complete / missing boundary: "
+        f"{payload.get('runtime_learning_rows_contract_complete')} / "
+        f"{payload.get('n_runtime_learning_rows_missing_evidence_boundary')}",
         "",
         "## Capability Routing",
     ]

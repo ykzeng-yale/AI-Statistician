@@ -2696,6 +2696,53 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "mismatched=1" in progress_row["evidence"]
     assert "trace-matched start/finish" in progress_row["blocker"]
 
+    clean_learning_payload = {
+        "n_runtime_learning_rows": 2,
+        "n_runtime_learning_rows_contract_checked": 2,
+        "n_runtime_learning_rows_missing_learning_task": 0,
+        "n_runtime_learning_rows_missing_routing_contract": 0,
+        "n_runtime_learning_rows_missing_evidence_boundary": 0,
+        "n_runtime_learning_rows_exact_duplicate_rows": 0,
+        "runtime_learning_rows_contract_complete": True,
+        "runtime_learning_row_learning_tasks": {
+            "algorithm_sandbox_execution_feedback": 1,
+            "next_action_routing": 1,
+        },
+        "runtime_learning_rows_contract_issues": [],
+    }
+    clean_learning_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_learning_payload)["rows"]
+    }
+    assert (
+        clean_learning_rows["runtime_learning_rows_contract_complete"]["passed"]
+        is True
+    )
+
+    learning_payload = dict(clean_learning_payload)
+    learning_payload.update(
+        {
+            "n_runtime_learning_rows_missing_routing_contract": 1,
+            "n_runtime_learning_rows_missing_evidence_boundary": 1,
+            "n_runtime_learning_rows_exact_duplicate_rows": 1,
+            "runtime_learning_rows_contract_complete": False,
+            "runtime_learning_rows_contract_issues": [
+                {"issue": "runtime_learning_row_missing_evidence_boundary"}
+            ],
+        }
+    )
+    learning_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(learning_payload)["rows"]
+    }
+    learning_row = learning_rows["runtime_learning_rows_contract_complete"]
+    assert learning_row["passed"] is False
+    assert "missing_routing=1" in learning_row["evidence"]
+    assert "missing_boundary=1" in learning_row["evidence"]
+    assert "duplicates=1" in learning_row["evidence"]
+    assert "runtime learning rows" in learning_row["blocker"]
+    assert learning_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
     clean_evidence_payload = {
         "n_runtime_blackboard_evidence_ledger_rows": 2,
         "n_runtime_evidence_ledger_export_rows": 2,
@@ -50723,6 +50770,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ).read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    assert runtime_learning_rows
+    assert all(row.get("learning_task") for row in runtime_learning_rows)
     runtime_gap_planner_learning = next(
         row
         for row in runtime_learning_rows
@@ -50782,6 +50831,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_runtime_progress_missing_finish_rows"] == 0
     assert audit["n_runtime_progress_unknown_start_finish_rows"] == 0
     assert audit["n_runtime_progress_mismatched_start_finish_rows"] == 0
+    assert audit["runtime_learning_rows_contract_complete"] is True
+    assert audit["n_runtime_learning_rows_contract_checked"] == len(
+        runtime_learning_rows
+    )
+    assert audit["n_runtime_learning_rows_missing_learning_task"] == 0
+    assert audit["n_runtime_learning_rows_missing_routing_contract"] == 0
+    assert audit["n_runtime_learning_rows_missing_evidence_boundary"] == 0
+    assert audit["n_runtime_learning_rows_exact_duplicate_rows"] == 0
     assert audit["runtime_evidence_ledger_export_complete"] is True
     assert (
         audit["n_runtime_blackboard_evidence_ledger_rows"]
@@ -50865,6 +50922,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["runtime_progress_observable"]["passed"] is True
+    assert (
+        scorecard_rows["runtime_learning_rows_contract_complete"]["passed"]
+        is True
+    )
     assert (
         scorecard_rows["runtime_evidence_ledger_export_complete"]["passed"]
         is True

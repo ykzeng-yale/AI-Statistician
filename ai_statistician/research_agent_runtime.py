@@ -49306,6 +49306,8 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
 def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
     learning_task = str(normalized.get("learning_task", "") or "")
+    normalized.setdefault("schema_version", RUNTIME_SCHEMA_VERSION)
+    normalized.setdefault("artifact_kind", "RuntimeLearningRow")
     target_theorem_name = str(normalized.get("target_theorem_name", "") or "")
     input_summary = normalized.get("input_summary", {})
     if not target_theorem_name and isinstance(input_summary, Mapping):
@@ -49334,6 +49336,45 @@ def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[s
         normalized["target_theorem_name"] = target_theorem_name
     if target_ids and not normalized.get("target_ids"):
         normalized["target_ids"] = target_ids
+    input_summary_boundary = ""
+    if isinstance(input_summary, Mapping):
+        input_summary_boundary = str(
+            input_summary.get("proof_boundary", "")
+            or input_summary.get("proof_evidence_boundary", "")
+            or input_summary.get("boundary", "")
+            or ""
+        ).strip()
+    default_boundary = (
+        input_summary_boundary
+        or "Runtime learning rows are repair and routing memory for later "
+        "LLM/coding/prover work. They are not proof, simulation, generated-code, "
+        "or verifier evidence unless separately recorded in the evidence ledger "
+        "with a dedicated verifier gate."
+    )
+    if not str(normalized.get("proof_evidence_status", "") or "").strip():
+        normalized["proof_evidence_status"] = (
+            "RUNTIME_NEXT_ACTION_LEARNING_NOT_PROOF_EVIDENCE"
+            if learning_task
+            in {"next_action_routing", "generated_next_action_routing"}
+            else "RETRIEVAL_CONTEXT_LEARNING_NOT_PROOF_EVIDENCE"
+            if learning_task == "retrieval_to_theory_context"
+            else "CRITIC_FEEDBACK_LEARNING_NOT_PROOF_EVIDENCE"
+            if learning_task == "simulation_algorithm_formalization_feedback"
+            else "RUNTIME_LEARNING_ROW_NOT_PROOF_EVIDENCE"
+        )
+    if not str(normalized.get("proof_evidence_boundary", "") or "").strip():
+        normalized["proof_evidence_boundary"] = default_boundary
+    if not any(
+        str(normalized.get(key, "") or "").strip()
+        for key in (
+            "boundary",
+            "memory_boundary",
+            "routing_boundary",
+            "evidence_boundary",
+            "feedback_boundary",
+        )
+    ):
+        normalized["boundary"] = default_boundary
     return normalized
 
 
