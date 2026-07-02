@@ -12,6 +12,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -20,6 +21,9 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
+    PROMPT_CONTEXT_MAX_DECLARATION_ROWS,
+    PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS,
+    PROMPT_CONTEXT_PROJECTION_KIND,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -2286,6 +2290,104 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "verified_latest_cost_tier_api_ids must match current Claude tier policy"
         in validate_llm_route_planner_request(stale_source_evidence_request)
     )
+
+
+def test_llm_route_planner_prompt_uses_compact_projection_for_large_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_compact_projection"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    payload = json.loads(input_json.read_text(encoding="utf-8"))
+    route = payload["routes"][0]
+    route["source_refs"] = [
+        f"synthetic_source_{index:03d}" for index in range(80)
+    ]
+    route["source_snippets"] = [
+        {
+            "source_ref": f"synthetic_source_{index:03d}",
+            "claim": f"Claim {index} supports a route primitive.",
+            "excerpt": " ".join(
+                [
+                    f"long excerpt block {index}",
+                    "with repeated source detail for prompt-budget stress",
+                ]
+                * 40
+            ),
+            "target_primitives": [f"synthetic_primitive_{index:03d}"],
+            "supported_target_primitives": [f"synthetic_primitive_{index:03d}"],
+        }
+        for index in range(80)
+    ]
+    route["primitives"] = [
+        {
+            "primitive": f"synthetic_primitive_{index:03d}",
+            "coverage_status": "exact_exists"
+            if index % 3 == 0
+            else "bridge_needed",
+            "candidate_declarations": [
+                f"Probability.syntheticDeclaration{index:03d}"
+            ],
+            "candidate_declaration_rows": [
+                {
+                    "declaration": f"Probability.syntheticDeclaration{index:03d}",
+                    "target_prover_family": "lean4",
+                    "source_field": "available_formal_declaration_rows",
+                    "target_primitives": [f"synthetic_primitive_{index:03d}"],
+                    "supported_target_primitives": [
+                        f"synthetic_primitive_{index:03d}"
+                    ],
+                }
+            ],
+            "source_refs": [f"synthetic_source_{index:03d}"],
+            "source_snippets": [route["source_snippets"][index]],
+        }
+        for index in range(80)
+    ]
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    staged = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model_tier="auto",
+        max_estimated_prompt_input_tokens=60000,
+    )
+
+    assert staged["n_request_packets"] == 1
+    assert staged["n_prompt_token_budget_preflight_blocked"] == 0
+    request = staged["request_packets"][0]
+    full_context = request["context_packet"]
+    prompt_context = request["prompt_context_packet"]
+    projection = request["prompt_context_projection"]
+    assert prompt_context["context_packet_kind"] == PROMPT_CONTEXT_PROJECTION_KIND
+    assert prompt_context["prompt_context_projection"]["projection_kind"] == (
+        PROMPT_CONTEXT_PROJECTION_KIND
+    )
+    assert projection["raw_available_source_snippet_count"] > (
+        projection["prompt_available_source_snippet_count"]
+    )
+    assert projection["raw_available_formal_declaration_row_count"] > (
+        projection["prompt_available_formal_declaration_row_count"]
+    )
+    assert len(full_context["available_source_snippets"]) > (
+        PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS
+    )
+    assert len(prompt_context["available_source_snippets"]) == (
+        PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS
+    )
+    assert len(full_context["available_formal_declaration_rows"]) >= 80
+    assert len(prompt_context["available_formal_declaration_rows"]) == (
+        PROMPT_CONTEXT_MAX_DECLARATION_ROWS
+    )
+    assert "full value in request_packet" in request["prompt_messages"]["user"]
+    assert len(request["prompt_messages"]["user"]) < len(
+        json.dumps(full_context, default=str)
+    )
+    assert staged["estimated_prompt_input_tokens"] < 60000
+    assert validate_llm_route_planner_request(request) == []
 
 
 def test_llm_route_planner_caps_route_request_packets_without_dropping_input_count() -> None:
@@ -6696,6 +6798,54 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     assert primitive_source_ref in row["source_refs"]
 
 
+def test_llm_route_planner_accepts_batched_residual_interpretation_indices() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_residual_batch_accept"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    residual_source_ref = "paper:tie-side-condition"
+    primitive_source_ref = "paper:rank-primitive-route"
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].extend(
+        [residual_source_ref, primitive_source_ref]
+    )
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["standalone_route"]["primitives"][1]["source_refs"] = [
+        primitive_source_ref
+    ]
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "batch: proof-state finite tie-breaking",
+            "covered_residual_goal_indices": [0],
+            "interpretation": "The proof-state residual requires deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": [residual_source_ref],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    assert not any("not present in request residual_goals" in error for error in row["errors"])
+    assert row["residual_interpretations"][0]["covered_residual_goal_indices"] == [0]
+
+
 def test_llm_route_planner_rejects_residual_repair_without_target_primitive() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_without_target_primitive"
@@ -7344,6 +7494,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "type": "array",
         "items": {"type": "string"},
     }
+    assert residual_schema["properties"]["covered_residual_goals"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    assert residual_schema["properties"]["covered_residual_goal_indices"] == {
+        "type": "array",
+        "items": {"type": "integer", "minimum": 0},
+    }
     search_schema = response_payload_schema["properties"]["search_requests"]["items"]
     assert search_schema["properties"]["target_primitives"] == {
         "type": "array",
@@ -7534,7 +7692,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["total_provider_input_tokens"] == 0
     assert payload["total_provider_output_tokens"] == 0
     assert payload["total_provider_total_tokens"] == 0
-    assert payload["max_tokens"] == 9000
+    assert payload["max_tokens"] == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     assert payload["temperature"] == 0.1
     assert payload["max_estimated_prompt_input_tokens"] == 0
     assert payload["n_prompt_token_budget_rows"] == payload["n_request_packets"] == 1
@@ -7548,9 +7706,13 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert prompt_token_budget_row["provider_name"] == "static"
     assert prompt_token_budget_row["model_tier"] == "sonnet"
     assert prompt_token_budget_row["estimated_input_tokens"] > 0
-    assert prompt_token_budget_row["max_output_tokens"] == 9000
+    assert (
+        prompt_token_budget_row["max_output_tokens"]
+        == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
+    )
     assert prompt_token_budget_row["estimated_total_token_budget"] == (
-        prompt_token_budget_row["estimated_input_tokens"] + 9000
+        prompt_token_budget_row["estimated_input_tokens"]
+        + LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     )
     assert "not provider billing records" in prompt_token_budget_row["budget_boundary"]
     assert payload["prompt_token_budget_summary"]["row_count"] == 1
@@ -7563,9 +7725,13 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["estimated_prompt_input_tokens"] == prompt_token_budget_row[
         "estimated_input_tokens"
     ]
-    assert payload["estimated_prompt_max_output_tokens"] == 9000
+    assert (
+        payload["estimated_prompt_max_output_tokens"]
+        == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
+    )
     assert payload["estimated_prompt_total_token_budget"] == (
-        payload["estimated_prompt_input_tokens"] + 9000
+        payload["estimated_prompt_input_tokens"]
+        + LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     )
     prompt_token_budget_jsonl = (
         out_dir
@@ -12356,7 +12522,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     )
     request = captured["request"]
     assert request.model == "claude-sonnet-4-6"
-    assert request.max_tokens == 9000
+    assert request.max_tokens == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     assert request.temperature == 0.1
     assert "LLM route planner" in request.system_prompt
     assert "required_output_contract" in request.user_prompt
@@ -12459,6 +12625,44 @@ def test_llm_route_planner_records_provider_failure_as_rejected_row() -> None:
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "- Provider failures: 1" in report
+
+
+def test_llm_route_planner_does_not_repair_retry_provider_exceptions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_provider_failure_no_retry"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    calls: list[object] = []
+
+    class FailingAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            raise TimeoutError("simulated Anthropic timeout")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FailingAnthropicBackend(),
+        max_repair_attempts=1,
+    )
+
+    assert len(calls) == 1
+    assert not payload["all_ok"]
+    assert payload["n_provider_failures"] == 1
+    assert payload["n_generated_response_repair_attempts"] == 0
+    row = payload["rows"][0]
+    assert row["provider_failure"] is True
+    assert row["repair_attempts"] == 0
+    assert row["repair_error_history"][0]["provider_exception_not_repaired"] is True
+    assert row["repair_attempt_ledger"][0]["next_repair_attempt"] == ""
+    assert row["generator_metadata"]["provider_exception_not_repaired"] is True
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

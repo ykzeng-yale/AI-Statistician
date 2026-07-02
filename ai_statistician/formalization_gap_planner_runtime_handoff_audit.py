@@ -261,7 +261,7 @@ def audit_formalization_gap_planner_runtime_handoffs(
                     -1,
                 )
             )
-            == 0
+            > 0
         ),
         "n_llm_prompt_prompt_budget_preflight_blocked": sum(
             int(
@@ -694,6 +694,10 @@ def _audit_handoff_row(
     prompt_cli = str(handoff.get("llm_route_planner_prompt_cli", ""))
     live_cli = str(handoff.get("llm_route_planner_live_cli", ""))
     reuse_smoke_cli = str(handoff.get("reuse_smoke_cli", ""))
+    prompt_budget_cap = _cli_int_arg(
+        prompt_cli,
+        "--max-estimated-prompt-input-tokens",
+    )
     component_resource_registry_cli = str(
         handoff.get("component_resource_registry_cli", "")
     )
@@ -1104,9 +1108,9 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "--max-estimated-prompt-input-tokens 0",
+            "--max-estimated-prompt-input-tokens <positive>",
             prompt_cli,
-            "--max-estimated-prompt-input-tokens 0" in prompt_cli,
+            _cli_int_arg(prompt_cli, "--max-estimated-prompt-input-tokens") > 0,
         ),
         _row_check(
             "row_reuse_smoke_cli_cost_control",
@@ -1122,12 +1126,18 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "reuse-smoke route-planner prompt budget caps",
+            "reuse-smoke route-planner positive prompt budget caps",
             reuse_smoke_cli,
-            "--llm-route-planner-max-estimated-prompt-input-tokens 0"
-            in reuse_smoke_cli
-            and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
-            in reuse_smoke_cli,
+            _cli_int_arg(
+                reuse_smoke_cli,
+                "--llm-route-planner-max-estimated-prompt-input-tokens",
+            )
+            > 0
+            and _cli_int_arg(
+                reuse_smoke_cli,
+                "--feedback-llm-route-planner-max-estimated-prompt-input-tokens",
+            )
+            > 0,
         ),
         _row_check(
             "row_live_cli_explicit",
@@ -1143,9 +1153,9 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "--max-estimated-prompt-input-tokens 0",
+            "--max-estimated-prompt-input-tokens <positive>",
             live_cli,
-            "--max-estimated-prompt-input-tokens 0" in live_cli,
+            _cli_int_arg(live_cli, "--max-estimated-prompt-input-tokens") > 0,
         ),
         _row_check(
             "row_execution_plan_present",
@@ -1364,6 +1374,7 @@ def _audit_handoff_row(
             smoke_root=smoke_root,
             target_intake_dir=llm_prompt_target_intake_dir,
             component_resource_registry_dir=registry_dir if registry_ok else None,
+            max_estimated_prompt_input_tokens=prompt_budget_cap,
         )
         summary.update(llm_counts)
         summary["llm_prompt_smoke_ok"] = llm_ok
@@ -1717,6 +1728,7 @@ def _run_llm_prompt_smoke(
     smoke_root: Path | None,
     target_intake_dir: Path | None = None,
     component_resource_registry_dir: Path | None = None,
+    max_estimated_prompt_input_tokens: int = 0,
 ) -> tuple[bool, str, dict[str, int]]:
     try:
         payload = export_formalization_gap_planner_llm_route_planner(
@@ -1726,7 +1738,7 @@ def _run_llm_prompt_smoke(
             else None,
             provider_name="anthropic",
             model_tier="auto",
-            max_estimated_prompt_input_tokens=0,
+            max_estimated_prompt_input_tokens=max(0, int(max_estimated_prompt_input_tokens)),
             max_repair_attempts=1,
             invoke_provider=False,
             formalization_gap_planner_target_intake_dir=target_intake_dir,
@@ -1849,7 +1861,7 @@ def _run_llm_prompt_smoke(
         and n_tier_decision_evidence == n_packets
         and n_tier_decision_invalid == 0
         and n_tier_decision_accounted == n_packets
-        and max_estimated_prompt_input_tokens == 0
+        and max_estimated_prompt_input_tokens > 0
         and n_prompt_budget_preflight_blocked == 0
     )
     return ok, (
@@ -1970,7 +1982,7 @@ def _prompt_cli_cost_control_ok(
         and "--provider anthropic" in prompt_cli
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
-        and "--max-estimated-prompt-input-tokens 0" in prompt_cli
+        and _cli_int_arg(prompt_cli, "--max-estimated-prompt-input-tokens") > 0
         and "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
         and bool(standalone_plan_dir_text)
         and standalone_plan_dir_text in prompt_cli
@@ -1988,6 +2000,19 @@ def _prompt_cli_cost_control_ok(
     )
 
 
+def _cli_int_arg(cli: str, flag: str) -> int:
+    match = re.search(
+        r"(?:^|\s)" + re.escape(flag) + r"\s+([0-9]+)(?:\s|$)",
+        str(cli or ""),
+    )
+    if not match:
+        return 0
+    try:
+        return max(0, int(match.group(1)))
+    except ValueError:
+        return 0
+
+
 def _reuse_smoke_cli_cost_control_ok(
     reuse_smoke_cli: str,
     *,
@@ -2003,13 +2028,19 @@ def _reuse_smoke_cli_cost_control_ok(
         and "--llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
-        and "--llm-route-planner-max-estimated-prompt-input-tokens 0"
-        in reuse_smoke_cli
+        and _cli_int_arg(
+            reuse_smoke_cli,
+            "--llm-route-planner-max-estimated-prompt-input-tokens",
+        )
+        > 0
         and "--feedback-llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--feedback-llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--feedback-llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
-        and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
-        in reuse_smoke_cli
+        and _cli_int_arg(
+            reuse_smoke_cli,
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens",
+        )
+        > 0
         and "--llm-route-planner-invoke-provider" not in reuse_smoke_cli
         and "--feedback-llm-route-planner-invoke-provider" not in reuse_smoke_cli
     )
@@ -2027,7 +2058,7 @@ def _live_cli_explicit_ok(
         and "--provider anthropic" in live_cli
         and "--model-tier auto" in live_cli
         and "--max-repair-attempts 1" in live_cli
-        and "--max-estimated-prompt-input-tokens 0" in live_cli
+        and _cli_int_arg(live_cli, "--max-estimated-prompt-input-tokens") > 0
         and "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
         and bool(standalone_plan_dir_text)
         and standalone_plan_dir_text in live_cli

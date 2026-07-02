@@ -40,6 +40,7 @@ from .model_backend import (
 
 
 FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION = 1
+LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS = 9000
 LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-request:1"
@@ -204,6 +205,23 @@ TARGET_THEOREM_CONTEXT_PACKET_KIND = (
 LIBRARY_ALIGNMENT_SUMMARY_KIND = (
     "formalization_gap_planner_llm_route_planner_library_alignment_summary"
 )
+PROMPT_CONTEXT_PROJECTION_KIND = (
+    "formalization_gap_planner_llm_route_planner_compact_prompt_context"
+)
+PROMPT_TARGET_ROUTE_PROJECTION_KIND = (
+    "formalization_gap_planner_llm_route_planner_compact_prompt_target_route"
+)
+PROMPT_CONTEXT_TEXT_LIMIT = 420
+PROMPT_CONTEXT_SHORT_TEXT_LIMIT = 180
+PROMPT_CONTEXT_LONG_TEXT_LIMIT = 520
+PROMPT_CONTEXT_MAX_SOURCE_REFS = 48
+PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS = 6
+PROMPT_CONTEXT_MAX_DECLARATION_ROWS = 24
+PROMPT_CONTEXT_MAX_GENERIC_ROWS = 8
+PROMPT_CONTEXT_MAX_RESOURCE_ROWS = 6
+PROMPT_CONTEXT_MAX_PRIMITIVES = 32
+PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS = 8
+PROMPT_CONTEXT_MAX_DECLARATIONS_PER_PRIMITIVE = 1
 SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID = (
     "source_theorem_semantic_primitive_bridge"
 )
@@ -1034,7 +1052,7 @@ def export_formalization_gap_planner_llm_route_planner(
     provider_name: str = DEFAULT_LLM_ROUTE_PLANNER_PROVIDER,
     model: str = "",
     model_tier: str = "auto",
-    max_tokens: int = 9000,
+    max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     temperature: float = 0.1,
     max_estimated_prompt_input_tokens: int = 0,
     max_route_requests: int = 0,
@@ -6943,11 +6961,13 @@ def _request_packet(
     request_id = "formalization_gap_planner_llm_route_request:" + stable_hash(
         [route_id, display_name, target_prover_family, library_snapshot_ref, context_packet]
     )[:20]
+    prompt_target_route = _prompt_target_route(route)
+    prompt_context_packet = _prompt_context_packet(context_packet)
     prompt_messages = {
         "system": SYSTEM_PROMPT,
         "user": _user_prompt(
-            target_route=route,
-            context_packet=context_packet,
+            target_route=prompt_target_route,
+            context_packet=prompt_context_packet,
             required_output_contract=required_output_contract,
         ),
     }
@@ -6972,6 +6992,12 @@ def _request_packet(
         "library_snapshot_ref": library_snapshot_ref,
         "target_route": dict(route),
         "context_packet": context_packet,
+        "prompt_target_route": prompt_target_route,
+        "prompt_context_packet": prompt_context_packet,
+        "prompt_context_projection": _prompt_context_projection_summary(
+            context_packet,
+            prompt_context_packet,
+        ),
         "residual_goals": residual_goals,
         "residual_goal_contexts": [
             dict(context) for context in residual_goal_contexts
@@ -6983,6 +7009,1172 @@ def _request_packet(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "prompt_fingerprint": stable_hash(prompt_messages),
     }
+
+
+def _prompt_target_route(route: Mapping[str, Any]) -> dict[str, object]:
+    projection: dict[str, object] = {
+        "projection_kind": PROMPT_TARGET_ROUTE_PROJECTION_KIND,
+        "projection_policy": (
+            "Compact target route for LLM planning. Full route remains in "
+            "request_packet.target_route and is used for contract validation."
+        ),
+    }
+    scalar_fields = (
+        "route_id",
+        "target_route_id",
+        "target_id",
+        "target_theorem_id",
+        "display_name",
+        "target_prover_family",
+        "target_prover",
+        "library_snapshot_ref",
+        "domain",
+        "theorem_statement",
+        "formal_statement",
+        "statement",
+        "theorem_skeleton",
+        "desired_theorem_shape",
+        "normalized_procedure",
+        "normalized_claim",
+        "coverage_status",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    list_fields = (
+        "source_refs",
+        "proof_source_refs",
+        "objects",
+        "mathematical_objects",
+        "assumptions",
+        "background_primitives",
+        "literature_queries",
+        "formal_library_grounding_queries",
+        "uncertainty_flags",
+        "semantic_alignment_risks",
+    )
+    for field_name in scalar_fields:
+        if field_name in route:
+            projection[field_name] = _prompt_compact_value(
+                route[field_name],
+                text_limit=PROMPT_CONTEXT_LONG_TEXT_LIMIT
+                if field_name in {"theorem_statement", "formal_statement", "statement"}
+                else PROMPT_CONTEXT_TEXT_LIMIT,
+            )
+    for field_name in list_fields:
+        values = _str_tuple(route.get(field_name, []))
+        if values:
+            projection[field_name] = [
+                _prompt_truncate_text(value, limit=PROMPT_CONTEXT_TEXT_LIMIT)
+                for value in values[:PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS]
+            ]
+    primitives = _dict_tuple(route.get("primitives", []))
+    if primitives:
+        projection["primitives"] = _prompt_compact_rows(
+            primitives,
+            max_rows=PROMPT_CONTEXT_MAX_PRIMITIVES,
+            keep_fields=(
+                "primitive",
+                "component_id",
+                "coverage_status",
+                "coverage_bucket",
+                "formalization_action",
+                "candidate_declarations",
+                "target_primitives",
+                "supported_target_primitives",
+                "unsupported_target_primitives",
+                "formal_gap_boundary",
+                "source_search_status",
+                "alignment_status",
+                "alignment_rationale",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        )
+        projection["primitive_count"] = len(primitives)
+    source_snippet_count = len(_dict_tuple(route.get("source_snippets", [])))
+    if source_snippet_count:
+        projection["source_snippet_count"] = source_snippet_count
+        projection["source_snippet_projection_note"] = (
+            "Route-level snippets are provided once through "
+            "context_packet.available_source_snippets and "
+            "context_packet.route_planning_brief."
+        )
+    replan_metadata = _dict_value(route, "replan_metadata")
+    if replan_metadata:
+        projection["replan_metadata_summary"] = _prompt_replan_metadata_summary(
+            replan_metadata
+        )
+    return projection
+
+
+def _prompt_current_route_summary(route: Mapping[str, Any]) -> dict[str, object]:
+    if not route:
+        return {}
+    summary = {
+        "projection_kind": PROMPT_TARGET_ROUTE_PROJECTION_KIND,
+        "projection_policy": (
+            "Pointer summary for context_packet.current_route; use the "
+            "top-level target_route prompt object for the compact route body."
+        ),
+        "route_id": str(route.get("route_id", "")),
+        "target_route_id": str(route.get("target_route_id", "")),
+        "target_id": str(route.get("target_id", "")),
+        "target_theorem_id": str(route.get("target_theorem_id", "")),
+        "display_name": str(route.get("display_name", "")),
+        "target_prover_family": str(
+            route.get("target_prover_family") or route.get("target_prover", "")
+        ),
+        "library_snapshot_ref": str(route.get("library_snapshot_ref", "")),
+        "theorem_statement": _prompt_truncate_text(
+            route.get("theorem_statement")
+            or route.get("formal_statement")
+            or route.get("statement")
+            or "",
+            limit=PROMPT_CONTEXT_LONG_TEXT_LIMIT,
+        ),
+        "primitive_count": len(_dict_tuple(route.get("primitives", []))),
+        "source_ref_count": len(_str_tuple(route.get("source_refs", []))),
+        "source_snippet_count": len(_dict_tuple(route.get("source_snippets", []))),
+        "replan_metadata_present": bool(_dict_value(route, "replan_metadata")),
+    }
+    replan_metadata = _dict_value(route, "replan_metadata")
+    if replan_metadata:
+        summary["replan_metadata_summary"] = _prompt_replan_metadata_summary(
+            replan_metadata
+        )
+    return {key: value for key, value in summary.items() if _prompt_value_present(value)}
+
+
+def _prompt_replan_metadata_summary(
+    replan_metadata: Mapping[str, Any],
+) -> dict[str, object]:
+    if not replan_metadata:
+        return {}
+    compact = {
+        key: replan_metadata.get(key)
+        for key in (
+            "residual_goals",
+            "route_revision_reasons",
+            "route_revision_recommended",
+            "llm_route_planner_route_adoption_status",
+            "llm_route_planner_route_adoption_blockers",
+            "llm_route_planner_request_contract_blocked",
+            "llm_route_planner_errors",
+            "source_refs",
+            "source_search_status",
+            "formal_gap_boundary",
+        )
+        if key in replan_metadata
+    }
+    prior = _dict_value(replan_metadata, "prior_replan_metadata")
+    if prior:
+        compact["prior_replan_metadata"] = {
+            key: prior.get(key)
+            for key in (
+                "residual_goals",
+                "route_revision_reasons",
+                "route_revision_recommended",
+                "llm_route_planner_route_adoption_status",
+                "llm_route_planner_route_adoption_blockers",
+            )
+            if key in prior
+        }
+    return _prompt_compact_value(
+        compact,
+        text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+    )
+
+
+def _prompt_context_packet(context_packet: Mapping[str, Any]) -> dict[str, object]:
+    residual_goals = _str_tuple(context_packet.get("residual_goals", []))
+    residual_goal_contexts = _dict_tuple(
+        context_packet.get("residual_goal_contexts", [])
+    )
+    source_snippets = _prompt_compact_source_snippets(
+        _dict_tuple(context_packet.get("available_source_snippets", [])),
+        max_rows=PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS,
+    )
+    declaration_rows = _prompt_declaration_rows(context_packet)
+    target_context = _prompt_target_context_summary(
+        _dict_value(context_packet, "target_theorem_context_packet"),
+    )
+    if isinstance(target_context, dict) and residual_goals:
+        target_context["residual_goal_count"] = len(residual_goals)
+    prompt_context: dict[str, object] = {
+        "context_packet_kind": PROMPT_CONTEXT_PROJECTION_KIND,
+        "projection_policy": (
+            "This is a bounded prompt projection. Full raw rows remain in "
+            "request_packet.context_packet and downstream validators check the "
+            "LLM response against the full request, not against this summary."
+        ),
+        "standalone_input_component": str(
+            context_packet.get("standalone_input_component", "")
+        ),
+        "route_id": str(context_packet.get("route_id", "")),
+        "display_name": str(context_packet.get("display_name", "")),
+        "target_prover_family": str(context_packet.get("target_prover_family", "")),
+        "library_snapshot_ref": str(context_packet.get("library_snapshot_ref", "")),
+        "route_match_ids": list(_str_tuple(context_packet.get("route_match_ids", []))),
+        "current_route": _prompt_current_route_summary(
+            _dict_value(context_packet, "current_route")
+        ),
+        "target_theorem_context_packet": target_context,
+        "route_planning_brief": _prompt_route_planning_brief(context_packet),
+        "context_packet_inventory": _prompt_compact_value(
+            _dict_value(context_packet, "context_packet_inventory"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "minimal_delta_cost_hints": _prompt_minimal_delta_cost_hints(
+            _dict_value(context_packet, "minimal_delta_cost_hints")
+        ),
+        "library_alignment_summary": _prompt_library_alignment_summary(
+            _dict_value(context_packet, "library_alignment_summary")
+        ),
+        "available_source_refs": _prompt_source_refs(
+            context_packet,
+            source_snippets=source_snippets,
+        ),
+        "available_source_snippets": source_snippets,
+        "available_formal_declaration_rows": declaration_rows,
+        "available_formal_declarations": [
+            str(row.get("declaration", ""))
+            for row in declaration_rows
+            if str(row.get("declaration", "")).strip()
+        ][:PROMPT_CONTEXT_MAX_DECLARATION_ROWS],
+        "residual_goals": list(residual_goals),
+        "residual_goal_contexts": _prompt_compact_rows(
+            residual_goal_contexts,
+            max_rows=min(max(len(residual_goal_contexts), 0), 64),
+            keep_fields=(
+                "residual_goal",
+                "interpretation",
+                "route_repair",
+                "repair_action",
+                "target_primitives",
+                "residual_primitives",
+                "source_refs",
+                "source_snippets",
+                "source_search_status",
+                "formal_gap_boundary",
+                "prover_diagnostics",
+                "prover_diagnostic_signature",
+                "source_field",
+                "llm_route_planner_row_id",
+                "resource_request_id",
+            ),
+            text_limit=PROMPT_CONTEXT_LONG_TEXT_LIMIT,
+        ),
+        "feedback_loop_summary": _prompt_compact_value(
+            _dict_value(context_packet, "feedback_loop_summary"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "route_adoption_preconditions": _prompt_compact_value(
+            _dict_value(context_packet, "route_adoption_preconditions"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "source_grounding_obligations": _prompt_compact_value(
+            _dict_value(context_packet, "source_grounding_obligations"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "resource_feedback_readiness_summary": _prompt_compact_value(
+            _dict_value(context_packet, "resource_feedback_readiness_summary"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "resource_request_playbooks": _prompt_compact_rows(
+            _dict_tuple(context_packet.get("resource_request_playbooks", [])),
+            max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+            keep_fields=(
+                "resource_request_id",
+                "resource_id",
+                "operator_prompt",
+                "expected_response_fields",
+                "acceptance_checklist",
+                "target_primitives",
+                "llm_route_planner_source_kind",
+                "llm_route_planner_hook_kind",
+                "source_refs",
+                "source_snippets",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+        "resource_request_queue_rows": _prompt_compact_rows(
+            _dict_tuple(context_packet.get("resource_request_queue_rows", [])),
+            max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+            keep_fields=(
+                "resource_request_id",
+                "resource_id",
+                "request_kind",
+                "query",
+                "reason",
+                "operator_prompt",
+                "target_primitives",
+                "acceptance_status",
+                "response_contract_minimum_met",
+                "source_refs",
+                "source_snippets",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+        "resource_response_ledger_rows": _prompt_compact_rows(
+            _dict_tuple(context_packet.get("resource_response_ledger_rows", [])),
+            max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+            keep_fields=(
+                "resource_response_ledger_id",
+                "resource_request_id",
+                "resource_id",
+                "acceptance_status",
+                "response_contract_ok",
+                "response_summary",
+                "response_payload",
+                "target_primitives",
+                "source_refs",
+                "source_snippets",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+        "source_grounding_rows": _prompt_compact_rows(
+            _dict_tuple(context_packet.get("source_grounding_rows", [])),
+            max_rows=PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+            keep_fields=(
+                "source_grounding_id",
+                "route_id",
+                "primitive",
+                "grounding_status",
+                "source_grounding_status",
+                "source_refs",
+                "source_snippets",
+                "required_next_action",
+                "target_primitives",
+                "errors",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+        "component_resource_registry_context": _prompt_component_resource_context(
+            _dict_value(context_packet, "component_resource_registry_context")
+        ),
+        "legacy_context_field_aliases": dict(
+            _dict_value(context_packet, "legacy_context_field_aliases")
+        ),
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    for field_name in (
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+        "refinement_evidence_rows",
+        "route_revision_overlay_rows",
+        "route_replan_handoff_rows",
+        "interactive_session_rows",
+        "interactive_decision_policy_rows",
+        "current_goal_plan_rows",
+        "target_intake_rows",
+        "library_coverage_rows",
+    ):
+        if field_name == "target_intake_rows":
+            prompt_context[field_name] = _prompt_target_intake_rows(
+                _dict_tuple(context_packet.get(field_name, []))
+            )
+        else:
+            prompt_context[field_name] = _prompt_compact_rows(
+                _dict_tuple(context_packet.get(field_name, [])),
+                max_rows=PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+                keep_fields=(),
+                text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            )
+    prompt_context["prompt_context_projection"] = _prompt_context_projection_summary(
+        context_packet,
+        prompt_context,
+    )
+    return prompt_context
+
+
+def _prompt_context_projection_summary(
+    raw_context: Mapping[str, Any],
+    prompt_context: Mapping[str, Any],
+) -> dict[str, object]:
+    raw_source_snippets = _dict_tuple(raw_context.get("available_source_snippets", []))
+    prompt_source_snippets = _dict_tuple(
+        prompt_context.get("available_source_snippets", [])
+    )
+    raw_declarations = _dict_tuple(
+        raw_context.get("available_formal_declaration_rows", [])
+    )
+    prompt_declarations = _dict_tuple(
+        prompt_context.get("available_formal_declaration_rows", [])
+    )
+    raw_residual_contexts = _dict_tuple(raw_context.get("residual_goal_contexts", []))
+    prompt_residual_contexts = _dict_tuple(
+        prompt_context.get("residual_goal_contexts", [])
+    )
+    return {
+        "projection_kind": PROMPT_CONTEXT_PROJECTION_KIND,
+        "raw_context_available_in_request_packet": True,
+        "raw_available_source_snippet_count": len(raw_source_snippets),
+        "prompt_available_source_snippet_count": len(prompt_source_snippets),
+        "raw_available_formal_declaration_row_count": len(raw_declarations),
+        "prompt_available_formal_declaration_row_count": len(prompt_declarations),
+        "raw_residual_goal_count": len(_str_tuple(raw_context.get("residual_goals", []))),
+        "prompt_residual_goal_count": len(
+            _str_tuple(prompt_context.get("residual_goals", []))
+        ),
+        "raw_residual_goal_context_count": len(raw_residual_contexts),
+        "prompt_residual_goal_context_count": len(prompt_residual_contexts),
+        "source_snippet_cap": PROMPT_CONTEXT_MAX_SOURCE_SNIPPETS,
+        "formal_declaration_row_cap": PROMPT_CONTEXT_MAX_DECLARATION_ROWS,
+        "generic_row_cap": PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+        "resource_row_cap": PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+        "projection_boundary": (
+            "Prompt compaction is a context-budget device only. It does not "
+            "remove contract obligations, source-grounding requirements, or "
+            "target-prover replay requirements."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _prompt_route_planning_brief(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    brief = _dict_value(context_packet, "route_planning_brief")
+    if not brief:
+        return {}
+    compact = {
+        "brief_kind": str(brief.get("brief_kind", "")),
+        "route_id": str(brief.get("route_id", "")),
+        "display_name": str(brief.get("display_name", "")),
+        "target_prover_family": str(brief.get("target_prover_family", "")),
+        "library_snapshot_ref": str(brief.get("library_snapshot_ref", "")),
+        "target_context": _prompt_target_context_summary(
+            _dict_value(brief, "target_context"),
+        ),
+        "evidence_summary": _prompt_compact_value(
+            _dict_value(brief, "evidence_summary"),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        ),
+        "primitive_evidence_matrix": _prompt_primitive_evidence_rows(
+            _dict_tuple(brief.get("primitive_evidence_matrix", [])),
+        ),
+        "planner_focus": _prompt_compact_rows(
+            _dict_tuple(brief.get("planner_focus", [])),
+            max_rows=PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+            keep_fields=(
+                "focus_id",
+                "priority",
+                "action",
+                "reason",
+                "target_primitives",
+                "evidence_fields",
+                "required_output_fields",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+        "evidence_gaps": _prompt_compact_rows(
+            _dict_tuple(brief.get("evidence_gaps", [])),
+            max_rows=PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+            keep_fields=(
+                "gap_id",
+                "gap_kind",
+                "reason",
+                "recommended_action",
+                "evidence_fields",
+                "target_primitives",
+            ),
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+        ),
+    }
+    return compact
+
+
+def _prompt_minimal_delta_cost_hints(
+    cost_hints: Mapping[str, Any],
+) -> dict[str, object]:
+    if not cost_hints:
+        return {}
+    primitive_hints = _prompt_cost_hint_rows(
+        _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+    )
+    route_option_hints: list[dict[str, object]] = []
+    for hint in _dict_tuple(cost_hints.get("route_option_hints", []))[
+        :PROMPT_CONTEXT_MAX_PRIMITIVES
+    ]:
+        route_option_hints.append(
+            {
+                "route_option_id": _prompt_truncate_text(
+                    hint.get("route_option_id", ""),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "option_kind": _prompt_truncate_text(
+                    hint.get("option_kind", ""),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "selected_primitives": list(
+                    _str_tuple(hint.get("selected_primitives", []))
+                ),
+                "minimum_route_base_cost": hint.get("minimum_route_base_cost", 0),
+                "cost_policy_id": _prompt_truncate_text(
+                    hint.get("cost_policy_id", MINIMAL_DELTA_COST_POLICY_ID),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "cost_rationale": _prompt_truncate_text(
+                    hint.get("cost_rationale", ""),
+                    limit=PROMPT_CONTEXT_TEXT_LIMIT,
+                ),
+                "evidence_sources": list(
+                    _str_tuple(hint.get("evidence_sources", []))
+                )[:PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS],
+            }
+        )
+    return {
+        "cost_hint_kind": str(cost_hints.get("cost_hint_kind", "")),
+        "cost_policy_id": str(
+            cost_hints.get("cost_policy_id", MINIMAL_DELTA_COST_POLICY_ID)
+        ),
+        "primitive_cost_hint_count": len(
+            _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+        ),
+        "route_option_hint_count": len(
+            _dict_tuple(cost_hints.get("route_option_hints", []))
+        ),
+        "primitive_cost_hints": primitive_hints,
+        "route_option_hints": route_option_hints,
+    }
+
+
+def _prompt_library_alignment_summary(
+    summary: Mapping[str, Any],
+) -> dict[str, object]:
+    if not summary:
+        return {}
+    keep = {
+        key: _prompt_compact_value(
+            value,
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        )
+        for key, value in summary.items()
+        if key
+        not in {
+            "primitive_alignment",
+            "route_option_alignment",
+            "schema_id",
+            "proof_evidence_boundary",
+        }
+    }
+    keep["primitive_alignment"] = _prompt_library_alignment_rows(
+        _dict_tuple(summary.get("primitive_alignment", [])),
+    )
+    route_option_alignment: list[dict[str, object]] = []
+    for row in _dict_tuple(summary.get("route_option_alignment", []))[
+        :PROMPT_CONTEXT_MAX_PRIMITIVES
+    ]:
+        route_option_alignment.append(
+            {
+                "route_option_id": _prompt_truncate_text(
+                    row.get("route_option_id", ""),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "option_kind": _prompt_truncate_text(
+                    row.get("option_kind", ""),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "selected_primitives": list(
+                    _str_tuple(row.get("selected_primitives", []))
+                ),
+                "n_selected_primitives": row.get("n_selected_primitives", 0),
+                "minimum_route_base_cost": row.get("minimum_route_base_cost", 0),
+                "cost_policy_id": _prompt_truncate_text(
+                    row.get("cost_policy_id", MINIMAL_DELTA_COST_POLICY_ID),
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                ),
+                "cost_rationale": _prompt_truncate_text(
+                    row.get("cost_rationale", ""),
+                    limit=PROMPT_CONTEXT_TEXT_LIMIT,
+                ),
+                "n_bridge_or_harder_primitives": row.get(
+                    "n_bridge_or_harder_primitives",
+                    0,
+                ),
+                "n_target_compatible_reuse_declarations": row.get(
+                    "n_target_compatible_reuse_declarations",
+                    0,
+                ),
+                "by_library_delta_class": _prompt_compact_value(
+                    _dict_value(row, "by_library_delta_class"),
+                    text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                    list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+                ),
+                "by_minimum_coverage_bucket": _prompt_compact_value(
+                    _dict_value(row, "by_minimum_coverage_bucket"),
+                    text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                    list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+                ),
+            }
+        )
+    keep["route_option_alignment"] = route_option_alignment
+    return keep
+
+
+def _prompt_component_resource_context(
+    context: Mapping[str, Any],
+) -> dict[str, object]:
+    if not context:
+        return {}
+    compact = {
+        key: _prompt_compact_value(
+            value,
+            text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        )
+        for key, value in context.items()
+        if key
+        not in {
+            "component_rows",
+            "resource_rows",
+            "resource_contract_rows",
+            "execution_plan_rows",
+            "proof_evidence_boundary",
+        }
+    }
+    compact["component_rows"] = _prompt_compact_rows(
+        _dict_tuple(context.get("component_rows", [])),
+        max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+        keep_fields=(
+            "component_id",
+            "component_name",
+            "planner_stage",
+            "role",
+            "required_capabilities",
+            "resource_ids",
+            "resource_contract_ids",
+        ),
+        text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+    )
+    compact["resource_rows"] = _prompt_compact_rows(
+        _prompt_registry_priority_rows(_dict_tuple(context.get("resource_rows", []))),
+        max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+        keep_fields=(
+            "resource_id",
+            "resource_name",
+            "resource_kind",
+            "surface",
+            "target_prover_families",
+            "capability_tags",
+            "validation_signals",
+            "local_fallback_resource_ids",
+            "frontier_resource_ids",
+        ),
+        text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+    )
+    compact["resource_contract_rows"] = _prompt_compact_rows(
+        _prompt_registry_priority_rows(
+            _dict_tuple(context.get("resource_contract_rows", []))
+        ),
+        max_rows=PROMPT_CONTEXT_MAX_RESOURCE_ROWS,
+        keep_fields=(
+            "resource_contract_id",
+            "resource_id",
+            "request_contract_fields",
+            "response_contract_fields",
+            "acceptance_gate",
+            "escalation_policy",
+            "output_artifact_kind",
+        ),
+        text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+    )
+    return compact
+
+
+def _prompt_registry_priority_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    priority_resource_ids = {
+        SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+        SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+        SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID,
+        EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_RESOURCE_ID,
+        "lean_lsp_mcp",
+        "paperclip_cli_mcp",
+    }
+    return sorted(
+        [dict(row) for row in rows],
+        key=lambda row: (
+            0
+            if str(row.get("resource_id", "")).strip() in priority_resource_ids
+            else 1,
+            str(row.get("resource_id", "")),
+            str(row.get("component_id", "")),
+        ),
+    )
+
+
+def _prompt_target_intake_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _prompt_compact_rows(
+        rows,
+        max_rows=PROMPT_CONTEXT_MAX_GENERIC_ROWS,
+        keep_fields=(
+            "target_intake_id",
+            "target_id",
+            "target_theorem_name",
+            "display_name",
+            "domain",
+            "target_prover_family",
+            "library_snapshot_ref",
+            "theorem_statement",
+            "theorem_skeleton",
+            "normalized_objects",
+            "normalized_assumptions",
+            "normalized_procedure",
+            "normalized_claim",
+            "desired_theorem_shape",
+            "proof_source_refs",
+            "extracted_primitive_candidates",
+            "background_primitives",
+            "literature_queries",
+            "formal_library_grounding_queries",
+            "proof_state_probe_required",
+            "missing_required_fields",
+            "review_flags",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ),
+        text_limit=PROMPT_CONTEXT_TEXT_LIMIT,
+    )
+
+
+def _prompt_source_refs(
+    context_packet: Mapping[str, Any],
+    *,
+    source_snippets: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[str]:
+    refs: list[str] = []
+    for snippet in source_snippets:
+        refs.extend(_str_tuple(snippet.get("source_ref", "")))
+        refs.extend(_str_tuple(snippet.get("source_refs", [])))
+    refs.extend(_str_tuple(context_packet.get("available_source_refs", [])))
+    return list(dict.fromkeys(ref for ref in refs if ref))[
+        :PROMPT_CONTEXT_MAX_SOURCE_REFS
+    ]
+
+
+def _prompt_declaration_rows(
+    context_packet: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    rows = _dict_tuple(context_packet.get("available_formal_declaration_rows", []))
+    target_prover_family = str(context_packet.get("target_prover_family", ""))
+    if target_prover_family:
+        rows = _target_compatible_formal_declaration_rows(
+            rows,
+            target_prover_family=target_prover_family,
+        )
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -_formal_declaration_source_field_rank(row.get("source_field", "")),
+            -len(_str_tuple(row.get("supported_target_primitives", []))),
+            str(row.get("declaration", "")),
+        ),
+    )
+    return _prompt_compact_rows(
+        ranked,
+        max_rows=PROMPT_CONTEXT_MAX_DECLARATION_ROWS,
+        keep_fields=(
+            "declaration",
+            "target_prover_family",
+            "source_field",
+            "source_fields",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+        ),
+        text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+    )
+
+
+def _prompt_compact_source_snippets(
+    snippets: tuple[dict[str, object], ...] | list[dict[str, object]],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    return _prompt_compact_rows(
+        _compact_source_snippets(list(snippets)),
+        max_rows=max_rows,
+        keep_fields=(
+            "source_ref",
+            "claim",
+            "excerpt",
+            "rank",
+            "evidence_role",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "source_support_status",
+            "matched_terms",
+        ),
+        text_limit=PROMPT_CONTEXT_LONG_TEXT_LIMIT,
+    )
+
+
+def _prompt_compact_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+    *,
+    max_rows: int,
+    keep_fields: tuple[str, ...],
+    text_limit: int,
+) -> list[dict[str, object]]:
+    if max_rows <= 0:
+        return []
+    compact_rows: list[dict[str, object]] = []
+    for row in rows[:max_rows]:
+        source = (
+            {field: row[field] for field in keep_fields if field in row}
+            if keep_fields
+            else _compact_row(row)
+        )
+        compact = {
+            field: _prompt_compact_value(
+                value,
+                text_limit=text_limit,
+                list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+            )
+            for field, value in source.items()
+            if _prompt_value_present(value)
+        }
+        if compact:
+            compact_rows.append(compact)
+    return compact_rows
+
+
+def _prompt_compact_value(
+    value: Any,
+    *,
+    text_limit: int = PROMPT_CONTEXT_TEXT_LIMIT,
+    list_limit: int = PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+    depth: int = 0,
+) -> object:
+    if isinstance(value, Mapping):
+        if depth >= 4:
+            return _prompt_truncate_text(json.dumps(value, default=str), limit=text_limit)
+        return {
+            str(key): _prompt_compact_value(
+                child,
+                text_limit=text_limit,
+                list_limit=list_limit,
+                depth=depth + 1,
+            )
+            for key, child in value.items()
+            if _prompt_value_present(child)
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [
+            _prompt_compact_value(
+                item,
+                text_limit=text_limit,
+                list_limit=list_limit,
+                depth=depth + 1,
+            )
+            for item in list(value)[:list_limit]
+            if _prompt_value_present(item)
+        ]
+    if isinstance(value, str):
+        return _prompt_truncate_text(value, limit=text_limit)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return _prompt_truncate_text(str(value), limit=text_limit)
+
+
+def _prompt_truncate_text(value: object, *, limit: int) -> str:
+    text = str(value or "")
+    if limit <= 0 or len(text) <= limit:
+        return text
+    suffix = " ... [truncated; full value in request_packet]"
+    return text[: max(0, limit - len(suffix))].rstrip() + suffix
+
+
+def _prompt_value_present(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return bool(value)
+    return True
+
+
+def _prompt_target_context_summary(context: Mapping[str, Any]) -> dict[str, object]:
+    if not context:
+        return {}
+    compact: dict[str, object] = {}
+    keep_fields = (
+        "context_packet_kind",
+        "target_ids",
+        "route_id",
+        "display_name",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "theorem_statement",
+        "theorem_skeletons",
+        "desired_theorem_shapes",
+        "normalized_objects",
+        "normalized_assumptions",
+        "normalized_procedures",
+        "normalized_claims",
+        "normalized_claim",
+        "desired_conclusions",
+        "primitive_candidates",
+        "proof_style_hints",
+        "proof_source_refs",
+        "literature_queries",
+        "formal_library_grounding_queries",
+    )
+    long_fields = {
+        "theorem_statement",
+        "theorem_skeletons",
+        "desired_theorem_shapes",
+        "desired_conclusions",
+        "proof_style_hints",
+    }
+    for field in keep_fields:
+        if field not in context:
+            continue
+        compact[field] = _prompt_compact_value(
+            context[field],
+            text_limit=(
+                PROMPT_CONTEXT_LONG_TEXT_LIMIT
+                if field in long_fields
+                else PROMPT_CONTEXT_SHORT_TEXT_LIMIT
+            ),
+            list_limit=PROMPT_CONTEXT_MAX_NESTED_LIST_ITEMS,
+        )
+    residual_goals = _str_tuple(context.get("residual_goals", []))
+    if residual_goals:
+        compact["residual_goal_count"] = len(residual_goals)
+    return {
+        key: value
+        for key, value in compact.items()
+        if _prompt_value_present(value)
+    }
+
+
+def _prompt_primary_declaration_row(row: Mapping[str, Any]) -> dict[str, object]:
+    declaration_rows = _dict_tuple(row.get("candidate_declaration_rows", []))
+    if declaration_rows:
+        compact_rows = _prompt_compact_rows(
+            declaration_rows,
+            max_rows=PROMPT_CONTEXT_MAX_DECLARATIONS_PER_PRIMITIVE,
+            keep_fields=(
+                "declaration",
+                "target_prover_family",
+                "source_field",
+                "source_fields",
+                "source_refs",
+                "matched_terms",
+                "supported_target_primitives",
+            ),
+            text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+        )
+        if compact_rows:
+            return compact_rows[0]
+    declarations = (
+        _str_tuple(row.get("target_compatible_declarations", []))
+        or _str_tuple(row.get("candidate_declarations", []))
+    )
+    if not declarations:
+        return {}
+    return {
+        "declaration": _prompt_truncate_text(
+            declarations[0],
+            limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+        )
+    }
+
+
+def _prompt_declaration_count(row: Mapping[str, Any]) -> int:
+    explicit_count = row.get("candidate_declaration_row_count")
+    if isinstance(explicit_count, (int, float)):
+        return int(explicit_count)
+    declaration_rows = _dict_tuple(row.get("candidate_declaration_rows", []))
+    if declaration_rows:
+        return len(declaration_rows)
+    declarations = (
+        _str_tuple(row.get("target_compatible_declarations", []))
+        or _str_tuple(row.get("candidate_declarations", []))
+    )
+    return len(declarations)
+
+
+def _prompt_primitive_evidence_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    compact_rows: list[dict[str, object]] = []
+    for row in rows[:PROMPT_CONTEXT_MAX_PRIMITIVES]:
+        source_refs = list(_str_tuple(row.get("source_refs", [])))
+        residual_goals = list(_str_tuple(row.get("residual_goals", [])))
+        compact = {
+            "primitive": _prompt_truncate_text(
+                row.get("primitive", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "source_support_status": _prompt_truncate_text(
+                row.get("source_support_status", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "source_ref_count": len(source_refs),
+            "source_refs": source_refs[:3],
+            "source_snippet_count": int(row.get("source_snippet_count", 0) or 0),
+            "formal_support_status": _prompt_truncate_text(
+                row.get("formal_support_status", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "candidate_declaration_row_count": _prompt_declaration_count(row),
+            "primary_candidate_declaration_row": _prompt_primary_declaration_row(row),
+            "minimum_coverage_bucket": _prompt_truncate_text(
+                row.get("minimum_coverage_bucket", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "library_delta_class": _prompt_truncate_text(
+                row.get("library_delta_class", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_base_cost": row.get("minimum_base_cost", 0),
+            "minimum_cost_marker": _prompt_truncate_text(
+                row.get("minimum_cost_marker", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "residual_goal_count": int(row.get("residual_goal_count", 0) or 0),
+            "residual_goals_preview": [
+                _prompt_truncate_text(goal, limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT)
+                for goal in residual_goals[:2]
+            ],
+            "recommended_planner_actions": list(
+                _str_tuple(row.get("recommended_planner_actions", []))
+            )[:4],
+        }
+        compact_rows.append(
+            {
+                key: value
+                for key, value in compact.items()
+                if _prompt_value_present(value)
+            }
+        )
+    return compact_rows
+
+
+def _prompt_cost_hint_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    compact_rows: list[dict[str, object]] = []
+    for row in rows[:PROMPT_CONTEXT_MAX_PRIMITIVES]:
+        compact = {
+            "primitive": _prompt_truncate_text(
+                row.get("primitive", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_coverage_bucket": _prompt_truncate_text(
+                row.get("minimum_coverage_bucket", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_base_cost": row.get("minimum_base_cost", 0),
+            "minimum_cost_source": _prompt_truncate_text(
+                row.get("minimum_cost_source", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_cost_marker": _prompt_truncate_text(
+                row.get("minimum_cost_marker", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "evidence_sources": list(_str_tuple(row.get("evidence_sources", [])))[:4],
+            "coverage_markers": _prompt_compact_rows(
+                _dict_tuple(row.get("coverage_markers", [])),
+                max_rows=2,
+                keep_fields=(
+                    "source",
+                    "source_field",
+                    "marker",
+                    "normalized_coverage_bucket",
+                    "base_cost",
+                ),
+                text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "candidate_declaration_row_count": _prompt_declaration_count(row),
+            "primary_candidate_declaration_row": _prompt_primary_declaration_row(row),
+            "has_target_compatible_declaration": bool(
+                row.get("has_target_compatible_declaration", False)
+                or _prompt_declaration_count(row)
+            ),
+        }
+        compact_rows.append(
+            {
+                key: value
+                for key, value in compact.items()
+                if _prompt_value_present(value)
+            }
+        )
+    return compact_rows
+
+
+def _prompt_library_alignment_rows(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    compact_rows: list[dict[str, object]] = []
+    for row in rows[:PROMPT_CONTEXT_MAX_PRIMITIVES]:
+        declarations = _str_tuple(row.get("target_compatible_declarations", []))
+        compact = {
+            "primitive": _prompt_truncate_text(
+                row.get("primitive", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_coverage_bucket": _prompt_truncate_text(
+                row.get("minimum_coverage_bucket", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "library_delta_class": _prompt_truncate_text(
+                row.get("library_delta_class", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "minimum_base_cost": row.get("minimum_base_cost", 0),
+            "minimum_cost_marker": _prompt_truncate_text(
+                row.get("minimum_cost_marker", ""),
+                limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            ),
+            "evidence_sources": list(_str_tuple(row.get("evidence_sources", [])))[:4],
+            "has_target_compatible_declaration": bool(
+                row.get("has_target_compatible_declaration", False)
+            ),
+            "target_compatible_declaration_count": row.get(
+                "target_compatible_declaration_count",
+                len(declarations),
+            ),
+            "primary_target_compatible_declaration": (
+                _prompt_truncate_text(
+                    declarations[0],
+                    limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+                )
+                if declarations
+                else ""
+            ),
+            "candidate_declaration_row_count": row.get(
+                "candidate_declaration_row_count",
+                0,
+            ),
+        }
+        compact_rows.append(
+            {
+                key: value
+                for key, value in compact.items()
+                if _prompt_value_present(value)
+            }
+        )
+    return compact_rows
 
 
 def _library_alignment_summary(
@@ -9857,6 +11049,109 @@ def _output_contract_for_target_prover(target_prover_family: str) -> dict[str, o
     return contract
 
 
+def _prompt_output_contract_summary(
+    required_output_contract: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, object]:
+    top_level_fields = [str(key) for key in required_output_contract.keys()]
+    return {
+        "contract_kind": "compact_llm_route_planner_output_contract",
+        "target_prover_family": target_prover_family,
+        "full_contract_available_in_request_packet": True,
+        "required_top_level_fields": top_level_fields,
+        "minimal_valid_shapes": {
+            "informal_knowledge_dag_nodes": [
+                "node_id",
+                "claim",
+                "depends_on",
+                "source_refs or source_search_status or formal_gap_boundary",
+                "target_primitives",
+            ],
+            "formal_realization_dag_nodes": [
+                "node_id",
+                "primitive",
+                "coverage_bucket",
+                "formalization_action",
+                "target_prover_family",
+                "candidate_declaration_rows when reusing/wrapping",
+            ],
+            "route_alignment_edges": [
+                "informal_node_id",
+                "formal_node_id",
+                "primitive",
+                "alignment_rationale",
+            ],
+            "residual_interpretations": [
+                "residual_goal",
+                "covered_residual_goal_indices or covered_residual_goals for batches",
+                "interpretation",
+                "route_repair",
+                "target_primitives",
+                "source_refs or matching search_request or formal_gap_boundary",
+            ],
+            "formal_attempt_queue": [
+                "attempt_id",
+                "formal_node_id",
+                "primitive",
+                "target_prover_family",
+                "owner",
+                "action",
+                "attempt_kind",
+                "expected_feedback",
+                "target_primitives",
+                "prerequisite_formal_node_ids",
+            ],
+            "standalone_route": [
+                "display_name",
+                "theorem_statement",
+                "source_refs",
+                "primitives[].primitive",
+                "primitives[].coverage_status",
+            ],
+        },
+        "minimal_delta_plan_required": [
+            "selected_primitives",
+            "primitive_costs",
+            "route_cost",
+            "and_or_cost_graph.selected_route_option_id",
+            "and_or_cost_graph.route_options",
+            "and_or_cost_graph.or_nodes",
+            "and_or_cost_graph.and_edges",
+            "minimality_rationale",
+        ],
+        "route_option_minimal_shape": [
+            "route_option_id",
+            "selected",
+            "selected_primitives",
+            "route_cost",
+            "cost_rationale",
+        ],
+        "and_or_cost_graph_field_names": {
+            "or_nodes": "use node_id, choices, selection_rationale",
+            "and_edges": "use route_option_id and requires",
+        },
+        "action_witness_policy": (
+            "wrapper_lemmas, bridge_lemmas, source_port_lemmas, "
+            "new_definitions, new_theory_primitives, and "
+            "first_principles_primitives are compact string arrays, not "
+            "objects. Use 'primitive: action' strings under 96 characters."
+        ),
+        "followup_fields": [
+            "search_requests",
+            "planner_next_actions",
+            "uncertainty_flags",
+            "semantic_alignment_risks",
+        ],
+        "proof_boundary": (
+            "Planner output is not proof evidence; kernel replay is required."
+        ),
+        "size_policy": (
+            "Return the smallest valid JSON object. Do not copy prompt context."
+        ),
+    }
+
+
 def _user_prompt(
     *,
     target_route: Mapping[str, Any],
@@ -9923,9 +11218,19 @@ def _user_prompt(
         "target_route": dict(target_route),
         "context_packet": dict(context_packet),
         "minimal_delta_cost_policy": dict(MINIMAL_DELTA_COST_POLICY),
-        "required_output_contract": dict(required_output_contract),
+        "required_output_contract": _prompt_output_contract_summary(
+            required_output_contract,
+            target_prover_family=target_prover_key,
+        ),
         "hard_requirements": [
             "Return only JSON.",
+            "Keep the JSON compact: short node ids, one-sentence rationales, no copied prompt context, no long theorem statements, and no prose outside required fields.",
+            "Response-size budget: keep each rationale/action/interpretation under 160 characters, omit source_snippets unless context_packet.available_source_snippets is nonempty, include at most one candidate_declaration_rows item per formal node, and avoid optional explanatory fields.",
+            "Do not emit optional bulky keys such as notes, proof_obligation, theorem_statement, explanation, or description inside DAG nodes or action witness lists.",
+            "Action witness fields wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, and first_principles_primitives must be arrays of compact strings like 'primitive: bridge lemma', not arrays of objects.",
+            "For selected route options, do not duplicate top-level primitive_costs or top-level action witness lists inside route_options unless route-specific costs differ; use route_options[].selected_primitives plus route_cost/cost_rationale.",
+            "Use the smallest valid DAG: one formal_realization_dag_node per selected primitive, enough informal nodes to ground primitive scopes, one route_alignment_edge per formal node, and a single baseline route option when it is also the selected route.",
+            "For residual_interpretations, cover every listed residual_goal either one-by-one or with compact batch rows using covered_residual_goal_indices/covered_residual_goals; use a formal_gap_boundary or search_request when evidence is missing instead of expanding long derivations.",
             target_intake_requirement,
             "Use context_packet.target_theorem_context_packet as the compact target theorem context packet for theorem statement, skeleton, objects, assumptions, statistical procedure, desired conclusion, proof-style hints, source/formal queries, and residual goals; raw context_packet rows remain the source of truth if a count or summary is surprising.",
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
@@ -9962,10 +11267,10 @@ def _user_prompt(
             "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers and response_required_fields as blocking route-repair obligations for the next LLM plan.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
-            "Residual interpretations may cover only residual_goals listed in the request packet.",
-            "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
+            "Residual interpretations may cover only residual_goals listed in the request packet; batch rows may use zero-based covered_residual_goal_indices into context_packet.residual_goals to avoid copying long prover diagnostics.",
+            "If request residual_goals are present, every residual goal must be covered by a residual_interpretations row and each row must have an interpretation and a route_repair or repair_action.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
-            "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
+            "Every alignment edge must include alignment_status and a substantive alignment_rationale under 96 characters that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
             "Return informal_knowledge_dag_edges and formal_realization_dag_edges as explicit acyclic DAG dependency edges; when a DAG has multiple nodes, it must have at least one edge, and every edge source_node_id/target_node_id must reference returned nodes.",
             "For informal_knowledge_dag_nodes, each depends_on entry must have a matching informal_knowledge_dag_edges source_node_id -> target_node_id edge, and every informal DAG edge must appear in the target node depends_on list.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
@@ -9980,10 +11285,10 @@ def _user_prompt(
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost, including route_options[].primitive_costs rows, must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values, and every route_options row must either include route-specific primitive_costs summing to route_cost or have a route_cost equal to the global primitive_costs for its selected_primitives.",
-            "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
+            "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with node_id/choices/selection_rationale, and non-empty and_edges with route_option_id/requires; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive and every route option primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every selected primitive, route option primitive, and wrapper/bridge/source-port/new-definition/first-principles delta primitive must have a resolved route_alignment_edge.",
-            "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta or route-option action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
+            "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta or route-option action witness must be an actionable compact string, not only the primitive name; include the primitive plus action family, e.g. 'positivity: bridge lower-bound hypothesis'.",
             "When a route_options[].primitive_costs row uses a wrapper, bridge, source_port, new_definition, or new_theory bucket, that same route option must include a matching actionable wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives work item; selected route options may also use the top-level minimal_delta_plan action lists.",
             "New selected, route option, or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
@@ -10153,96 +11458,71 @@ def _generate_responses(
                 repair_history.append(repair_entry)
             except Exception as exc:
                 exception_text = f"{type(exc).__name__}: {exc}"
-                if attempt >= repair_budget:
-                    errors.append(
-                        "LLM route planner provider failed for "
-                        f"{packet.get('request_id', '')}: {exception_text}"
-                    )
-                    last_response = {
-                        "request_id": str(packet.get("request_id", "")),
-                        "route_id": str(packet.get("route_id", "")),
-                        "provider_name": str(
-                            getattr(generator_backend, "provider_name", "")
-                        ),
-                        "model": request_model,
-                        "requested_model_tier": requested_model_tier,
-                        "model_tier": current_model_tier,
-                        "model_tier_escalated": model_tier_escalated,
-                        "model_tier_escalation_reason": (
-                            model_tier_escalation_reason
-                        ),
-                        "response_payload": {},
-                        "raw_response_text": str(getattr(last_generated, "text", "")),
-                        "generator_metadata": _generator_metadata_with_model_tier(
-                            {
-                                "generator_only": True,
-                                "tools_available": False,
-                                "provider_failure": True,
-                                "exception_type": type(exc).__name__,
-                                "exception_message": str(exc)[:1000],
-                                "repair_attempt": attempt,
-                            },
-                            requested_model_tier=requested_model_tier,
-                            effective_model_tier=current_model_tier,
-                            model_tier_escalated=model_tier_escalated,
-                            model_tier_escalation_reason=(
-                                model_tier_escalation_reason
-                            ),
-                        ),
-                        "provider_failure": True,
-                        "kernel_verified": False,
-                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
-                        "repair_attempts": attempt,
-                        "repair_error_history": tuple(repair_history),
-                        "generation_errors": (
-                            "provider exception: " + exception_text,
-                        ),
-                    }
-                    break
                 provider_error = "provider exception: " + exception_text
                 repair_guidance_rows = _repair_guidance_rows([provider_error])
-                user_prompt = _repair_user_prompt(
-                    original_user_prompt=str(prompt.get("user", "")),
-                    previous_response_text=str(
-                        getattr(last_generated, "text", "")
-                    ),
-                    validation_errors=[provider_error],
-                    attempt=attempt + 1,
-                    repair_guidance_rows=repair_guidance_rows,
-                )
-                next_model_tier, next_tier_reason = _next_repair_model_tier(
-                    generator_backend,
-                    packet,
-                    explicit_model=model,
-                    current_model_tier=current_model_tier,
-                )
-                repair_entry: dict[str, object] = {
-                    "attempt": attempt,
-                    "model": request_model,
-                    "model_tier": current_model_tier,
-                    "requested_model_tier": requested_model_tier,
-                    "errors": (provider_error,),
-                    "repair_guidance_categories": _repair_guidance_categories(
-                        repair_guidance_rows
-                    ),
-                    "repair_guidance_fingerprint": stable_hash(
-                        repair_guidance_rows
-                    ),
-                    "next_repair_attempt": attempt + 1,
-                    "next_repair_model_tier": next_model_tier,
-                    "repair_prompt_fingerprint": stable_hash(user_prompt),
-                }
-                if next_model_tier != current_model_tier:
-                    repair_entry["model_tier_escalation"] = (
-                        f"{current_model_tier}_to_{next_model_tier}"
-                    )
-                    repair_entry["model_tier_escalation_reason"] = next_tier_reason
-                    model_tier_escalated = True
-                    model_tier_escalation_reason = next_tier_reason
-                current_model_tier = next_model_tier
                 repair_history.append(
-                    repair_entry
+                    {
+                        "attempt": attempt,
+                        "model": request_model,
+                        "model_tier": current_model_tier,
+                        "requested_model_tier": requested_model_tier,
+                        "errors": (provider_error,),
+                        "repair_guidance_categories": _repair_guidance_categories(
+                            repair_guidance_rows
+                        ),
+                        "repair_guidance_fingerprint": stable_hash(
+                            repair_guidance_rows
+                        ),
+                        "next_repair_attempt": "",
+                        "next_repair_model_tier": "",
+                        "repair_prompt_fingerprint": "",
+                        "provider_exception_not_repaired": True,
+                    }
                 )
+                errors.append(
+                    "LLM route planner provider failed for "
+                    f"{packet.get('request_id', '')}: {exception_text}"
+                )
+                last_response = {
+                    "request_id": str(packet.get("request_id", "")),
+                    "route_id": str(packet.get("route_id", "")),
+                    "provider_name": str(
+                        getattr(generator_backend, "provider_name", "")
+                    ),
+                    "model": request_model,
+                    "requested_model_tier": requested_model_tier,
+                    "model_tier": current_model_tier,
+                    "model_tier_escalated": model_tier_escalated,
+                    "model_tier_escalation_reason": (
+                        model_tier_escalation_reason
+                    ),
+                    "response_payload": {},
+                    "raw_response_text": str(getattr(last_generated, "text", "")),
+                    "generator_metadata": _generator_metadata_with_model_tier(
+                        {
+                            "generator_only": True,
+                            "tools_available": False,
+                            "provider_failure": True,
+                            "exception_type": type(exc).__name__,
+                            "exception_message": str(exc)[:1000],
+                            "repair_attempt": attempt,
+                            "provider_exception_not_repaired": True,
+                        },
+                        requested_model_tier=requested_model_tier,
+                        effective_model_tier=current_model_tier,
+                        model_tier_escalated=model_tier_escalated,
+                        model_tier_escalation_reason=(
+                            model_tier_escalation_reason
+                        ),
+                    ),
+                    "provider_failure": True,
+                    "kernel_verified": False,
+                    "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    "repair_attempts": attempt,
+                    "repair_error_history": tuple(repair_history),
+                    "generation_errors": (provider_error,),
+                }
+                break
         if last_response is not None:
             responses.append(last_response)
     return responses
@@ -10512,7 +11792,7 @@ def _repair_user_prompt(
             "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
             "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
-            "If a selected primitive needs wrapper, bridge, source-port, definition, or new-theory work, list an actionable work item in the matching minimal_delta_plan bucket; a bare primitive name is not enough.",
+            "If a selected primitive needs wrapper, bridge, source-port, definition, or new-theory work, list an actionable compact string in the matching minimal_delta_plan bucket; a bare primitive name is not enough and action witness objects are too verbose.",
         ],
     }
     return json.dumps(payload, indent=2, default=str)
@@ -10529,6 +11809,7 @@ def llm_route_planner_response_payload_schema(
     *, target_prover_family: str = ""
 ) -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    integer_array = {"type": "array", "items": {"type": "integer", "minimum": 0}}
     source_snippet = {
         "type": "object",
         "additionalProperties": True,
@@ -10837,6 +12118,8 @@ def llm_route_planner_response_payload_schema(
                     "required": ["residual_goal", "interpretation"],
                     "properties": {
                         "residual_goal": {"type": "string", "minLength": 1},
+                        "covered_residual_goals": string_array,
+                        "covered_residual_goal_indices": integer_array,
                         "interpretation": {"type": "string", "minLength": 1},
                         "route_repair": {"type": "string"},
                         "repair_action": {"type": "string"},
@@ -15504,12 +16787,21 @@ def _response_residual_interpretation_errors(
             errors.append(f"residual_interpretations[{index}].residual_goal missing")
             continue
         residual_key = _residual_goal_key(residual_goal)
-        interpreted_keys.add(residual_key)
-        if residual_key not in request_by_key:
+        covered_keys = _residual_interpretation_covered_request_keys(
+            interpretation,
+            request_residuals=request_residuals,
+            request_by_key=request_by_key,
+            index=index,
+            errors=errors,
+        )
+        if residual_key in request_by_key:
+            covered_keys.add(residual_key)
+        elif not covered_keys:
             errors.append(
                 "residual_interpretations"
                 f"[{index}].residual_goal not present in request residual_goals: {residual_goal}"
             )
+        interpreted_keys.update(covered_keys)
         if not str(interpretation.get("interpretation", "")).strip():
             errors.append(f"residual_interpretations[{index}].interpretation missing")
         if not (
@@ -15529,6 +16821,57 @@ def _response_residual_interpretation_errors(
             + "; ".join(missing[:8])
         )
     return errors
+
+
+def _residual_interpretation_covered_request_keys(
+    interpretation: Mapping[str, Any],
+    *,
+    request_residuals: tuple[str, ...],
+    request_by_key: Mapping[str, str],
+    index: int,
+    errors: list[str],
+) -> set[str]:
+    covered_keys: set[str] = set()
+    for covered_goal in _str_tuple(interpretation.get("covered_residual_goals", [])):
+        covered_key = _residual_goal_key(covered_goal)
+        if not covered_key:
+            continue
+        if covered_key not in request_by_key:
+            errors.append(
+                "residual_interpretations"
+                f"[{index}].covered_residual_goals entry not present in "
+                f"request residual_goals: {covered_goal}"
+            )
+            continue
+        covered_keys.add(covered_key)
+
+    raw_indices = interpretation.get("covered_residual_goal_indices", [])
+    if raw_indices in ("", None):
+        raw_indices = []
+    if raw_indices and not isinstance(raw_indices, (list, tuple)):
+        errors.append(
+            "residual_interpretations"
+            f"[{index}].covered_residual_goal_indices must be an array"
+        )
+        return covered_keys
+    for raw_index in raw_indices:
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            errors.append(
+                "residual_interpretations"
+                f"[{index}].covered_residual_goal_indices must contain integers"
+            )
+            continue
+        if raw_index < 0 or raw_index >= len(request_residuals):
+            errors.append(
+                "residual_interpretations"
+                f"[{index}].covered_residual_goal_indices out of range: "
+                f"{raw_index}"
+            )
+            continue
+        covered_key = _residual_goal_key(request_residuals[raw_index])
+        if covered_key:
+            covered_keys.add(covered_key)
+    return covered_keys
 
 
 def _response_residual_interpretation_primitive_grounding_errors(
@@ -15617,6 +16960,8 @@ def _residual_goal_prefixed_primitive_key_from_text(residual_goal: str) -> str:
     if len(parts) < 2:
         return ""
     first = _primitive_key(parts[0])
+    if first in {"batch", "residual_batch", "residual_group", "group"}:
+        return ""
     if (
         len(parts) >= 3
         and first

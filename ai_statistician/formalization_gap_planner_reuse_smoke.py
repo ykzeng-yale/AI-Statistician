@@ -43,6 +43,7 @@ from .formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
@@ -892,7 +893,7 @@ def run_formalization_gap_planner_reuse_smoke(
     llm_route_planner_provider: str = "anthropic",
     llm_route_planner_model: str = "",
     llm_route_planner_model_tier: str = "auto",
-    llm_route_planner_max_tokens: int = 9000,
+    llm_route_planner_max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     llm_route_planner_max_estimated_prompt_input_tokens: int = 0,
     llm_route_planner_max_repair_attempts: int = 1,
     llm_route_planner_temperature: float = 0.1,
@@ -902,7 +903,7 @@ def run_formalization_gap_planner_reuse_smoke(
     feedback_llm_route_planner_provider: str = "anthropic",
     feedback_llm_route_planner_model: str = "",
     feedback_llm_route_planner_model_tier: str = "auto",
-    feedback_llm_route_planner_max_tokens: int = 9000,
+    feedback_llm_route_planner_max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     feedback_llm_route_planner_max_estimated_prompt_input_tokens: int = 0,
     feedback_llm_route_planner_max_repair_attempts: int = 1,
     feedback_llm_route_planner_temperature: float = 0.1,

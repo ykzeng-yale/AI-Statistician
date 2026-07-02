@@ -111,6 +111,7 @@ from .formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
@@ -9826,7 +9827,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "formalization_gap_planner_live_max_tokens",
-                    9000,
+                    LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
                 )
             ),
             formalization_gap_planner_live_temperature=float(
@@ -13454,7 +13455,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_reuse_smoke.add_argument(
         "--llm-route-planner-max-tokens",
         type=int,
-        default=9000,
+        default=LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
         help="maximum output tokens for live LLM route-planner providers",
     )
     formalization_gap_planner_reuse_smoke.add_argument(
@@ -13526,7 +13527,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_reuse_smoke.add_argument(
         "--feedback-llm-route-planner-max-tokens",
         type=int,
-        default=9000,
+        default=LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
         help="maximum output tokens for feedback LLM route-planner providers",
     )
     formalization_gap_planner_reuse_smoke.add_argument(
@@ -13646,7 +13647,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--max-tokens",
         type=int,
-        default=9000,
+        default=LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
         help="maximum generator output tokens when --invoke-provider is set",
     )
     formalization_gap_planner_llm_route_planner.add_argument(

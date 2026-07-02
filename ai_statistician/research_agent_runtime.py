@@ -75,6 +75,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     audit_formalization_gap_planner_runtime_handoffs,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
     export_formalization_gap_planner_llm_route_planner,
@@ -187,7 +188,7 @@ from .verifier import ProofVerifier
 
 
 RUNTIME_SCHEMA_VERSION = 1
-RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 0
+RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -2904,7 +2905,7 @@ class ResearchAgentRuntimeConfig:
     formalization_gap_planner_live_provider: str = "anthropic"
     formalization_gap_planner_live_model: str = ""
     formalization_gap_planner_live_model_tier: str = "auto"
-    formalization_gap_planner_live_max_tokens: int = 9000
+    formalization_gap_planner_live_max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     formalization_gap_planner_live_temperature: float = 0.1
     formalization_gap_planner_live_max_repair_attempts: int = 1
     formalization_gap_planner_live_timeout_seconds: float = (
