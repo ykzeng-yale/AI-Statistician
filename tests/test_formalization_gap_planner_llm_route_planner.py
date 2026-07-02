@@ -19,6 +19,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
     PROMPT_CONTEXT_MAX_DECLARATION_ROWS,
@@ -12925,7 +12926,7 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
     )
     assert calls[1].metadata["staged_followup_stage_call"] is True
     assert calls[1].metadata["stage_id"] == "route_core_compaction"
-    assert calls[1].max_tokens == 2400
+    assert calls[1].max_tokens == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS
     assert calls[2].metadata["stage_id"] == "residual_batch_interpretation"
     stage_rows = payload["staged_followup_stage_attempt_rows"]
     assert [row["stage_id"] for row in stage_rows] == [
@@ -13222,6 +13223,133 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         in report
     )
     assert "Standalone seed source rows: 2 direct=1 staged-assembled=1" in report
+
+
+def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget_error() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_prompt_budget_staged_assembly"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    valid_payload = _llm_response_payload()
+    valid_payload["search_requests"] = []
+    valid_payload["planner_next_actions"] = []
+    valid_payload["uncertainty_flags"] = []
+    valid_payload["semantic_alignment_risks"] = []
+    calls: list[object] = []
+
+    def stage_fragment(stage_id: str) -> dict[str, object]:
+        if stage_id == "route_core_compaction":
+            return {
+                "informal_knowledge_dag_nodes": deepcopy(
+                    valid_payload["informal_knowledge_dag_nodes"]
+                ),
+                "informal_knowledge_dag_edges": deepcopy(
+                    valid_payload["informal_knowledge_dag_edges"]
+                ),
+                "formal_realization_dag_nodes": deepcopy(
+                    valid_payload["lean_realization_dag_nodes"]
+                ),
+                "formal_realization_dag_edges": deepcopy(
+                    valid_payload["formal_realization_dag_edges"]
+                ),
+                "route_alignment_edges": deepcopy(
+                    valid_payload["route_alignment_edges"]
+                ),
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "residual_batch_interpretation":
+            return {
+                "residual_interpretations": deepcopy(
+                    valid_payload["residual_interpretations"]
+                ),
+                "search_requests": deepcopy(valid_payload["search_requests"]),
+                "planner_next_actions": deepcopy(
+                    valid_payload["planner_next_actions"]
+                ),
+            }
+        return {
+            "formal_attempt_queue": deepcopy(valid_payload["formal_attempt_queue"]),
+            "standalone_route": deepcopy(valid_payload["standalone_route"]),
+            "uncertainty_flags": deepcopy(valid_payload["uncertainty_flags"]),
+            "semantic_alignment_risks": deepcopy(
+                valid_payload["semantic_alignment_risks"]
+            ),
+        }
+
+    class PromptBudgetAssemblingBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            assert request.metadata["staged_followup_stage_call"] is True
+            stage_id = str(request.metadata["stage_id"])
+            payload = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": [f"{stage_id} ready after prompt-budget split"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_stop_reason": "end_turn",
+                    "provider_usage": {
+                        "input_tokens": 10 + len(calls),
+                        "output_tokens": 20 + len(calls),
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model_tier="sonnet",
+        invoke_provider=True,
+        generator_backend=PromptBudgetAssemblingBackend(),
+        max_estimated_prompt_input_tokens=1,
+        max_staged_followup_stage_calls=3,
+    )
+
+    assert len(calls) == 3
+    assert payload["n_raw_responses"] == 0
+    assert payload["total_provider_total_tokens"] == 0
+    assert payload["n_prompt_token_budget_preflight_blocked"] == 1
+    assert (
+        payload["n_staged_followups_due_to_prompt_token_budget_preflight"]
+        == 1
+    )
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 3
+    assert payload["n_staged_followup_assembled_response_contract_ok"] == 1
+    assert payload["n_staged_followup_assembled_route_adoption_ready"] == 1
+    assert payload["n_staged_followup_target_prover_replay_candidates"] == 2
+    assembly = payload["staged_followup_assembly_rows"][0]
+    assert assembly["assembly_suppressed_request_errors"]
+    assert all(
+        "estimated prompt input tokens" in error
+        for error in assembly["assembly_suppressed_request_errors"]
+    )
+    assert not any(
+        "estimated prompt input tokens" in error
+        for error in assembly["assembled_llm_route_planner_row"]["errors"]
+    )
+    assert validate_llm_route_planner_manifest(payload) == []
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
@@ -14061,6 +14189,128 @@ def test_llm_route_planner_preflight_blocks_live_provider_on_prompt_budget_cap()
     ).read_text(encoding="utf-8")
     assert "- Prompt token budget preflight blocks: 1 cap=1" in report
     assert "- Generation preflight blocks: 1" in report
+    assert validate_llm_route_planner_manifest(payload) == []
+
+
+def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_budget_staged_followup"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    calls: list[object] = []
+
+    def stage_fragment(stage_id: str) -> dict[str, object]:
+        if stage_id == "route_core_compaction":
+            return {
+                "informal_knowledge_dag_nodes": [],
+                "informal_knowledge_dag_edges": [],
+                "formal_realization_dag_nodes": [],
+                "formal_realization_dag_edges": [],
+                "route_alignment_edges": [],
+                "minimal_delta_plan": {},
+            }
+        return {
+            "residual_interpretations": [],
+            "search_requests": [],
+            "planner_next_actions": [],
+        }
+
+    class CompactStagedBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            assert request.metadata["staged_followup_stage_call"] is True
+            stage_id = str(request.metadata["stage_id"])
+            fragment = stage_fragment(stage_id)
+            fragment["assembler_notes"] = [
+                "compact preflight followup fragment"
+            ]
+            payload = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "fragment": fragment,
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_stop_reason": "end_turn",
+                    "provider_usage": {
+                        "input_tokens": 10 + len(calls),
+                        "output_tokens": 20 + len(calls),
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model_tier="sonnet",
+        invoke_provider=True,
+        generator_backend=CompactStagedBackend(),
+        max_estimated_prompt_input_tokens=1,
+        max_staged_followup_stage_calls=2,
+    )
+
+    assert len(calls) == 2
+    assert payload["n_prompt_token_budget_preflight_blocked"] == 1
+    assert payload["n_generation_preflight_blocked"] == 1
+    assert payload["n_raw_responses"] == 0
+    assert payload["n_staged_followups_required"] == 1
+    assert (
+        payload["n_staged_followups_due_to_prompt_token_budget_preflight"]
+        == 1
+    )
+    assert payload["staged_followup_rows"][0]["followup_reason"] == (
+        "prompt_token_budget_preflight_blocked"
+    )
+    assert payload["n_staged_followup_stage_attempt_rows"] == 2
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 2
+    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 1
+    assert all(
+        row["stage_status"] == "completed_fragment"
+        for row in payload["staged_followup_stage_attempt_rows"]
+    )
+    assert all(
+        row["stage_status_inferred"] is True
+        for row in payload["staged_followup_stage_attempt_rows"]
+    )
+    assert all(
+        row["assembler_notes"] == ["compact preflight followup fragment"]
+        for row in payload["staged_followup_stage_attempt_rows"]
+    )
+    assert payload["total_provider_total_tokens"] == 0
+    assert payload["total_staged_followup_stage_provider_total_tokens"] == 66
+    assert payload["total_provider_total_tokens_including_staged_followups"] == 66
+    assert [call.metadata["stage_id"] for call in calls] == [
+        "route_core_compaction",
+        "residual_batch_interpretation",
+    ]
+    assert all(
+        call.max_tokens == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS
+        for call in calls
+    )
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Prompt token budget preflight blocks: 1 cap=1" in report
+    assert "Staged followup stage attempts: 2 ok=2 budget-blocked=1" in report
     assert validate_llm_route_planner_manifest(payload) == []
 
 

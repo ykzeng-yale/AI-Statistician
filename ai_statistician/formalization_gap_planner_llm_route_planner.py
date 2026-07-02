@@ -77,6 +77,9 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION = 1
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS = (
     "provider_max_tokens_json_truncation"
 )
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET = (
+    "prompt_token_budget_preflight_blocked"
+)
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-staged-followup-stage-response:1"
@@ -111,7 +114,8 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_ROUTE_BLOCKED_STATUS = (
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS = (
     "REJECTED_BEFORE_TARGET_PROVER_REPLAY"
 )
-LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS = 2400
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS = 6000
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS = "completed_fragment"
 LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS = 0
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
@@ -1353,6 +1357,9 @@ def export_formalization_gap_planner_llm_route_planner(
     staged_followup_rows = _staged_followup_rows(
         request_packets,
         row_dicts,
+        prompt_token_budget_errors_by_request_id=(
+            prompt_token_budget_errors_by_request_id
+        ),
         max_tokens=max_tokens,
         max_estimated_prompt_input_tokens=max_estimated_prompt_input_tokens,
     )
@@ -2767,6 +2774,12 @@ def export_formalization_gap_planner_llm_route_planner(
             for row in staged_followup_rows
             if row.get("followup_reason")
             == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS
+        ),
+        "n_staged_followups_due_to_prompt_token_budget_preflight": sum(
+            1
+            for row in staged_followup_rows
+            if row.get("followup_reason")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET
         ),
         "staged_followup_stage_attempt_rows": list(
             staged_followup_stage_attempt_rows
@@ -14242,11 +14255,30 @@ def _staged_followup_rows(
     requests: tuple[dict[str, Any], ...],
     rows: list[dict[str, Any]],
     *,
+    prompt_token_budget_errors_by_request_id: Mapping[str, tuple[str, ...]],
     max_tokens: int,
     max_estimated_prompt_input_tokens: int,
 ) -> tuple[dict[str, object], ...]:
     followups: list[dict[str, object]] = []
     for request, row in zip(requests, rows):
+        request_id = str(request.get("request_id", "") or "")
+        prompt_budget_errors = prompt_token_budget_errors_by_request_id.get(
+            request_id,
+            (),
+        )
+        if prompt_budget_errors:
+            followups.append(
+                _prompt_budget_preflight_staged_followup_row(
+                    request,
+                    row,
+                    prompt_budget_errors=prompt_budget_errors,
+                    max_tokens=max_tokens,
+                    max_estimated_prompt_input_tokens=(
+                        max_estimated_prompt_input_tokens
+                    ),
+                )
+            )
+            continue
         if not _row_requires_staged_followup(row):
             continue
         followups.append(
@@ -14357,6 +14389,81 @@ def _staged_followup_row(
     }
 
 
+def _prompt_budget_preflight_staged_followup_row(
+    request: Mapping[str, Any],
+    row: Mapping[str, Any],
+    *,
+    prompt_budget_errors: tuple[str, ...],
+    max_tokens: int,
+    max_estimated_prompt_input_tokens: int,
+) -> dict[str, object]:
+    request_id = str(request.get("request_id", "") or "")
+    route_id = str(request.get("route_id", "") or "")
+    return {
+        "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
+        "followup_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_KIND,
+        "staged_followup_id": (
+            "formalization_gap_planner_llm_route_planner_staged_followup:"
+            + stable_hash(
+                [
+                    request_id,
+                    route_id,
+                    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET,
+                    prompt_budget_errors,
+                ]
+            )[:20]
+        ),
+        "request_id": request_id,
+        "route_id": route_id,
+        "display_name": str(request.get("display_name", "") or ""),
+        "llm_route_planner_row_id": str(
+            row.get("llm_route_planner_row_id", "") or ""
+        ),
+        "followup_reason": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET,
+        "trigger_acceptance_status": str(row.get("acceptance_status", "") or ""),
+        "trigger_route_adoption_status": str(
+            row.get("route_adoption_status", "") or ""
+        ),
+        "provider_name": str(request.get("provider_name", "") or ""),
+        "model": str(request.get("model", "") or ""),
+        "model_tier": str(request.get("model_tier", "") or ""),
+        "provider_stop_reason": "",
+        "provider_output_tokens": 0,
+        "provider_input_tokens": 0,
+        "max_tokens": max(0, int(max_tokens)),
+        "max_estimated_prompt_input_tokens": max(
+            0,
+            int(max_estimated_prompt_input_tokens),
+        ),
+        "raw_response_chars": 0,
+        "raw_response_fingerprint": "",
+        "generation_errors": [],
+        "contract_error_count": len(prompt_budget_errors),
+        "contract_error_preview": list(prompt_budget_errors)[:12],
+        "recommended_execution_policy": (
+            "Do not invoke the monolithic over-budget prompt. Split this "
+            "handoff into compact route-core, residual-batch, and "
+            "formal-attempt/standalone stages, then validate the assembled "
+            "route against the full request packet."
+        ),
+        "stage_sequence": _staged_followup_stage_sequence(request),
+        "request_context_refs": {
+            "request_packet": "request_packets[].request_id",
+            "prompt_target_route": "request_packets[].prompt_target_route",
+            "prompt_context_packet": "request_packets[].prompt_context_packet",
+            "full_context_packet": "request_packets[].context_packet",
+            "full_target_route": "request_packets[].target_route",
+        },
+        "assembly_validation_gate": (
+            "The staged outputs are planning fragments until assembled into "
+            "the full LLM route-planner response schema and replayed through "
+            "validate_llm_route_planner_response plus _response_contract_errors."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _staged_followup_stage_sequence(
     request: Mapping[str, Any],
 ) -> list[dict[str, object]]:
@@ -14394,9 +14501,13 @@ def _staged_followup_stage_sequence(
                 "minimal_delta_plan",
             ],
             "size_policy": [
+                "Hard cap: at most 3 informal nodes, 3 formal nodes, and 5 edges total",
                 "At most one candidate_declaration_rows item per formal node",
                 "No notes/proof_obligation objects",
                 "Action witness fields are compact 'primitive: action' strings",
+                "minimal_delta_plan.selected_primitives has at most 8 items",
+                "minimal_delta_plan.primitive_costs has at most 8 items",
+                "minimal_delta_plan.and_or_cost_graph.route_options has at most 2 items",
                 "Route options do not duplicate top-level primitive_costs",
             ],
             "baseline_route_option_ids": baseline_route_option_ids,
@@ -14417,9 +14528,12 @@ def _staged_followup_stage_sequence(
             ],
             "residual_goal_count": residual_goal_count,
             "size_policy": [
+                "Hard cap: at most 5 residual_interpretations total",
                 "Prefer one row per residual class, not one row per diagnostic",
                 "Each row has interpretation, route_repair, target_primitives",
                 "Use formal_gap_boundary for environment/tool blockers",
+                "At most 4 search_requests and 4 planner_next_actions",
+                "No copied Lean diagnostics; use covered_residual_goal_indices",
             ],
         },
         {
@@ -14437,8 +14551,9 @@ def _staged_followup_stage_sequence(
                 "semantic_alignment_risks",
             ],
             "size_policy": [
-                "One formal_attempt_queue row per selected formal node",
-                "standalone_route.primitives mirror selected/core primitives",
+                "Hard cap: at most 6 formal_attempt_queue rows",
+                "standalone_route.primitives mirror selected/core primitives and have at most 8 items",
+                "At most 4 uncertainty_flags and 4 semantic_alignment_risks",
                 "No copied source snippets unless they exist in context",
             ],
         },
@@ -14555,6 +14670,7 @@ def _generate_staged_followup_stage_attempt(
         "response_contract_ok": False,
         "provider_failure": False,
         "stage_status": "",
+        "stage_status_inferred": False,
         "fragment": {},
         "assembler_notes": [],
         "raw_response_text": "",
@@ -14602,6 +14718,12 @@ def _generate_staged_followup_stage_attempt(
             generation_errors.append(
                 f"JSON extraction failed: {type(exc).__name__}: {exc}"
             )
+        payload, stage_status_inferred = (
+            _normalized_staged_followup_stage_response_payload(
+                payload,
+                stage_id=stage_id,
+            )
+        )
         validation_errors = [
             *generation_errors,
             *_staged_followup_stage_response_errors(
@@ -14625,6 +14747,7 @@ def _generate_staged_followup_stage_attempt(
             "response_present": True,
             "response_contract_ok": not validation_errors,
             "stage_status": str(payload.get("stage_status", "") or ""),
+            "stage_status_inferred": stage_status_inferred,
             "fragment": _dict_value(payload, "fragment"),
             "assembler_notes": list(_str_tuple(payload.get("assembler_notes", []))),
             "raw_response_text": generated.text,
@@ -14679,6 +14802,11 @@ def _staged_followup_stage_user_prompt(
     stage: Mapping[str, object],
 ) -> str:
     stage_id = str(stage.get("stage_id", "") or "")
+    prompt_context_packet = _dict_value(request, "prompt_context_packet")
+    stage_prompt_context_packet = _staged_followup_stage_prompt_context_packet(
+        prompt_context_packet,
+        stage_id=stage_id,
+    )
     payload = {
         "task": (
             "Produce one compact staged-followup route-planner fragment. "
@@ -14697,6 +14825,10 @@ def _staged_followup_stage_user_prompt(
             "stage_id": stage_id,
             "required_fragment_fields": list(
                 _staged_followup_stage_required_fragment_fields(stage_id)
+            ),
+            "stage_status": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS,
+            "stage_fragment_contract": _staged_followup_stage_fragment_contract(
+                stage_id
             ),
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         },
@@ -14724,20 +14856,254 @@ def _staged_followup_stage_user_prompt(
                 request.get("target_prover_family", "") or ""
             ),
             "prompt_target_route": _dict_value(request, "prompt_target_route"),
-            "prompt_context_packet": _dict_value(request, "prompt_context_packet"),
-            "residual_goals": list(_str_tuple(request.get("residual_goals", []))),
+            "prompt_context_packet": stage_prompt_context_packet,
+            "residual_goals": (
+                list(_str_tuple(request.get("residual_goals", [])))
+                if stage_id == "residual_batch_interpretation"
+                else []
+            ),
         },
         "hard_requirements": [
             "Return exactly one JSON object.",
             "Use the requested stage_id and staged_followup_id verbatim.",
+            (
+                "Set top-level stage_status to "
+                + LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS
+                + "."
+            ),
+            "Use exactly the field names in required_output_contract.stage_fragment_contract.",
             "Put stage-specific content under fragment, not as top-level prose.",
+            "Keep the complete JSON response under 1800 output tokens.",
             "Keep lists compact; do not copy long prover diagnostics.",
+            "If the stage cannot fit, return required fields with shorter rows or empty arrays plus assembler_notes.",
             "Do not invent source refs, formal declarations, or tool calls.",
             "If evidence is missing, use empty arrays plus assembler_notes or planner_next_actions.",
             "Do not claim kernel verification or theorem proof evidence.",
         ],
     }
     return json.dumps(payload, indent=2, default=str)
+
+
+def _normalized_staged_followup_stage_response_payload(
+    payload: Mapping[str, Any],
+    *,
+    stage_id: str,
+) -> tuple[Mapping[str, Any], bool]:
+    if not isinstance(payload, Mapping) or not payload:
+        return payload, False
+    normalized: dict[str, Any] = dict(payload)
+    fragment = normalized.get("fragment", {})
+    fragment_has_required_fields = (
+        isinstance(fragment, Mapping)
+        and all(
+            field_name in fragment
+            for field_name in _staged_followup_stage_required_fragment_fields(
+                stage_id
+            )
+        )
+    )
+    stage_status_inferred = False
+    if (
+        not str(normalized.get("stage_status", "") or "").strip()
+        and fragment_has_required_fields
+    ):
+        normalized["stage_status"] = (
+            LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS
+        )
+        stage_status_inferred = True
+    if "assembler_notes" not in normalized and isinstance(fragment, Mapping):
+        fragment_notes = fragment.get("assembler_notes")
+        if fragment_notes:
+            normalized["assembler_notes"] = list(_str_tuple(fragment_notes))
+    return normalized, stage_status_inferred
+
+
+def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]:
+    normalized = str(stage_id or "").strip()
+    if normalized == "route_core_compaction":
+        return {
+            "informal_knowledge_dag_nodes[]": [
+                "node_id",
+                "claim",
+                "depends_on",
+                "source_refs",
+                "source_search_status",
+                "semantic_role",
+            ],
+            "informal_knowledge_dag_edges[]": [
+                "source_node_id",
+                "target_node_id",
+                "edge_kind",
+                "rationale",
+            ],
+            "formal_realization_dag_nodes[]": [
+                "node_id",
+                "primitive",
+                "coverage_bucket",
+                "formalization_action",
+                "target_prover_family",
+                "candidate_declaration_rows[].source_field when present",
+            ],
+            "formal_realization_dag_edges[]": [
+                "source_node_id",
+                "target_node_id",
+                "edge_kind",
+                "rationale",
+            ],
+            "route_alignment_edges[]": [
+                "informal_node_id",
+                "formal_node_id",
+                "alignment_status",
+                "alignment_rationale",
+            ],
+            "minimal_delta_plan": [
+                "selected_primitives",
+                "cost_model_version",
+                "route_cost",
+                "primitive_costs[].primitive",
+                "primitive_costs[].coverage_bucket",
+                "primitive_costs[].base_cost",
+                "primitive_costs[].proof_difficulty_cost",
+                "primitive_costs[].import_cone_cost",
+                "primitive_costs[].definition_or_typeclass_cost",
+                "primitive_costs[].semantic_risk_cost",
+                "primitive_costs[].reuse_credit",
+                "primitive_costs[].total_cost",
+                "primitive_costs[].cost_rationale",
+                "and_or_cost_graph.graph_kind",
+                "and_or_cost_graph.selected_route_option_id",
+                "and_or_cost_graph.route_options[].route_option_id",
+                "and_or_cost_graph.route_options[].selected",
+                "and_or_cost_graph.route_options[].selected_primitives",
+                "and_or_cost_graph.route_options[].route_cost",
+                "and_or_cost_graph.route_options[].cost_rationale",
+                "and_or_cost_graph.or_nodes[].node_id",
+                "and_or_cost_graph.or_nodes[].choices",
+                "and_or_cost_graph.or_nodes[].selection_rationale",
+                "and_or_cost_graph.and_edges[].route_option_id",
+                "and_or_cost_graph.and_edges[].requires",
+                "minimality_rationale",
+            ],
+            "do_not_use_aliases": [
+                "source",
+                "target",
+                "label",
+                "coverage_status",
+            ],
+        }
+    if normalized == "residual_batch_interpretation":
+        return {
+            "residual_interpretations[]": [
+                "residual_goal",
+                "covered_residual_goal_indices",
+                "interpretation",
+                "route_repair",
+                "target_primitives",
+                "source_search_status or formal_gap_boundary",
+            ],
+            "search_requests[]": [
+                "request_kind",
+                "query",
+                "reason",
+                "target_primitives",
+            ],
+            "planner_next_actions[]": [
+                "owner",
+                "action",
+                "target_primitives",
+            ],
+        }
+    if normalized == "formal_attempt_queue_and_standalone_route":
+        return {
+            "formal_attempt_queue[]": [
+                "attempt_id",
+                "formal_node_id",
+                "primitive",
+                "target_prover_family",
+                "owner",
+                "action",
+                "attempt_kind",
+                "prerequisite_formal_node_ids",
+                "expected_feedback",
+                "target_primitives",
+            ],
+            "standalone_route": [
+                "display_name",
+                "theorem_statement",
+                "source_refs",
+                "primitives[].primitive",
+                "primitives[].coverage_status",
+                "primitives[].source_refs",
+            ],
+            "uncertainty_flags": "array of compact strings, not objects",
+            "semantic_alignment_risks": "array of compact strings, not objects",
+        }
+    return {}
+
+
+def _staged_followup_stage_prompt_context_packet(
+    prompt_context_packet: Mapping[str, Any],
+    *,
+    stage_id: str,
+) -> dict[str, object]:
+    common_keys = (
+        "context_packet_kind",
+        "projection_policy",
+        "standalone_input_component",
+        "route_id",
+        "display_name",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "route_match_ids",
+        "current_route",
+        "target_theorem_context_packet",
+        "route_planning_brief",
+        "minimal_delta_cost_hints",
+        "library_alignment_summary",
+        "available_source_refs",
+        "context_packet_inventory",
+    )
+    stage_keys_by_id = {
+        "route_core_compaction": (
+            "available_source_snippets",
+            "available_formal_declaration_rows",
+            "available_formal_declarations",
+            "source_grounding_obligations",
+            "source_grounding_rows",
+        ),
+        "residual_batch_interpretation": (
+            "residual_goals",
+            "residual_goal_contexts",
+            "feedback_loop_summary",
+            "resource_feedback_readiness_summary",
+            "resource_request_playbooks",
+            "resource_request_queue_rows",
+            "resource_response_ledger_rows",
+        ),
+        "formal_attempt_queue_and_standalone_route": (
+            "route_adoption_preconditions",
+            "source_theorem_semantic_primitive_rows",
+            "source_theorem_formal_environment_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            "source_theorem_proof_body_execution_result_rows",
+            "route_replan_handoff_rows",
+            "route_revision_overlay_rows",
+        ),
+    }
+    selected_keys = (
+        *common_keys,
+        *stage_keys_by_id.get(stage_id, ()),
+    )
+    stage_context = {
+        key: prompt_context_packet.get(key)
+        for key in selected_keys
+        if key in prompt_context_packet
+    }
+    return _prompt_compact_value(
+        stage_context,
+        text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+        list_limit=4,
+    )
 
 
 def llm_route_planner_staged_followup_stage_response_schema(
@@ -14972,6 +15338,7 @@ def _staged_followup_assembly_row(
         "assembled_response_contract_ok": False,
         "assembled_route_adoption_status": "",
         "assembled_route_adoption_blockers": [],
+        "assembly_suppressed_request_errors": [],
         "assembled_response": {},
         "assembled_llm_route_planner_row": {},
         "errors": [],
@@ -15004,6 +15371,12 @@ def _staged_followup_assembly_row(
                 + ", ".join(missing_stage_ids)
             ],
         }
+    assembly_request_errors, suppressed_request_errors = (
+        _staged_followup_assembly_request_errors(
+            followup,
+            request_errors_by_id.get(request_id, []),
+        )
+    )
     assembled_response = _assembled_response_from_stage_attempts(
         followup,
         request,
@@ -15011,7 +15384,7 @@ def _staged_followup_assembly_row(
     )
     assembled_row = _row_for_request(
         request,
-        request_errors=list(request_errors_by_id.get(request_id, [])),
+        request_errors=list(assembly_request_errors),
         response=assembled_response,
     )
     assembled_row_dict = asdict(assembled_row)
@@ -15029,11 +15402,34 @@ def _staged_followup_assembly_row(
         "assembled_route_adoption_blockers": list(
             assembled_row.route_adoption_blockers
         ),
+        "assembly_suppressed_request_errors": list(suppressed_request_errors),
         "assembled_response": assembled_response,
         "assembled_llm_route_planner_row": assembled_row_dict,
         "errors": list(_str_tuple(assembled_row.errors)),
         "ok": assembly_ok,
     }
+
+
+def _staged_followup_assembly_request_errors(
+    followup: Mapping[str, object],
+    request_errors: list[str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if (
+        str(followup.get("followup_reason", "") or "")
+        != LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET
+    ):
+        return tuple(_str_tuple(request_errors)), tuple()
+    kept: list[str] = []
+    suppressed: list[str] = []
+    for error in _str_tuple(request_errors):
+        if (
+            "estimated prompt input tokens" in error
+            and "max_estimated_prompt_input_tokens" in error
+        ):
+            suppressed.append(error)
+        else:
+            kept.append(error)
+    return tuple(kept), tuple(suppressed)
 
 
 def _assembled_response_from_stage_attempts(
