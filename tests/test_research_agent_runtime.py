@@ -2714,6 +2714,38 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "central blackboard.handoff_ledger" in handoff_row["blocker"]
     assert handoff_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
 
+    lineage_payload = dict(clean_payload)
+    lineage_payload.update(
+        {
+            "runtime_pending_task_handoff_lineage_required": True,
+            "runtime_pending_task_handoff_lineage_complete": False,
+            "pending_next_task_id": "simulate:q1",
+            "pending_task_source_handoff_id": "",
+            "pending_task_context_source_handoff_id": "",
+            "runtime_pending_task_expected_source_handoff_ids": [
+                "handoff:1:theory:q1->simulate:q1"
+            ],
+            "n_runtime_pending_task_handoff_lineage_missing_fields": 3,
+            "n_runtime_pending_task_handoff_lineage_mismatched_fields": 0,
+            "runtime_pending_task_handoff_lineage_issues": [
+                {
+                    "issue": "pending_task_missing_runtime_resume_source_handoff",
+                }
+            ],
+        }
+    )
+    lineage_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(lineage_payload)["rows"]
+    }
+    lineage_row = lineage_rows[
+        "runtime_pending_task_handoff_lineage_complete"
+    ]
+    assert lineage_row["passed"] is False
+    assert "missing_fields=3" in lineage_row["evidence"]
+    assert "pending task did not preserve the source" in lineage_row["blocker"]
+    assert lineage_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
 
 def test_runtime_capability_gaps_separate_component_calibration() -> None:
     scorecard = {
@@ -49757,6 +49789,24 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert task_handoff_rows[0]["question_id"] == question.id
     assert task_handoff_rows[0]["project_id"] == result["blackboard"]["project_id"]
     assert task_handoff_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
+    pending_task_path = Path(manifest["artifacts"]["runtime_pending_next_task_json"])
+    pending_task_payload = json.loads(pending_task_path.read_text(encoding="utf-8"))
+    final_handoff_id = result["traces"][-1]["handoff_id"]
+    assert pending_task_payload["source_handoff_id"] == final_handoff_id
+    assert pending_task_payload["source_handoff"]["handoff_id"] == final_handoff_id
+    assert pending_task_payload["runtime_task_handoffs_jsonl"] == str(
+        Path(manifest["artifacts"]["runtime_task_handoffs_jsonl"])
+    )
+    pending_source_handoff = pending_task_payload["pending_next_task"]["inputs"][
+        "architect_context"
+    ]["runtime_resume_source_handoff"]
+    assert pending_source_handoff["handoff_id"] == final_handoff_id
+    assert pending_source_handoff["source_handoff_export_path"] == str(
+        Path(manifest["artifacts"]["runtime_task_handoffs_jsonl"])
+    )
+    assert pending_source_handoff["proof_evidence_status"] == (
+        "RUNTIME_HANDOFF_LINEAGE_NOT_PROOF_EVIDENCE"
+    )
     assert [row["status"] for row in result["traces"][:12]] == [
         "REROUTE",
         "REROUTE",
@@ -50489,6 +50539,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_runtime_task_handoff_export_missing_rows"] == 0
     assert audit["n_runtime_task_handoff_export_unknown_rows"] == 0
     assert audit["n_runtime_task_handoff_export_mismatched_rows"] == 0
+    assert audit["runtime_pending_task_handoff_lineage_required"] is True
+    assert audit["runtime_pending_task_handoff_lineage_complete"] is True
+    assert audit["pending_task_source_handoff_id"] == final_handoff_id
+    assert audit["pending_task_context_source_handoff_id"] == final_handoff_id
+    assert audit["runtime_pending_task_expected_source_handoff_ids"] == [
+        final_handoff_id
+    ]
+    assert audit["n_runtime_pending_task_handoff_lineage_missing_fields"] == 0
+    assert audit["n_runtime_pending_task_handoff_lineage_mismatched_fields"] == 0
     assert audit["n_runtime_task_handoff_ledger_missing_rows"] == 0
     assert audit["n_runtime_task_handoff_ledger_mismatched_rows"] == 0
     assert audit["n_runtime_task_handoff_progress_rows_missing_handoff_id"] == 0
@@ -50519,6 +50578,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
     assert (
         scorecard_rows["runtime_task_handoff_ledger_complete"]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows["runtime_pending_task_handoff_lineage_complete"][
+            "passed"
+        ]
         is True
     )
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
@@ -57384,6 +57449,17 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE"
     )
     result = json.loads((out_dir / "causal_ate_aipw_runtime_result.json").read_text())
+    assert pending_task_payload["source_handoff_id"] == result["traces"][-1][
+        "handoff_id"
+    ]
+    assert pending_task_payload["source_handoff"]["handoff_id"] == (
+        pending_task_payload["source_handoff_id"]
+    )
+    assert pending_task_payload["pending_next_task"]["inputs"][
+        "architect_context"
+    ]["runtime_resume_source_handoff"]["handoff_id"] == (
+        pending_task_payload["source_handoff_id"]
+    )
     assert result["traces"][0]["task"]["task_id"] == resume_task["task_id"]
     assert result["traces"][0]["task"]["owner_subsystem"] == "TheoryDeveloper"
     assert (
@@ -57609,6 +57685,9 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     assert second_result["traces"][0]["task"]["task_id"].startswith(
         "simulation:"
     )
+    assert second_result["traces"][0]["task"]["inputs"]["architect_context"][
+        "runtime_resume_source_handoff"
+    ]["handoff_id"] == pending_task_payload["source_handoff_id"]
     resume_memory = second_result["traces"][0]["task"]["inputs"][
         "architect_context"
     ]["runtime_learning_memory"]
@@ -57672,6 +57751,9 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     auto_resume_memory = third_result["traces"][0]["task"]["inputs"][
         "architect_context"
     ]["runtime_learning_memory"]
+    assert third_result["traces"][0]["task"]["inputs"]["architect_context"][
+        "runtime_resume_source_handoff"
+    ]["handoff_id"] == pending_task_payload["source_handoff_id"]
     assert str(previous_learning_path) in auto_resume_memory["source_paths"]
     assert auto_resume_memory["rows"]
 

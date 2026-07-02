@@ -509,6 +509,11 @@ def _load_runtime_resume_task_from_manifest(
         raise ValueError(
             f"{path} does not contain an incomplete pending runtime task payload"
         )
+    task_payload = _runtime_resume_task_payload_with_source_handoff(
+        task_payload,
+        resume_payload=payload,
+        resume_path=path,
+    )
     question_id = _runtime_resume_task_question_id(task_payload)
     if not question_id and artifact_kind == "RuntimePendingNextTask":
         question_id = str(payload.get("question_id", "") or "")
@@ -532,6 +537,85 @@ def _load_runtime_resume_task_from_manifest(
         _agent_task_from_payload(_normalize_runtime_resume_task_payload(task_payload)),
         artifacts,
     )
+
+
+def _runtime_resume_task_payload_with_source_handoff(
+    task_payload: Mapping[str, Any],
+    *,
+    resume_payload: Mapping[str, Any],
+    resume_path: Path,
+) -> dict[str, Any]:
+    normalized = dict(task_payload)
+    source_handoff = (
+        resume_payload.get("source_handoff", {})
+        if isinstance(resume_payload.get("source_handoff", {}), Mapping)
+        else resume_payload.get("incomplete_pending_next_task_source_handoff", {})
+        if isinstance(
+            resume_payload.get("incomplete_pending_next_task_source_handoff", {}),
+            Mapping,
+        )
+        else {}
+    )
+    source_handoff_id = str(
+        resume_payload.get("source_handoff_id", "")
+        or resume_payload.get("incomplete_pending_next_task_source_handoff_id", "")
+        or source_handoff.get("handoff_id", "")
+        or ""
+    ).strip()
+    if not source_handoff_id:
+        return normalized
+    inputs = (
+        dict(normalized.get("inputs", {}))
+        if isinstance(normalized.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        dict(inputs.get("architect_context", {}))
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    if isinstance(architect_context.get("runtime_resume_source_handoff"), Mapping):
+        return normalized
+    source_manifest_path = str(
+        resume_payload.get("source_manifest_path", "")
+        or resume_payload.get("_manifest_path", "")
+        or resume_path
+    )
+    architect_context["runtime_resume_source_handoff"] = {
+        "artifact_kind": "RuntimeResumeSourceHandoff",
+        "handoff_id": source_handoff_id,
+        "from_task_id": str(source_handoff.get("from_task_id", "") or ""),
+        "to_task_id": str(source_handoff.get("to_task_id", "") or ""),
+        "from_subsystem": str(source_handoff.get("from_subsystem", "") or ""),
+        "to_subsystem": str(source_handoff.get("to_subsystem", "") or ""),
+        "status": str(source_handoff.get("status", "") or ""),
+        "failure_classification": str(
+            source_handoff.get("failure_classification", "") or ""
+        ),
+        "produced_artifact_ids": [
+            str(value)
+            for value in source_handoff.get("produced_artifact_ids", []) or []
+            if str(value).strip()
+        ],
+        "evidence_ids": [
+            str(value)
+            for value in source_handoff.get("evidence_ids", []) or []
+            if str(value).strip()
+        ],
+        "source_manifest_path": source_manifest_path,
+        "source_handoff_export_path": str(
+            resume_payload.get("runtime_task_handoffs_jsonl", "") or ""
+        ),
+        "proof_evidence_status": "RUNTIME_HANDOFF_LINEAGE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Runtime resume source handoff is orchestration lineage only. "
+            "It preserves why this pending task was scheduled, but it is not "
+            "statistical, simulation, generated-code, or proof evidence."
+        ),
+    }
+    inputs["architect_context"] = architect_context
+    normalized["inputs"] = inputs
+    return normalized
 
 
 def _runtime_resume_learning_memory_paths(path: Path) -> list[Path]:

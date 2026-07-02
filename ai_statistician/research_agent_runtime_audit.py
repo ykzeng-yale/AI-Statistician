@@ -651,6 +651,191 @@ def _runtime_task_handoff_ledger_mismatches(
     return mismatches
 
 
+def _runtime_pending_task_handoff_lineage_summary(
+    *,
+    manifest: Mapping[str, Any],
+    pending_task_payload: Mapping[str, Any],
+    result_paths: list[Path],
+    errors: list[str],
+) -> dict[str, Any]:
+    pending_task = (
+        pending_task_payload.get("pending_next_task", {})
+        if isinstance(pending_task_payload.get("pending_next_task", {}), Mapping)
+        else manifest.get("incomplete_pending_next_task", {})
+        if isinstance(manifest.get("incomplete_pending_next_task", {}), Mapping)
+        else {}
+    )
+    pending_task_id = str(
+        pending_task_payload.get("pending_next_task_id", "")
+        or manifest.get("incomplete_pending_next_task_id", "")
+        or pending_task.get("task_id", "")
+        or ""
+    ).strip()
+    issues: list[dict[str, Any]] = []
+    expected_handoff_ids: set[str] = set()
+    result_payloads: list[tuple[Path, dict[str, Any]]] = []
+    for path in result_paths:
+        result_payloads.append((path, _load_json(path, errors)))
+    if not pending_task_id:
+        for _, payload in result_payloads:
+            if str(payload.get("status", "") or "") != "MAX_ITERATIONS_REACHED":
+                continue
+            traces = (
+                payload.get("traces", [])
+                if isinstance(payload.get("traces", []), list)
+                else []
+            )
+            final_trace = traces[-1] if traces and isinstance(traces[-1], Mapping) else {}
+            pending_task_id = str(final_trace.get("next_task_id", "") or "").strip()
+            if pending_task_id:
+                pending_task = (
+                    final_trace.get("next_task", {})
+                    if isinstance(final_trace.get("next_task", {}), Mapping)
+                    else pending_task
+                )
+                break
+    required = bool(pending_task_id and pending_task)
+    if pending_task_id:
+        for path, payload in result_payloads:
+            traces = (
+                payload.get("traces", [])
+                if isinstance(payload.get("traces", []), list)
+                else []
+            )
+            for trace_index, trace in enumerate(traces):
+                if not isinstance(trace, Mapping):
+                    continue
+                if str(trace.get("next_task_id", "") or "").strip() != pending_task_id:
+                    continue
+                handoff_id = str(trace.get("handoff_id", "") or "").strip()
+                if handoff_id:
+                    expected_handoff_ids.add(handoff_id)
+                else:
+                    _append_handoff_issue(
+                        issues,
+                        path=path,
+                        issue="pending_task_source_trace_missing_handoff_id",
+                        trace_index=trace_index,
+                        detail="trace that created pending task has no handoff_id",
+                    )
+    source_handoff = (
+        pending_task_payload.get("source_handoff", {})
+        if isinstance(pending_task_payload.get("source_handoff", {}), Mapping)
+        else manifest.get("incomplete_pending_next_task_source_handoff", {})
+        if isinstance(
+            manifest.get("incomplete_pending_next_task_source_handoff", {}),
+            Mapping,
+        )
+        else {}
+    )
+    top_level_source_id = str(
+        pending_task_payload.get("source_handoff_id", "")
+        or manifest.get("incomplete_pending_next_task_source_handoff_id", "")
+        or source_handoff.get("handoff_id", "")
+        or ""
+    ).strip()
+    inputs = (
+        pending_task.get("inputs", {})
+        if isinstance(pending_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    context_handoff = (
+        architect_context.get("runtime_resume_source_handoff", {})
+        if isinstance(
+            architect_context.get("runtime_resume_source_handoff", {}),
+            Mapping,
+        )
+        else {}
+    )
+    context_source_id = str(context_handoff.get("handoff_id", "") or "").strip()
+    missing_fields = 0
+    mismatched_fields = 0
+    if required and not top_level_source_id:
+        missing_fields += 1
+        _append_handoff_issue(
+            issues,
+            issue="pending_task_missing_source_handoff_id",
+            detail="pending task artifact or manifest has no source_handoff_id",
+        )
+    if required and not source_handoff:
+        missing_fields += 1
+        _append_handoff_issue(
+            issues,
+            issue="pending_task_missing_source_handoff",
+            detail="pending task artifact or manifest has no source_handoff row",
+        )
+    if required and not context_source_id:
+        missing_fields += 1
+        _append_handoff_issue(
+            issues,
+            issue="pending_task_missing_runtime_resume_source_handoff",
+            detail="pending task architect_context has no runtime_resume_source_handoff",
+        )
+    if top_level_source_id and context_source_id and top_level_source_id != context_source_id:
+        mismatched_fields += 1
+        _append_handoff_issue(
+            issues,
+            issue="pending_task_source_handoff_context_mismatch",
+            handoff_id=context_source_id,
+            detail="runtime_resume_source_handoff handoff_id does not match source_handoff_id",
+        )
+    if expected_handoff_ids:
+        if top_level_source_id and top_level_source_id not in expected_handoff_ids:
+            mismatched_fields += 1
+            _append_handoff_issue(
+                issues,
+                issue="pending_task_source_handoff_trace_mismatch",
+                handoff_id=top_level_source_id,
+                detail="source_handoff_id does not match the trace that created the pending task",
+            )
+        if context_source_id and context_source_id not in expected_handoff_ids:
+            mismatched_fields += 1
+            _append_handoff_issue(
+                issues,
+                issue="pending_task_context_handoff_trace_mismatch",
+                handoff_id=context_source_id,
+                detail="runtime_resume_source_handoff does not match the trace that created the pending task",
+            )
+    complete = (
+        not required
+        or (
+            missing_fields == 0
+            and mismatched_fields == 0
+            and bool(top_level_source_id)
+            and bool(context_source_id)
+        )
+    )
+    return {
+        "artifact_kind": "RuntimePendingTaskHandoffLineageAudit",
+        "runtime_pending_task_handoff_lineage_required": required,
+        "runtime_pending_task_handoff_lineage_complete": complete,
+        "pending_next_task_id": pending_task_id,
+        "pending_task_source_handoff_id": top_level_source_id,
+        "pending_task_context_source_handoff_id": context_source_id,
+        "runtime_pending_task_expected_source_handoff_ids": sorted(
+            expected_handoff_ids
+        ),
+        "n_runtime_pending_task_expected_source_handoffs": len(
+            expected_handoff_ids
+        ),
+        "n_runtime_pending_task_handoff_lineage_missing_fields": missing_fields,
+        "n_runtime_pending_task_handoff_lineage_mismatched_fields": (
+            mismatched_fields
+        ),
+        "runtime_pending_task_handoff_lineage_issues": issues,
+        "boundary": (
+            "Pending-task source handoff lineage is orchestration continuity. "
+            "It proves that resume can locate the upstream task handoff, not "
+            "that the pending statistical, simulation, code, or proof work is correct."
+        ),
+    }
+
+
 def _runtime_task_handoff_export_mismatches(
     *,
     export_row: Mapping[str, Any],
@@ -1025,6 +1210,18 @@ def audit_research_agent_runtime(
             errors=errors,
         )
     )
+    runtime_pending_task_handoff_lineage_summary = (
+        _runtime_pending_task_handoff_lineage_summary(
+            manifest=manifest,
+            pending_task_payload=(
+                pending_task_payload
+                if str(pending_task_raw_path or "").strip()
+                else {}
+            ),
+            result_paths=result_paths,
+            errors=errors,
+        )
+    )
     runtime_target_prover_replay_route_revision_summary = (
         _runtime_target_prover_replay_route_revision_feedback_audit_summary(
             pending_memory_rows=(
@@ -1219,6 +1416,11 @@ def audit_research_agent_runtime(
             dict(manifest.get("runtime_resume_context", {}) or {})
             if isinstance(manifest.get("runtime_resume_context", {}), Mapping)
             else {}
+        ),
+        "pending_next_task_id": str(
+            manifest.get("incomplete_pending_next_task_id", "")
+            or pending_task_artifact_payload.get("task_id", "")
+            or ""
         ),
         "runtime_architect_coordinator_registered": bool(
             manifest.get("runtime_architect_coordinator_registered", False)
@@ -1493,6 +1695,54 @@ def audit_research_agent_runtime(
         "runtime_task_handoff_ledger_issues": list(
             runtime_task_handoff_ledger_summary[
                 "runtime_task_handoff_ledger_issues"
+            ]
+        ),
+        "runtime_pending_task_handoff_lineage_audit_summary": (
+            runtime_pending_task_handoff_lineage_summary
+        ),
+        "runtime_pending_task_handoff_lineage_required": bool(
+            runtime_pending_task_handoff_lineage_summary[
+                "runtime_pending_task_handoff_lineage_required"
+            ]
+        ),
+        "runtime_pending_task_handoff_lineage_complete": bool(
+            runtime_pending_task_handoff_lineage_summary[
+                "runtime_pending_task_handoff_lineage_complete"
+            ]
+        ),
+        "pending_task_source_handoff_id": str(
+            runtime_pending_task_handoff_lineage_summary[
+                "pending_task_source_handoff_id"
+            ]
+        ),
+        "pending_task_context_source_handoff_id": str(
+            runtime_pending_task_handoff_lineage_summary[
+                "pending_task_context_source_handoff_id"
+            ]
+        ),
+        "runtime_pending_task_expected_source_handoff_ids": list(
+            runtime_pending_task_handoff_lineage_summary[
+                "runtime_pending_task_expected_source_handoff_ids"
+            ]
+        ),
+        "n_runtime_pending_task_expected_source_handoffs": int(
+            runtime_pending_task_handoff_lineage_summary[
+                "n_runtime_pending_task_expected_source_handoffs"
+            ]
+        ),
+        "n_runtime_pending_task_handoff_lineage_missing_fields": int(
+            runtime_pending_task_handoff_lineage_summary[
+                "n_runtime_pending_task_handoff_lineage_missing_fields"
+            ]
+        ),
+        "n_runtime_pending_task_handoff_lineage_mismatched_fields": int(
+            runtime_pending_task_handoff_lineage_summary[
+                "n_runtime_pending_task_handoff_lineage_mismatched_fields"
+            ]
+        ),
+        "runtime_pending_task_handoff_lineage_issues": list(
+            runtime_pending_task_handoff_lineage_summary[
+                "runtime_pending_task_handoff_lineage_issues"
             ]
         ),
         "n_runtime_next_action_items": len(agenda_rows),
@@ -7360,6 +7610,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and runtime_task_handoff_trace_rows <= 0
         else raw_task_handoff_ledger_complete is True
     )
+    runtime_pending_task_handoff_lineage_required = (
+        payload.get("runtime_pending_task_handoff_lineage_required") is True
+    )
+    raw_pending_task_handoff_lineage_complete = payload.get(
+        "runtime_pending_task_handoff_lineage_complete"
+    )
+    runtime_pending_task_handoff_lineage_complete = (
+        True
+        if raw_pending_task_handoff_lineage_complete is None
+        and not runtime_pending_task_handoff_lineage_required
+        else raw_pending_task_handoff_lineage_complete is True
+    )
     runtime_route_missing_target_ids_count = int(
         payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
     )
@@ -8806,6 +9068,48 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "runtime_pending_task_handoff_lineage_complete",
+            runtime_pending_task_handoff_lineage_complete,
+            (
+                "required="
+                f"{payload.get('runtime_pending_task_handoff_lineage_required')} "
+                "pending_task_id="
+                f"{payload.get('pending_next_task_id')} "
+                "source_handoff_id="
+                f"{payload.get('pending_task_source_handoff_id')} "
+                "context_source_handoff_id="
+                f"{payload.get('pending_task_context_source_handoff_id')} "
+                "expected_source_handoff_ids="
+                f"{payload.get('runtime_pending_task_expected_source_handoff_ids')} "
+                "missing_fields="
+                f"{payload.get('n_runtime_pending_task_handoff_lineage_missing_fields')} "
+                "mismatched_fields="
+                f"{payload.get('n_runtime_pending_task_handoff_lineage_mismatched_fields')} "
+                "issues="
+                f"{payload.get('runtime_pending_task_handoff_lineage_issues')}"
+            ),
+            (
+                "Budget-exhausted pending task did not preserve the source "
+                "AgentRuntime handoff in the pending artifact and resumed task "
+                "architect_context; continuation cannot audit why the downstream "
+                "subsystem was scheduled"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Resume or rerun with pending task artifacts generated by "
+                    "the current runtime so the source handoff id and compact "
+                    "runtime_resume_source_handoff travel with the pending task."
+                ),
+                success_metric=(
+                    "runtime_pending_task_handoff_lineage_complete=true with "
+                    "matching pending source_handoff_id, source_handoff row, "
+                    "and architect_context.runtime_resume_source_handoff"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
             (
@@ -10135,6 +10439,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "",
         "## Runtime Handoff Identity",
         f"- pending task memory rows: {payload.get('n_runtime_pending_task_memory_rows')}",
+        "- pending task handoff lineage complete / source / context: "
+        f"{payload.get('runtime_pending_task_handoff_lineage_complete')} / "
+        f"{payload.get('pending_task_source_handoff_id')} / "
+        f"{payload.get('pending_task_context_source_handoff_id')}",
         "- route-critical target identity rows / missing target_ids: "
         f"{payload.get('n_runtime_route_critical_target_identity_rows')} / "
         f"{payload.get('n_runtime_route_critical_rows_missing_target_ids')}",

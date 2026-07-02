@@ -28881,6 +28881,16 @@ def run_research_agent_runtime(
     )
     pending_next_task = manifest.get("incomplete_pending_next_task")
     if isinstance(pending_next_task, Mapping) and pending_next_task:
+        (
+            pending_source_handoff_id,
+            pending_source_handoff,
+        ) = _runtime_pending_task_source_handoff(
+            results=results,
+            handoff_rows=handoff_rows,
+            pending_next_task_id=str(
+                failure_summary.get("pending_next_task_id", "") or ""
+            ),
+        )
         pending_exact_semantic_definition_feedback = (
             _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
                 source_theorem_exact_semantic_definition_work_order_rows,
@@ -28894,8 +28904,23 @@ def run_research_agent_runtime(
                 pending_exact_semantic_definition_feedback
             ),
         )
+        pending_next_task = _runtime_pending_task_with_source_handoff(
+            pending_next_task,
+            source_handoff=pending_source_handoff,
+            source_manifest_path=str(manifest_path),
+            source_handoff_export_path=str(task_handoffs_path),
+        )
         manifest["incomplete_pending_next_task"] = pending_next_task
+        manifest["incomplete_pending_next_task_source_handoff_id"] = (
+            pending_source_handoff_id
+        )
+        manifest["incomplete_pending_next_task_source_handoff"] = dict(
+            pending_source_handoff
+        )
         failure_summary["pending_next_task"] = pending_next_task
+        failure_summary["pending_next_task_source_handoff_id"] = (
+            pending_source_handoff_id
+        )
         manifest["runtime_failure_summary"] = failure_summary
         completion_rows = manifest.get("runtime_completion_summary", {}).get(
             "rows",
@@ -28917,6 +28942,9 @@ def run_research_agent_runtime(
             "question_id": failure_summary["terminal_question_id"],
             "pending_next_task_id": failure_summary["pending_next_task_id"],
             "pending_next_task": dict(pending_next_task),
+            "source_handoff_id": pending_source_handoff_id,
+            "source_handoff": dict(pending_source_handoff),
+            "runtime_task_handoffs_jsonl": str(task_handoffs_path),
             "source_manifest_path": str(manifest_path),
             "proof_evidence_status": "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE",
             "boundary": (
@@ -51670,6 +51698,94 @@ def _runtime_pending_task_with_runtime_learning_memory(
             )
             inputs["environment_feedback"] = environment_feedback
             architect_context["environment_feedback"] = environment_feedback
+    inputs["architect_context"] = architect_context
+    pending["inputs"] = inputs
+    return pending
+
+
+def _runtime_pending_task_source_handoff(
+    *,
+    results: list[dict[str, Any]],
+    handoff_rows: list[dict[str, Any]],
+    pending_next_task_id: str,
+) -> tuple[str, dict[str, Any]]:
+    pending_next_task_id = str(pending_next_task_id or "").strip()
+    if not pending_next_task_id:
+        return "", {}
+    source_handoff_id = ""
+    for result in results:
+        traces = result.get("traces", [])
+        if not isinstance(traces, list):
+            continue
+        for trace in reversed(traces):
+            if not isinstance(trace, Mapping):
+                continue
+            if str(trace.get("next_task_id", "") or "").strip() != pending_next_task_id:
+                continue
+            source_handoff_id = str(trace.get("handoff_id", "") or "").strip()
+            break
+        if source_handoff_id:
+            break
+    if not source_handoff_id:
+        return "", {}
+    for row in reversed(handoff_rows):
+        if str(row.get("handoff_id", "") or "").strip() == source_handoff_id:
+            return source_handoff_id, dict(row)
+    return source_handoff_id, {"handoff_id": source_handoff_id}
+
+
+def _runtime_pending_task_with_source_handoff(
+    pending_next_task: Mapping[str, Any],
+    *,
+    source_handoff: Mapping[str, Any],
+    source_manifest_path: str,
+    source_handoff_export_path: str,
+) -> dict[str, Any]:
+    pending = dict(pending_next_task)
+    handoff_id = str(source_handoff.get("handoff_id", "") or "").strip()
+    if not handoff_id:
+        return pending
+    inputs = (
+        dict(pending.get("inputs", {}))
+        if isinstance(pending.get("inputs", {}), Mapping)
+        else {}
+    )
+    architect_context = (
+        dict(inputs.get("architect_context", {}))
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    architect_context["runtime_resume_source_handoff"] = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeResumeSourceHandoff",
+        "handoff_id": handoff_id,
+        "from_task_id": str(source_handoff.get("from_task_id", "") or ""),
+        "to_task_id": str(source_handoff.get("to_task_id", "") or ""),
+        "from_subsystem": str(source_handoff.get("from_subsystem", "") or ""),
+        "to_subsystem": str(source_handoff.get("to_subsystem", "") or ""),
+        "status": str(source_handoff.get("status", "") or ""),
+        "failure_classification": str(
+            source_handoff.get("failure_classification", "") or ""
+        ),
+        "produced_artifact_ids": [
+            str(value)
+            for value in source_handoff.get("produced_artifact_ids", []) or []
+            if str(value).strip()
+        ],
+        "evidence_ids": [
+            str(value)
+            for value in source_handoff.get("evidence_ids", []) or []
+            if str(value).strip()
+        ],
+        "source_manifest_path": str(source_manifest_path or ""),
+        "source_handoff_export_path": str(source_handoff_export_path or ""),
+        "proof_evidence_status": "RUNTIME_HANDOFF_LINEAGE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Runtime resume source handoff is orchestration lineage only. "
+            "It preserves why this pending task was scheduled, but it is not "
+            "statistical, simulation, generated-code, or proof evidence."
+        ),
+    }
     inputs["architect_context"] = architect_context
     pending["inputs"] = inputs
     return pending
