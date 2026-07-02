@@ -14194,6 +14194,46 @@ def _runtime_formalization_gap_planner_task_runtime_learning_rows(
     return deduped_rows
 
 
+def _runtime_formalization_gap_planner_followup_architect_context(
+    inputs: Mapping[str, Any],
+    runtime_learning_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    architect_context = (
+        dict(inputs.get("architect_context", {}))
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    rows = [dict(row) for row in runtime_learning_rows if isinstance(row, Mapping)]
+    if not rows:
+        return architect_context
+    existing_memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context.get("runtime_learning_memory", {}), Mapping)
+        else {}
+    )
+    row_limit = _runtime_learning_memory_context_row_limit(
+        architect_context,
+        existing_memory,
+        default=max(20, len(rows)),
+    )
+    memory_context = _runtime_learning_memory_context_from_rows(
+        rows,
+        max_rows=row_limit,
+    )
+    architect_context["runtime_learning_memory"] = (
+        _merge_runtime_learning_memory_context(
+            existing_memory,
+            memory_context,
+        )
+    )
+    architect_context["runtime_learning_memory"]["handoff_boundary"] = (
+        "FormalizationGapPlanner live follow-up runtime learning memory is "
+        "orchestration memory only. It can repair route planning and target-prover "
+        "replay, but it is not theorem proof evidence."
+    )
+    return architect_context
+
+
 def _critic_agenda_has_formalization_gap_planner_handoff(
     agenda: Sequence[Mapping[str, Any]],
 ) -> bool:
@@ -15835,6 +15875,28 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 )
                 if str(row.get("handoff_id", "") or "").strip()
             ]
+            followup_architect_context = (
+                _runtime_formalization_gap_planner_followup_architect_context(
+                    task.inputs,
+                    runtime_learning_rows,
+                )
+            )
+            followup_environment_feedback = {
+                **dict(environment_feedback),
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_requested"
+                ),
+                "runtime_formalization_gap_planner_handoffs_jsonl": str(
+                    handoffs_path
+                ),
+                "selected_handoff_ids": selected_handoff_ids,
+                "proof_evidence_status": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                ),
+            }
+            followup_architect_context["environment_feedback"] = dict(
+                followup_environment_feedback
+            )
             live_route_planner_followup_task = AgentTask(
                 task_id=(
                     "gap-planner-live-route:"
@@ -15861,19 +15923,8 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 ),
                 inputs={
                     "question": _question_to_payload(question),
-                    "environment_feedback": {
-                        **dict(environment_feedback),
-                        "failure_classification": (
-                            "formalization_gap_planner_live_route_planner_requested"
-                        ),
-                        "runtime_formalization_gap_planner_handoffs_jsonl": str(
-                            handoffs_path
-                        ),
-                        "selected_handoff_ids": selected_handoff_ids,
-                        "proof_evidence_status": (
-                            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
-                        ),
-                    },
+                    "architect_context": followup_architect_context,
+                    "environment_feedback": followup_environment_feedback,
                     "invoke_live_route_planner": True,
                     "max_handoffs": max_handoffs,
                     "max_route_requests_per_handoff": (

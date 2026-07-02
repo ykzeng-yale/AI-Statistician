@@ -1740,6 +1740,26 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     bridge = _runtime_gap_planner_bridge_fixture(question)
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "route_planner_contract_feedback_id": "route-feedback:followup-memory-a",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "target_ids": list(bridge["target_ids"]),
+        "failure_classification": (
+            "formalization_gap_planner_live_route_planner_response_contract_failed"
+        ),
+        "contract_counts": {
+            "response_contract_ok": 0,
+            "staged_followup_assembled_response_contract_ok": 0,
+        },
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+    }
     blackboard = BlackboardState(project_id="gap-planner-runtime-live-followup-test")
     blackboard.artifacts[str(bridge["bridge_id"])] = bridge
     task = AgentTask(
@@ -1748,6 +1768,13 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
         objective="Execute gap-planner handoff smoke and schedule live route planning.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [feedback_row],
+                    "counts": {"rows_loaded": 1, "max_rows": 12},
+                }
+            },
             "environment_feedback": {
                 "failure_classification": (
                     "critic_requested_formalization_gap_planner_execution"
@@ -1784,6 +1811,16 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     assert result.next_task.inputs["provider"] == "anthropic"
     assert result.next_task.inputs["model_tier"] == "auto"
     assert result.next_task.inputs["timeout_seconds"] > 0
+    next_architect_context = result.next_task.inputs["architect_context"]
+    next_memory = next_architect_context["runtime_learning_memory"]
+    assert next_memory["handoff_boundary"].startswith(
+        "FormalizationGapPlanner live follow-up runtime learning memory"
+    )
+    assert next_memory["counts"]["rows_loaded"] == 1
+    assert next_memory["rows"][0]["route_planner_contract_feedback_id"] == (
+        "route-feedback:followup-memory-a"
+    )
+    assert next_architect_context["environment_feedback"]["selected_handoff_ids"]
     assert result.next_task.expected_artifacts == (
         "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
     )
@@ -1800,6 +1837,8 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     assert manifest["live_route_planner_followup_task_id"] == result.next_task.task_id
     assert manifest["live_route_planner_max_handoffs"] == 1
     assert manifest["live_route_planner_max_route_requests_per_handoff"] == 1
+    assert manifest["counts"]["runtime_learning_rows"] == 1
+    assert manifest["counts"]["route_contract_feedback_rows"] == 1
     assert manifest["counts"]["llm_prompt_packets"] >= 1
     assert manifest["audit_payload"]["n_llm_prompt_awaiting_response"] >= 1
     assert any(
