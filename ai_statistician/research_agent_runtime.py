@@ -14145,6 +14145,55 @@ def _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
     return rows
 
 
+def _runtime_formalization_gap_planner_task_runtime_learning_rows(
+    inputs: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+
+    def extend_rows(raw_rows: Any) -> None:
+        if not isinstance(raw_rows, Sequence) or isinstance(
+            raw_rows,
+            (str, bytes, bytearray),
+        ):
+            return
+        for row in raw_rows:
+            if isinstance(row, Mapping):
+                rows.append(dict(row))
+
+    runtime_learning_memory = inputs.get("runtime_learning_memory", {})
+    if isinstance(runtime_learning_memory, Mapping):
+        extend_rows(runtime_learning_memory.get("rows", []))
+    architect_context = inputs.get("architect_context", {})
+    if isinstance(architect_context, Mapping):
+        architect_runtime_learning_memory = architect_context.get(
+            "runtime_learning_memory",
+            {},
+        )
+        if isinstance(architect_runtime_learning_memory, Mapping):
+            extend_rows(architect_runtime_learning_memory.get("rows", []))
+    environment_feedback = inputs.get("environment_feedback", {})
+    if isinstance(environment_feedback, Mapping) and (
+        str(environment_feedback.get("route_planner_contract_feedback_id", "") or "")
+        .strip()
+        or str(environment_feedback.get("learning_task", "") or "").strip()
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+    ):
+        rows.append(dict(environment_feedback))
+
+    deduped_rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        key = (
+            str(row.get("route_planner_contract_feedback_id", "") or "").strip()
+            or stable_hash(row)
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_rows.append(dict(row))
+    return deduped_rows
+
+
 def _critic_agenda_has_formalization_gap_planner_handoff(
     agenda: Sequence[Mapping[str, Any]],
 ) -> bool:
@@ -15617,6 +15666,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
         )
+        runtime_learning_rows = (
+            _runtime_formalization_gap_planner_task_runtime_learning_rows(task.inputs)
+        )
         bridge_rows = _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
             blackboard,
             question_id=question.id,
@@ -15647,6 +15699,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             handoff_rows = _runtime_formalization_gap_planner_handoff_rows(
                 bridge_rows,
                 runtime_out_dir=planner_root,
+                runtime_learning_rows=runtime_learning_rows,
             )
             _write_jsonl(handoffs_path, handoff_rows)
             audit_payload = dict(
@@ -15917,6 +15970,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "counts": {
                 "bridge_rows": len(bridge_rows),
                 "handoff_rows": len(handoff_rows),
+                "runtime_learning_rows": len(runtime_learning_rows),
+                "route_contract_feedback_rows": sum(
+                    int(row.get("n_route_contract_feedback_rows", 0) or 0)
+                    for row in handoff_rows
+                ),
                 "audit_checks": int(audit_payload.get("n_checks", 0) or 0),
                 "audit_failed": int(audit_payload.get("n_failed", 0) or 0),
                 "standalone_smoke_ok": int(

@@ -1632,6 +1632,109 @@ def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_sm
     )
 
 
+def test_formalization_gap_planner_runtime_subsystem_replays_route_contract_feedback_from_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "route_planner_contract_feedback_id": "route-feedback:runtime-memory-a",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "target_ids": list(bridge["target_ids"]),
+        "failure_classification": (
+            "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+        ),
+        "contract_counts": {
+            "response_contract_ok": 0,
+            "staged_followup_assembled_response_contract_ok": 0,
+        },
+        "provider_token_counts": {
+            "provider_total_tokens_including_staged_followups": 59235
+        },
+        "staged_followup_assembly_error_preview": [
+            "formal_attempt_queue[0] does not resolve to a seed route"
+        ],
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+    }
+    blackboard = BlackboardState(project_id="gap-planner-runtime-memory-feedback-test")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:memory-feedback",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Replay prior route-planner contract feedback into gap-planner handoff.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [feedback_row],
+                    "counts": {"rows_loaded": 1, "max_rows": 12},
+                }
+            },
+            "environment_feedback": {
+                "failure_classification": (
+                    "critic_requested_formalization_gap_planner_execution"
+                )
+            },
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    handoff = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+    )
+    assert manifest["counts"]["runtime_learning_rows"] == 1
+    assert manifest["counts"]["route_contract_feedback_rows"] == 1
+    assert handoff["n_route_contract_feedback_rows"] == 1
+    feedback_jsonl = Path(handoff["route_contract_feedback_jsonl"])
+    assert feedback_jsonl.exists()
+    materialized_rows = [
+        json.loads(line)
+        for line in feedback_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert materialized_rows[0]["route_planner_contract_feedback_id"] == (
+        "route-feedback:runtime-memory-a"
+    )
+    assert str(feedback_jsonl) in handoff["llm_route_planner_prompt_cli"]
+    assert str(feedback_jsonl) in handoff["llm_route_planner_live_cli"]
+    prompt_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_prompt"
+    )
+    live_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_live_optional"
+    )
+    assert (
+        "--formalization-gap-planner-route-contract-feedback-jsonl "
+        in prompt_stage["cli"]
+    )
+    assert str(feedback_jsonl) in prompt_stage["required_inputs"]
+    assert str(feedback_jsonl) in live_stage["required_inputs"]
+
+
 def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when_enabled(
     tmp_path: Path,
 ) -> None:
