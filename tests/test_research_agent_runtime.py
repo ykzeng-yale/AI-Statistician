@@ -22067,6 +22067,176 @@ def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
     assert "generated_simulation_code_executed_locally" in simulation_prompt
 
 
+def test_coding_feedback_loaders_accept_compact_learning_task_rows() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    compact_algorithm_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "failure_classification": "generated_algorithm_sandbox_metric_gate_failed",
+        "prototypes": [
+            {
+                "estimator_id": "custom_conformal",
+                "prototype_status": "FAILED_METRIC_GATE",
+                "metric_gate_errors": ["coverage metric stayed at zero"],
+                "code_excerpt": (
+                    "def run_sandbox(seed:int, replicates:int)->dict:\n"
+                    "    return {'empirical_coverage': 0.0}"
+                ),
+            }
+        ],
+        "input_summary": {
+            "learning_task": "algorithm_sandbox_execution_feedback",
+            "question_id": question.id,
+            "target_behavior": "repair the generated algorithm metric failure",
+            "proof_evidence_status": (
+                "ALGORITHM_SANDBOX_EXECUTION_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "boundary": "Algorithm sandbox feedback is not theorem proof.",
+    }
+    algorithm_feedback = _runtime_algorithm_sandbox_feedback_from_learning_memory(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [compact_algorithm_row],
+            }
+        },
+        question.id,
+    )
+
+    assert algorithm_feedback["feedback_type"] == (
+        "algorithm_sandbox_execution_feedback"
+    )
+    assert algorithm_feedback["failure_classification"] == (
+        "generated_algorithm_sandbox_metric_gate_failed"
+    )
+    assert algorithm_feedback["prototypes"][0]["metric_gate_errors"] == [
+        "coverage metric stayed at zero"
+    ]
+
+    compact_capability_rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "question_id": question.id,
+                "capability_id": "generated_algorithm_repair_loop_observed",
+                "next_owner_subsystem": "AlgorithmEngineer",
+                "target_behavior": (
+                    "run a compact fail-then-pass generated algorithm repair loop"
+                ),
+                "success_metric": (
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                ),
+                "blocker": "compact row observed no algorithm repair loop",
+                "evidence": (
+                    "n_generated_code_sandbox_failed_then_passed_repair_sequences=0"
+                ),
+            },
+            "proof_evidence_status": (
+                "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": "coding_agent_generated_code_capability_feedback",
+                "question_id": question.id,
+                "capability_id": "generated_simulation_code_executed_locally",
+                "next_owner_subsystem": "SimulationEvaluator",
+                "target_behavior": (
+                    "execute one compact generated simulation sandbox draft"
+                ),
+                "success_metric": "n_generated_simulation_sandbox_executed>0",
+                "blocker": "compact row observed no generated simulation execution",
+                "evidence": "n_generated_simulation_sandbox_executed=0",
+            },
+            "proof_evidence_status": (
+                "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    ]
+    capability_context = {
+        "runtime_learning_memory": {
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": compact_capability_rows,
+        }
+    }
+    algorithm_capability_feedback = (
+        _runtime_algorithm_sandbox_feedback_from_learning_memory(
+            capability_context,
+            question.id,
+        )
+    )
+    simulation_capability_feedback = (
+        _runtime_generated_simulation_feedback_from_learning_memory(
+            capability_context,
+            question.id,
+        )
+    )
+
+    assert algorithm_capability_feedback["feedback_type"] == (
+        "coding_agent_generated_code_capability_feedback"
+    )
+    assert algorithm_capability_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_algorithm_code": True,
+        "capability_eval_requires_generated_algorithm_repair_loop": True,
+    }
+    assert "compact fail-then-pass" in algorithm_capability_feedback[
+        "required_repair"
+    ]
+    assert simulation_capability_feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_simulation_code": True
+    }
+    assert "compact generated simulation" in simulation_capability_feedback[
+        "required_repair"
+    ]
+
+    compact_theory_trace_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "failure_classifications": [
+            "downstream_theory_trace_alignment_missing"
+        ],
+        "input_summary": {
+            "learning_task": "theory_trace_downstream_alignment_feedback",
+            "question_id": question.id,
+            "target_consumer_subsystem": "AlgorithmEngineer",
+            "target_behavior": "bind algorithm code to structured theory anchors",
+            "acceptance_gate": "algorithm prompt includes theory trace alignment",
+            "proof_evidence_status": (
+                "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    }
+    theory_trace_feedback = _runtime_algorithm_sandbox_feedback_from_learning_memory(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [compact_theory_trace_row],
+            }
+        },
+        question.id,
+    )
+
+    assert theory_trace_feedback["feedback_type"] == (
+        "theory_trace_downstream_alignment_feedback"
+    )
+    assert theory_trace_feedback["target_consumer_subsystem"] == "AlgorithmEngineer"
+    assert theory_trace_feedback["required_repair"] == (
+        "bind algorithm code to structured theory anchors"
+    )
+    assert theory_trace_feedback["theory_trace_downstream_alignment_contract"][
+        "acceptance_gate"
+    ] == "algorithm prompt includes theory trace alignment"
+    assert theory_trace_feedback["theory_trace_downstream_alignment_contract"][
+        "proof_evidence_status"
+    ] == "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
+
+
 def test_algorithm_runtime_injects_sandbox_failure_memory_without_current_feedback(
     tmp_path: Path,
 ) -> None:

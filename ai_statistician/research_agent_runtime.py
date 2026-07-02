@@ -30262,6 +30262,15 @@ def _runtime_learning_row_string_values(
     return tuple(dict.fromkeys(value for value in values if value))
 
 
+def _runtime_learning_row_task(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> str:
+    return str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    ).strip()
+
+
 def _runtime_learning_row_mapping_value(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
@@ -35143,15 +35152,15 @@ def _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
     for row in reversed(rows):
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "theory_trace_downstream_alignment_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "theory_trace_downstream_alignment_feedback"
+        ):
+            continue
         row_question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
         )
@@ -35195,6 +35204,7 @@ def _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
         feedback["target_consumer_subsystem"] = row_consumer or wanted_consumer
         feedback["required_repair"] = (
             str(row.get("target_behavior", "") or "").strip()
+            or str(input_summary.get("target_behavior", "") or "").strip()
             or (
                 "Emit theory_trace_alignment references to exact derivation, "
                 "equation, assumption, and formalization anchors before the "
@@ -35230,9 +35240,14 @@ def _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
             ],
             "target_ids": _source_theorem_target_ids_from_row(row),
             "failure_classifications": classifications,
-            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or input_summary.get("acceptance_gate", "")
+                or ""
+            ),
             "proof_evidence_status": str(
                 row.get("proof_evidence_status", "")
+                or input_summary.get("proof_evidence_status", "")
                 or "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE"
             ),
         }
@@ -35316,15 +35331,15 @@ def _runtime_coding_agent_capability_feedback_from_learning_memory(
     for row in reversed(rows):
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "coding_agent_generated_code_capability_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "coding_agent_generated_code_capability_feedback"
+        ):
+            continue
         row_question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
         )
@@ -35364,8 +35379,16 @@ def _runtime_coding_agent_capability_feedback_from_learning_memory(
                 ] = True
         if requested_contract:
             feedback["runtime_requested_evidence_contract"] = requested_contract
-        target_behavior = str(feedback.get("target_behavior", "") or "").strip()
-        success_metric = str(feedback.get("success_metric", "") or "").strip()
+        target_behavior = str(
+            feedback.get("target_behavior", "")
+            or input_summary.get("target_behavior", "")
+            or ""
+        ).strip()
+        success_metric = str(
+            feedback.get("success_metric", "")
+            or input_summary.get("success_metric", "")
+            or ""
+        ).strip()
         feedback["required_repair"] = (
             "Integrated coding-agent capability feedback is active: "
             + (
@@ -35494,13 +35517,24 @@ def _runtime_feedback_from_learning_memory(
     for row in reversed(rows):
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != learning_task:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != learning_task:
             continue
-        row_question_id = str(row.get("question_id", "") or "")
+        row_question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        )
         if row_question_id and question_id and row_question_id != question_id:
             continue
         feedback = dict(row)
-        feedback["feedback_type"] = str(row.get("feedback_type", "") or feedback_type)
+        feedback["feedback_type"] = str(
+            row.get("feedback_type", "")
+            or input_summary.get("feedback_type", "")
+            or feedback_type
+        )
         feedback.setdefault(
             "boundary",
             (
