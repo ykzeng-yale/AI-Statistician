@@ -1413,9 +1413,15 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 94
     if learning_task == "source_theorem_proof_body_adapter_feedback":
         return 93
+    if learning_task == "exact_source_theorem_proof_body_execution_feedback":
+        return 93
+    if learning_task == "source_theorem_formal_environment_repair_feedback":
+        return 93
     if learning_task == "source_to_bridge_premise_derivation_feedback":
         return 92
     if learning_task == "theory_derivation_trace_feedback":
+        return 91
+    if learning_task == "theory_trace_downstream_alignment_feedback":
         return 91
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
         if _runtime_learning_memory_formal_gap_next_action_stage(row) in {
@@ -1427,7 +1433,11 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
+    if learning_task == "architect_orchestration_feedback":
+        return 90
     if learning_task == "coding_agent_generated_code_capability_feedback":
+        return 89
+    if learning_task == "runtime_handoff_artifact_missing_feedback":
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
@@ -1462,6 +1472,8 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         "target_theorem_goal_ids",
     )
     target_scope = ",".join(sorted(target_scope_values)) or target
+    if not target:
+        target = target_scope
     placeholder = str(
         row.get("placeholder_symbol", "")
         or input_summary.get("placeholder_symbol", "")
@@ -1507,6 +1519,10 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
     ):
         return f"{learning_task}:{target}:{placeholder}"
     if learning_task == "source_theorem_proof_body_adapter_feedback":
+        adapter_unproven_premises = _runtime_learning_memory_string_values(
+            row,
+            "unproven_bridge_premise_names",
+        )
         adapter_ids = _runtime_learning_memory_string_values(
             row,
             "kernel_verified_source_theorem_proof_body_adapter_ids",
@@ -1574,10 +1590,99 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         )
     if (
         learning_task == "source_theorem_proof_body_adapter_feedback"
-        and premise_names
+        and (premise_names or adapter_unproven_premises)
     ):
         return "source_theorem_proof_body_adapter_feedback:" + target + ":" + ",".join(
-            premise_names
+            premise_names or adapter_unproven_premises
+        )
+    if learning_task == "exact_source_theorem_proof_body_execution_feedback":
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        proof_body_gate_status = str(
+            row.get("proof_body_gate_status", "")
+            or input_summary.get("proof_body_gate_status", "")
+            or ""
+        ).strip()
+        artifact_path = str(
+            row.get("candidate_artifact_path", "")
+            or input_summary.get("candidate_artifact_path", "")
+            or row.get("proof_body_artifact_path", "")
+            or input_summary.get("proof_body_artifact_path", "")
+            or ""
+        ).strip()
+        return (
+            "exact_source_theorem_proof_body_execution_feedback:"
+            + target_scope
+            + ":"
+            + (failure_classification or proof_body_gate_status or "proof_body")
+            + ":"
+            + artifact_path
+        )
+    if learning_task == "source_theorem_formal_environment_repair_feedback":
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        missing_symbols = ",".join(
+            _runtime_learning_memory_string_values(
+                row,
+                "missing_formal_symbols",
+                "formal_environment_placeholder_symbols",
+            )
+        )
+        return (
+            "source_theorem_formal_environment_repair_feedback:"
+            + target_scope
+            + ":"
+            + (missing_symbols or placeholder or "formal_environment")
+            + ":"
+            + failure_classification
+        )
+    if learning_task == "source_to_bridge_premise_derivation_feedback" and premise_names:
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        return (
+            "source_to_bridge_premise_derivation_feedback:"
+            + target_scope
+            + ":"
+            + ",".join(premise_names)
+            + ":"
+            + failure_classification
+        )
+    if learning_task == "formalizer_lean_candidate_kernel_feedback":
+        candidate_id = str(
+            row.get("candidate_id", "") or input_summary.get("candidate_id", "") or ""
+        ).strip()
+        artifact_path = str(
+            row.get("artifact_path", "")
+            or input_summary.get("artifact_path", "")
+            or row.get("kernel_check_artifact_path", "")
+            or input_summary.get("kernel_check_artifact_path", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_lean_candidate_kernel_feedback:"
+            + target_scope
+            + ":"
+            + candidate_id
+            + ":"
+            + artifact_path
+        )
+    if learning_task == "formalizer_lean_candidate_proof_state_feedback":
+        return (
+            "formalizer_lean_candidate_proof_state_feedback:"
+            + target_scope
+            + ":"
+            + str(row.get("source_manifest_id", "") or "")
+            + ":"
+            + str(row.get("source_materialization_manifest_id", "") or "")
         )
     if _runtime_learning_memory_row_requires_candidate_materialization(row):
         return "candidate_materialization_required:" + (target_scope or target)
@@ -1816,18 +1921,32 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
         return True
     if learning_task in {
+        "source_theorem_proof_body_adapter_feedback",
         "source_to_bridge_premise_derivation_feedback",
-        "theory_derivation_trace_feedback",
-        "formalizer_runtime_capability_contract_feedback",
+        "source_theorem_formal_environment_repair_feedback",
+        "exact_source_theorem_proof_body_execution_feedback",
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
+        "formalizer_runtime_capability_contract_feedback",
         "coding_agent_generated_code_component_gate_feedback",
         "coding_agent_generated_code_capability_feedback",
+        "theory_derivation_trace_feedback",
+        "theory_trace_downstream_alignment_feedback",
+        "architect_orchestration_feedback",
+        "runtime_handoff_artifact_missing_feedback",
     }:
         return True
     if trigger in {
+        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
+        "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
+        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
+        "RUNTIME_HANDOFF_ARTIFACT_MISSING",
     }:
         return True
     if (

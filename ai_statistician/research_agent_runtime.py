@@ -31009,6 +31009,10 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 94
     if learning_task == "source_theorem_proof_body_adapter_feedback":
         return 93
+    if learning_task == "exact_source_theorem_proof_body_execution_feedback":
+        return 93
+    if learning_task == "source_theorem_formal_environment_repair_feedback":
+        return 93
     if learning_task == "source_to_bridge_premise_derivation_feedback":
         return 92
     if learning_task == "theory_derivation_trace_feedback":
@@ -31189,6 +31193,12 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             verified_premise_ids
         )
     if learning_task == "source_theorem_proof_body_adapter_feedback":
+        adapter_unproven_premises = _sorted_str_tuple(
+            row.get(
+                "unproven_bridge_premise_names",
+                input_summary.get("unproven_bridge_premise_names", []),
+            )
+        )
         adapter_ids = _sorted_str_tuple(
             row.get(
                 "kernel_verified_source_theorem_proof_body_adapter_ids",
@@ -31244,13 +31254,84 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
                 + ":"
                 + ",".join(adapter_artifacts)
             )
-        if premise_names:
+        if premise_names or adapter_unproven_premises:
             return (
                 "source_theorem_proof_body_adapter_feedback:"
                 + target
                 + ":"
-                + ",".join(premise_names)
+                + ",".join(premise_names or adapter_unproven_premises)
             )
+    if learning_task == "exact_source_theorem_proof_body_execution_feedback":
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        proof_body_gate_status = str(
+            row.get("proof_body_gate_status", "")
+            or input_summary.get("proof_body_gate_status", "")
+            or ""
+        ).strip()
+        artifact_path = str(
+            row.get("candidate_artifact_path", "")
+            or input_summary.get("candidate_artifact_path", "")
+            or row.get("proof_body_artifact_path", "")
+            or input_summary.get("proof_body_artifact_path", "")
+            or ""
+        ).strip()
+        return (
+            "exact_source_theorem_proof_body_execution_feedback:"
+            + target_scope
+            + ":"
+            + (failure_classification or proof_body_gate_status or "proof_body")
+            + ":"
+            + artifact_path
+        )
+    if learning_task == "source_theorem_formal_environment_repair_feedback":
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        missing_symbols = ",".join(
+            _sorted_str_tuple(
+                row.get(
+                    "missing_formal_symbols",
+                    input_summary.get(
+                        "missing_formal_symbols",
+                        row.get(
+                            "formal_environment_placeholder_symbols",
+                            input_summary.get(
+                                "formal_environment_placeholder_symbols",
+                                placeholder,
+                            ),
+                        ),
+                    ),
+                )
+            )
+        )
+        return (
+            "source_theorem_formal_environment_repair_feedback:"
+            + target_scope
+            + ":"
+            + (missing_symbols or placeholder or "formal_environment")
+            + ":"
+            + failure_classification
+        )
+    if learning_task == "source_to_bridge_premise_derivation_feedback" and premise_names:
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        return (
+            "source_to_bridge_premise_derivation_feedback:"
+            + target_scope
+            + ":"
+            + ",".join(premise_names)
+            + ":"
+            + failure_classification
+        )
     if learning_task == "formalizer_lean_candidate_kernel_feedback":
         candidate_id = str(
             row.get("candidate_id", "") or input_summary.get("candidate_id", "") or ""

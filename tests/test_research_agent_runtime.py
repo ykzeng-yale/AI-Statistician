@@ -7093,6 +7093,142 @@ def test_runtime_learning_memory_loader_pins_adapter_import_feedback(
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
+def test_runtime_learning_memory_loader_pins_compact_source_theorem_repair_rows(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": (
+                    "exact_source_theorem_proof_body_execution_feedback"
+                ),
+                "target_theorem_name": "compact_exact_source_theorem",
+                "target_ids": ["compact_exact_source_theorem"],
+                "failure_classification": "proof_body_dependency_context_missing",
+                "candidate_artifact_path": "runs/proof_body/compact_exact.lean",
+                "proof_evidence_status": (
+                    "EXACT_SOURCE_PROOF_BODY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": "source_theorem_formal_environment_repair_feedback",
+                "target_theorem_name": "compact_formal_env_source_theorem",
+                "target_ids": ["compact_formal_env_source_theorem"],
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "formal_environment_placeholder_symbols": ["CompactPlaceholder"],
+                "proof_evidence_status": (
+                    "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "compact_adapter_source_theorem",
+                "target_ids": ["compact_adapter_source_theorem"],
+                "adapter_candidate_requires_unproven_bridge_premises": True,
+                "unproven_bridge_premise_names": ["hCompactBridge"],
+                "adapter_declaration_name": "compact_source_to_bridge_adapter",
+                "proof_evidence_status": (
+                    "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "compact_premise_source_theorem",
+                "target_ids": ["compact_premise_source_theorem"],
+                "premise_name": "hCompactRank",
+                "failure_classification": (
+                    "source_to_bridge_premise_derivation_unverified"
+                ),
+                "proof_evidence_status": (
+                    "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "theory_derivation_trace_feedback",
+            "question_id": "compact",
+            "failure_classifications": ["trace_missing"],
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "architect_orchestration_feedback",
+            "question_id": "compact",
+            "architect_control_status": "repair_needed",
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "coding_agent_generated_code_capability_feedback",
+            "question_id": "compact",
+            "capability_id": "generated_algorithm_code_executed_locally",
+            "next_owner_subsystem": "AlgorithmEngineer",
+        },
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=4)
+    loaded_tasks = [
+        row.get("learning_task") or row.get("input_summary", {}).get("learning_task")
+        for row in memory["rows"]
+    ]
+
+    assert memory["counts"]["rows_seen"] == len(rows)
+    assert memory["counts"]["rows_loaded"] == 4
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert loaded_tasks == [
+        "exact_source_theorem_proof_body_execution_feedback",
+        "source_theorem_formal_environment_repair_feedback",
+        "source_theorem_proof_body_adapter_feedback",
+        "source_to_bridge_premise_derivation_feedback",
+    ]
+    expected_pin_keys = {
+        (
+            "exact_source_theorem_proof_body_execution_feedback:"
+            "compact_exact_source_theorem:proof_body_dependency_context_missing:"
+            "runs/proof_body/compact_exact.lean"
+        ),
+        (
+            "source_theorem_formal_environment_repair_feedback:"
+            "compact_formal_env_source_theorem:CompactPlaceholder:"
+            "formal_environment_placeholder_primitives"
+        ),
+        (
+            "source_theorem_proof_body_adapter_feedback:"
+            "compact_adapter_source_theorem:hCompactBridge"
+        ),
+        (
+            "source_to_bridge_premise_derivation_feedback:"
+            "compact_premise_source_theorem:hCompactRank:"
+            "source_to_bridge_premise_derivation_unverified"
+        ),
+    }
+    assert {
+        runtime_module._runtime_learning_memory_context_pin_key(row)
+        for row in memory["rows"]
+    } == expected_pin_keys
+    assert {
+        cli_module._runtime_learning_memory_pin_key(row) for row in memory["rows"]
+    } == expected_pin_keys
+
+
 def test_runtime_learning_memory_pins_formal_gap_planner_routing(
     tmp_path: Path,
 ) -> None:
@@ -18729,16 +18865,23 @@ def test_runtime_learning_memory_loader_retains_latest_diagnostic_helper(
     )
 
     memory = _load_runtime_learning_memory([learning_path], max_rows=20)
+    helper_rows = [
+        row
+        for row in memory["rows"]
+        if row.get("candidate_id") == "split_conformal_core_prop_coverage_bridge_helper"
+    ]
 
     assert memory["counts"]["rows_seen"] == 26
     assert memory["counts"]["rows_loaded"] == 20
-    assert memory["counts"]["retention_policy"] == "latest_rows"
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
     assert not any(
         row.get("target_behavior") == "stale row 0" for row in memory["rows"]
     )
-    assert any(
-        row.get("candidate_id") == "split_conformal_core_prop_coverage_bridge_helper"
-        for row in memory["rows"]
+    assert len(helper_rows) == 1
+    assert cli_module._runtime_learning_memory_pin_key(helper_rows[0]) == (
+        "formalizer_lean_candidate_kernel_feedback::"
+        "split_conformal_core_prop_coverage_bridge_helper:"
+        f"{tmp_path / 'helper.lean'}"
     )
 
     summary = _formalizer_proof_bank_runtime_memory_summary(
