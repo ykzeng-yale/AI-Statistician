@@ -4250,7 +4250,7 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
             )
         counted_live = sum(
             int(counted_provider_counts.get(provider, 0) or 0)
-            for provider in ("anthropic", "openai")
+            for provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS
         )
         row_live = _runtime_llm_topology_live_generator_count(topology)
         if counted_live != row_live:
@@ -4496,14 +4496,7 @@ def _topology_live_generator_count(manifest: Mapping[str, Any]) -> int:
         return 0
     if isinstance(topology.get("llm_agents"), list):
         return _runtime_llm_topology_live_generator_count(topology)
-    counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
-    by_provider = counts.get("enabled_by_provider", {})
-    if not isinstance(by_provider, Mapping):
-        return 0
-    return sum(
-        int(by_provider.get(provider, 0) or 0)
-        for provider in ("anthropic", "openai")
-    )
+    return 0
 
 
 def _runtime_capability_gaps(payload: Mapping[str, Any]) -> list[str]:

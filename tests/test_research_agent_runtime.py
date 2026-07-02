@@ -55201,6 +55201,116 @@ def test_runtime_topology_summary_requires_live_backend_identity() -> None:
     assert summary["live_generator_subsystems"] == []
 
 
+def test_runtime_topology_summary_requires_explicit_live_backend_identity() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "llm_agents_enabled": 1,
+            "enabled_by_provider": {"anthropic": 1},
+            "enabled_by_model_tier": {"sonnet": 1},
+            "unsupported_generator_backends_enabled": 0,
+            "subsystem_model_tier_policy_mismatches": 0,
+        },
+        "policy": {
+            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "resolved_claude_models_by_tier": {
+                "haiku": "claude-haiku-4-5-20251001",
+                "sonnet": "claude-sonnet-4-6",
+                "opus": "claude-opus-4-8",
+            },
+            "resolved_claude_model_tier_policy_status": "OK",
+            "resolved_claude_model_tier_policy_violations": [],
+        },
+        "llm_agents": [
+            {
+                "subsystem": "TheoryDeveloper",
+                "enabled": True,
+                "provider_name": "anthropic",
+                "model_tier": "sonnet",
+                "expected_model_tier": "sonnet",
+                "generator_only": True,
+                "acts_in_environment": False,
+            }
+        ],
+    }
+
+    summary = runtime_module._runtime_llm_topology_summary(topology)
+    errors = _audit_topology({"llm_runtime_topology": topology})
+
+    assert summary["enabled_provider_counts"] == {"anthropic": 1}
+    assert summary["n_live_generator_agents_enabled"] == 0
+    assert summary["live_generator_subsystems"] == []
+    assert _topology_live_generator_count({"llm_runtime_topology": topology}) == 0
+    assert any(
+        "live generator count does not match enabled live backend agent rows"
+        in error
+        for error in errors
+    )
+
+    topology["llm_agents"][0]["backend_provider_name"] = "anthropic"
+    summary = runtime_module._runtime_llm_topology_summary(topology)
+
+    assert summary["n_live_generator_agents_enabled"] == 1
+    assert summary["live_generator_subsystems"] == ["TheoryDeveloper"]
+
+    topology_without_rows = {
+        "policy_status": "OK",
+        "counts": {
+            "llm_agents_enabled": 1,
+            "enabled_by_provider": {"anthropic": 1},
+            "enabled_by_model_tier": {"sonnet": 1},
+            "unsupported_generator_backends_enabled": 0,
+        },
+    }
+
+    assert (
+        runtime_module._runtime_llm_topology_summary(topology_without_rows)[
+            "n_live_generator_agents_enabled"
+        ]
+        == 0
+    )
+    assert (
+        _topology_live_generator_count(
+            {"llm_runtime_topology": topology_without_rows}
+        )
+        == 0
+    )
+
+
+def test_runtime_llm_proposal_and_sandbox_live_checks_require_backend_identity() -> None:
+    assert (
+        runtime_module._runtime_llm_proposal_packet_live_generator(
+            {"provider": "anthropic"}
+        )
+        is False
+    )
+    assert (
+        runtime_module._runtime_llm_proposal_packet_live_generator(
+            {"provider": "anthropic", "backend_provider": "anthropic"}
+        )
+        is True
+    )
+    assert (
+        runtime_module._generated_sandbox_row_live_generated(
+            {
+                "source_llm_proposal_live_generator": True,
+                "source_llm_proposal_provider": "anthropic",
+            }
+        )
+        is False
+    )
+    assert (
+        runtime_module._generated_sandbox_row_live_generated(
+            {
+                "source_llm_proposal_live_generator": True,
+                "source_llm_proposal_provider": "anthropic",
+                "source_llm_proposal_backend_provider": "anthropic",
+            }
+        )
+        is True
+    )
+
+
 def test_runtime_topology_audit_rejects_live_count_without_live_backend_identity() -> None:
     topology = {
         "policy_status": "OK",

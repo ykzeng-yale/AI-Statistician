@@ -204,7 +204,6 @@ from .verifier import ProofVerifier
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
-RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS = {"anthropic", "openai"}
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -30803,14 +30802,11 @@ def _runtime_llm_topology_model_tier_counts_from_agent_rows(
 def _runtime_llm_topology_row_is_live_generator(row: Mapping[str, Any]) -> bool:
     if not bool(row.get("enabled", False)):
         return False
-    provider = str(row.get("provider_name", "") or "").strip().lower()
-    backend_provider = str(
-        row.get("backend_provider_name", "") or provider
-    ).strip().lower()
-    return (
-        provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+    provider = normalize_generator_provider_name(row.get("provider_name", ""))
+    backend_provider = normalize_generator_provider_name(
+        row.get("backend_provider_name", "")
     )
+    return is_live_generator_backend(provider, backend_provider)
 
 
 def _runtime_llm_topology_live_generator_rows(
@@ -30830,27 +30826,21 @@ def _runtime_llm_topology_live_generator_count(
 
 
 def _runtime_llm_proposal_packet_provider(packet: Mapping[str, Any]) -> str:
-    return str(
-        packet.get("provider", "")
-        or packet.get("provider_name", "")
-        or ""
-    ).strip().lower()
+    return normalize_generator_provider_name(
+        packet.get("provider", "") or packet.get("provider_name", "")
+    )
 
 
 def _runtime_llm_proposal_packet_backend_provider(packet: Mapping[str, Any]) -> str:
-    return str(
-        packet.get("backend_provider", "")
-        or packet.get("backend_provider_name", "")
-    ).strip().lower()
+    return normalize_generator_provider_name(
+        packet.get("backend_provider", "") or packet.get("backend_provider_name", "")
+    )
 
 
 def _runtime_llm_proposal_packet_live_generator(packet: Mapping[str, Any]) -> bool:
     provider = _runtime_llm_proposal_packet_provider(packet)
     backend_provider = _runtime_llm_proposal_packet_backend_provider(packet)
-    return (
-        provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-    )
+    return is_live_generator_backend(provider, backend_provider)
 
 
 def _annotate_generated_sandbox_prototype_provenance(
@@ -30886,14 +30876,15 @@ def _generated_sandbox_row_executed(row: Mapping[str, Any]) -> bool:
 
 
 def _generated_sandbox_row_live_generated(row: Mapping[str, Any]) -> bool:
-    provider = str(row.get("source_llm_proposal_provider", "") or "").strip().lower()
-    backend_provider = str(
+    provider = normalize_generator_provider_name(
+        row.get("source_llm_proposal_provider", "")
+    )
+    backend_provider = normalize_generator_provider_name(
         row.get("source_llm_proposal_backend_provider", "") or ""
-    ).strip().lower()
+    )
     return (
         row.get("source_llm_proposal_live_generator") is True
-        and provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+        and is_live_generator_backend(provider, backend_provider)
     )
 
 
@@ -30966,11 +30957,7 @@ def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]
     n_live = (
         len(live_rows)
         if agent_rows_available
-        else sum(
-            count
-            for provider, count in enabled_provider_counts.items()
-            if provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-        )
+        else 0
     )
     return {
         "artifact_kind": "RuntimeLLMTopologySummary",
@@ -59302,20 +59289,22 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                             )
                         )
                     else:
-                        manifest_proposal_provider = str(
+                        manifest_proposal_provider = normalize_generator_provider_name(
                             artifact.get(
                                 "llm_formalizer_proof_engineer_proposal_provider",
                                 "",
                             )
                             or ""
-                        ).strip().lower()
-                        manifest_proposal_backend_provider = str(
-                            artifact.get(
-                                "llm_formalizer_proof_engineer_proposal_backend_provider",
-                                "",
+                        )
+                        manifest_proposal_backend_provider = (
+                            normalize_generator_provider_name(
+                                artifact.get(
+                                    "llm_formalizer_proof_engineer_proposal_backend_provider",
+                                    "",
+                                )
+                                or ""
                             )
-                            or ""
-                        ).strip().lower()
+                        )
                         live_formalizer_proposal = (
                             bool(
                                 artifact.get(
@@ -59323,10 +59312,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                                     False,
                                 )
                             )
-                            and manifest_proposal_provider
-                            in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
-                            and manifest_proposal_backend_provider
-                            in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+                            and is_live_generator_backend(
+                                manifest_proposal_provider,
+                                manifest_proposal_backend_provider,
+                            )
                         )
                     if live_formalizer_proposal:
                         proof[
