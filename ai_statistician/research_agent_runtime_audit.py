@@ -32,6 +32,7 @@ from .research_agent_runtime import (
     _runtime_architect_recommended_research_path,
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
+    _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary,
     _runtime_manifest_int_sum,
     _runtime_research_path_execution_summary,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
@@ -126,17 +127,40 @@ def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
     return 0
 
 
+def _payload_full_frontier_target_bound_kernel_count(
+    payload: Mapping[str, Any],
+) -> int:
+    explicit_count = int(
+        payload.get("n_full_frontier_target_bound_kernel_verified", 0) or 0
+    )
+    if explicit_count > 0:
+        return explicit_count
+    summary = _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
+        payload
+    )
+    return int(summary["n_full_frontier_target_bound_kernel_verified"])
+
+
 def _payload_cross_task_full_theorem_family_count(
     payload: Mapping[str, Any],
 ) -> int:
+    if _payload_full_frontier_target_bound_kernel_count(payload) <= 0:
+        return 0
     raw_proved_families = _compact_string_list(
-        payload.get("task_families_with_full_frontier_theorem_proved", [])
+        payload.get(
+            "task_families_with_full_frontier_target_bound_kernel_verified",
+            payload.get("task_families_with_full_frontier_theorem_proved", []),
+        )
     )
     proved_families = explicit_task_family_list(raw_proved_families)
     if raw_proved_families:
         return len(proved_families)
     explicit_count = int(
-        payload.get("n_task_families_with_full_frontier_theorem_proved", 0) or 0
+        payload.get(
+            "n_task_families_with_full_frontier_target_bound_kernel_verified",
+            payload.get("n_task_families_with_full_frontier_theorem_proved", 0),
+        )
+        or 0
     )
     if explicit_count > 0:
         return explicit_count
@@ -368,6 +392,7 @@ class RuntimeAuditRow:
     n_llm_off_catalog_proof_obligations: int
     n_llm_rejected_proof_obligations: int
     full_frontier_theorem_proved: bool
+    full_frontier_target_bound_kernel_verified: bool
     n_agenda_items: int
     n_learning_rows: int
     architect_coordinator_enabled: bool
@@ -842,6 +867,51 @@ def audit_research_agent_runtime(
                 if (
                     is_explicit_task_family(row.task_family)
                     and row.full_frontier_theorem_proved
+                )
+            }
+        ),
+        "n_full_frontier_target_bound_kernel_verified": sum(
+            1
+            for row in rows
+            if row.full_frontier_target_bound_kernel_verified
+        ),
+        "question_ids_with_full_frontier_target_bound_kernel_verified": sorted(
+            {
+                row.question_id
+                for row in rows
+                if (
+                    row.question_id
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "n_question_ids_with_full_frontier_target_bound_kernel_verified": len(
+            {
+                row.question_id
+                for row in rows
+                if (
+                    row.question_id
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "task_families_with_full_frontier_target_bound_kernel_verified": sorted(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    is_explicit_task_family(row.task_family)
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "n_task_families_with_full_frontier_target_bound_kernel_verified": len(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    is_explicit_task_family(row.task_family)
+                    and row.full_frontier_target_bound_kernel_verified
                 )
             }
         ),
@@ -1450,7 +1520,54 @@ def audit_research_agent_runtime(
         "n_llm_rejected_proof_obligations": sum(
             row.n_llm_rejected_proof_obligations for row in rows
         ),
-        "n_full_frontier_theorem_proved": sum(1 for row in rows if row.full_frontier_theorem_proved),
+        "n_full_frontier_theorem_proved": sum(
+            1 for row in rows if row.full_frontier_theorem_proved
+        ),
+        "n_full_frontier_target_bound_kernel_verified": sum(
+            1
+            for row in rows
+            if row.full_frontier_target_bound_kernel_verified
+        ),
+        "question_ids_with_full_frontier_target_bound_kernel_verified": sorted(
+            {
+                row.question_id
+                for row in rows
+                if (
+                    row.question_id
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "n_question_ids_with_full_frontier_target_bound_kernel_verified": len(
+            {
+                row.question_id
+                for row in rows
+                if (
+                    row.question_id
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "task_families_with_full_frontier_target_bound_kernel_verified": sorted(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    is_explicit_task_family(row.task_family)
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
+        "n_task_families_with_full_frontier_target_bound_kernel_verified": len(
+            {
+                row.task_family
+                for row in rows
+                if (
+                    is_explicit_task_family(row.task_family)
+                    and row.full_frontier_target_bound_kernel_verified
+                )
+            }
+        ),
         "n_algorithm_sandbox_executed": sum(row.n_algorithm_sandbox_executed for row in rows),
         "n_generated_simulation_sandbox_executed": sum(
             row.n_generated_simulation_sandbox_executed for row in rows
@@ -3302,10 +3419,24 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_llm_off_catalog_proof_obligations = 0
     n_llm_rejected_proof_obligations = 0
     full_frontier_theorem_proved = False
+    full_frontier_target_bound_kernel_verified = False
     has_kernel_verified_theorem_reduction_closure_memory = False
     has_source_theorem_semantic_primitive_target_mode = False
     for manifest in formalization:
         counts = manifest.get("counts", {}) if isinstance(manifest.get("counts"), Mapping) else {}
+        full_frontier_evidence = (
+            _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
+                manifest
+            )
+        )
+        full_frontier_raw_claims = int(
+            full_frontier_evidence["n_full_frontier_raw_theorem_proved_claims"]
+        )
+        full_frontier_target_bound_count = int(
+            full_frontier_evidence[
+                "n_full_frontier_target_bound_kernel_verified"
+            ]
+        )
         control = (
             manifest.get("proof_obligation_control", {})
             if isinstance(manifest.get("proof_obligation_control"), Mapping)
@@ -3368,12 +3499,16 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_llm_rejected_proof_obligations += len(
             control.get("llm_rejected_proof_obligation_ids", []) or []
         )
-        if manifest.get("full_frontier_theorem_proved") is True:
+        if full_frontier_raw_claims > 0 and full_frontier_target_bound_count <= 0:
+            errors.append(
+                "full_frontier_theorem_proved=true without current-target-bound "
+                "full theorem kernel evidence"
+            )
+        if full_frontier_target_bound_count > 0:
             full_frontier_theorem_proved = True
+            full_frontier_target_bound_kernel_verified = True
             if int(counts.get("formal_gap", 0) or 0) > 0:
                 errors.append("full_frontier_theorem_proved=true while formal gaps remain")
-            if int(counts.get("kernel_verified", 0) or 0) <= 0:
-                errors.append("full_frontier_theorem_proved=true without kernel-verified subclaims")
     if n_kernel != n_real_kernel + n_non_real_kernel:
         errors.append(
             "formalization manifest kernel_verified count does not match kernel-verified subclaim rows"
@@ -3576,6 +3711,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_llm_off_catalog_proof_obligations=n_llm_off_catalog_proof_obligations,
         n_llm_rejected_proof_obligations=n_llm_rejected_proof_obligations,
         full_frontier_theorem_proved=full_frontier_theorem_proved,
+        full_frontier_target_bound_kernel_verified=(
+            full_frontier_target_bound_kernel_verified
+        ),
         n_agenda_items=n_agenda,
         n_learning_rows=n_learning,
         architect_coordinator_enabled=architect_enabled,
@@ -5467,6 +5605,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_target_bound_kernel_count = (
         _payload_source_theorem_target_bound_kernel_count(payload)
     )
+    full_frontier_target_bound_kernel_count = (
+        _payload_full_frontier_target_bound_kernel_count(payload)
+    )
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
         _payload_cross_task_full_theorem_family_count(payload)
@@ -5670,12 +5811,12 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             or 0
         )
         > 0
-        or int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+        or full_frontier_target_bound_kernel_count > 0
         or source_theorem_kernel_count > 0
     )
     source_theorem_kernel_ready = (
         (
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            full_frontier_target_bound_kernel_count > 0
             or source_theorem_target_bound_kernel_count > 0
         )
         and int(payload.get("n_formal_gaps", 0) or 0) <= 0
@@ -5683,6 +5824,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     cross_task_generalization_ready = (
         distinct_task_family_count >= 2
         and cross_task_full_theorem_family_count >= 2
+        and full_frontier_target_bound_kernel_count >= 2
     )
     levels = [
         _ladder_level(
@@ -5821,6 +5963,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{source_theorem_kernel_count} "
                 "target_bound_source_theorem_kernel="
                 f"{source_theorem_target_bound_kernel_count} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
             ),
             "no local Lean/AXLE kernel-verified helper or bridge subclaim was available",
         ),
@@ -5830,6 +5974,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             source_theorem_kernel_ready,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
                 "proof_body_source_kernel="
                 f"{source_theorem_kernel_count} "
                 "target_bound_source_kernel="
@@ -5850,6 +5996,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "n_distinct_task_families="
                 f"{payload.get('n_distinct_task_families')} "
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
                 "proved_question_ids="
                 f"{payload.get('question_ids_with_full_frontier_theorem_proved')} "
                 "proved_task_families="
@@ -5943,6 +6091,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
     source_theorem_target_bound_kernel_count = (
         _payload_source_theorem_target_bound_kernel_count(payload)
+    )
+    full_frontier_target_bound_kernel_count = (
+        _payload_full_frontier_target_bound_kernel_count(payload)
     )
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
@@ -8136,10 +8287,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "full_frontier_theorem_kernel_proved",
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            full_frontier_target_bound_kernel_count > 0
             or source_theorem_target_bound_kernel_count > 0,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
                 "proof_body_source_kernel="
                 f"{source_theorem_kernel_count} "
                 "target_bound_source_kernel="
@@ -8151,13 +8304,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "no full frontier theorem was kernel-proved for the current "
-                "source theorem target"
+                "theorem/source target"
             ),
         ),
         _scorecard_row(
             "cross_task_full_theorem_generalization_demonstrated",
-            distinct_task_family_count >= 2
-            and cross_task_full_theorem_family_count >= 2,
+            (
+                distinct_task_family_count >= 2
+                and cross_task_full_theorem_family_count >= 2
+                and full_frontier_target_bound_kernel_count >= 2
+            ),
             (
                 "n_distinct_question_ids="
                 f"{payload.get('n_distinct_question_ids')} "
@@ -8169,6 +8325,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('task_families')} "
                 "n_full_frontier_theorem_proved="
                 f"{payload.get('n_full_frontier_theorem_proved')} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
                 "n_question_ids_with_full_frontier_theorem_proved="
                 f"{payload.get('n_question_ids_with_full_frontier_theorem_proved')} "
                 "question_ids_with_full_frontier_theorem_proved="
@@ -8761,6 +8919,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('question_ids_with_full_frontier_theorem_proved')}",
         "- task families with full frontier theorem proved: "
         f"{payload.get('task_families_with_full_frontier_theorem_proved')}",
+        "- target-bound full frontier theorem kernels: "
+        f"{payload.get('n_full_frontier_target_bound_kernel_verified')}",
         f"- result errors: {payload.get('n_result_errors')}",
         "- budgeted continuations contract-ok: "
         f"{payload.get('n_budgeted_continuation_contract_ok')}/"

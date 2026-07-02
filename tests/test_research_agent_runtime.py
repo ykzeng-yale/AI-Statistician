@@ -99,6 +99,8 @@ from ai_statistician.proof_state_feedback import (
 from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
     ArchitectCoordinatorRuntimeSubsystem,
+    FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS,
+    FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS,
     FormalizationEvaluatorRuntimeSubsystem,
     ProofEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
@@ -2595,6 +2597,18 @@ def _target_bound_source_theorem_payload(
         "source_theorem_kernel_verified_target_ids": [target],
         "source_theorem_target_bound_kernel_verified_target_ids": [target],
         "n_source_theorem_target_bound_kernel_verified": 1,
+    }
+
+
+def _target_bound_full_frontier_payload(
+    target: str = "split_conformal_coverage",
+    count: int = 1,
+) -> dict[str, object]:
+    targets = [f"{target}_{index}" for index in range(count)] if count > 1 else [target]
+    return {
+        "full_frontier_current_target_ids": targets,
+        "full_frontier_theorem_kernel_verified_target_ids": targets,
+        "n_full_frontier_target_bound_kernel_verified": count,
     }
 
 
@@ -50017,7 +50031,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "Lean LSP/MCP was not called live for proof-state diagnostics" in audit["capability_gaps"]
     assert (
         "no full frontier theorem was kernel-proved for the current "
-        "source theorem target"
+        "theorem/source target"
     ) in audit["capability_gaps"]
     assert audit["architect_coordinator_enabled"] is True
     assert audit["llm_topology_policy_ok"] is True
@@ -51098,6 +51112,12 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
     target_bound_target_keys = set(
         SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS
     )
+    full_frontier_target_bound_keys = set(
+        FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS
+    )
+    full_frontier_target_bound_target_keys = set(
+        FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS
+    )
     aggregate_kernel_keys = set(
         SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS
     )
@@ -51166,6 +51186,53 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
     )
     assert "n_source_theorem_target_bound_kernel_verified" in target_bound_keys
     assert "source_theorem_kernel_verified_target_ids" in target_bound_target_keys
+    assert (
+        "n_full_frontier_target_bound_kernel_verified"
+        in full_frontier_target_bound_keys
+    )
+    assert (
+        "full_frontier_theorem_kernel_verified_target_ids"
+        in full_frontier_target_bound_target_keys
+    )
+
+
+def test_runtime_evidence_summary_requires_full_frontier_target_binding() -> None:
+    artifacts = {
+        "formalization_manifest:raw-full": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "counts": {"proved": 1, "kernel_verified": 1, "formal_gap": 0},
+            "formal_subclaims": [
+                {
+                    "id": "helper_lemma",
+                    "status": "PROVED",
+                    "kernel_verified": True,
+                    "verifier": "local.lake_env_lean",
+                    "proof_obligation_id": "helper_lemma",
+                }
+            ],
+            "full_frontier_theorem_proved": True,
+        }
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    proof = evidence_summary["proof"]
+    scorecard = _runtime_capability_scorecard(
+        {
+            "n_full_frontier_theorem_proved": 1,
+            "n_formal_gaps": 0,
+        }
+    )
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert proof["n_full_frontier_raw_theorem_proved_claims"] == 1
+    assert proof["n_full_frontier_target_bound_kernel_verified"] == 0
+    assert proof["n_full_frontier_theorem_proved"] == 0
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is False
+    assert "target_bound_full_frontier_kernel=0" in rows[
+        "full_frontier_theorem_kernel_proved"
+    ]["evidence"]
 
 
 def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
@@ -51541,6 +51608,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_real_kernel_verified_subclaims": 1,
         "n_formal_gaps": 0,
         "n_full_frontier_theorem_proved": 1,
+        **_target_bound_full_frontier_payload(),
         "n_lean_lsp_mcp_live_calls": 1,
         "source_theorem_promotion_proofengineer_bridge_ran": True,
         "source_theorem_formal_environment_proofengineer_bridge_ran": True,
@@ -52002,6 +52070,7 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
         "n_distinct_question_ids": 1,
         "question_ids": ["conformal_prediction_coverage"],
         "n_full_frontier_theorem_proved": 1,
+        **_target_bound_full_frontier_payload(),
         "question_ids_with_full_frontier_theorem_proved": [
             "conformal_prediction_coverage"
         ],
@@ -52059,6 +52128,7 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is False
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is False
     assert ladder_rows[9]["passed"] is False
 
     non_evidence_family_payload = {
@@ -52088,6 +52158,7 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
         "conformal_prediction_coverage",
     ]
     payload["n_full_frontier_theorem_proved"] = 2
+    payload.update(_target_bound_full_frontier_payload(count=2))
     payload["question_ids_with_full_frontier_theorem_proved"] = [
         "causal_ate_aipw",
         "conformal_prediction_coverage",
@@ -52177,6 +52248,13 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
                                         "verifier": "local.lake_env_lean",
                                     }
                                 ],
+                                "full_frontier_current_target_ids": [
+                                    f"{question_id}:source"
+                                ],
+                                "full_frontier_theorem_kernel_verified_target_ids": [
+                                    f"{question_id}:source"
+                                ],
+                                "n_full_frontier_target_bound_kernel_verified": 1,
                                 "full_frontier_theorem_proved": True,
                             },
                         },
@@ -52219,6 +52297,7 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
     ladder_rows = {row["level"]: row for row in audit["capability_ladder"]["levels"]}
 
     assert audit["n_full_frontier_theorem_proved"] == 2
+    assert audit["n_full_frontier_target_bound_kernel_verified"] == 2
     assert audit["n_distinct_question_ids"] == 2
     assert audit["task_families"] == ["conformal"]
     assert audit["n_distinct_task_families"] == 1
@@ -52276,6 +52355,13 @@ def test_runtime_audit_backfills_task_family_from_manifest_metadata(
                                         "verifier": "local.lake_env_lean",
                                     }
                                 ],
+                                "full_frontier_current_target_ids": [
+                                    f"{question_id}:source"
+                                ],
+                                "full_frontier_theorem_kernel_verified_target_ids": [
+                                    f"{question_id}:source"
+                                ],
+                                "n_full_frontier_target_bound_kernel_verified": 1,
                                 "full_frontier_theorem_proved": True,
                             },
                         },
@@ -52325,6 +52411,7 @@ def test_runtime_audit_backfills_task_family_from_manifest_metadata(
     }
 
     assert audit["n_full_frontier_theorem_proved"] == 2
+    assert audit["n_full_frontier_target_bound_kernel_verified"] == 2
     assert audit["n_rows_task_family_backfilled_from_manifest"] == 2
     assert audit["manifest_question_task_families"] == {
         "conformal_prediction_coverage": "conformal",

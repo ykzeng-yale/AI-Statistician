@@ -275,6 +275,27 @@ SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS: tuple[str, ...] = (
     "source_theorem_kernel_verified_target_names",
     "source_theorem_kernel_verified_target_theorem_names",
 )
+FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "n_full_frontier_target_bound_kernel_verified",
+    "n_full_frontier_current_target_kernel_verified",
+    "n_full_frontier_theorem_kernel_verified",
+)
+FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS: tuple[str, ...] = (
+    "full_frontier_theorem_kernel_verified_target_ids",
+    "full_frontier_theorem_kernel_verified_target_names",
+    "full_frontier_kernel_verified_theorem_goal_ids",
+    "kernel_verified_full_frontier_theorem_ids",
+)
+FULL_FRONTIER_CURRENT_TARGET_KEYS: tuple[str, ...] = (
+    "full_frontier_current_target_ids",
+    "full_frontier_current_target_names",
+    "full_frontier_theorem_target_ids",
+    "full_frontier_theorem_target_names",
+    "target_theorem_ids",
+    "target_theorem_names",
+    "target_theorem_name",
+    "target_ids",
+)
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
@@ -931,6 +952,72 @@ def _runtime_source_theorem_target_bound_kernel_evidence_summary(
         "source_theorem_kernel_verified_target_binding_ok": target_bound_count > 0,
         "source_theorem_kernel_verified_target_binding_missing": (
             raw_kernel_count > 0 and target_bound_count <= 0
+        ),
+    }
+
+
+def _runtime_full_frontier_target_names_from_manifest(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    names: list[str] = []
+
+    def append_value(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for nested_key in FULL_FRONTIER_CURRENT_TARGET_KEYS:
+                append_value(value.get(nested_key, ""))
+            return
+        for item in _str_tuple(value):
+            text = str(item or "").strip()
+            if text and text not in names:
+                names.append(text)
+
+    for key in FULL_FRONTIER_CURRENT_TARGET_KEYS:
+        append_value(manifest.get(key, []))
+    for goal in manifest.get("deterministic_theorem_goals", []) or []:
+        if not isinstance(goal, Mapping):
+            continue
+        append_value(goal.get("id", ""))
+        append_value(goal.get("title", ""))
+    return list(dict.fromkeys(names))
+
+
+def _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Require explicit current-target binding for full theorem proof claims."""
+
+    raw_proved_claims = _runtime_manifest_int(manifest, "n_full_frontier_theorem_proved")
+    if manifest.get("full_frontier_theorem_proved") is True:
+        raw_proved_claims += 1
+    explicit_bound_count = _runtime_manifest_int_sum(
+        manifest,
+        FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS,
+    )
+    current_targets = _runtime_full_frontier_target_names_from_manifest(manifest)
+    evidence_targets: list[str] = []
+    for key in FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS:
+        for value in _str_tuple(manifest.get(key, [])):
+            text = str(value or "").strip()
+            if text and text not in evidence_targets:
+                evidence_targets.append(text)
+    matching_targets = sorted(set(current_targets) & set(evidence_targets))
+    target_bound_count = (
+        explicit_bound_count
+        if explicit_bound_count > 0 and current_targets and matching_targets
+        else 0
+    )
+    return {
+        "n_full_frontier_raw_theorem_proved_claims": raw_proved_claims,
+        "n_full_frontier_target_bound_kernel_verified": target_bound_count,
+        "n_full_frontier_target_bound_kernel_verified_explicit": (
+            explicit_bound_count
+        ),
+        "full_frontier_current_target_ids": current_targets,
+        "full_frontier_kernel_verified_target_ids": evidence_targets,
+        "full_frontier_kernel_verified_matching_target_ids": matching_targets,
+        "full_frontier_kernel_verified_target_binding_ok": target_bound_count > 0,
+        "full_frontier_kernel_verified_target_binding_missing": (
+            raw_proved_claims > 0 and target_bound_count <= 0
         ),
     }
 
@@ -57829,6 +57916,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "formalizer_lean_candidate_materialization_manifest_paths": [],
         "n_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_raw_theorem_proved_claims": 0,
+        "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
         "has_kernel_evidence": False,
         "has_formal_gaps": False,
@@ -58142,6 +58231,11 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 )
             elif kind == "RuntimeFormalizationManifest":
                 counts = artifact.get("counts", {}) if isinstance(artifact.get("counts"), Mapping) else {}
+                full_frontier_evidence = (
+                    _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
+                        artifact
+                    )
+                )
                 proof["n_formalization_manifests"] += 1
                 proof["n_proved_subclaims"] += int(counts.get("proved", 0) or 0)
                 proof["n_kernel_verified_subclaims"] += int(counts.get("kernel_verified", 0) or 0)
@@ -58166,7 +58260,24 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     proof[
                         "n_deterministic_formalizer_work_order_seed_proposals"
                     ] += 1
-                if artifact.get("full_frontier_theorem_proved") is True:
+                proof["n_full_frontier_raw_theorem_proved_claims"] += int(
+                    full_frontier_evidence[
+                        "n_full_frontier_raw_theorem_proved_claims"
+                    ]
+                )
+                proof["n_full_frontier_target_bound_kernel_verified"] += int(
+                    full_frontier_evidence[
+                        "n_full_frontier_target_bound_kernel_verified"
+                    ]
+                )
+                if (
+                    int(
+                        full_frontier_evidence[
+                            "n_full_frontier_target_bound_kernel_verified"
+                        ]
+                    )
+                    > 0
+                ):
                     proof["n_full_frontier_theorem_proved"] += 1
                 control = (
                     artifact.get("proof_obligation_control", {})
