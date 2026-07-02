@@ -345,6 +345,7 @@ def _runtime_task_handoff_ledger_audit_summary(
     *,
     result_paths: list[Path],
     progress_rows: list[dict[str, Any]],
+    handoff_export_rows: list[dict[str, Any]],
     errors: list[str],
 ) -> dict[str, Any]:
     n_trace_handoffs = 0
@@ -357,6 +358,8 @@ def _runtime_task_handoff_ledger_audit_summary(
     issues: list[dict[str, Any]] = []
     all_trace_handoff_ids: set[str] = set()
     all_ledger_handoff_ids: set[str] = set()
+    ledger_rows_by_id: dict[str, Mapping[str, Any]] = {}
+    ledger_project_ids_by_id: dict[str, str] = {}
 
     for path in result_paths:
         payload = _load_json(path, errors)
@@ -371,6 +374,7 @@ def _runtime_task_handoff_ledger_audit_summary(
             if isinstance(blackboard.get("handoff_ledger", []), list)
             else []
         )
+        project_id = str(blackboard.get("project_id", "") or "")
         ledger_rows = [row for row in raw_ledger if isinstance(row, Mapping)]
         n_ledger_rows += len(ledger_rows)
         ledger_by_id: dict[str, Mapping[str, Any]] = {}
@@ -387,6 +391,9 @@ def _runtime_task_handoff_ledger_audit_summary(
                 continue
             ledger_by_id[handoff_id] = row
             all_ledger_handoff_ids.add(handoff_id)
+            ledger_rows_by_id[handoff_id] = row
+            if project_id:
+                ledger_project_ids_by_id[handoff_id] = project_id
 
         result_trace_handoff_ids: set[str] = set()
         for trace_index, trace in enumerate(traces):
@@ -490,8 +497,70 @@ def _runtime_task_handoff_ledger_audit_summary(
                 detail="progress finish handoff_id is absent from traces and ledger",
             )
 
+    n_handoff_export_rows = len(handoff_export_rows)
+    n_handoff_export_missing_rows = 0
+    n_handoff_export_unknown_rows = 0
+    n_handoff_export_mismatched_rows = 0
+    export_by_id: dict[str, Mapping[str, Any]] = {}
+    for row_index, row in enumerate(handoff_export_rows):
+        handoff_id = str(row.get("handoff_id", "") or "").strip()
+        if not handoff_id:
+            n_handoff_export_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="handoff_export_row_missing_handoff_id",
+                trace_index=row_index,
+                detail="runtime_task_handoffs.jsonl row has no handoff_id",
+            )
+            continue
+        if handoff_id in export_by_id:
+            n_handoff_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="handoff_export_duplicate_handoff_id",
+                trace_index=row_index,
+                handoff_id=handoff_id,
+                detail="runtime_task_handoffs.jsonl repeats a handoff_id",
+            )
+            continue
+        export_by_id[handoff_id] = row
+        ledger_row = ledger_rows_by_id.get(handoff_id)
+        if ledger_row is None:
+            n_handoff_export_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="handoff_export_unknown_handoff_id",
+                trace_index=row_index,
+                handoff_id=handoff_id,
+                detail="runtime_task_handoffs.jsonl row is absent from blackboard.handoff_ledger",
+            )
+            continue
+        mismatches = _runtime_task_handoff_export_mismatches(
+            export_row=row,
+            ledger_row=ledger_row,
+            project_id=ledger_project_ids_by_id.get(handoff_id, ""),
+        )
+        if mismatches:
+            n_handoff_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="handoff_export_ledger_mismatch",
+                trace_index=row_index,
+                handoff_id=handoff_id,
+                detail=",".join(mismatches),
+            )
+
+    for handoff_id in sorted(all_ledger_handoff_ids - set(export_by_id)):
+        n_handoff_export_missing_rows += 1
+        _append_handoff_issue(
+            issues,
+            issue="handoff_ledger_row_missing_export",
+            handoff_id=handoff_id,
+            detail="blackboard.handoff_ledger row is absent from runtime_task_handoffs.jsonl",
+        )
+
     complete = (
-        n_trace_handoffs <= 0
+        (n_trace_handoffs <= 0 and n_handoff_export_rows <= 0)
         or (
             n_trace_missing_handoff_id == 0
             and n_missing_ledger_rows == 0
@@ -499,16 +568,29 @@ def _runtime_task_handoff_ledger_audit_summary(
             and n_extra_ledger_rows == 0
             and n_progress_missing_handoff_id == 0
             and n_progress_unknown_handoff_id == 0
+            and n_handoff_export_missing_rows == 0
+            and n_handoff_export_unknown_rows == 0
+            and n_handoff_export_mismatched_rows == 0
             and n_validated == n_trace_handoffs
         )
     )
     return {
         "artifact_kind": "RuntimeTaskHandoffLedgerAudit",
-        "source": "per_question_results_and_runtime_progress_recomputed",
+        "source": "per_question_results_runtime_progress_and_handoff_export",
         "runtime_task_handoff_ledger_complete": complete,
         "n_runtime_task_handoff_trace_rows": n_trace_handoffs,
         "n_runtime_task_handoff_ledger_rows": n_ledger_rows,
         "n_runtime_task_handoff_ledger_rows_validated": n_validated,
+        "n_runtime_task_handoff_export_rows": n_handoff_export_rows,
+        "n_runtime_task_handoff_export_missing_rows": (
+            n_handoff_export_missing_rows
+        ),
+        "n_runtime_task_handoff_export_unknown_rows": (
+            n_handoff_export_unknown_rows
+        ),
+        "n_runtime_task_handoff_export_mismatched_rows": (
+            n_handoff_export_mismatched_rows
+        ),
         "n_runtime_task_handoff_trace_rows_missing_handoff_id": (
             n_trace_missing_handoff_id
         ),
@@ -566,6 +648,35 @@ def _runtime_task_handoff_ledger_mismatches(
             trace.get(key, [])
         ):
             mismatches.append(key)
+    return mismatches
+
+
+def _runtime_task_handoff_export_mismatches(
+    *,
+    export_row: Mapping[str, Any],
+    ledger_row: Mapping[str, Any],
+    project_id: str,
+) -> list[str]:
+    mismatches = [
+        key
+        for key in (
+            "handoff_id",
+            "from_task_id",
+            "to_task_id",
+            "from_subsystem",
+            "to_subsystem",
+            "status",
+            "failure_classification",
+        )
+        if str(export_row.get(key, "") or "") != str(ledger_row.get(key, "") or "")
+    ]
+    for key in ("produced_artifact_ids", "evidence_ids"):
+        if _handoff_string_tuple(export_row.get(key, [])) != _handoff_string_tuple(
+            ledger_row.get(key, [])
+        ):
+            mismatches.append(key)
+    if project_id and str(export_row.get("project_id", "") or "") != project_id:
+        mismatches.append("project_id")
     return mismatches
 
 
@@ -756,6 +867,10 @@ def audit_research_agent_runtime(
         artifacts = {}
     trace_path = _resolve_path(runtime_dir, artifacts.get("runtime_traces_jsonl", ""))
     progress_path = _resolve_path(runtime_dir, artifacts.get("runtime_progress_jsonl", ""))
+    handoff_path = _resolve_path(
+        runtime_dir,
+        artifacts.get("runtime_task_handoffs_jsonl", ""),
+    )
     agenda_path = _resolve_path(runtime_dir, artifacts.get("runtime_next_action_agenda_jsonl", ""))
     learning_path = _resolve_path(runtime_dir, artifacts.get("runtime_learning_rows_jsonl", ""))
     pending_task_raw_path = artifacts.get("runtime_pending_next_task_json", "")
@@ -800,6 +915,11 @@ def audit_research_agent_runtime(
         errors,
         required=bool(artifacts.get("runtime_progress_jsonl")),
     )
+    handoff_export_rows = _load_jsonl(
+        handoff_path,
+        errors,
+        required=bool(artifacts.get("runtime_task_handoffs_jsonl")),
+    )
     agenda_rows = _load_jsonl(agenda_path, errors, required=True)
     learning_rows = _load_jsonl(learning_path, errors, required=True)
     exact_semantic_definition_authoring_task_rows = (
@@ -817,6 +937,12 @@ def audit_research_agent_runtime(
         errors.append("manifest n_runtime_learning_rows does not match learning JSONL")
     if len(trace_rows) != sum(row.n_traces for row in rows):
         errors.append("runtime_traces.jsonl row count does not match per-question traces")
+    if "n_runtime_task_handoffs" in manifest and int(
+        manifest.get("n_runtime_task_handoffs", -1)
+    ) != len(handoff_export_rows):
+        errors.append(
+            "manifest n_runtime_task_handoffs does not match runtime_task_handoffs JSONL"
+        )
     if artifacts.get("runtime_progress_jsonl") and len(progress_rows) < 2 * len(trace_rows):
         errors.append(
             "runtime_progress.jsonl must include start and finish events for each completed trace"
@@ -895,6 +1021,7 @@ def audit_research_agent_runtime(
         _runtime_task_handoff_ledger_audit_summary(
             result_paths=result_paths,
             progress_rows=progress_rows,
+            handoff_export_rows=handoff_export_rows,
             errors=errors,
         )
     )
@@ -1306,6 +1433,26 @@ def audit_research_agent_runtime(
         "n_runtime_task_handoff_ledger_rows_validated": int(
             runtime_task_handoff_ledger_summary[
                 "n_runtime_task_handoff_ledger_rows_validated"
+            ]
+        ),
+        "n_runtime_task_handoff_export_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_export_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_export_missing_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_export_missing_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_export_unknown_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_export_unknown_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_export_mismatched_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_export_mismatched_rows"
             ]
         ),
         "n_runtime_task_handoff_trace_rows_missing_handoff_id": int(
@@ -8611,6 +8758,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_task_handoff_ledger_rows')} "
                 "validated="
                 f"{payload.get('n_runtime_task_handoff_ledger_rows_validated')} "
+                "export_rows="
+                f"{payload.get('n_runtime_task_handoff_export_rows')} "
+                "export_missing="
+                f"{payload.get('n_runtime_task_handoff_export_missing_rows')} "
+                "export_unknown="
+                f"{payload.get('n_runtime_task_handoff_export_unknown_rows')} "
+                "export_mismatched="
+                f"{payload.get('n_runtime_task_handoff_export_mismatched_rows')} "
                 "trace_missing_handoff_id="
                 f"{payload.get('n_runtime_task_handoff_trace_rows_missing_handoff_id')} "
                 "ledger_missing="
@@ -8644,8 +8799,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "runtime_task_handoff_ledger_complete=true, with validated "
-                    "handoff ledger rows matching every trace next_task and "
-                    "no progress finish rows missing handoff_id"
+                    "handoff ledger rows matching every trace next_task, "
+                    "runtime_task_handoffs.jsonl export row, and progress "
+                    "finish handoff_id"
                 ),
             ),
         ),

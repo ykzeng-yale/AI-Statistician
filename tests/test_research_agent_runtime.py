@@ -2660,6 +2660,10 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         "n_runtime_task_handoff_trace_rows": 2,
         "n_runtime_task_handoff_ledger_rows": 2,
         "n_runtime_task_handoff_ledger_rows_validated": 2,
+        "n_runtime_task_handoff_export_rows": 2,
+        "n_runtime_task_handoff_export_missing_rows": 0,
+        "n_runtime_task_handoff_export_unknown_rows": 0,
+        "n_runtime_task_handoff_export_mismatched_rows": 0,
         "n_runtime_task_handoff_trace_rows_missing_handoff_id": 0,
         "n_runtime_task_handoff_ledger_missing_rows": 0,
         "n_runtime_task_handoff_ledger_mismatched_rows": 0,
@@ -2681,6 +2685,8 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         {
             "n_runtime_task_handoff_ledger_rows": 1,
             "n_runtime_task_handoff_ledger_rows_validated": 1,
+            "n_runtime_task_handoff_export_rows": 1,
+            "n_runtime_task_handoff_export_missing_rows": 1,
             "n_runtime_task_handoff_trace_rows_missing_handoff_id": 1,
             "n_runtime_task_handoff_ledger_missing_rows": 1,
             "n_runtime_task_handoff_progress_rows_missing_handoff_id": 1,
@@ -2703,6 +2709,7 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert handoff_row["passed"] is False
     assert "trace_handoffs=2" in handoff_row["evidence"]
     assert "ledger_missing=1" in handoff_row["evidence"]
+    assert "export_missing=1" in handoff_row["evidence"]
     assert "progress_missing_handoff_id=1" in handoff_row["evidence"]
     assert "central blackboard.handoff_ledger" in handoff_row["blocker"]
     assert handoff_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
@@ -49717,6 +49724,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "LLM backends generate structured proposals only" in topology["policy"]["backend_boundary"]
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_learning_rows_jsonl"]).exists()
+    assert Path(manifest["artifacts"]["runtime_task_handoffs_jsonl"]).exists()
     result_path = Path(manifest["artifacts"]["per_question_results"][0])
     result = json.loads(result_path.read_text(encoding="utf-8"))
     progress_path = Path(manifest["artifacts"]["runtime_progress_jsonl"])
@@ -49737,6 +49745,18 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert handoff_ledger[0]["to_subsystem"] == "RetrievalMemory"
     assert handoff_ledger[0]["handoff_id"] == result["traces"][0]["handoff_id"]
     assert finish_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
+    task_handoff_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_task_handoffs_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert manifest["n_runtime_task_handoffs"] == len(task_handoff_rows)
+    assert len(task_handoff_rows) == len(handoff_ledger)
+    assert task_handoff_rows[0]["question_id"] == question.id
+    assert task_handoff_rows[0]["project_id"] == result["blackboard"]["project_id"]
+    assert task_handoff_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
     assert [row["status"] for row in result["traces"][:12]] == [
         "REROUTE",
         "REROUTE",
@@ -50464,6 +50484,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_runtime_task_handoff_ledger_rows_validated"] == audit[
         "n_runtime_task_handoff_trace_rows"
     ]
+    assert audit["n_runtime_task_handoff_export_rows"] == len(task_handoff_rows)
+    assert audit["n_runtime_task_handoff_export_rows"] == len(handoff_ledger)
+    assert audit["n_runtime_task_handoff_export_missing_rows"] == 0
+    assert audit["n_runtime_task_handoff_export_unknown_rows"] == 0
+    assert audit["n_runtime_task_handoff_export_mismatched_rows"] == 0
     assert audit["n_runtime_task_handoff_ledger_missing_rows"] == 0
     assert audit["n_runtime_task_handoff_ledger_mismatched_rows"] == 0
     assert audit["n_runtime_task_handoff_progress_rows_missing_handoff_id"] == 0

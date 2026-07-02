@@ -16526,6 +16526,7 @@ def run_research_agent_runtime(
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
+    handoff_rows: list[dict[str, Any]] = []
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
     shared_formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
@@ -16770,6 +16771,28 @@ def run_research_agent_runtime(
         result_path.write_text(json.dumps(result_json, indent=2, default=str), encoding="utf-8")
         result_json["artifact_path"] = str(result_path)
         results.append(result_json)
+        blackboard_json = (
+            result_json.get("blackboard", {})
+            if isinstance(result_json.get("blackboard", {}), Mapping)
+            else {}
+        )
+        raw_handoff_ledger = (
+            blackboard_json.get("handoff_ledger", [])
+            if isinstance(blackboard_json.get("handoff_ledger", []), list)
+            else []
+        )
+        for handoff in raw_handoff_ledger:
+            if not isinstance(handoff, Mapping):
+                continue
+            handoff_rows.append(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "question_id": question.id,
+                    "question_title": question.title,
+                    "project_id": str(blackboard_json.get("project_id", "") or ""),
+                    **dict(handoff),
+                }
+            )
         for trace in result_json["traces"]:
             trace_rows.append(
                 {
@@ -16781,6 +16804,8 @@ def run_research_agent_runtime(
 
     traces_path = out_dir / "runtime_traces.jsonl"
     _write_jsonl(traces_path, trace_rows)
+    task_handoffs_path = out_dir / "runtime_task_handoffs.jsonl"
+    _write_jsonl(task_handoffs_path, handoff_rows)
     llm_topology_path = out_dir / "runtime_llm_topology.json"
     llm_topology_path.write_text(json.dumps(llm_topology, indent=2, default=str), encoding="utf-8")
     manifest_path = out_dir / "research_agent_runtime_manifest.json"
@@ -16836,6 +16861,7 @@ def run_research_agent_runtime(
         "runtime_architect_coordinator_registered": architect_coordinator is not None,
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
+        "n_runtime_task_handoffs": len(handoff_rows),
         "status_counts": dict(sorted(status_counts.items())),
         "runtime_completion_summary": completion_summary,
         "runtime_failure_summary": failure_summary,
@@ -17206,10 +17232,16 @@ def run_research_agent_runtime(
         ],
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "simulation_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
+        "runtime_task_handoff_boundary": (
+            "Task handoff rows are orchestration and communication records. "
+            "They preserve subsystem routing, artifact, and evidence references "
+            "but are not statistical, simulation, generated-code, or proof evidence."
+        ),
         "llm_runtime_topology": llm_topology,
         "artifacts": {
             "runtime_progress_jsonl": str(progress_path),
             "runtime_traces_jsonl": str(traces_path),
+            "runtime_task_handoffs_jsonl": str(task_handoffs_path),
             "runtime_llm_topology_json": str(llm_topology_path),
             "per_question_results": [str(row["artifact_path"]) for row in results],
         },
