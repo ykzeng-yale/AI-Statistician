@@ -296,6 +296,7 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "proof_body_semantic_primitive_work_order_rows",
     "source_theorem_formal_environment_rows",
     "source_theorem_proof_body_execution_result_rows",
+    "route_contract_feedback_rows",
     "refinement_evidence_rows",
     "route_revision_overlay_rows",
     "route_replan_handoff_rows",
@@ -327,6 +328,9 @@ ROUTE_MATCH_COLLECTION_FIELDS = (
     "route_ids",
     "source_route_ids",
     "standalone_route_ids",
+    "target_ids",
+    "target_theorem_ids",
+    "target_theorem_names",
     "goal_plan_ids",
 )
 ROUTE_MATCH_NESTED_FIELDS = (
@@ -1129,6 +1133,7 @@ def export_formalization_gap_planner_llm_route_planner(
     source_theorem_formal_environment_bridge_dir: Path | None = None,
     exact_source_theorem_proof_body_executor_dir: Path | None = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
+    formalization_gap_planner_route_contract_feedback_jsonl: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
     formalization_gap_planner_interactive_session_dir: Path | None = None,
@@ -1173,6 +1178,9 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         formalization_gap_planner_refinement_evidence_dir=(
             formalization_gap_planner_refinement_evidence_dir
+        ),
+        formalization_gap_planner_route_contract_feedback_jsonl=(
+            formalization_gap_planner_route_contract_feedback_jsonl
         ),
         formalization_gap_planner_route_revision_overlay_dir=(
             formalization_gap_planner_route_revision_overlay_dir
@@ -2065,6 +2073,27 @@ def export_formalization_gap_planner_llm_route_planner(
                 _dict_value(packet, "context_packet").get("refinement_evidence_rows", [])
             )
         ),
+        "n_requests_with_route_contract_feedback_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "route_contract_feedback_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_route_contract_feedback_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "route_contract_feedback_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_route_revision_overlay_rows": sum(
             1
             for packet in request_packets
@@ -2134,6 +2163,44 @@ def export_formalization_gap_planner_llm_route_planner(
                     "feedback_loop_summary",
                 ).get("replan_required", False)
             )
+        ),
+        "n_feedback_loop_summary_route_contract_feedback": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ),
+                "route_contract_feedback",
+            )
+        ),
+        "n_feedback_loop_summary_route_contract_feedback_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "route_contract_feedback",
+                ).get("feedback_row_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_route_contract_feedback_error_previews": sum(
+            len(
+                _str_tuple(
+                    _dict_value(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "feedback_loop_summary",
+                        ),
+                        "route_contract_feedback",
+                    ).get("staged_followup_assembly_error_preview", [])
+                )
+            )
+            for packet in request_packets
         ),
         "n_feedback_loop_summary_resource_request_playbooks": sum(
             int(
@@ -4124,6 +4191,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_source_theorem_formal_environment_rows",
             "n_requests_with_source_theorem_proof_body_execution_result_rows",
             "n_request_source_theorem_proof_body_execution_result_rows",
+            "n_requests_with_route_contract_feedback_rows",
+            "n_request_route_contract_feedback_rows",
+            "n_feedback_loop_summary_route_contract_feedback",
+            "n_feedback_loop_summary_route_contract_feedback_rows",
+            "n_feedback_loop_summary_route_contract_feedback_error_previews",
             "n_feedback_loop_summary_interactive_route_adoption_preconditions",
             "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions",
             "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers",
@@ -4438,6 +4510,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_route_contract_feedback_rows": nonnegative_integer,
+            "n_request_route_contract_feedback_rows": nonnegative_integer,
+            "n_feedback_loop_summary_route_contract_feedback": nonnegative_integer,
+            "n_feedback_loop_summary_route_contract_feedback_rows": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_route_contract_feedback_error_previews": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_requests": (
@@ -5925,6 +6006,85 @@ def validate_llm_route_planner_manifest(
         )
         if int(manifest.get(manifest_field, 0) or 0) != int(expected_value):
             errors.append(f"{manifest_field} must match request_packets")
+    route_contract_feedback_count_checks = (
+        (
+            "n_requests_with_route_contract_feedback_rows",
+            sum(
+                1
+                for packet in request_packets
+                if _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "route_contract_feedback_rows",
+                        [],
+                    )
+                )
+            ),
+        ),
+        (
+            "n_request_route_contract_feedback_rows",
+            sum(
+                len(
+                    _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "route_contract_feedback_rows",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_feedback_loop_summary_route_contract_feedback",
+            sum(
+                1
+                for packet in request_packets
+                if _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "route_contract_feedback",
+                )
+            ),
+        ),
+        (
+            "n_feedback_loop_summary_route_contract_feedback_rows",
+            sum(
+                int(
+                    _dict_value(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "feedback_loop_summary",
+                        ),
+                        "route_contract_feedback",
+                    ).get("feedback_row_count", 0)
+                    or 0
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_feedback_loop_summary_route_contract_feedback_error_previews",
+            sum(
+                len(
+                    _str_tuple(
+                        _dict_value(
+                            _dict_value(
+                                _dict_value(packet, "context_packet"),
+                                "feedback_loop_summary",
+                            ),
+                            "route_contract_feedback",
+                        ).get("staged_followup_assembly_error_preview", [])
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+    )
+    for field_name, expected_value in route_contract_feedback_count_checks:
+        if int(manifest.get(field_name, 0) or 0) != int(expected_value):
+            errors.append(f"{field_name} must match request_packets")
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
     )
@@ -7184,6 +7344,10 @@ def _request_packet(
             context_payloads.get("refinement_evidence", {}),
             route_match_ids,
         ),
+        "route_contract_feedback_rows": _rows_for_route(
+            context_payloads.get("route_contract_feedback", {}),
+            route_match_ids,
+        ),
         "route_revision_overlay_rows": _rows_for_route(
             context_payloads.get("route_revision_overlay", {}),
             route_match_ids,
@@ -7728,6 +7892,7 @@ def _prompt_context_packet(context_packet: Mapping[str, Any]) -> dict[str, objec
         "source_theorem_formal_environment_rows",
         "source_theorem_proof_body_execution_result_rows",
         "refinement_evidence_rows",
+        "route_contract_feedback_rows",
         "route_revision_overlay_rows",
         "route_replan_handoff_rows",
         "interactive_session_rows",
@@ -9070,6 +9235,10 @@ def _route_planning_brief(
     primitive_cost_hints = _dict_tuple(cost_hints.get("primitive_cost_hints", []))
     route_option_hints = _dict_tuple(cost_hints.get("route_option_hints", []))
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    route_contract_feedback = _dict_value(
+        feedback_summary,
+        "route_contract_feedback",
+    )
     source_theorem_feedback = _dict_value(
         feedback_summary,
         "source_theorem_feedback",
@@ -9190,6 +9359,34 @@ def _route_planning_brief(
             ),
             target_primitives=_residual_goal_context_target_primitives(
                 residual_goal_contexts
+            ),
+        )
+    if route_contract_feedback:
+        add_focus(
+            "repair_route_planner_contract_feedback",
+            priority=1,
+            action=(
+                "repair the previous route-planner response against the exact "
+                "contract feedback before target-prover replay"
+            ),
+            reason=(
+                "context_packet.route_contract_feedback_rows carries live "
+                "route-planner contract failures, token counts, and staged "
+                "assembly errors from the prior run"
+            ),
+            evidence_fields=(
+                "context_packet.route_contract_feedback_rows",
+                "context_packet.feedback_loop_summary.route_contract_feedback",
+            ),
+            required_output_fields=(
+                "informal_knowledge_dag_nodes",
+                "formal_realization_dag_nodes",
+                "minimal_delta_plan",
+                "formal_attempt_queue",
+                "planner_next_actions",
+            ),
+            target_primitives=_str_tuple(
+                route_contract_feedback.get("target_primitives", [])
             ),
         )
     if source_refs or source_snippets:
@@ -10243,6 +10440,10 @@ def _context_packet_inventory(
         for field_name in CONTEXT_PACKET_ROW_FIELDS
     }
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    route_contract_feedback = _dict_value(
+        feedback_summary,
+        "route_contract_feedback",
+    )
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
     alignment_summary = _dict_value(context_packet, "library_alignment_summary")
     resource_feedback_readiness = _dict_value(
@@ -10442,6 +10643,28 @@ def _context_packet_inventory(
         ),
         "feedback_loop_summary_recommended_next_action_count": len(
             _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+        ),
+        "feedback_loop_summary_route_contract_feedback_present": bool(
+            route_contract_feedback
+        ),
+        "feedback_loop_summary_route_contract_feedback_row_count": int(
+            route_contract_feedback.get("feedback_row_count", 0) or 0
+        ),
+        "feedback_loop_summary_route_contract_feedback_id_count": len(
+            _str_tuple(
+                route_contract_feedback.get(
+                    "route_planner_contract_feedback_ids",
+                    [],
+                )
+            )
+        ),
+        "feedback_loop_summary_route_contract_feedback_error_preview_count": len(
+            _str_tuple(
+                route_contract_feedback.get(
+                    "staged_followup_assembly_error_preview",
+                    [],
+                )
+            )
         ),
         "feedback_loop_summary_prior_llm_route_planner_hook_trace_count": len(
             _dict_tuple(
@@ -10944,6 +11167,56 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "context_packet.feedback_loop_summary"
         )
     prior_metadata = _dict_value(feedback_summary, "prior_replan_metadata")
+    route_contract_feedback = _dict_value(
+        feedback_summary,
+        "route_contract_feedback",
+    )
+    route_contract_count_checks = (
+        (
+            "feedback_loop_summary_route_contract_feedback_present",
+            bool(route_contract_feedback),
+        ),
+        (
+            "feedback_loop_summary_route_contract_feedback_row_count",
+            int(route_contract_feedback.get("feedback_row_count", 0) or 0),
+        ),
+        (
+            "feedback_loop_summary_route_contract_feedback_id_count",
+            len(
+                _str_tuple(
+                    route_contract_feedback.get(
+                        "route_planner_contract_feedback_ids",
+                        [],
+                    )
+                )
+            ),
+        ),
+        (
+            "feedback_loop_summary_route_contract_feedback_error_preview_count",
+            len(
+                _str_tuple(
+                    route_contract_feedback.get(
+                        "staged_followup_assembly_error_preview",
+                        [],
+                    )
+                )
+            ),
+        ),
+    )
+    for field_name, expected_value in route_contract_count_checks:
+        actual_value = inventory.get(
+            field_name,
+            False if isinstance(expected_value, bool) else 0,
+        )
+        if isinstance(expected_value, bool):
+            matches = bool(actual_value) == expected_value
+        else:
+            matches = int(actual_value or 0) == expected_value
+        if not matches:
+            errors.append(
+                "context_packet.context_packet_inventory."
+                f"{field_name} must match context_packet.feedback_loop_summary"
+            )
     if int(
         inventory.get(
             "feedback_loop_summary_prior_llm_route_planner_hook_trace_count",
@@ -11625,6 +11898,7 @@ def _user_prompt(
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
             "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers and response_required_fields as blocking route-repair obligations for the next LLM plan.",
+            "When context_packet.route_contract_feedback_rows or context_packet.feedback_loop_summary.route_contract_feedback is present, treat the exact contract counts, failure_classification values, and staged_followup_assembly_error_preview strings as route-planner repair instructions; they are not theorem proof evidence.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet; batch rows may use zero-based covered_residual_goal_indices into context_packet.residual_goals to avoid copying long prover diagnostics.",
@@ -25170,6 +25444,7 @@ def _context_payloads(
     source_theorem_formal_environment_bridge_dir: Path | None,
     exact_source_theorem_proof_body_executor_dir: Path | None,
     formalization_gap_planner_refinement_evidence_dir: Path | None,
+    formalization_gap_planner_route_contract_feedback_jsonl: Path | None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None,
     formalization_gap_planner_interactive_session_dir: Path | None,
@@ -25242,6 +25517,12 @@ def _context_payloads(
             formalization_gap_planner_refinement_evidence_dir,
             "formalization_gap_planner_refinement_evidence_manifest.json",
             errors,
+        ),
+        "route_contract_feedback": _optional_rows_payload(
+            formalization_gap_planner_route_contract_feedback_jsonl,
+            "",
+            errors,
+            embedded_row_keys=("rows",),
         ),
         "route_revision_overlay": _optional_manifest(
             formalization_gap_planner_route_revision_overlay_dir,
@@ -25859,6 +26140,7 @@ def _feedback_loop_summary(
         "source_theorem_formal_environment_rows",
         "source_theorem_proof_body_execution_result_rows",
         "refinement_evidence_rows",
+        "route_contract_feedback_rows",
         "route_revision_overlay_rows",
         "route_replan_handoff_rows",
         "interactive_session_rows",
@@ -25881,6 +26163,9 @@ def _feedback_loop_summary(
         rows_by_field.get("refinement_evidence_rows", ())
     )
     source_theorem_feedback = _source_theorem_feedback_summary(rows_by_field)
+    route_contract_feedback = _route_contract_feedback_summary(
+        rows_by_field.get("route_contract_feedback_rows", ())
+    )
     all_rows = tuple(row for rows in rows_by_field.values() for row in rows)
     actionable_rows_by_field = dict(rows_by_field)
     actionable_rows_by_field["resource_response_ledger_rows"] = tuple(
@@ -25949,6 +26234,12 @@ def _feedback_loop_summary(
             _dict_tuple(source_theorem_feedback.get("recommended_next_actions", [])),
             key_fields=("source", "action", "work_order_id", "execution_result_id"),
         )
+    if route_contract_feedback:
+        recommended_next_actions = _merge_dict_rows(
+            recommended_next_actions,
+            _dict_tuple(route_contract_feedback.get("recommended_next_actions", [])),
+            key_fields=("source", "action", "route_planner_contract_feedback_id"),
+        )
     realization_coverage = _realization_feedback_summary(
         context_packet,
         all_rows,
@@ -25984,6 +26275,9 @@ def _feedback_loop_summary(
     source_theorem_feedback_replan_required = bool(
         source_theorem_feedback.get("replan_required", False)
     )
+    route_contract_feedback_replan_required = bool(
+        route_contract_feedback.get("replan_required", False)
+    )
     replan_required = any(
         _truthy(row.get(field_name))
         for row in actionable_rows
@@ -25992,7 +26286,11 @@ def _feedback_loop_summary(
             "needs_route_replanning",
             "route_revision_recommended",
             )
-    ) or realization_replan_required or source_theorem_feedback_replan_required
+    ) or (
+        realization_replan_required
+        or source_theorem_feedback_replan_required
+        or route_contract_feedback_replan_required
+    )
     if interactive_route_adoption_preconditions.get("unresolved_count", 0):
         replan_required = True
     needs_more_library_grounding = any(
@@ -26078,6 +26376,8 @@ def _feedback_loop_summary(
         summary["realization_coverage"] = realization_coverage
     if source_theorem_feedback:
         summary["source_theorem_feedback"] = source_theorem_feedback
+    if route_contract_feedback:
+        summary["route_contract_feedback"] = route_contract_feedback
     if resource_feedback_readiness:
         summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
     if quality_control_obligations.get("present"):
@@ -26101,6 +26401,163 @@ def _feedback_loop_summary(
             if key in replan_metadata
         }
     return summary
+
+
+def _route_contract_feedback_summary(
+    rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    if not rows:
+        return {}
+    feedback_id_values: list[str] = []
+    for row in rows:
+        row_feedback_ids = _str_tuple(row.get("route_planner_contract_feedback_id", []))
+        row_feedback_ids = row_feedback_ids or _str_tuple(
+            row.get("route_planner_contract_feedback_ids", [])
+        )
+        row_feedback_ids = row_feedback_ids or _str_tuple(
+            row.get("runtime_learning_row_id", [])
+        )
+        feedback_id_values.extend(row_feedback_ids)
+    feedback_ids = _unique_strings(feedback_id_values)
+    failure_classifications = _unique_strings(
+        [
+            *_collect_row_values(rows, "failure_classification"),
+            *_collect_row_values(rows, "failure_classifications"),
+        ]
+    )
+    target_ids = _unique_strings(
+        [
+            *_collect_row_values(rows, "target_ids"),
+            *_collect_row_values(rows, "route_ids"),
+            *_collect_row_values(rows, "target_theorem_ids"),
+            *_collect_row_values(rows, "target_theorem_names"),
+        ]
+    )
+    target_primitives = _unique_strings(
+        _collect_row_values(rows, "target_primitives")
+    )
+    contract_counts_by_feedback: list[dict[str, object]] = []
+    provider_token_counts_by_feedback: list[dict[str, object]] = []
+    assembly_error_summaries: list[dict[str, object]] = []
+    assembly_error_preview: list[str] = []
+    feedback_rows: list[dict[str, object]] = []
+    for row in rows:
+        feedback_id = str(
+            row.get("route_planner_contract_feedback_id")
+            or next(iter(_str_tuple(row.get("route_planner_contract_feedback_ids", []))), "")
+            or row.get("runtime_learning_row_id", "")
+            or ""
+        ).strip()
+        contract_counts = _dict_value(row, "contract_counts")
+        if contract_counts:
+            contract_counts_by_feedback.append(
+                {
+                    **({"route_planner_contract_feedback_id": feedback_id} if feedback_id else {}),
+                    **dict(contract_counts),
+                }
+            )
+        provider_token_counts = _dict_value(row, "provider_token_counts")
+        if provider_token_counts:
+            provider_token_counts_by_feedback.append(
+                {
+                    **({"route_planner_contract_feedback_id": feedback_id} if feedback_id else {}),
+                    **dict(provider_token_counts),
+                }
+            )
+        for item in _dict_tuple(row.get("staged_followup_assembly_error_summary", [])):
+            summary = dict(item)
+            if feedback_id:
+                summary.setdefault("route_planner_contract_feedback_id", feedback_id)
+            assembly_error_summaries.append(summary)
+        assembly_error_preview.extend(
+            _str_tuple(row.get("staged_followup_assembly_error_preview", []))
+        )
+        feedback_rows.append(
+            {
+                key: value
+                for key, value in {
+                    "route_planner_contract_feedback_id": feedback_id,
+                    "runtime_learning_row_id": str(
+                        row.get("runtime_learning_row_id", "") or ""
+                    ),
+                    "learning_task": str(row.get("learning_task", "") or ""),
+                    "failure_classification": str(
+                        row.get("failure_classification", "") or ""
+                    ),
+                    "target_primitives": list(
+                        _str_tuple(row.get("target_primitives", []))[:12]
+                    ),
+                    "target_ids": list(_str_tuple(row.get("target_ids", []))[:12]),
+                    "route_ids": list(_str_tuple(row.get("route_ids", []))[:12]),
+                    "formalization_gap_planner_handoff_id": str(
+                        row.get("formalization_gap_planner_handoff_id", "") or ""
+                    ),
+                    "standalone_seed_path": str(
+                        row.get("standalone_seed_path", "") or ""
+                    ),
+                    "source_manifest_id": str(
+                        row.get("source_manifest_id", "") or ""
+                    ),
+                    "source_manifest_path": str(
+                        row.get("source_manifest_path", "") or ""
+                    ),
+                }.items()
+                if value not in ("", [], {})
+            }
+        )
+    repair_focus = _unique_strings(
+        [
+            *failure_classifications,
+            *assembly_error_preview,
+            *_collect_row_values(rows, "target_behavior"),
+            *_collect_row_values(rows, "acceptance_gate"),
+        ]
+    )
+    recommended_next_actions: list[dict[str, object]] = []
+    for feedback_id in feedback_ids[:8] or ("",):
+        recommended_next_actions.append(
+            {
+                "source": "route_contract_feedback",
+                "owner": "route_planner",
+                "action": "repair_route_planner_contract_feedback",
+                "route_planner_contract_feedback_id": feedback_id,
+                "failure_classifications": list(failure_classifications[:8]),
+                "target_ids": list(target_ids[:12]),
+                "target_primitives": list(target_primitives[:12]),
+                "repair_focus": list(repair_focus[:12]),
+                "contract_counts": contract_counts_by_feedback[:4],
+                "provider_token_counts": provider_token_counts_by_feedback[:4],
+                "staged_followup_assembly_error_preview": list(
+                    _unique_strings(assembly_error_preview)[:12]
+                ),
+                "acceptance_gate": (
+                    "rerun the same route-planner handoff and return a "
+                    "schema-valid route response before target-prover replay"
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return {
+        "summary_kind": "formalization_gap_planner_route_contract_feedback_summary",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "feedback_row_count": len(rows),
+        "replan_required": True,
+        "route_planner_contract_feedback_ids": list(feedback_ids[:12]),
+        "failure_classifications": list(failure_classifications[:12]),
+        "target_ids": list(target_ids[:20]),
+        "target_primitives": list(target_primitives[:20]),
+        "repair_focus": list(repair_focus[:20]),
+        "contract_counts_by_feedback": contract_counts_by_feedback[:8],
+        "provider_token_counts_by_feedback": provider_token_counts_by_feedback[:8],
+        "staged_followup_assembly_error_summary": assembly_error_summaries[:8],
+        "staged_followup_assembly_error_preview": list(
+            _unique_strings(assembly_error_preview)[:24]
+        ),
+        "feedback_rows": feedback_rows[:12],
+        "recommended_next_actions": recommended_next_actions[:8],
+    }
 
 
 def _source_theorem_feedback_summary(
@@ -27431,6 +27888,8 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "goal_plan_id",
         "source_goal_plan_id",
         "target_goal_plan_id",
+        "runtime_learning_row_id",
+        "question_id",
         "route_id",
         "source_route_id",
         "target_route_id",
@@ -27438,6 +27897,10 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "request_route_id",
         "selected_route_id",
         "route_match_ids",
+        "route_ids",
+        "target_ids",
+        "target_theorem_ids",
+        "target_theorem_names",
         "target_intake_id",
         "target_id",
         "target_theorem_id",
@@ -27445,7 +27908,12 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "target_lean_declaration",
         "source_theorem_route_id",
         "standalone_route_id",
+        "route_planner_contract_feedback_id",
+        "formalization_gap_planner_bridge_id",
+        "formalization_gap_planner_handoff_id",
+        "standalone_seed_path",
         "artifact_kind",
+        "learning_task",
         "work_order_id",
         "execution_queue_id",
         "execution_result_id",
@@ -27496,6 +27964,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "request_contract_fields",
         "response_contract_fields",
         "acceptance_gate",
+        "target_behavior",
         "escalation_policy",
         "output_artifact_kind",
         "expected_response_artifact",
@@ -27628,6 +28097,9 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "semantic_primitive_gap_kind",
         "source_learning_task",
         "source_learning_row_id",
+        "source_manifest_id",
+        "source_manifest_path",
+        "source_rows_path",
         "source_execution_result_id",
         "source_execution_queue_id",
         "source_formal_environment_work_order_id",
@@ -27635,6 +28107,11 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "candidate_artifact_path",
         "placeholder_symbol",
         "failure_classification",
+        "failure_classifications",
+        "contract_counts",
+        "provider_token_counts",
+        "staged_followup_assembly_error_summary",
+        "staged_followup_assembly_error_preview",
         "diagnostics",
         "formal_environment_placeholder_symbols",
         "formal_environment_typeclass_blockers",
@@ -29950,7 +30427,11 @@ def _feedback_replan_requires_standalone_hook(
 def _feedback_action_is_route_revision_work(action: Mapping[str, object]) -> bool:
     source = _primitive_key(str(action.get("source", "")))
     action_name = _primitive_key(str(action.get("action", "")))
-    if source in {"route_revision_overlay", "route_replan_handoff"}:
+    if source in {
+        "route_revision_overlay",
+        "route_replan_handoff",
+        "route_contract_feedback",
+    }:
         return True
     if action_name in {
         "route_revision_recommended",
@@ -30031,7 +30512,11 @@ def _hook_kind_for_llm_feedback_action(action: Mapping[str, object]) -> str:
         return "formal_library_grounding"
     if action_name == "repair_route_from_source_theorem_proof_body_feedback":
         return "route_revision"
-    if source in {"route_revision_overlay", "route_replan_handoff"}:
+    if source in {
+        "route_revision_overlay",
+        "route_replan_handoff",
+        "route_contract_feedback",
+    }:
         return "route_revision"
     if action_name in {
         "route_revision_recommended",
@@ -30152,7 +30637,9 @@ def _feedback_action_text_values(action: Mapping[str, object]) -> tuple[str, ...
         "response_summary",
         "route_replan_handoff_id",
         "route_revision_overlay_id",
+        "route_planner_contract_feedback_id",
         "resource_request_id",
+        "acceptance_gate",
     ):
         values.extend(_str_tuple(action.get(field_name, [])))
     for field_name in (
@@ -30165,6 +30652,10 @@ def _feedback_action_text_values(action: Mapping[str, object]) -> tuple[str, ...
         "commands",
         "residual_goals",
         "reasons",
+        "failure_classifications",
+        "repair_focus",
+        "staged_followup_assembly_error_preview",
+        "target_ids",
     ):
         values.extend(_str_tuple(action.get(field_name, [])))
     return _str_tuple(values)

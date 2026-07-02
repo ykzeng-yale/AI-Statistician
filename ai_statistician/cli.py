@@ -5817,6 +5817,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.formalization_gap_planner_refinement_evidence_dir
             else None
         ),
+        formalization_gap_planner_route_contract_feedback_jsonl=(
+            Path(args.formalization_gap_planner_route_contract_feedback_jsonl)
+            if args.formalization_gap_planner_route_contract_feedback_jsonl
+            else None
+        ),
         formalization_gap_planner_route_revision_overlay_dir=(
             Path(args.formalization_gap_planner_route_revision_overlay_dir)
             if args.formalization_gap_planner_route_revision_overlay_dir
@@ -14124,6 +14129,13 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-refinement-evidence-dir",
         help="optional refinement-evidence directory carrying literature, library, and proof-state feedback",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-route-contract-feedback-jsonl",
+        help=(
+            "optional JSONL or rows manifest carrying live route-planner "
+            "contract feedback rows to force contract-aware replanning"
+        ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-route-revision-overlay-dir",

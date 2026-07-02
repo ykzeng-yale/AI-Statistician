@@ -14471,10 +14471,19 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         f"{type(exc).__name__}: {exc}"
                     )
             output_paths.append(str(registry_manifest))
+        route_contract_feedback_jsonl = self._optional_handoff_path(
+            handoff,
+            "route_contract_feedback_jsonl",
+        )
+        if route_contract_feedback_jsonl is not None:
+            output_paths.append(str(route_contract_feedback_jsonl))
         return {
             "standalone_plan_dir": str(standalone_plan_dir or ""),
             "target_intake_dir": str(target_intake_dir or ""),
             "component_resource_registry_dir": str(registry_dir or ""),
+            "route_contract_feedback_jsonl": str(
+                route_contract_feedback_jsonl or ""
+            ),
             "output_paths": output_paths,
             "errors": errors,
             "all_ok": not errors,
@@ -14777,6 +14786,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         self._optional_handoff_path(
                             handoff,
                             "component_resource_registry_dir",
+                        )
+                    ),
+                    formalization_gap_planner_route_contract_feedback_jsonl=(
+                        self._optional_handoff_path(
+                            handoff,
+                            "route_contract_feedback_jsonl",
                         )
                     ),
                 )
@@ -18726,6 +18741,7 @@ def run_research_agent_runtime(
     gap_planner_handoff_rows = _runtime_formalization_gap_planner_handoff_rows(
         gap_planner_bridge_rows,
         runtime_out_dir=out_dir,
+        runtime_learning_rows=learning_rows,
     )
     gap_planner_execution_context_rows = [
         *gap_planner_bridge_rows,
@@ -29927,6 +29943,8 @@ _FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS = (
     "target_intake_cli",
     "component_resource_registry_dir",
     "component_resource_registry_cli",
+    "route_contract_feedback_jsonl",
+    "n_route_contract_feedback_rows",
     "standalone_plan_dir",
     "standalone_plan_cli",
     "llm_route_planner_prompt_cli",
@@ -58686,11 +58704,15 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
     llm_prompt_out: str,
     llm_live_out: str,
     reuse_smoke_out: str,
+    route_contract_feedback_jsonl: str,
     target_prover_family: str,
     library_snapshot_ref: str,
     recommended_llm_provider: str = "anthropic",
     recommended_model_tier: str = "auto",
 ) -> dict[str, Any]:
+    route_contract_feedback_inputs = (
+        [route_contract_feedback_jsonl] if route_contract_feedback_jsonl else []
+    )
     stages = [
         _runtime_gap_planner_execution_stage(
             stage_id="standalone_plan",
@@ -58735,6 +58757,7 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
                 standalone_plan_dir,
                 target_intake_dir,
                 component_resource_registry_dir,
+                *route_contract_feedback_inputs,
             ],
             expected_outputs=[llm_prompt_out],
             purpose=(
@@ -58752,6 +58775,7 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
                 standalone_plan_dir,
                 target_intake_dir,
                 component_resource_registry_dir,
+                *route_contract_feedback_inputs,
             ],
             expected_outputs=[llm_live_out],
             purpose=(
@@ -58790,10 +58814,84 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
     }
 
 
+def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
+    bridge: Mapping[str, Any],
+    runtime_learning_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    bridge_ids = set(
+        _runtime_row_string_values(
+            bridge,
+            "bridge_id",
+            "formalization_gap_planner_bridge_id",
+        )
+    )
+    bridge_target_ids = set(_runtime_formalization_gap_planner_bridge_target_ids(bridge))
+    seed_paths = set(
+        _runtime_row_string_values(
+            bridge,
+            "standalone_seed_path",
+            "standalone_seed_artifact_path",
+        )
+    )
+    rows: list[dict[str, Any]] = []
+    for row in runtime_learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        learning_task = str(row.get("learning_task", "") or "").strip()
+        feedback_ids = set(
+            _runtime_row_string_values(row, "route_planner_contract_feedback_id")
+        )
+        if (
+            learning_task
+            != "formalization_gap_planner_live_route_planner_contract_feedback"
+            and not feedback_ids
+        ):
+            continue
+        row_bridge_ids = set(
+            _runtime_row_string_values(
+                row,
+                "bridge_id",
+                "formalization_gap_planner_bridge_id",
+                "supporting_formalization_gap_planner_bridge_ids",
+            )
+        )
+        row_target_ids = set(
+            _runtime_row_string_values(
+                row,
+                "target_ids",
+                "target_id",
+                "route_ids",
+                "route_id",
+                "target_theorem_id",
+                "target_theorem_name",
+            )
+        )
+        row_seed_paths = set(
+            _runtime_row_string_values(
+                row,
+                "standalone_seed_path",
+                "standalone_seed_artifact_path",
+            )
+        )
+        if not (
+            (bridge_ids and row_bridge_ids and bridge_ids.intersection(row_bridge_ids))
+            or (
+                bridge_target_ids
+                and row_target_ids
+                and bridge_target_ids.intersection(row_target_ids)
+            )
+            or (seed_paths and row_seed_paths and seed_paths.intersection(row_seed_paths))
+        ):
+            continue
+        rows.append(dict(row))
+    return rows[:12]
+
+
 def _runtime_formalization_gap_planner_handoff_rows(
     bridge_rows: list[dict[str, Any]],
     *,
     runtime_out_dir: Path,
+    runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     handoff_root = runtime_out_dir / "runtime_formalization_gap_planner_handoffs"
@@ -58835,6 +58933,25 @@ def _runtime_formalization_gap_planner_handoff_rows(
         component_resource_registry_out = (
             handoff_root / handoff_slug / "component_resource_registry"
         )
+        route_contract_feedback_rows = (
+            _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
+                bridge,
+                runtime_learning_rows,
+            )
+        )
+        route_contract_feedback_jsonl = (
+            handoff_root / handoff_slug / "route_contract_feedback.jsonl"
+        )
+        route_contract_feedback_jsonl_text = ""
+        route_contract_feedback_cli_arg = ""
+        if route_contract_feedback_rows:
+            route_contract_feedback_jsonl.parent.mkdir(parents=True, exist_ok=True)
+            _write_jsonl(route_contract_feedback_jsonl, route_contract_feedback_rows)
+            route_contract_feedback_jsonl_text = str(route_contract_feedback_jsonl)
+            route_contract_feedback_cli_arg = (
+                "--formalization-gap-planner-route-contract-feedback-jsonl "
+                f"{shlex.quote(route_contract_feedback_jsonl_text)} "
+            )
         llm_prompt_out = handoff_root / handoff_slug / "llm_route_planner_prompt"
         llm_live_out = handoff_root / handoff_slug / "llm_route_planner_live"
         reuse_smoke_out = handoff_root / handoff_slug / "reuse_smoke"
@@ -58869,6 +58986,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
+            f"{route_contract_feedback_cli_arg}"
             f"--out {shlex.quote(str(llm_prompt_out))}"
         )
         llm_route_planner_live_cli = (
@@ -58881,6 +58999,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
+            f"{route_contract_feedback_cli_arg}"
             f"--invoke-provider --out {shlex.quote(str(llm_live_out))}"
         )
         reuse_smoke_cli = (
@@ -58915,6 +59034,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             llm_prompt_out=str(llm_prompt_out),
             llm_live_out=str(llm_live_out),
             reuse_smoke_out=str(reuse_smoke_out),
+            route_contract_feedback_jsonl=route_contract_feedback_jsonl_text,
             target_prover_family=target_prover_family,
             library_snapshot_ref=library_snapshot_ref,
         )
@@ -58946,6 +59066,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "target_intake_cli": target_intake_cli,
             "component_resource_registry_dir": str(component_resource_registry_out),
             "component_resource_registry_cli": component_resource_registry_cli,
+            "route_contract_feedback_jsonl": route_contract_feedback_jsonl_text,
+            "n_route_contract_feedback_rows": len(route_contract_feedback_rows),
             "standalone_plan_dir": str(standalone_out),
             "standalone_plan_cli": standalone_plan_cli,
             "llm_route_planner_prompt_cli": llm_route_planner_prompt_cli,
@@ -58975,6 +59097,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             component_resource_registry_out
         )
         bridge["component_resource_registry_cli"] = component_resource_registry_cli
+        bridge["route_contract_feedback_jsonl"] = route_contract_feedback_jsonl_text
+        bridge["n_route_contract_feedback_rows"] = len(route_contract_feedback_rows)
         bridge["llm_route_planner_prompt_cli"] = llm_route_planner_prompt_cli
         bridge["llm_route_planner_live_cli"] = llm_route_planner_live_cli
         bridge["reuse_smoke_cli"] = reuse_smoke_cli

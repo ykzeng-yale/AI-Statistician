@@ -4750,6 +4750,157 @@ def test_llm_route_planner_materializes_feedback_replan_with_resource_actions() 
     )
 
 
+def test_llm_route_planner_consumes_route_contract_feedback_jsonl() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_route_contract_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    feedback_jsonl = root / "route_contract_feedback.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    feedback_row = {
+        "schema_version": 1,
+        "runtime_learning_row_id": (
+            "runtime_formalization_gap_planner_live_route_planner_contract_feedback:a"
+        ),
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "route_id": "rank_route",
+        "target_ids": ["rank_route"],
+        "target_primitives": ["rank_uniformity"],
+        "route_planner_contract_feedback_id": "route-feedback:assembly-a",
+        "formalization_gap_planner_handoff_id": "handoff:rank-route",
+        "standalone_seed_path": str(root / "seed.json"),
+        "failure_classification": (
+            "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+        ),
+        "contract_counts": {
+            "request_packets": 1,
+            "response_present": 1,
+            "response_contract_ok": 0,
+            "staged_followup_assembled_responses": 1,
+            "staged_followup_assembled_response_contract_ok": 0,
+            "route_adoption_ready": 0,
+        },
+        "provider_token_counts": {
+            "provider_total_tokens_including_staged_followups": 59235
+        },
+        "staged_followup_assembly_error_summary": [
+            {
+                "assembly_row_id": "assembly:rank-route",
+                "assembled_response_contract_ok": False,
+                "error_count": 1,
+                "error_preview": [
+                    "formal_attempt_queue[0] does not resolve to a seed route"
+                ],
+            }
+        ],
+        "staged_followup_assembly_error_preview": [
+            "formal_attempt_queue[0] does not resolve to a seed route"
+        ],
+        "target_behavior": (
+            "rerun the compact route planner with exact contract feedback"
+        ),
+        "acceptance_gate": (
+            "schema-valid route response before target-prover replay"
+        ),
+        "proof_evidence_status": (
+            "ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    feedback_jsonl.write_text(json.dumps(feedback_row) + "\n", encoding="utf-8")
+
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_route_contract_feedback_jsonl=feedback_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_route_contract_feedback_rows"] == 1
+    assert payload["n_request_route_contract_feedback_rows"] == 1
+    assert payload["n_feedback_loop_summary_route_contract_feedback"] == 1
+    assert payload["n_feedback_loop_summary_route_contract_feedback_rows"] == 1
+    assert payload["n_feedback_loop_summary_route_contract_feedback_error_previews"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
+
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    feedback_rows = context["route_contract_feedback_rows"]
+    assert feedback_rows[0]["route_planner_contract_feedback_id"] == (
+        "route-feedback:assembly-a"
+    )
+    assert feedback_rows[0]["contract_counts"]["response_contract_ok"] == 0
+    assert feedback_rows[0]["provider_token_counts"][
+        "provider_total_tokens_including_staged_followups"
+    ] == 59235
+
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"]["route_contract_feedback_rows"] == 1
+    assert inventory["feedback_loop_summary_route_contract_feedback_present"] is True
+    assert inventory["feedback_loop_summary_route_contract_feedback_row_count"] == 1
+    assert inventory["feedback_loop_summary_route_contract_feedback_error_preview_count"] == 1
+
+    summary = context["feedback_loop_summary"]
+    contract_summary = summary["route_contract_feedback"]
+    assert summary["replan_required"] is True
+    assert contract_summary["route_planner_contract_feedback_ids"] == [
+        "route-feedback:assembly-a"
+    ]
+    assert contract_summary["failure_classifications"] == [
+        "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+    ]
+    assert contract_summary["contract_counts_by_feedback"][0]["response_contract_ok"] == 0
+    assert contract_summary["provider_token_counts_by_feedback"][0][
+        "provider_total_tokens_including_staged_followups"
+    ] == 59235
+    assert contract_summary["staged_followup_assembly_error_preview"] == [
+        "formal_attempt_queue[0] does not resolve to a seed route"
+    ]
+    assert summary["recommended_next_actions"][0]["source"] == (
+        "route_contract_feedback"
+    )
+
+    prompt_context = request["prompt_context_packet"]
+    assert prompt_context["route_contract_feedback_rows"][0][
+        "route_planner_contract_feedback_id"
+    ] == "route-feedback:assembly-a"
+    assert (
+        "formal_attempt_queue[0] does not resolve to a seed route"
+        in request["prompt_messages"]["user"]
+    )
+    assert any(
+        focus["focus_id"] == "repair_route_planner_contract_feedback"
+        for focus in context["route_planning_brief"]["planner_focus"]
+    )
+
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert any(
+        hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "route_contract_feedback"
+        for hook in seed_route["interactive_refinement_hooks"]
+    )
+    assert any(
+        trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "route_contract_feedback"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+
 def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_feedback_cost_hint"

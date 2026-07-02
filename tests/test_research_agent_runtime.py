@@ -6417,6 +6417,90 @@ def test_runtime_learning_memory_pins_route_planner_contract_feedback(
     )
 
 
+def test_runtime_handoff_materializes_route_contract_feedback_jsonl(
+    tmp_path: Path,
+) -> None:
+    bridge = {
+        "bridge_id": "runtime_formalization_gap_planner_bridge:contract-a",
+        "question": {"id": "conformal_prediction_coverage"},
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_prover_family": "lean4",
+        "standalone_seed_artifact_id": (
+            "runtime_formalization_gap_planner_standalone_seed:contract-a"
+        ),
+        "standalone_seed_path": str(tmp_path / "seed.json"),
+        "target_intake_path": str(tmp_path / "target_intake.json"),
+        "standalone_seed": {
+            "library_snapshot_ref": "lean_mathlib_snapshot",
+            "target_prover_family": "lean4",
+        },
+    }
+    feedback_row = {
+        "schema_version": 1,
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "route_planner_contract_feedback_id": "route-feedback:contract-a",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "failure_classification": (
+            "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+        ),
+        "contract_counts": {
+            "response_contract_ok": 0,
+            "staged_followup_assembled_response_contract_ok": 0,
+        },
+        "provider_token_counts": {
+            "provider_total_tokens_including_staged_followups": 59235
+        },
+        "staged_followup_assembly_error_preview": [
+            "formal_attempt_queue[0] does not resolve to a seed route"
+        ],
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+    }
+
+    handoff_rows = runtime_module._runtime_formalization_gap_planner_handoff_rows(
+        [bridge],
+        runtime_out_dir=tmp_path / "runtime",
+        runtime_learning_rows=[feedback_row],
+    )
+
+    assert len(handoff_rows) == 1
+    handoff = handoff_rows[0]
+    assert handoff["n_route_contract_feedback_rows"] == 1
+    feedback_jsonl = Path(handoff["route_contract_feedback_jsonl"])
+    assert feedback_jsonl.exists()
+    materialized_rows = [
+        json.loads(line)
+        for line in feedback_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert materialized_rows[0]["route_planner_contract_feedback_id"] == (
+        "route-feedback:contract-a"
+    )
+    assert (
+        "--formalization-gap-planner-route-contract-feedback-jsonl "
+        in handoff["llm_route_planner_prompt_cli"]
+    )
+    assert str(feedback_jsonl) in handoff["llm_route_planner_prompt_cli"]
+    assert str(feedback_jsonl) in handoff["llm_route_planner_live_cli"]
+    prompt_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_prompt"
+    )
+    live_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_live_optional"
+    )
+    assert str(feedback_jsonl) in prompt_stage["required_inputs"]
+    assert str(feedback_jsonl) in live_stage["required_inputs"]
+
+
 def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     memory = {
