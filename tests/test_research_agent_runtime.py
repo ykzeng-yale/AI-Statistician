@@ -1737,6 +1737,107 @@ def test_formalization_gap_planner_runtime_subsystem_replays_route_contract_feed
     assert str(feedback_jsonl) in live_stage["required_inputs"]
 
 
+def test_formalization_gap_planner_runtime_subsystem_replays_nested_route_contract_feedback_from_environment_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "input_summary": {
+            "learning_task": (
+                "formalization_gap_planner_live_route_planner_contract_feedback"
+            ),
+            "route_planner_contract_feedback_id": (
+                "route-feedback:nested-environment-a"
+            ),
+            "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+            "target_ids": list(bridge["target_ids"]),
+            "failure_classification": (
+                "formalization_gap_planner_live_route_planner_response_contract_failed"
+            ),
+            "contract_counts": {
+                "response_contract_ok": 0,
+                "staged_followup_assembled_response_contract_ok": 0,
+            },
+            "provider_token_counts": {
+                "provider_total_tokens_including_staged_followups": 48000
+            },
+            "staged_followup_assembly_error_preview": [
+                "route repair packet omitted target_prover_replay"
+            ],
+        },
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+    }
+    blackboard = BlackboardState(
+        project_id="gap-planner-nested-route-contract-feedback-test"
+    )
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:nested-contract-feedback",
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Replay compact nested route-planner contract feedback into the "
+            "gap-planner handoff."
+        ),
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": feedback_row,
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    handoff = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+    )
+    assert manifest["counts"]["runtime_learning_rows"] == 1
+    assert manifest["counts"]["route_contract_feedback_rows"] == 1
+    assert handoff["n_route_contract_feedback_rows"] == 1
+    feedback_jsonl = Path(handoff["route_contract_feedback_jsonl"])
+    assert feedback_jsonl.exists()
+    materialized_rows = [
+        json.loads(line)
+        for line in feedback_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert materialized_rows[0]["input_summary"][
+        "route_planner_contract_feedback_id"
+    ] == "route-feedback:nested-environment-a"
+    assert (
+        "--formalization-gap-planner-route-contract-feedback-jsonl "
+        in handoff["llm_route_planner_prompt_cli"]
+    )
+    assert str(feedback_jsonl) in handoff["llm_route_planner_prompt_cli"]
+    assert str(feedback_jsonl) in handoff["llm_route_planner_live_cli"]
+    prompt_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_prompt"
+    )
+    live_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_live_optional"
+    )
+    assert str(feedback_jsonl) in prompt_stage["required_inputs"]
+    assert str(feedback_jsonl) in live_stage["required_inputs"]
+
+
 def test_formalization_gap_planner_runtime_subsystem_replays_route_revision_overlay_from_environment_feedback(
     tmp_path: Path,
 ) -> None:

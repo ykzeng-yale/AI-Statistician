@@ -59398,9 +59398,20 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
     for row in runtime_learning_rows:
         if not isinstance(row, Mapping):
             continue
-        learning_task = str(row.get("learning_task", "") or "").strip()
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        learning_task = str(
+            row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+        ).strip()
         feedback_ids = set(
-            _runtime_row_string_values(row, "route_planner_contract_feedback_id")
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "route_planner_contract_feedback_id",
+            )
         )
         if (
             learning_task
@@ -59409,16 +59420,18 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
         ):
             continue
         row_bridge_ids = set(
-            _runtime_row_string_values(
+            _runtime_learning_row_string_values(
                 row,
+                input_summary,
                 "bridge_id",
                 "formalization_gap_planner_bridge_id",
                 "supporting_formalization_gap_planner_bridge_ids",
             )
         )
         row_target_ids = set(
-            _runtime_row_string_values(
+            _runtime_learning_row_string_values(
                 row,
+                input_summary,
                 "target_ids",
                 "target_id",
                 "route_ids",
@@ -59428,8 +59441,9 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
             )
         )
         row_seed_paths = set(
-            _runtime_row_string_values(
+            _runtime_learning_row_string_values(
                 row,
+                input_summary,
                 "standalone_seed_path",
                 "standalone_seed_artifact_path",
             )
