@@ -14569,12 +14569,28 @@ class FormalizationGapPlannerRuntimeSubsystem:
         )
         if route_contract_feedback_jsonl is not None:
             output_paths.append(str(route_contract_feedback_jsonl))
+        route_revision_overlay_dir = self._optional_handoff_path(
+            handoff,
+            "route_revision_overlay_dir",
+        )
+        route_revision_overlay_manifest = (
+            route_revision_overlay_dir
+            / "formalization_gap_planner_route_revision_overlay_manifest.json"
+            if route_revision_overlay_dir is not None
+            else None
+        )
+        if route_revision_overlay_manifest is not None:
+            output_paths.append(str(route_revision_overlay_manifest))
         return {
             "standalone_plan_dir": str(standalone_plan_dir or ""),
             "target_intake_dir": str(target_intake_dir or ""),
             "component_resource_registry_dir": str(registry_dir or ""),
             "route_contract_feedback_jsonl": str(
                 route_contract_feedback_jsonl or ""
+            ),
+            "route_revision_overlay_dir": str(route_revision_overlay_dir or ""),
+            "route_revision_overlay_manifest": str(
+                route_revision_overlay_manifest or ""
             ),
             "output_paths": output_paths,
             "errors": errors,
@@ -14953,6 +14969,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         self._optional_handoff_path(
                             handoff,
                             "route_contract_feedback_jsonl",
+                        )
+                    ),
+                    formalization_gap_planner_route_revision_overlay_dir=(
+                        self._optional_handoff_path(
+                            handoff,
+                            "route_revision_overlay_dir",
                         )
                     ),
                 )
@@ -16163,6 +16185,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "runtime_learning_rows": len(runtime_learning_rows),
                 "route_contract_feedback_rows": sum(
                     int(row.get("n_route_contract_feedback_rows", 0) or 0)
+                    for row in handoff_rows
+                ),
+                "route_revision_overlay_rows": sum(
+                    int(row.get("n_route_revision_overlay_rows", 0) or 0)
                     for row in handoff_rows
                 ),
                 "audit_checks": int(audit_payload.get("n_checks", 0) or 0),
@@ -30195,6 +30221,7 @@ _FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS = (
     "n_route_contract_feedback_rows",
     "route_revision_overlay_dir",
     "route_revision_overlay_manifest",
+    "n_route_revision_overlay_rows",
     "n_target_prover_replay_route_revision_overlay_rows",
     "n_target_prover_replay_route_revision_overlay_routes_with_revision",
     "n_target_prover_replay_route_revision_overlay_orphan_rows",
@@ -59178,6 +59205,7 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
     llm_live_out: str,
     reuse_smoke_out: str,
     route_contract_feedback_jsonl: str,
+    route_revision_overlay_dir: str,
     target_prover_family: str,
     library_snapshot_ref: str,
     recommended_llm_provider: str = "anthropic",
@@ -59185,6 +59213,9 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
 ) -> dict[str, Any]:
     route_contract_feedback_inputs = (
         [route_contract_feedback_jsonl] if route_contract_feedback_jsonl else []
+    )
+    route_revision_overlay_inputs = (
+        [route_revision_overlay_dir] if route_revision_overlay_dir else []
     )
     stages = [
         _runtime_gap_planner_execution_stage(
@@ -59231,6 +59262,7 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
                 target_intake_dir,
                 component_resource_registry_dir,
                 *route_contract_feedback_inputs,
+                *route_revision_overlay_inputs,
             ],
             expected_outputs=[llm_prompt_out],
             purpose=(
@@ -59249,6 +59281,7 @@ def _runtime_formalization_gap_planner_handoff_execution_plan(
                 target_intake_dir,
                 component_resource_registry_dir,
                 *route_contract_feedback_inputs,
+                *route_revision_overlay_inputs,
             ],
             expected_outputs=[llm_live_out],
             purpose=(
@@ -59360,6 +59393,102 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
     return rows[:12]
 
 
+def _runtime_formalization_gap_planner_route_revision_overlay_rows_for_bridge(
+    bridge: Mapping[str, Any],
+    runtime_learning_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    bridge_ids = set(
+        _runtime_row_string_values(
+            bridge,
+            "bridge_id",
+            "formalization_gap_planner_bridge_id",
+        )
+    )
+    bridge_target_ids = set(_runtime_formalization_gap_planner_bridge_target_ids(bridge))
+    seed_paths = set(
+        _runtime_row_string_values(
+            bridge,
+            "standalone_seed_path",
+            "standalone_seed_artifact_path",
+        )
+    )
+    rows: list[dict[str, Any]] = []
+    for row in runtime_learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        overlay_dirs = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "route_revision_overlay_dir",
+                "route_revision_overlay_dirs",
+            )
+        )
+        overlay_manifests = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "route_revision_overlay_manifest",
+                "route_revision_overlay_manifests",
+            )
+        )
+        for manifest in overlay_manifests:
+            manifest_path = Path(manifest)
+            if manifest_path.name == (
+                "formalization_gap_planner_route_revision_overlay_manifest.json"
+            ):
+                overlay_dirs.add(str(manifest_path.parent))
+        if not overlay_dirs and not overlay_manifests:
+            continue
+        row_bridge_ids = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "bridge_id",
+                "formalization_gap_planner_bridge_id",
+                "supporting_formalization_gap_planner_bridge_ids",
+            )
+        )
+        row_target_ids = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "target_ids",
+                "target_id",
+                "route_ids",
+                "route_id",
+                "target_theorem_id",
+                "target_theorem_name",
+                "target_primitives",
+            )
+        )
+        row_seed_paths = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "standalone_seed_path",
+                "standalone_seed_artifact_path",
+            )
+        )
+        if not (
+            (bridge_ids and row_bridge_ids and bridge_ids.intersection(row_bridge_ids))
+            or (
+                bridge_target_ids
+                and row_target_ids
+                and bridge_target_ids.intersection(row_target_ids)
+            )
+            or (seed_paths and row_seed_paths and seed_paths.intersection(row_seed_paths))
+        ):
+            continue
+        rows.append(dict(row))
+    return rows[:12]
+
+
 def _runtime_formalization_gap_planner_handoff_rows(
     bridge_rows: list[dict[str, Any]],
     *,
@@ -59412,6 +59541,92 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 runtime_learning_rows,
             )
         )
+        route_revision_overlay_rows = (
+            _runtime_formalization_gap_planner_route_revision_overlay_rows_for_bridge(
+                bridge,
+                runtime_learning_rows,
+            )
+        )
+        route_revision_overlay_dirs = tuple(
+            dict.fromkeys(
+                str(directory).strip()
+                for row in route_revision_overlay_rows
+                for directory in _runtime_learning_row_string_values(
+                    row,
+                    (
+                        row.get("input_summary", {})
+                        if isinstance(row.get("input_summary", {}), Mapping)
+                        else {}
+                    ),
+                    "route_revision_overlay_dir",
+                    "route_revision_overlay_dirs",
+                )
+                if str(directory).strip()
+            )
+        )
+        route_revision_overlay_manifests = tuple(
+            dict.fromkeys(
+                str(manifest).strip()
+                for row in route_revision_overlay_rows
+                for manifest in _runtime_learning_row_string_values(
+                    row,
+                    (
+                        row.get("input_summary", {})
+                        if isinstance(row.get("input_summary", {}), Mapping)
+                        else {}
+                    ),
+                    "route_revision_overlay_manifest",
+                    "route_revision_overlay_manifests",
+                )
+                if str(manifest).strip()
+            )
+        )
+        if not route_revision_overlay_dirs and route_revision_overlay_manifests:
+            route_revision_overlay_dirs = tuple(
+                dict.fromkeys(
+                    str(Path(manifest).parent)
+                    for manifest in route_revision_overlay_manifests
+                    if Path(manifest).name
+                    == "formalization_gap_planner_route_revision_overlay_manifest.json"
+                )
+            )
+        route_revision_overlay_dir_text = (
+            route_revision_overlay_dirs[0] if route_revision_overlay_dirs else ""
+        )
+        route_revision_overlay_manifest_text = (
+            route_revision_overlay_manifests[0]
+            if route_revision_overlay_manifests
+            else str(
+                Path(route_revision_overlay_dir_text)
+                / "formalization_gap_planner_route_revision_overlay_manifest.json"
+            )
+            if route_revision_overlay_dir_text
+            else ""
+        )
+        route_revision_overlay_row_count = max(
+            [
+                int(
+                    row.get("n_route_revision_overlay_rows", 0)
+                    or (
+                        row.get("input_summary", {}).get(
+                            "n_route_revision_overlay_rows",
+                            0,
+                        )
+                        if isinstance(row.get("input_summary", {}), Mapping)
+                        else 0
+                    )
+                    or 0
+                )
+                for row in route_revision_overlay_rows
+            ]
+            or [0]
+        ) or len(route_revision_overlay_rows)
+        route_revision_overlay_cli_arg = (
+            "--formalization-gap-planner-route-revision-overlay-dir "
+            f"{shlex.quote(route_revision_overlay_dir_text)} "
+            if route_revision_overlay_dir_text
+            else ""
+        )
         route_contract_feedback_jsonl = (
             handoff_root / handoff_slug / "route_contract_feedback.jsonl"
         )
@@ -59460,6 +59675,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
             f"{route_contract_feedback_cli_arg}"
+            f"{route_revision_overlay_cli_arg}"
             f"--out {shlex.quote(str(llm_prompt_out))}"
         )
         llm_route_planner_live_cli = (
@@ -59473,6 +59689,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
             f"{route_contract_feedback_cli_arg}"
+            f"{route_revision_overlay_cli_arg}"
             f"--invoke-provider --out {shlex.quote(str(llm_live_out))}"
         )
         reuse_smoke_cli = (
@@ -59508,6 +59725,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             llm_live_out=str(llm_live_out),
             reuse_smoke_out=str(reuse_smoke_out),
             route_contract_feedback_jsonl=route_contract_feedback_jsonl_text,
+            route_revision_overlay_dir=route_revision_overlay_dir_text,
             target_prover_family=target_prover_family,
             library_snapshot_ref=library_snapshot_ref,
         )
@@ -59541,6 +59759,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "component_resource_registry_cli": component_resource_registry_cli,
             "route_contract_feedback_jsonl": route_contract_feedback_jsonl_text,
             "n_route_contract_feedback_rows": len(route_contract_feedback_rows),
+            "route_revision_overlay_dir": route_revision_overlay_dir_text,
+            "route_revision_overlay_manifest": route_revision_overlay_manifest_text,
+            "n_route_revision_overlay_rows": route_revision_overlay_row_count,
             "standalone_plan_dir": str(standalone_out),
             "standalone_plan_cli": standalone_plan_cli,
             "llm_route_planner_prompt_cli": llm_route_planner_prompt_cli,
@@ -59572,6 +59793,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
         bridge["component_resource_registry_cli"] = component_resource_registry_cli
         bridge["route_contract_feedback_jsonl"] = route_contract_feedback_jsonl_text
         bridge["n_route_contract_feedback_rows"] = len(route_contract_feedback_rows)
+        bridge["route_revision_overlay_dir"] = route_revision_overlay_dir_text
+        bridge["route_revision_overlay_manifest"] = route_revision_overlay_manifest_text
+        bridge["n_route_revision_overlay_rows"] = route_revision_overlay_row_count
         bridge["llm_route_planner_prompt_cli"] = llm_route_planner_prompt_cli
         bridge["llm_route_planner_live_cli"] = llm_route_planner_live_cli
         bridge["reuse_smoke_cli"] = reuse_smoke_cli
