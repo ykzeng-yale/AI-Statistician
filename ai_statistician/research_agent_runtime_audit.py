@@ -1024,6 +1024,236 @@ def _runtime_learning_rows_contract_audit_summary(
     }
 
 
+def _runtime_next_action_agenda_contract_audit_summary(
+    *,
+    agenda_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    n_missing_schema_version = 0
+    n_wrong_artifact_kind = 0
+    n_missing_id = 0
+    n_missing_owner = 0
+    n_missing_action = 0
+    n_missing_acceptance_gate = 0
+    n_missing_boundary = 0
+    n_duplicate_ids = 0
+    n_route_critical_missing_target = 0
+    seen_ids: set[str] = set()
+    owners: Counter[str] = Counter()
+    triggers: Counter[str] = Counter()
+    for row_index, row in enumerate(agenda_rows):
+        if not isinstance(row, Mapping):
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_not_object",
+                trace_index=row_index,
+                detail="runtime_next_action_agenda.jsonl row is not an object",
+            )
+            continue
+        schema_version = str(row.get("schema_version", "") or "").strip()
+        if not schema_version:
+            n_missing_schema_version += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_schema_version",
+                trace_index=row_index,
+                detail="runtime next-action agenda row has no schema_version",
+            )
+        artifact_kind = str(row.get("artifact_kind", "") or "").strip()
+        if artifact_kind != "RuntimeNextActionAgendaRow":
+            n_wrong_artifact_kind += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_wrong_artifact_kind",
+                trace_index=row_index,
+                detail=(
+                    "runtime next-action agenda row has artifact_kind="
+                    f"{artifact_kind!r}, expected RuntimeNextActionAgendaRow"
+                ),
+            )
+        row_id = str(row.get("id", "") or "").strip()
+        if not row_id:
+            n_missing_id += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_id",
+                trace_index=row_index,
+                detail="runtime next-action agenda row has no id",
+            )
+        elif row_id in seen_ids:
+            n_duplicate_ids += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_duplicate_id",
+                trace_index=row_index,
+                detail=f"runtime next-action agenda row repeats id={row_id}",
+            )
+        seen_ids.add(row_id)
+        owner = str(
+            row.get("owner_subsystem", "") or row.get("owner", "") or ""
+        ).strip()
+        if owner:
+            owners[owner] += 1
+        else:
+            n_missing_owner += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_owner",
+                trace_index=row_index,
+                detail="runtime next-action agenda row has no owner_subsystem",
+            )
+        trigger = str(row.get("trigger", "") or "").strip()
+        if trigger:
+            triggers[trigger] += 1
+        action = str(
+            row.get("action", "")
+            or row.get("recommended_next_action", "")
+            or row.get("target_behavior", "")
+            or ""
+        ).strip()
+        if not action:
+            n_missing_action += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_action",
+                trace_index=row_index,
+                detail="runtime next-action agenda row has no action",
+            )
+        if not str(row.get("acceptance_gate", "") or "").strip():
+            n_missing_acceptance_gate += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_acceptance_gate",
+                trace_index=row_index,
+                detail="runtime next-action agenda row has no acceptance_gate",
+            )
+        boundary_values = [
+            row.get("proof_evidence_status", ""),
+            row.get("proof_evidence_boundary", ""),
+            row.get("proof_boundary", ""),
+            row.get("boundary", ""),
+            row.get("routing_boundary", ""),
+            row.get("evidence_boundary", ""),
+        ]
+        if not any(str(value or "").strip() for value in boundary_values):
+            n_missing_boundary += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_row_missing_evidence_boundary",
+                trace_index=row_index,
+                detail=(
+                    "runtime next-action agenda row has no proof_evidence_status, "
+                    "proof_evidence_boundary, proof_boundary, or equivalent boundary"
+                ),
+            )
+        if _runtime_next_action_agenda_row_route_critical(row) and not (
+            _runtime_next_action_agenda_row_has_target_identity(row)
+        ):
+            n_route_critical_missing_target += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_next_action_agenda_route_missing_target",
+                trace_index=row_index,
+                detail=(
+                    "formal/proof/theorem next-action agenda row has no target id"
+                ),
+            )
+    complete = (
+        n_missing_schema_version == 0
+        and n_wrong_artifact_kind == 0
+        and n_missing_id == 0
+        and n_missing_owner == 0
+        and n_missing_action == 0
+        and n_missing_acceptance_gate == 0
+        and n_missing_boundary == 0
+        and n_duplicate_ids == 0
+        and n_route_critical_missing_target == 0
+    )
+    return {
+        "artifact_kind": "RuntimeNextActionAgendaContractAudit",
+        "runtime_next_action_agenda_contract_complete": complete,
+        "n_runtime_next_action_agenda_rows_contract_checked": len(agenda_rows),
+        "n_runtime_next_action_agenda_rows_missing_schema_version": (
+            n_missing_schema_version
+        ),
+        "n_runtime_next_action_agenda_rows_wrong_artifact_kind": n_wrong_artifact_kind,
+        "n_runtime_next_action_agenda_rows_missing_id": n_missing_id,
+        "n_runtime_next_action_agenda_rows_missing_owner": n_missing_owner,
+        "n_runtime_next_action_agenda_rows_missing_action": n_missing_action,
+        "n_runtime_next_action_agenda_rows_missing_acceptance_gate": (
+            n_missing_acceptance_gate
+        ),
+        "n_runtime_next_action_agenda_rows_missing_evidence_boundary": (
+            n_missing_boundary
+        ),
+        "n_runtime_next_action_agenda_rows_duplicate_ids": n_duplicate_ids,
+        "n_runtime_next_action_agenda_route_critical_rows_missing_target": (
+            n_route_critical_missing_target
+        ),
+        "runtime_next_action_agenda_owner_subsystems": dict(sorted(owners.items())),
+        "runtime_next_action_agenda_triggers": dict(sorted(triggers.items())),
+        "runtime_next_action_agenda_contract_issues": issues,
+        "boundary": (
+            "Runtime next-action agenda rows are orchestration and repair-routing "
+            "records. They schedule later LLM/coding/prover work, but they are not "
+            "proof, simulation, generated-code, or verifier evidence unless a "
+            "dedicated evidence ledger row and verifier gate says so."
+        ),
+    }
+
+
+def _runtime_next_action_agenda_row_route_critical(row: Mapping[str, Any]) -> bool:
+    combined = "\n".join(
+        str(row.get(key, "") or "")
+        for key in (
+            "id",
+            "trigger",
+            "owner_subsystem",
+            "owner",
+            "action",
+            "runtime_queue_status",
+        )
+    ).lower()
+    return any(
+        token in combined
+        for token in (
+            "formal",
+            "proof",
+            "lean",
+            "theorem",
+            "source_to_bridge",
+            "semantic_definition",
+        )
+    )
+
+
+def _runtime_next_action_agenda_row_has_target_identity(
+    row: Mapping[str, Any],
+) -> bool:
+    for key in (
+        "target_ids",
+        "target_id",
+        "target_theorem_goal_ids",
+        "formal_gap_target_ids",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "placeholder_symbol",
+        "work_order_id",
+        "goal_plan_id",
+        "route_id",
+    ):
+        value = row.get(key, "")
+        if isinstance(value, Mapping):
+            if any(str(item or "").strip() for item in value.values()):
+                return True
+        elif isinstance(value, (list, tuple, set)):
+            if any(str(item or "").strip() for item in value):
+                return True
+        elif str(value or "").strip():
+            return True
+    return False
+
+
 def _runtime_observation_export_audit_summary(
     *,
     result_paths: list[Path],
@@ -2336,6 +2566,11 @@ def audit_research_agent_runtime(
             agenda_rows=agenda_rows,
         )
     )
+    runtime_next_action_agenda_contract_summary = (
+        _runtime_next_action_agenda_contract_audit_summary(
+            agenda_rows=agenda_rows,
+        )
+    )
     runtime_learning_rows_contract_summary = (
         _runtime_learning_rows_contract_audit_summary(
             learning_rows=learning_rows,
@@ -3123,6 +3358,79 @@ def audit_research_agent_runtime(
             ]
         ),
         "n_runtime_next_action_items": len(agenda_rows),
+        "runtime_next_action_agenda_contract_audit_summary": (
+            runtime_next_action_agenda_contract_summary
+        ),
+        "runtime_next_action_agenda_contract_complete": bool(
+            runtime_next_action_agenda_contract_summary[
+                "runtime_next_action_agenda_contract_complete"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_contract_checked": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_contract_checked"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_schema_version": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_schema_version"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_wrong_artifact_kind": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_wrong_artifact_kind"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_id": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_id"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_owner": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_owner"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_action": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_action"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_acceptance_gate": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_acceptance_gate"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_missing_evidence_boundary": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_missing_evidence_boundary"
+            ]
+        ),
+        "n_runtime_next_action_agenda_rows_duplicate_ids": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_rows_duplicate_ids"
+            ]
+        ),
+        "n_runtime_next_action_agenda_route_critical_rows_missing_target": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_next_action_agenda_route_critical_rows_missing_target"
+            ]
+        ),
+        "runtime_next_action_agenda_owner_subsystems": dict(
+            runtime_next_action_agenda_contract_summary[
+                "runtime_next_action_agenda_owner_subsystems"
+            ]
+        ),
+        "runtime_next_action_agenda_triggers": dict(
+            runtime_next_action_agenda_contract_summary[
+                "runtime_next_action_agenda_triggers"
+            ]
+        ),
+        "runtime_next_action_agenda_contract_issues": list(
+            runtime_next_action_agenda_contract_summary[
+                "runtime_next_action_agenda_contract_issues"
+            ]
+        ),
         "n_runtime_learning_rows": len(learning_rows),
         "runtime_learning_rows_contract_audit_summary": (
             runtime_learning_rows_contract_summary
@@ -9018,6 +9326,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
+    raw_next_action_agenda_contract_complete = payload.get(
+        "runtime_next_action_agenda_contract_complete"
+    )
+    runtime_next_action_agenda_contract_complete = (
+        True
+        if raw_next_action_agenda_contract_complete is None
+        else raw_next_action_agenda_contract_complete is True
+    )
     raw_learning_rows_contract_complete = payload.get(
         "runtime_learning_rows_contract_complete"
     )
@@ -10500,6 +10816,61 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "runtime progress JSONL did not record trace-matched start/"
                 "finish events for every subsystem iteration"
+            ),
+        ),
+        _scorecard_row(
+            "runtime_next_action_agenda_contract_complete",
+            runtime_next_action_agenda_contract_complete,
+            (
+                "agenda_rows="
+                f"{payload.get('n_runtime_next_action_items')} "
+                "checked="
+                f"{payload.get('n_runtime_next_action_agenda_rows_contract_checked')} "
+                "missing_schema="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_schema_version')} "
+                "wrong_artifact_kind="
+                f"{payload.get('n_runtime_next_action_agenda_rows_wrong_artifact_kind')} "
+                "missing_id="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_id')} "
+                "missing_owner="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_owner')} "
+                "missing_action="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_action')} "
+                "missing_gate="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_acceptance_gate')} "
+                "missing_boundary="
+                f"{payload.get('n_runtime_next_action_agenda_rows_missing_evidence_boundary')} "
+                "duplicate_ids="
+                f"{payload.get('n_runtime_next_action_agenda_rows_duplicate_ids')} "
+                "route_missing_target="
+                f"{payload.get('n_runtime_next_action_agenda_route_critical_rows_missing_target')} "
+                "owners="
+                f"{payload.get('runtime_next_action_agenda_owner_subsystems')} "
+                "issues="
+                f"{payload.get('runtime_next_action_agenda_contract_issues')}"
+            ),
+            (
+                "runtime next-action agenda rows were not preserved as bounded "
+                "routing records with schema_version, artifact_kind, id, owner, "
+                "action, acceptance gate, target identity for proof/formal routes, "
+                "and explicit non-proof evidence boundaries"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Regenerate runtime_next_action_agenda.jsonl so every row "
+                    "has schema_version, artifact_kind=RuntimeNextActionAgendaRow, "
+                    "id, owner_subsystem, action, acceptance_gate, explicit "
+                    "proof_evidence_status/proof_evidence_boundary or equivalent "
+                    "boundary, and target identity for formal/proof routes."
+                ),
+                success_metric=(
+                    "runtime_next_action_agenda_contract_complete=true with "
+                    "zero missing schema, wrong artifact kind, missing id, owner, "
+                    "action, acceptance gate, boundary, duplicate id, or "
+                    "route-critical target rows"
+                ),
             ),
         ),
         _scorecard_row(
@@ -12116,6 +12487,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('runtime_tool_call_export_complete')} / "
         f"{payload.get('n_runtime_tool_call_export_rows')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
+        "- runtime next-action agenda contract complete / missing schema / "
+        "wrong artifact kind / missing boundary: "
+        f"{payload.get('runtime_next_action_agenda_contract_complete')} / "
+        f"{payload.get('n_runtime_next_action_agenda_rows_missing_schema_version')} / "
+        f"{payload.get('n_runtime_next_action_agenda_rows_wrong_artifact_kind')} / "
+        f"{payload.get('n_runtime_next_action_agenda_rows_missing_evidence_boundary')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
         "- runtime learning rows contract complete / missing boundary: "
         f"{payload.get('runtime_learning_rows_contract_complete')} / "

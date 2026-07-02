@@ -2696,6 +2696,66 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "mismatched=1" in progress_row["evidence"]
     assert "trace-matched start/finish" in progress_row["blocker"]
 
+    clean_agenda_payload = {
+        "n_runtime_next_action_items": 2,
+        "n_runtime_next_action_agenda_rows_contract_checked": 2,
+        "n_runtime_next_action_agenda_rows_missing_schema_version": 0,
+        "n_runtime_next_action_agenda_rows_wrong_artifact_kind": 0,
+        "n_runtime_next_action_agenda_rows_missing_id": 0,
+        "n_runtime_next_action_agenda_rows_missing_owner": 0,
+        "n_runtime_next_action_agenda_rows_missing_action": 0,
+        "n_runtime_next_action_agenda_rows_missing_acceptance_gate": 0,
+        "n_runtime_next_action_agenda_rows_missing_evidence_boundary": 0,
+        "n_runtime_next_action_agenda_rows_duplicate_ids": 0,
+        "n_runtime_next_action_agenda_route_critical_rows_missing_target": 0,
+        "runtime_next_action_agenda_contract_complete": True,
+        "runtime_next_action_agenda_owner_subsystems": {
+            "FormalizationEvaluator": 1,
+            "AlgorithmEngineer": 1,
+        },
+        "runtime_next_action_agenda_contract_issues": [],
+    }
+    clean_agenda_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_agenda_payload)["rows"]
+    }
+    assert (
+        clean_agenda_rows[
+            "runtime_next_action_agenda_contract_complete"
+        ]["passed"]
+        is True
+    )
+
+    agenda_payload = dict(clean_agenda_payload)
+    agenda_payload.update(
+        {
+            "n_runtime_next_action_agenda_rows_missing_owner": 1,
+            "n_runtime_next_action_agenda_rows_missing_schema_version": 1,
+            "n_runtime_next_action_agenda_rows_wrong_artifact_kind": 1,
+            "n_runtime_next_action_agenda_rows_missing_evidence_boundary": 1,
+            "n_runtime_next_action_agenda_rows_duplicate_ids": 1,
+            "n_runtime_next_action_agenda_route_critical_rows_missing_target": 1,
+            "runtime_next_action_agenda_contract_complete": False,
+            "runtime_next_action_agenda_contract_issues": [
+                {"issue": "runtime_next_action_agenda_row_missing_owner"}
+            ],
+        }
+    )
+    agenda_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(agenda_payload)["rows"]
+    }
+    agenda_row = agenda_rows["runtime_next_action_agenda_contract_complete"]
+    assert agenda_row["passed"] is False
+    assert "missing_schema=1" in agenda_row["evidence"]
+    assert "wrong_artifact_kind=1" in agenda_row["evidence"]
+    assert "missing_owner=1" in agenda_row["evidence"]
+    assert "missing_boundary=1" in agenda_row["evidence"]
+    assert "duplicate_ids=1" in agenda_row["evidence"]
+    assert "route_missing_target=1" in agenda_row["evidence"]
+    assert "runtime next-action agenda" in agenda_row["blocker"]
+    assert agenda_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
     clean_learning_payload = {
         "n_runtime_learning_rows": 2,
         "n_runtime_learning_rows_contract_checked": 2,
@@ -50735,6 +50795,21 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ).read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    assert runtime_agenda_rows
+    assert all(row.get("schema_version") for row in runtime_agenda_rows)
+    assert all(
+        row.get("artifact_kind") == "RuntimeNextActionAgendaRow"
+        for row in runtime_agenda_rows
+    )
+    assert all(row.get("id") for row in runtime_agenda_rows)
+    assert all(row.get("owner_subsystem") for row in runtime_agenda_rows)
+    assert all(row.get("action") for row in runtime_agenda_rows)
+    assert all(row.get("acceptance_gate") for row in runtime_agenda_rows)
+    assert all(row.get("proof_evidence_status") for row in runtime_agenda_rows)
+    assert all(
+        row.get("proof_evidence_boundary") or row.get("proof_boundary")
+        for row in runtime_agenda_rows
+    )
     runtime_gap_planner_agenda = next(
         row
         for row in runtime_agenda_rows
@@ -50831,6 +50906,22 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_runtime_progress_missing_finish_rows"] == 0
     assert audit["n_runtime_progress_unknown_start_finish_rows"] == 0
     assert audit["n_runtime_progress_mismatched_start_finish_rows"] == 0
+    assert audit["runtime_next_action_agenda_contract_complete"] is True
+    assert audit["n_runtime_next_action_agenda_rows_contract_checked"] == len(
+        runtime_agenda_rows
+    )
+    assert audit["n_runtime_next_action_agenda_rows_missing_schema_version"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_wrong_artifact_kind"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_missing_id"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_missing_owner"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_missing_action"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_missing_acceptance_gate"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_missing_evidence_boundary"] == 0
+    assert audit["n_runtime_next_action_agenda_rows_duplicate_ids"] == 0
+    assert (
+        audit["n_runtime_next_action_agenda_route_critical_rows_missing_target"]
+        == 0
+    )
     assert audit["runtime_learning_rows_contract_complete"] is True
     assert audit["n_runtime_learning_rows_contract_checked"] == len(
         runtime_learning_rows
@@ -50922,6 +51013,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["runtime_progress_observable"]["passed"] is True
+    assert (
+        scorecard_rows[
+            "runtime_next_action_agenda_contract_complete"
+        ]["passed"]
+        is True
+    )
     assert (
         scorecard_rows["runtime_learning_rows_contract_complete"]["passed"]
         is True

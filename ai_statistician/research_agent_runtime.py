@@ -17553,7 +17553,7 @@ def run_research_agent_runtime(
             source_theorem_semantic_primitive_premise_derivation_work_orders_path,
             source_theorem_semantic_primitive_premise_derivation_work_order_rows,
         )
-    _write_jsonl(agenda_path, agenda_rows)
+    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     _write_jsonl(
         theorem_reduction_closure_work_orders_path,
@@ -18312,7 +18312,7 @@ def run_research_agent_runtime(
         )
     )
     if generated_next_action_rows:
-        _write_jsonl(agenda_path, agenda_rows)
+        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
         learning_rows.extend(
             _runtime_generated_next_action_learning_rows(
                 generated_next_action_rows
@@ -18780,7 +18780,7 @@ def run_research_agent_runtime(
                 learning_rows.extend(
                     _runtime_generated_next_action_learning_rows(next_action_rows)
                 )
-                _write_jsonl(agenda_path, agenda_rows)
+                _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
         if config.source_theorem_exact_semantic_definition_source_lookup:
             late_lookup_manifest = (
                 run_source_theorem_exact_semantic_definition_source_lookup(
@@ -18959,7 +18959,7 @@ def run_research_agent_runtime(
                                             late_environment_next_action_rows
                                         )
                                     )
-                                    _write_jsonl(agenda_path, agenda_rows)
+                                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                             if (
                                 config.source_theorem_exact_semantic_definition_lean_environment_repair_executor
                                 and late_environment_tasks_path is not None
@@ -19030,7 +19030,7 @@ def run_research_agent_runtime(
                                                 late_environment_executor_next_action_rows
                                             )
                                         )
-                                        _write_jsonl(agenda_path, agenda_rows)
+                                        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                             if (
                                 config.source_theorem_exact_semantic_definition_authoring_worker
                             ):
@@ -19724,7 +19724,7 @@ def run_research_agent_runtime(
                     exact_semantic_generated_next_action_rows
                 )
             )
-            _write_jsonl(agenda_path, agenda_rows)
+            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
         _write_jsonl(learning_path, learning_rows)
     _write_jsonl(
         source_theorem_exact_semantic_definition_work_orders_path,
@@ -19979,7 +19979,7 @@ def run_research_agent_runtime(
                             executor_result_next_action_rows
                         )
                     )
-                    _write_jsonl(agenda_path, agenda_rows)
+                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
             typechecked_candidate_review_packets_path = Path(
                 str(
@@ -20134,7 +20134,7 @@ def run_research_agent_runtime(
                                             verifier_gate_next_action_rows
                                         )
                                     )
-                                    _write_jsonl(agenda_path, agenda_rows)
+                                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                                 _write_jsonl(learning_path, learning_rows)
                             typechecked_review_recheck_queue_manifest_path = Path(
                                 str(
@@ -20244,7 +20244,7 @@ def run_research_agent_runtime(
                             environment_repair_next_action_rows
                         )
                     )
-                    _write_jsonl(agenda_path, agenda_rows)
+                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
             if config.source_theorem_exact_semantic_definition_authoring_worker:
                 executor_manifest_path = Path(
@@ -20473,7 +20473,7 @@ def run_research_agent_runtime(
                                                     materialized_review_next_action_rows
                                                 )
                                             )
-                                            _write_jsonl(agenda_path, agenda_rows)
+                                            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                                             _write_jsonl(learning_path, learning_rows)
                                 materialized_review_packets_path = Path(
                                     str(
@@ -20784,7 +20784,7 @@ def run_research_agent_runtime(
                                 environment_executor_next_action_rows
                             )
                         )
-                        _write_jsonl(agenda_path, agenda_rows)
+                        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                         _write_jsonl(learning_path, learning_rows)
     exact_definition_candidate_artifact_path = None
     for executor_manifest in (
@@ -20991,7 +20991,7 @@ def run_research_agent_runtime(
                             semantic_definition_repair_next_action_rows
                         )
                     )
-                    _write_jsonl(agenda_path, agenda_rows)
+                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
                 if config.source_theorem_exact_semantic_definition_proofengineer_bridge:
                     source_theorem_exact_semantic_definition_repair_queue_bridge_manifest = (
@@ -21270,7 +21270,7 @@ def run_research_agent_runtime(
                                     formalizer_premise_promotion_next_action_rows
                                 )
                             )
-                            _write_jsonl(agenda_path, agenda_rows)
+                            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                 formalizer_premise_next_action_rows = (
                     _append_runtime_generated_next_action_rows(
                         agenda_rows,
@@ -21289,7 +21289,7 @@ def run_research_agent_runtime(
                             formalizer_premise_next_action_rows
                         )
                     )
-                    _write_jsonl(agenda_path, agenda_rows)
+                    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                 _write_jsonl(learning_path, learning_rows)
     if (
         config.source_theorem_proof_body_adapter_proofengineer_bridge
@@ -21469,7 +21469,7 @@ def run_research_agent_runtime(
                                                 adapter_feedback_next_action_rows
                                             )
                                         )
-                                        _write_jsonl(agenda_path, agenda_rows)
+                                        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                             _write_jsonl(learning_path, learning_rows)
     if source_theorem_proof_body_adapter_bridge_manifest is not None:
         premise_queue_path = Path(
@@ -21646,7 +21646,7 @@ def run_research_agent_runtime(
                                     premise_promotion_next_action_rows
                                 )
                             )
-                            _write_jsonl(agenda_path, agenda_rows)
+                            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     premise_next_action_rows = (
                         _append_runtime_generated_next_action_rows(
                             agenda_rows,
@@ -21661,7 +21661,7 @@ def run_research_agent_runtime(
                                 premise_next_action_rows
                             )
                         )
-                        _write_jsonl(agenda_path, agenda_rows)
+                        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
     adapter_instantiation_queue_source = ""
     adapter_instantiation_queue_manifest: Mapping[str, Any] | None = None
@@ -21936,7 +21936,7 @@ def run_research_agent_runtime(
                                     instantiation_premise_promotion_next_action_rows
                                 )
                             )
-                            _write_jsonl(agenda_path, agenda_rows)
+                            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     instantiation_premise_next_action_rows = (
                         _append_runtime_generated_next_action_rows(
                             agenda_rows,
@@ -21956,7 +21956,7 @@ def run_research_agent_runtime(
                                 instantiation_premise_next_action_rows
                             )
                         )
-                        _write_jsonl(agenda_path, agenda_rows)
+                        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
     if source_theorem_proof_body_adapter_from_adapter_premise_feedback_work_order_rows:
         _write_jsonl(
@@ -28900,7 +28900,7 @@ def run_research_agent_runtime(
                     evidence_truth_next_action_rows
                 )
             )
-            _write_jsonl(agenda_path, agenda_rows)
+            _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
         _write_jsonl(learning_path, learning_rows)
     stale_gap_pruning_evidence_rows = [
         *learning_rows,
@@ -28937,7 +28937,7 @@ def run_research_agent_runtime(
         agenda_rows,
         context_rows=gap_planner_execution_context_rows,
     )
-    _write_jsonl(agenda_path, agenda_rows)
+    _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
     manifest.setdefault(
         "n_runtime_source_theorem_semantic_primitive_work_orders_from_runtime_evidence_truth_table",
@@ -47472,6 +47472,85 @@ def _runtime_agenda_row_with_target_fallback(
     return row
 
 
+def _runtime_next_action_agenda_row_with_contract(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(row)
+    if not str(normalized.get("schema_version", "") or "").strip():
+        normalized["schema_version"] = RUNTIME_SCHEMA_VERSION
+    if not str(normalized.get("artifact_kind", "") or "").strip():
+        normalized["artifact_kind"] = "RuntimeNextActionAgendaRow"
+    if not str(normalized.get("owner_subsystem", "") or "").strip() and str(
+        normalized.get("owner", "") or ""
+    ).strip():
+        normalized["owner_subsystem"] = str(normalized.get("owner", "") or "")
+    existing_boundary = str(
+        normalized.get("proof_evidence_boundary", "")
+        or normalized.get("proof_boundary", "")
+        or normalized.get("boundary", "")
+        or normalized.get("routing_boundary", "")
+        or normalized.get("evidence_boundary", "")
+        or ""
+    ).strip()
+    default_boundary = (
+        existing_boundary
+        or "Runtime next-action agenda rows are orchestration and repair-routing "
+        "records for later LLM/coding/prover work. They are not proof, simulation, "
+        "generated-code, or verifier evidence unless separately backed by an "
+        "evidence ledger row and the relevant verifier or sandbox gate."
+    )
+    if not str(normalized.get("proof_evidence_status", "") or "").strip():
+        combined = "\n".join(
+            str(normalized.get(key, "") or "")
+            for key in (
+                "id",
+                "trigger",
+                "owner_subsystem",
+                "action",
+                "runtime_queue_status",
+            )
+        ).lower()
+        normalized["proof_evidence_status"] = (
+            "RUNTIME_FORMAL_AGENDA_NOT_PROOF_EVIDENCE"
+            if any(
+                token in combined
+                for token in (
+                    "formal",
+                    "proof",
+                    "lean",
+                    "theorem",
+                    "source_to_bridge",
+                    "semantic_definition",
+                )
+            )
+            else "RUNTIME_ALGORITHM_AGENDA_NOT_PROOF_EVIDENCE"
+            if "algorithm" in combined
+            else "RUNTIME_NEXT_ACTION_AGENDA_NOT_PROOF_EVIDENCE"
+        )
+    if not str(normalized.get("proof_evidence_boundary", "") or "").strip():
+        normalized["proof_evidence_boundary"] = default_boundary
+    if not any(
+        str(normalized.get(key, "") or "").strip()
+        for key in (
+            "boundary",
+            "routing_boundary",
+            "evidence_boundary",
+        )
+    ):
+        normalized["boundary"] = default_boundary
+    return normalized
+
+
+def _normalize_runtime_next_action_agenda_rows(
+    agenda_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        _runtime_next_action_agenda_row_with_contract(row)
+        for row in agenda_rows
+        if isinstance(row, Mapping)
+    ]
+
+
 def _dedupe_runtime_next_action_agenda_rows(
     agenda_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -62280,6 +62359,14 @@ def _write_jsonl(path: Path, rows: list[Mapping[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, default=str) + "\n")
+
+
+def _write_runtime_next_action_agenda_jsonl(
+    path: Path,
+    agenda_rows: list[dict[str, Any]],
+) -> None:
+    agenda_rows[:] = _normalize_runtime_next_action_agenda_rows(agenda_rows)
+    _write_jsonl(path, agenda_rows)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
