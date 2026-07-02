@@ -51235,6 +51235,80 @@ def test_runtime_evidence_summary_requires_full_frontier_target_binding() -> Non
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_recomputes_full_frontier_target_binding() -> None:
+    payload = {
+        "n_results": 2,
+        "n_distinct_question_ids": 2,
+        "question_ids": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_full_frontier_theorem_proved": 2,
+        "n_full_frontier_target_bound_kernel_verified": 2,
+        "question_ids_with_full_frontier_theorem_proved": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_question_ids_with_full_frontier_theorem_proved": 2,
+        "task_families": ["causal", "conformal"],
+        "n_distinct_task_families": 2,
+        "task_families_with_full_frontier_theorem_proved": [
+            "causal",
+            "conformal",
+        ],
+        "n_task_families_with_full_frontier_theorem_proved": 2,
+        "task_families_with_full_frontier_target_bound_kernel_verified": [
+            "causal",
+            "conformal",
+        ],
+        "n_task_families_with_full_frontier_target_bound_kernel_verified": 2,
+        "n_formal_gaps": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is False
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[8]["passed"] is False
+    assert ladder_rows[9]["passed"] is False
+    assert "target_bound_full_frontier_kernel=0" in rows[
+        "full_frontier_theorem_kernel_proved"
+    ]["evidence"]
+
+    payload.update(
+        {
+            "full_frontier_current_target_ids": [
+                "causal_ate_aipw:main",
+                "conformal_prediction_coverage:main",
+            ],
+            "full_frontier_theorem_kernel_verified_target_ids": [
+                "causal_ate_aipw:main",
+                "conformal_prediction_coverage:main",
+            ],
+            "full_frontier_kernel_verified_matching_target_ids": [
+                "causal_ate_aipw:main",
+                "conformal_prediction_coverage:main",
+            ],
+        }
+    )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is True
+    assert ladder_rows[8]["passed"] is True
+    assert ladder_rows[9]["passed"] is True
+
+
 def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
     payload = {
         "target_theorem_name": "split_conformal_coverage",
@@ -52298,6 +52372,10 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
 
     assert audit["n_full_frontier_theorem_proved"] == 2
     assert audit["n_full_frontier_target_bound_kernel_verified"] == 2
+    assert audit["full_frontier_kernel_verified_matching_target_ids"] == [
+        "conformal_prediction_coverage:source",
+        "conformal_selection_width:source",
+    ]
     assert audit["n_distinct_question_ids"] == 2
     assert audit["task_families"] == ["conformal"]
     assert audit["n_distinct_task_families"] == 1
@@ -52412,6 +52490,10 @@ def test_runtime_audit_backfills_task_family_from_manifest_metadata(
 
     assert audit["n_full_frontier_theorem_proved"] == 2
     assert audit["n_full_frontier_target_bound_kernel_verified"] == 2
+    assert audit["full_frontier_kernel_verified_matching_target_ids"] == [
+        "conformal_prediction_coverage:source",
+        "conformal_selection_width:source",
+    ]
     assert audit["n_rows_task_family_backfilled_from_manifest"] == 2
     assert audit["manifest_question_task_families"] == {
         "conformal_prediction_coverage": "conformal",

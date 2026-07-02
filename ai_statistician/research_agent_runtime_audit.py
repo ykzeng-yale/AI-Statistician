@@ -130,11 +130,6 @@ def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
 def _payload_full_frontier_target_bound_kernel_count(
     payload: Mapping[str, Any],
 ) -> int:
-    explicit_count = int(
-        payload.get("n_full_frontier_target_bound_kernel_verified", 0) or 0
-    )
-    if explicit_count > 0:
-        return explicit_count
     summary = _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
         payload
     )
@@ -393,6 +388,9 @@ class RuntimeAuditRow:
     n_llm_rejected_proof_obligations: int
     full_frontier_theorem_proved: bool
     full_frontier_target_bound_kernel_verified: bool
+    full_frontier_current_target_ids: tuple[str, ...]
+    full_frontier_kernel_verified_target_ids: tuple[str, ...]
+    full_frontier_kernel_verified_matching_target_ids: tuple[str, ...]
     n_agenda_items: int
     n_learning_rows: int
     architect_coordinator_enabled: bool
@@ -913,6 +911,27 @@ def audit_research_agent_runtime(
                     is_explicit_task_family(row.task_family)
                     and row.full_frontier_target_bound_kernel_verified
                 )
+            }
+        ),
+        "full_frontier_current_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_current_target_ids
+            }
+        ),
+        "full_frontier_theorem_kernel_verified_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_kernel_verified_target_ids
+            }
+        ),
+        "full_frontier_kernel_verified_matching_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_kernel_verified_matching_target_ids
             }
         ),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -1566,6 +1585,27 @@ def audit_research_agent_runtime(
                     is_explicit_task_family(row.task_family)
                     and row.full_frontier_target_bound_kernel_verified
                 )
+            }
+        ),
+        "full_frontier_current_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_current_target_ids
+            }
+        ),
+        "full_frontier_theorem_kernel_verified_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_kernel_verified_target_ids
+            }
+        ),
+        "full_frontier_kernel_verified_matching_target_ids": sorted(
+            {
+                target_id
+                for row in rows
+                for target_id in row.full_frontier_kernel_verified_matching_target_ids
             }
         ),
         "n_algorithm_sandbox_executed": sum(row.n_algorithm_sandbox_executed for row in rows),
@@ -3420,6 +3460,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_llm_rejected_proof_obligations = 0
     full_frontier_theorem_proved = False
     full_frontier_target_bound_kernel_verified = False
+    full_frontier_current_target_ids: list[str] = []
+    full_frontier_kernel_verified_target_ids: list[str] = []
+    full_frontier_kernel_verified_matching_target_ids: list[str] = []
     has_kernel_verified_theorem_reduction_closure_memory = False
     has_source_theorem_semantic_primitive_target_mode = False
     for manifest in formalization:
@@ -3437,6 +3480,19 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 "n_full_frontier_target_bound_kernel_verified"
             ]
         )
+        for target_id in full_frontier_evidence["full_frontier_current_target_ids"]:
+            _append_unique(full_frontier_current_target_ids, str(target_id))
+        for target_id in full_frontier_evidence[
+            "full_frontier_kernel_verified_target_ids"
+        ]:
+            _append_unique(full_frontier_kernel_verified_target_ids, str(target_id))
+        for target_id in full_frontier_evidence[
+            "full_frontier_kernel_verified_matching_target_ids"
+        ]:
+            _append_unique(
+                full_frontier_kernel_verified_matching_target_ids,
+                str(target_id),
+            )
         control = (
             manifest.get("proof_obligation_control", {})
             if isinstance(manifest.get("proof_obligation_control"), Mapping)
@@ -3713,6 +3769,13 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         full_frontier_theorem_proved=full_frontier_theorem_proved,
         full_frontier_target_bound_kernel_verified=(
             full_frontier_target_bound_kernel_verified
+        ),
+        full_frontier_current_target_ids=tuple(full_frontier_current_target_ids),
+        full_frontier_kernel_verified_target_ids=tuple(
+            full_frontier_kernel_verified_target_ids
+        ),
+        full_frontier_kernel_verified_matching_target_ids=tuple(
+            full_frontier_kernel_verified_matching_target_ids
         ),
         n_agenda_items=n_agenda,
         n_learning_rows=n_learning,
