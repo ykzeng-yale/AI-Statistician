@@ -8809,6 +8809,7 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
         model="claude-sonnet-4-6",
         model_tier="sonnet",
         provider_name="anthropic",
+        backend_provider_name="anthropic",
         raw_response="{}",
         theory_packet=_runtime_sample_response(),
         proof_bank_runtime_memory_summary={},
@@ -8816,6 +8817,7 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
     )
 
     assert validate_formalizer_packet(packet) == []
+    assert packet["backend_provider"] == "anthropic"
     assert packet["normalized_missing_required_scaffolding_fields"] == [
         "lemma_dependency_plan",
         "retrieval_queries",
@@ -15213,6 +15215,7 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model="test-model",
         model_tier="test",
         provider_name="test",
+        backend_provider_name="test",
         raw_response=json.dumps(payload),
         theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
@@ -15266,6 +15269,7 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model="test-model",
         model_tier="test",
         provider_name="test",
+        backend_provider_name="test",
         raw_response=json.dumps(textual_blocker_payload),
         theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
@@ -15324,6 +15328,7 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         model="test-model",
         model_tier="test",
         provider_name="test",
+        backend_provider_name="test",
         raw_response=json.dumps(bound_payload),
         theory_packet=_structured_theory_packet_fixture(),
         proof_bank_runtime_memory_summary=summary,
@@ -23146,6 +23151,7 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
             ]
         ),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
     }
 
@@ -23417,6 +23423,7 @@ def test_formalizer_proof_state_feedback_must_bind_materialization() -> None:
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
     }
 
     assert proof_summary["n_formalizer_lean_candidate_proof_state_feedback_rows"] == 1
@@ -23479,6 +23486,7 @@ def test_exact_semantic_definition_lean_repair_tool_calls_do_not_satisfy_bound_f
         {
             "n_live_generator_agents_enabled": 6,
             "n_llm_formalizer_proof_engineer_proposals": 1,
+            "n_live_llm_formalizer_proof_engineer_proposals": 1,
             "n_formalizer_lean_candidate_local_lean_checked": proof[
                 "n_formalizer_lean_candidate_local_lean_checked"
             ],
@@ -23549,6 +23557,7 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
         {
             "n_results": 1,
             "n_llm_formalizer_proof_engineer_proposals": 1,
+            "n_live_llm_formalizer_proof_engineer_proposals": 1,
             "n_formalizer_lean_candidate_local_lean_checked": 1,
             "n_formalizer_lean_candidate_local_lean_compiled": 1,
             "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
@@ -41469,6 +41478,7 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
                 "packet_id": "formalizer_proposal:live_probe",
                 "source_agent": "LLMFormalizerProofEngineerAgent",
                 "provider": "anthropic",
+                "backend_provider": "anthropic",
                 "model": "claude-sonnet-4-6",
                 "model_tier": "sonnet",
                 "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
@@ -41582,11 +41592,23 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
     assert live_formalizer.called is True
     assert proposal["source_agent"] == "LLMFormalizerProofEngineerAgent"
     assert proposal["provider"] == "anthropic"
+    assert proposal["backend_provider"] == "anthropic"
     assert proposal["model"] == "claude-sonnet-4-6"
     assert manifest["formalizer_proposal_source"] == (
         "llm_formalizer_proof_engineer_proposal"
     )
     assert manifest["llm_formalizer_proof_engineer_proposal_observed"] is True
+    assert (
+        manifest["live_llm_formalizer_proof_engineer_proposal_observed"] is True
+    )
+    assert (
+        manifest["llm_formalizer_proof_engineer_proposal_provider"]
+        == "anthropic"
+    )
+    assert (
+        manifest["llm_formalizer_proof_engineer_proposal_backend_provider"]
+        == "anthropic"
+    )
     assert manifest["deterministic_formalizer_work_order_seed_used"] is False
     assert manifest["formalizer_agentic_capability_evidence_status"] == (
         "LIVE_LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
@@ -50808,6 +50830,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
@@ -50856,6 +50879,7 @@ def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> Non
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 2,
         "n_llm_formalizer_proof_engineer_proposals": 3,
+        "n_live_llm_formalizer_proof_engineer_proposals": 3,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 4,
@@ -50897,6 +50921,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
@@ -50944,6 +50969,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
@@ -51001,6 +51027,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
@@ -51058,6 +51085,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
@@ -51115,6 +51143,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
@@ -51461,6 +51490,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "artifacts": {
             "runtime_learning_rows_jsonl": "runs/current/runtime_learning_rows.jsonl",
@@ -51638,6 +51668,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
 
     payload["n_live_generator_agents_enabled"] = 6
     payload["n_llm_formalizer_proof_engineer_proposals"] = 0
+    payload["n_live_llm_formalizer_proof_engineer_proposals"] = 0
     payload["n_deterministic_formalizer_work_order_seed_proposals"] = 1
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
@@ -51645,7 +51676,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "llm_formalizer_proofengineer_proposal_observed"
     ]["passed"] is False
     assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is False
-    assert "deterministic theorem-closure seeds" in rows[
+    assert "generic or deterministic formalizer packets" in rows[
         "llm_formalizer_proofengineer_proposal_observed"
     ]["blocker"]
     assert "deterministic work-order seeds" in rows[
@@ -51737,6 +51768,79 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ]["passed"] is True
     assert "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3" in (
         rows["formalizer_live_prover_tool_call_observed"]["evidence"]
+    )
+
+
+def test_runtime_formalizer_capability_requires_live_backend_provenance() -> None:
+    artifacts = {
+        "formalizer_proposal:static": {
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "packet_id": "formalizer_proposal:static",
+            "source_agent": "LLMFormalizerProofEngineerAgent",
+            "provider": "anthropic",
+            "backend_provider": "static",
+            "model": "claude-sonnet-4-6",
+            "model_tier": "sonnet",
+        },
+        "formalization_manifest:static": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:static",
+            "llm_formalizer_proof_engineer_proposal_observed": True,
+            "llm_formalizer_proof_engineer_proposal_id": (
+                "formalizer_proposal:static"
+            ),
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    proof = evidence_summary["proof"]
+
+    assert proof["n_llm_formalizer_proof_engineer_proposals"] == 1
+    assert proof["n_live_llm_formalizer_proof_engineer_proposals"] == 0
+
+    payload = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "n_live_generator_agents_enabled": 6,
+        "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_llm_formalizer_proof_engineer_proposals": proof[
+            "n_llm_formalizer_proof_engineer_proposals"
+        ],
+        "n_live_llm_formalizer_proof_engineer_proposals": proof[
+            "n_live_llm_formalizer_proof_engineer_proposals"
+        ],
+    }
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+
+    assert rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["passed"] is False
+    assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is False
+    assert "n_llm_formalizer_proof_engineer_proposals=1" in rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["evidence"]
+    assert "n_live_llm_formalizer_proof_engineer_proposals=0" in rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["evidence"]
+
+    artifacts["formalizer_proposal:static"]["backend_provider"] = "anthropic"
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert (
+        evidence_summary["proof"]["n_live_llm_formalizer_proof_engineer_proposals"]
+        == 1
     )
 
 
@@ -51838,6 +51942,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
         "internal_coding_agent_generated_code_repair_eval_live_generator": True,
@@ -53238,6 +53343,7 @@ def test_runtime_capability_scorecard_names_resume_architect_context_boundary() 
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_unsafe_generated_simulation_code_rejected": 0,
         "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
@@ -53282,6 +53388,7 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         "n_results": 1,
         "n_live_generator_agents_enabled": 6,
         "n_llm_formalizer_proof_engineer_proposals": 0,
+        "n_live_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_formalizer_lean_candidate_live_proof_state_requests": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 0,

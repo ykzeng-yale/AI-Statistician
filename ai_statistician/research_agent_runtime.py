@@ -1090,6 +1090,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_llm_formalizer_proof_engineer_proposals",
     )
+    live_llm_formalizer_proposals = _runtime_manifest_int(
+        payload,
+        "n_live_llm_formalizer_proof_engineer_proposals",
+    )
     deterministic_formalizer_seeds = _runtime_manifest_int(
         payload,
         "n_deterministic_formalizer_work_order_seed_proposals",
@@ -1272,9 +1276,11 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "llm_formalizer_proofengineer_proposal_observed",
-            "passed": llm_formalizer_proposals > 0,
-            "count": llm_formalizer_proposals,
+            "passed": live_llm_formalizer_proposals > 0,
+            "count": live_llm_formalizer_proposals,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_llm_formalizer_proof_engineer_proposals="
                 f"{llm_formalizer_proposals}; "
                 "n_deterministic_formalizer_work_order_seed_proposals="
@@ -1284,21 +1290,22 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if llm_formalizer_proposals > 0
+                if live_llm_formalizer_proposals > 0
                 else (
-                    "deterministic theorem-closure seeds are work-order "
-                    "scaffolds, and attached component calibration does not "
-                    "demonstrate an integrated live Formalizer or ProofEngineer "
-                    "proposal"
+                    "generic or deterministic formalizer packets do not "
+                    "demonstrate integrated live Formalizer/ProofEngineer "
+                    "capability without Claude/OpenAI backend provenance"
                 )
             ),
         },
         {
             "capability_id": "formalizer_lean_candidate_checked_locally",
-            "passed": llm_formalizer_proposals > 0
+            "passed": live_llm_formalizer_proposals > 0
             and formalizer_checked > 0,
             "count": formalizer_checked,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_llm_formalizer_proof_engineer_proposals="
                 f"{llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_local_lean_checked="
@@ -1308,7 +1315,7 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if llm_formalizer_proposals > 0
+                if live_llm_formalizer_proposals > 0
                 and formalizer_checked > 0
                 else (
                     "no Claude/OpenAI-generated Lean candidate was checked "
@@ -1655,9 +1662,10 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_llm_formalizer_proof_engineer_proposals>0 in the integrated "
-                "AgentRuntime manifest; "
-                "n_deterministic_formalizer_work_order_seed_proposals alone is "
+                "n_live_llm_formalizer_proof_engineer_proposals>0 in the "
+                "integrated AgentRuntime manifest; generic "
+                "n_llm_formalizer_proof_engineer_proposals and "
+                "n_deterministic_formalizer_work_order_seed_proposals alone are "
                 "not agentic capability"
             )
         elif capability_id == "formalizer_lean_candidate_checked_locally":
@@ -1670,7 +1678,7 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_llm_formalizer_proof_engineer_proposals>0 and "
+                "n_live_llm_formalizer_proof_engineer_proposals>0 and "
                 "n_formalizer_lean_candidate_local_lean_checked>0 in the "
                 "integrated AgentRuntime manifest"
             )
@@ -7240,13 +7248,37 @@ class FormalizationEvaluatorRuntimeSubsystem:
         llm_formalizer_proof_engineer_proposal_observed = (
             proposal_source == "llm_formalizer_proof_engineer_proposal"
         )
-        formalizer_agentic_capability_evidence_status = (
-            "LIVE_LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
-            if llm_formalizer_proof_engineer_proposal_observed
-            else "DETERMINISTIC_WORK_ORDER_SEED_NOT_AGENTIC_CAPABILITY"
-            if deterministic_formalizer_work_order_seed_used
-            else "NO_FORMALIZER_PROPOSAL_RECORDED"
+        live_llm_formalizer_proof_engineer_proposal_observed = (
+            llm_formalizer_proof_engineer_proposal_observed
+            and isinstance(proposal_packet, Mapping)
+            and _runtime_llm_proposal_packet_live_generator(proposal_packet)
         )
+        proposal_backend_provider = (
+            _runtime_llm_proposal_packet_backend_provider(proposal_packet)
+            if isinstance(proposal_packet, Mapping)
+            else ""
+        )
+        proposal_provider = (
+            _runtime_llm_proposal_packet_provider(proposal_packet)
+            if isinstance(proposal_packet, Mapping)
+            else ""
+        )
+        if live_llm_formalizer_proof_engineer_proposal_observed:
+            formalizer_agentic_capability_evidence_status = (
+                "LIVE_LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
+            )
+        elif llm_formalizer_proof_engineer_proposal_observed:
+            formalizer_agentic_capability_evidence_status = (
+                "LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_WITHOUT_LIVE_BACKEND_NOT_AGENTIC_CAPABILITY"
+            )
+        elif deterministic_formalizer_work_order_seed_used:
+            formalizer_agentic_capability_evidence_status = (
+                "DETERMINISTIC_WORK_ORDER_SEED_NOT_AGENTIC_CAPABILITY"
+            )
+        else:
+            formalizer_agentic_capability_evidence_status = (
+                "NO_FORMALIZER_PROPOSAL_RECORDED"
+            )
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeFormalizationManifest",
@@ -7270,6 +7302,15 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "formalizer_proposal_source": proposal_source,
             "llm_formalizer_proof_engineer_proposal_observed": (
                 llm_formalizer_proof_engineer_proposal_observed
+            ),
+            "live_llm_formalizer_proof_engineer_proposal_observed": (
+                live_llm_formalizer_proof_engineer_proposal_observed
+            ),
+            "llm_formalizer_proof_engineer_proposal_provider": (
+                proposal_provider
+            ),
+            "llm_formalizer_proof_engineer_proposal_backend_provider": (
+                proposal_backend_provider
             ),
             "deterministic_formalizer_work_order_seed_used": (
                 deterministic_formalizer_work_order_seed_used
@@ -16451,6 +16492,9 @@ def run_research_agent_runtime(
         "n_llm_formalizer_proof_engineer_proposals": evidence_summary["proof"][
             "n_llm_formalizer_proof_engineer_proposals"
         ],
+        "n_live_llm_formalizer_proof_engineer_proposals": evidence_summary[
+            "proof"
+        ]["n_live_llm_formalizer_proof_engineer_proposals"],
         "n_deterministic_formalizer_work_order_seed_proposals": evidence_summary[
             "proof"
         ]["n_deterministic_formalizer_work_order_seed_proposals"],
@@ -58273,6 +58317,7 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_tool_calls": 0,
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_executed_tool_calls": 0,
         "n_llm_formalizer_proof_engineer_proposals": 0,
+        "n_live_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "formalizer_lean_candidate_materialization_manifest_paths": [],
         "n_theorem_reduction_closure_work_orders": 0,
@@ -58678,6 +58723,51 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     )
                 ):
                     proof["n_llm_formalizer_proof_engineer_proposals"] += 1
+                    proposal_id = str(
+                        artifact.get(
+                            "llm_formalizer_proof_engineer_proposal_id",
+                            "",
+                        )
+                        or ""
+                    )
+                    proposal_artifact = artifacts.get(proposal_id)
+                    if isinstance(proposal_artifact, Mapping):
+                        live_formalizer_proposal = (
+                            _runtime_llm_proposal_packet_live_generator(
+                                proposal_artifact
+                            )
+                        )
+                    else:
+                        manifest_proposal_provider = str(
+                            artifact.get(
+                                "llm_formalizer_proof_engineer_proposal_provider",
+                                "",
+                            )
+                            or ""
+                        ).strip().lower()
+                        manifest_proposal_backend_provider = str(
+                            artifact.get(
+                                "llm_formalizer_proof_engineer_proposal_backend_provider",
+                                "",
+                            )
+                            or ""
+                        ).strip().lower()
+                        live_formalizer_proposal = (
+                            bool(
+                                artifact.get(
+                                    "live_llm_formalizer_proof_engineer_proposal_observed",
+                                    False,
+                                )
+                            )
+                            and manifest_proposal_provider
+                            in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+                            and manifest_proposal_backend_provider
+                            in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+                        )
+                    if live_formalizer_proposal:
+                        proof[
+                            "n_live_llm_formalizer_proof_engineer_proposals"
+                        ] += 1
                 if bool(
                     artifact.get(
                         "deterministic_formalizer_work_order_seed_used",

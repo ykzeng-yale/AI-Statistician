@@ -113,6 +113,7 @@ class LLMFormalizerProofEngineerAgent:
                 model=response.model or request_model,
                 model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
+                backend_provider_name=response.provider,
                 raw_response=raw_text,
                 theory_packet=theory_packet,
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
@@ -1619,6 +1620,7 @@ def _normalize_formalizer_packet(
     model: str,
     model_tier: str,
     provider_name: str,
+    backend_provider_name: str,
     raw_response: str,
     theory_packet: Mapping[str, Any],
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
@@ -1668,6 +1670,7 @@ def _normalize_formalizer_packet(
         {
             "question_id": question.id,
             "provider": provider_name,
+            "backend_provider": backend_provider_name,
             "model": model,
             "model_tier": model_tier,
             "body": body,
@@ -1680,6 +1683,7 @@ def _normalize_formalizer_packet(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_agent": "LLMFormalizerProofEngineerAgent",
         "provider": provider_name,
+        "backend_provider": backend_provider_name,
         "model": model,
         "model_tier": model_tier,
         "question": {
