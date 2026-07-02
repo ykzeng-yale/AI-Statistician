@@ -9048,6 +9048,9 @@ def test_research_path_execution_summary_detects_control_propagation() -> None:
     )
 
     assert summary["path_control_propagated"] is True
+    assert summary["n_current_artifacts"] == 2
+    assert summary["n_current_artifacts_missing_architect_control"] == 0
+    assert summary["n_produced_artifact_ids_missing_from_blackboard"] == 0
     assert summary["n_controlled_artifacts"] == 2
     assert summary["n_policy_mismatches"] == 0
     assert summary["n_path_mismatches"] == 0
@@ -9067,6 +9070,67 @@ def test_research_path_execution_summary_detects_control_propagation() -> None:
     assert mismatch_summary["path_control_propagated"] is False
     assert mismatch_summary["n_policy_mismatches"] == 2
     assert mismatch_summary["n_path_mismatches"] == 2
+
+
+def test_research_path_execution_summary_fails_uncontrolled_current_artifacts() -> None:
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    "theory:current": {
+                        "artifact_kind": "RuntimeTheoryDerivationPacket",
+                        "runtime_architect_control": {
+                            "subsystem": "TheoryDeveloper",
+                            "formal_verification_policy": "required",
+                            "recommended_research_path": "proof_first",
+                            "formal_required_for_final": True,
+                            "evidence_contract": {
+                                "formal_verification_policy": "required",
+                                "recommended_research_path": "proof_first",
+                                "formal_required_for_final": True,
+                            },
+                        },
+                    },
+                    "simulation:current": {
+                        "artifact_kind": "RuntimeSimulationManifest",
+                        "evidence_contract": {
+                            "formal_verification_policy": "required",
+                            "recommended_research_path": "proof_first",
+                        },
+                    },
+                }
+            },
+            "traces": [
+                {
+                    "subsystem": "SimulationEvaluator",
+                    "produced_artifact_ids": [
+                        "theory:current",
+                        "simulation:current",
+                        "formalization:missing",
+                    ],
+                }
+            ],
+        }
+    ]
+
+    summary = _runtime_research_path_execution_summary(
+        results,
+        effective_formal_verification_policy="required",
+        effective_recommended_research_path="proof_first",
+    )
+
+    assert summary["path_control_propagated"] is False
+    assert summary["n_current_artifacts"] == 2
+    assert summary["n_controlled_artifacts"] == 1
+    assert summary["n_current_artifacts_missing_architect_control"] == 1
+    assert summary["current_artifacts_missing_architect_control_ids"] == [
+        "simulation:current"
+    ]
+    assert summary["n_produced_artifact_ids_missing_from_blackboard"] == 1
+    assert summary["produced_artifact_ids_missing_from_blackboard"] == [
+        "formalization:missing"
+    ]
+    assert "without runtime_architect_control" in summary["boundary"]
 
 
 def test_research_path_execution_summary_scopes_to_current_trace_artifacts() -> None:
@@ -9120,6 +9184,9 @@ def test_research_path_execution_summary_scopes_to_current_trace_artifacts() -> 
     )
 
     assert summary["path_control_propagated"] is True
+    assert summary["n_current_artifacts"] == 1
+    assert summary["n_current_artifacts_missing_architect_control"] == 0
+    assert summary["n_produced_artifact_ids_missing_from_blackboard"] == 0
     assert summary["n_controlled_artifacts"] == 1
     assert summary["n_historical_controlled_input_artifacts_skipped"] == 1
     assert summary["n_policy_mismatches"] == 0
@@ -54459,8 +54526,12 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload["n_theory_trace_alignment_contracts_with_unsupported_anchors"] = 0
     payload["runtime_research_path_control_propagated"] = False
     payload["runtime_research_path_execution_summary"] = {
+        "n_current_artifacts": 3,
         "n_controlled_artifacts": 2,
         "n_controlled_artifacts_with_evidence_contract": 1,
+        "n_current_artifacts_missing_architect_control": 1,
+        "current_artifacts_missing_architect_control_ids": ["simulation:loose"],
+        "n_produced_artifact_ids_missing_from_blackboard": 0,
         "n_policy_mismatches": 1,
         "n_path_mismatches": 1,
         "controlled_subsystems": ["RetrievalMemory", "TheoryDeveloper"],
@@ -54470,6 +54541,12 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
 
     assert rows["architect_research_path_control_propagated"]["passed"] is False
     assert "policy_mismatches=1" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
+    assert "missing_control=1" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
+    assert "simulation:loose" in rows[
         "architect_research_path_control_propagated"
     ]["evidence"]
     assert "Architect evidence contract did not propagate" in rows[
@@ -54854,8 +54931,16 @@ def test_runtime_audit_recomputes_stale_research_path_control(
     assert audit["effective_recommended_research_path"] == "proof_first"
     assert audit["runtime_research_path_control_propagated"] is True
     summary = audit["runtime_research_path_execution_summary"]
+    assert audit["n_runtime_current_artifacts_scanned_for_architect_control"] == 1
+    assert audit["n_runtime_current_artifacts_missing_architect_control"] == 0
+    assert audit["runtime_current_artifacts_missing_architect_control_ids"] == []
+    assert audit["n_runtime_produced_artifact_ids_missing_from_blackboard"] == 0
+    assert audit["runtime_produced_artifact_ids_missing_from_blackboard"] == []
+    assert summary["n_current_artifacts"] == 1
     assert summary["n_controlled_artifacts"] == 1
     assert summary["n_historical_controlled_input_artifacts_skipped"] == 0
+    assert summary["n_current_artifacts_missing_architect_control"] == 0
+    assert summary["n_produced_artifact_ids_missing_from_blackboard"] == 0
     assert summary["n_policy_mismatches"] == 0
     assert summary["n_path_mismatches"] == 0
 

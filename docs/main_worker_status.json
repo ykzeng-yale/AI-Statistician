@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-01",
+  "updated_at": "2026-07-02",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1345,7 +1345,9 @@
     ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after exact-semantic work-order feedback proof-body-gate patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_exact_semantic_executor_results_strengthen_work_order_feedback tests/test_research_agent_runtime.py::test_pending_task_memory_enriches_exact_semantic_work_order_feedback tests/test_research_agent_runtime.py::test_runtime_agenda_dedupe_keeps_compiled_exact_semantic_status tests/test_research_agent_runtime.py::test_generated_exact_semantic_agenda_routes_compiled_candidate_to_review tests/test_research_agent_runtime.py::test_runtime_exports_formalizer_semantic_definition_repair_work_order -q # 5 passed after exact-semantic work-order feedback proof-body-gate patch",
     "deterministic replay over runs/main_worker_critic_after_agenda_candidate_review_live/runtime_source_theorem_exact_semantic_definition_work_orders.jsonl through patched _runtime_exact_semantic_definition_work_order_feedback_from_work_orders # proof_body_gate_statuses=[SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY], runtime_queue_statuses=[PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW, PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR]; compiled placeholders keep candidate-review gate and C_n stays repair/import blocker",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 374 passed in 152.05s after exact-semantic work-order feedback proof-body-gate patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 374 passed in 152.05s after exact-semantic work-order feedback proof-body-gate patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"research_path_execution_summary or stale_research_path_control or architect_path_propagation\" # 5 passed, 576 deselected after current-artifact Architect-control guardrail patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 581 passed in 326.08s after current-artifact Architect-control guardrail patch"
   ],
   "current_blockers": [
     "project .env is not present in the repo worktree",
@@ -1373,6 +1375,7 @@
   ],
   "proof_boundary": "This status file is coordination evidence only. It is not theorem proof evidence and does not promote runtime acceptance, retrieval hits, simulations, or static replay to kernel verification.",
   "design_diagnosis": [
+    "Design-level issue confirmed in runtime/evaluation alignment: research-path propagation only counted artifacts that already carried runtime_architect_control, so a current turn could look Architect-controlled while other produced artifacts had no Architect control/evidence contract or were missing from the blackboard. The current patch makes RuntimeResearchPathExecutionSummary fail closed unless every current trace-produced artifact is present in the blackboard, carries runtime_architect_control, carries the evidence contract, and matches the effective formal policy/research path. This is control-plane evidence only, not theorem proof evidence.",
     "Design-level issue confirmed: exact semantic-definition orchestration had started to rely on scattered top-level placeholder_symbol/target_ids fields while nested candidate_definition_request payloads could lose the same identity. That is the wrong direction for an AI Statistician agent system because RAG, Lean repair, authoring, environment repair, and Critic agenda rows should pass a stable structured handoff instead of rediscovering targets with component-specific corner cases. The current patch keeps proof boundaries unchanged and normalizes candidate_definition_request.placeholder_symbol plus target_ids at source lookup, ProofEngineer bridge, Lean repair, environment repair, and authoring boundaries.",
     "Design-level issue confirmed: accumulated Critic next-action agendas were exporting repeated high-priority generic rows instead of a compact action plan. The latest pre-patch Critic agenda had 148 rows but only 18 action-level keys, including 43 gap-planner handoffs, 42 algorithm review rows, 28 formal-environment repair rows, and 18 proof-bank expansion rows. This obscures the exact semantic-definition and source-to-bridge repair frontier. The current patch centralizes agenda compaction by next-action identity while preserving support provenance such as failure_classifications, supporting formalization-gap-planner bridge ids, and seed ids.",
     "Design-level issue confirmed after compaction: agenda row order still placed broad proof-bank/gap-planner work before concrete source-to-bridge metadata, source-theorem formal-environment, exact semantic-definition, and proof-feedback rows in accumulated live agendas. The current patch ranks compacted agendas by repair specificity so concrete source/proof handoffs reach the prompt before generic expansion rows while preserving the existing environment-before-exact-semantic invariant when both are active.",

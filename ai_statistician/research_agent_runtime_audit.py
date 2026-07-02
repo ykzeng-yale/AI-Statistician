@@ -2910,6 +2910,36 @@ def audit_research_agent_runtime(
         "runtime_research_path_execution_summary": (
             runtime_research_path_control["runtime_research_path_execution_summary"]
         ),
+        "n_runtime_current_artifacts_scanned_for_architect_control": int(
+            runtime_research_path_control["runtime_research_path_execution_summary"].get(
+                "n_current_artifacts", 0
+            )
+            or 0
+        ),
+        "n_runtime_current_artifacts_missing_architect_control": int(
+            runtime_research_path_control["runtime_research_path_execution_summary"].get(
+                "n_current_artifacts_missing_architect_control", 0
+            )
+            or 0
+        ),
+        "runtime_current_artifacts_missing_architect_control_ids": list(
+            runtime_research_path_control["runtime_research_path_execution_summary"].get(
+                "current_artifacts_missing_architect_control_ids", []
+            )
+            or []
+        ),
+        "n_runtime_produced_artifact_ids_missing_from_blackboard": int(
+            runtime_research_path_control["runtime_research_path_execution_summary"].get(
+                "n_produced_artifact_ids_missing_from_blackboard", 0
+            )
+            or 0
+        ),
+        "runtime_produced_artifact_ids_missing_from_blackboard": list(
+            runtime_research_path_control["runtime_research_path_execution_summary"].get(
+                "produced_artifact_ids_missing_from_blackboard", []
+            )
+            or []
+        ),
         "runtime_research_path_execution_summary_source": str(
             runtime_research_path_control[
                 "runtime_research_path_execution_summary_source"
@@ -10797,7 +10827,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "summary="
                 f"{_research_path_summary_detail(payload)}"
             ),
-            "Architect evidence contract did not propagate consistently to runtime artifacts",
+            (
+                "Architect evidence contract did not propagate consistently to "
+                "every current runtime artifact"
+            ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="ArchitectCoordinator",
@@ -10808,7 +10841,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "runtime_research_path_control_propagated=true with zero "
-                    "policy/path mismatches in runtime_research_path_execution_summary"
+                    "current artifacts missing runtime_architect_control, zero "
+                    "trace produced_artifact_ids missing from the blackboard, "
+                    "and zero policy/path mismatches in "
+                    "runtime_research_path_execution_summary"
                 ),
             ),
         ),
@@ -13098,14 +13134,22 @@ def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
     if not isinstance(summary, Mapping):
         return "missing"
     return (
+        "current="
+        f"{summary.get('n_current_artifacts')} "
         "controlled="
         f"{summary.get('n_controlled_artifacts')} "
         "with_contract="
         f"{summary.get('n_controlled_artifacts_with_evidence_contract')} "
+        "missing_control="
+        f"{summary.get('n_current_artifacts_missing_architect_control')} "
+        "missing_blackboard="
+        f"{summary.get('n_produced_artifact_ids_missing_from_blackboard')} "
         "policy_mismatches="
         f"{summary.get('n_policy_mismatches')} "
         "path_mismatches="
         f"{summary.get('n_path_mismatches')} "
+        "missing_control_ids="
+        f"{summary.get('current_artifacts_missing_architect_control_ids')} "
         "subsystems="
         f"{summary.get('controlled_subsystems')}"
     )
@@ -13721,6 +13765,11 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- current exact proof-body blocker: {payload.get('evidence_truth_table', {}).get('current_exact_proof_body_blocker')}",
         f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
         f"- runtime resumed from pending task: {payload.get('runtime_resumed_from_pending_task')}",
+        "- runtime research-path control propagated / current / missing-control / missing-blackboard: "
+        f"{payload.get('runtime_research_path_control_propagated')} / "
+        f"{payload.get('n_runtime_current_artifacts_scanned_for_architect_control')} / "
+        f"{payload.get('n_runtime_current_artifacts_missing_architect_control')} / "
+        f"{payload.get('n_runtime_produced_artifact_ids_missing_from_blackboard')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
         f"- question ids: {payload.get('question_ids')}",
         f"- task families: {payload.get('task_families')}",

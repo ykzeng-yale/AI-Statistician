@@ -29154,6 +29154,21 @@ def run_research_agent_runtime(
     manifest["runtime_research_path_control_propagated"] = manifest[
         "runtime_research_path_execution_summary"
     ]["path_control_propagated"]
+    manifest["n_runtime_current_artifacts_scanned_for_architect_control"] = (
+        manifest["runtime_research_path_execution_summary"]["n_current_artifacts"]
+    )
+    manifest["n_runtime_current_artifacts_missing_architect_control"] = manifest[
+        "runtime_research_path_execution_summary"
+    ]["n_current_artifacts_missing_architect_control"]
+    manifest["runtime_current_artifacts_missing_architect_control_ids"] = manifest[
+        "runtime_research_path_execution_summary"
+    ]["current_artifacts_missing_architect_control_ids"]
+    manifest["n_runtime_produced_artifact_ids_missing_from_blackboard"] = manifest[
+        "runtime_research_path_execution_summary"
+    ]["n_produced_artifact_ids_missing_from_blackboard"]
+    manifest["runtime_produced_artifact_ids_missing_from_blackboard"] = manifest[
+        "runtime_research_path_execution_summary"
+    ]["produced_artifact_ids_missing_from_blackboard"]
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
@@ -60646,6 +60661,10 @@ def _runtime_research_path_execution_summary(
     effective_recommended_research_path: str = "",
 ) -> dict[str, Any]:
     by_subsystem: dict[str, dict[str, Any]] = {}
+    current_artifact_kinds: list[str] = []
+    current_artifacts_missing_architect_control_ids: list[str] = []
+    produced_artifact_ids_missing_from_blackboard: list[str] = []
+    n_current_artifacts = 0
     n_controlled_artifacts = 0
     n_with_evidence_contract = 0
     n_policy_mismatches = 0
@@ -60667,13 +60686,29 @@ def _runtime_research_path_execution_summary(
         artifact_scope = (
             produced_artifact_ids if produced_artifact_ids else set(artifacts)
         )
+        produced_artifact_ids_missing_from_blackboard.extend(
+            sorted(
+                str(artifact_id)
+                for artifact_id in produced_artifact_ids - set(artifacts)
+            )
+        )
         for artifact_id, artifact in artifacts.items():
             if not isinstance(artifact, Mapping):
                 continue
+            in_current_scope = str(artifact_id) in artifact_scope
+            if in_current_scope:
+                n_current_artifacts += 1
+                current_artifact_kinds.append(
+                    str(artifact.get("artifact_kind", "") or "unknown")
+                )
             control = artifact.get("runtime_architect_control", {})
             if not isinstance(control, Mapping) or not control:
+                if in_current_scope:
+                    current_artifacts_missing_architect_control_ids.append(
+                        str(artifact_id)
+                    )
                 continue
-            if str(artifact_id) not in artifact_scope:
+            if not in_current_scope:
                 n_historical_controlled_input_artifacts_skipped += 1
                 continue
             n_controlled_artifacts += 1
@@ -60742,6 +60777,22 @@ def _runtime_research_path_execution_summary(
         "artifact_kind": "RuntimeResearchPathExecutionSummary",
         "effective_formal_verification_policy": effective_policy,
         "effective_recommended_research_path": effective_path,
+        "n_current_artifacts": n_current_artifacts,
+        "n_current_artifacts_missing_architect_control": len(
+            current_artifacts_missing_architect_control_ids
+        ),
+        "current_artifacts_missing_architect_control_ids": list(
+            dict.fromkeys(current_artifacts_missing_architect_control_ids)
+        ),
+        "n_produced_artifact_ids_missing_from_blackboard": len(
+            produced_artifact_ids_missing_from_blackboard
+        ),
+        "produced_artifact_ids_missing_from_blackboard": list(
+            dict.fromkeys(produced_artifact_ids_missing_from_blackboard)
+        ),
+        "current_artifact_kinds": dict(
+            sorted(Counter(current_artifact_kinds).items())
+        ),
         "n_controlled_artifacts": n_controlled_artifacts,
         "n_controlled_artifacts_with_evidence_contract": n_with_evidence_contract,
         "n_policy_mismatches": n_policy_mismatches,
@@ -60752,18 +60803,23 @@ def _runtime_research_path_execution_summary(
         "controlled_subsystems": sorted(serializable_by_subsystem),
         "by_subsystem": serializable_by_subsystem,
         "path_control_propagated": bool(
-            n_controlled_artifacts > 0
+            n_current_artifacts > 0
+            and not produced_artifact_ids_missing_from_blackboard
+            and not current_artifacts_missing_architect_control_ids
+            and n_current_artifacts == n_controlled_artifacts
             and n_controlled_artifacts == n_with_evidence_contract
             and n_policy_mismatches == 0
             and n_path_mismatches == 0
         ),
         "boundary": (
             "This summary checks whether Architect evidence-contract routing "
-            "reached artifacts produced by the current runtime traces. Rehydrated "
-            "historical blackboard artifacts are preserved as inputs but not "
-            "counted as current-turn control propagation. This is control-plane "
-            "evidence only; it does not prove statistical claims or certify that "
-            "the chosen path was mathematically optimal."
+            "reached every artifact produced by the current runtime traces. "
+            "Current artifacts without runtime_architect_control, and trace "
+            "produced_artifact_ids missing from the blackboard, fail closed. "
+            "Rehydrated historical blackboard artifacts are preserved as inputs "
+            "but not counted as current-turn control propagation. This is "
+            "control-plane evidence only; it does not prove statistical claims "
+            "or certify that the chosen path was mathematically optimal."
         ),
     }
 
