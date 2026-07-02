@@ -94,6 +94,18 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_REJECTED_STATUS = (
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS = (
     "AWAITING_STAGED_FOLLOWUP_STAGE_ATTEMPTS"
 )
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_GATE_KIND = (
+    "formalization_gap_planner_llm_route_planner_staged_followup_target_prover_replay_gate"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_CANDIDATE_STATUS = (
+    "AWAITING_TARGET_PROVER_REPLAY"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_ROUTE_BLOCKED_STATUS = (
+    "PENDING_ROUTE_REFINEMENT_BEFORE_TARGET_PROVER_REPLAY"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS = (
+    "REJECTED_BEFORE_TARGET_PROVER_REPLAY"
+)
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS = 2400
 LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS = 0
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
@@ -1350,6 +1362,9 @@ def export_formalization_gap_planner_llm_route_planner(
             request_packets,
             request_contract_errors,
         )
+    )
+    staged_followup_target_prover_replay_rows = (
+        _staged_followup_target_prover_replay_rows(staged_followup_assembly_rows)
     )
     provider_usage_rows = _provider_usage_rows(row_dicts)
     provider_usage_summary = _provider_usage_summary(provider_usage_rows)
@@ -2786,6 +2801,30 @@ def export_formalization_gap_planner_llm_route_planner(
             for row in staged_followup_assembly_rows
             if row.get("assembly_status")
             == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS
+        ),
+        "staged_followup_target_prover_replay_rows": list(
+            staged_followup_target_prover_replay_rows
+        ),
+        "n_staged_followup_target_prover_replay_rows": len(
+            staged_followup_target_prover_replay_rows
+        ),
+        "n_staged_followup_target_prover_replay_candidates": sum(
+            1
+            for row in staged_followup_target_prover_replay_rows
+            if row.get("replay_gate_status")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_CANDIDATE_STATUS
+        ),
+        "n_staged_followup_target_prover_replay_route_blocked": sum(
+            1
+            for row in staged_followup_target_prover_replay_rows
+            if row.get("replay_gate_status")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_ROUTE_BLOCKED_STATUS
+        ),
+        "n_staged_followup_target_prover_replay_rejected": sum(
+            1
+            for row in staged_followup_target_prover_replay_rows
+            if row.get("replay_gate_status")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS
         ),
         "n_awaiting_llm_response": by_acceptance_status.get(
             "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
@@ -14951,6 +14990,134 @@ def _assembled_response_from_stage_attempts(
         "repair_attempts": 0,
         "repair_error_history": [],
         "generation_errors": [],
+    }
+
+
+def _staged_followup_target_prover_replay_rows(
+    assembly_rows: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for assembly in assembly_rows:
+        assembled_row = _dict_value(assembly, "assembled_llm_route_planner_row")
+        formal_attempt_queue = _dict_tuple(
+            assembled_row.get("formal_attempt_queue", [])
+        )
+        if not formal_attempt_queue:
+            if bool(assembly.get("assembled_response_contract_ok", False)):
+                rows.append(
+                    _staged_followup_target_prover_replay_row(
+                        assembly,
+                        {},
+                        attempt_index=0,
+                        missing_attempt=True,
+                    )
+                )
+            continue
+        for attempt_index, attempt in enumerate(formal_attempt_queue):
+            rows.append(
+                _staged_followup_target_prover_replay_row(
+                    assembly,
+                    attempt,
+                    attempt_index=attempt_index,
+                    missing_attempt=False,
+                )
+            )
+    return tuple(_jsonable_mapping(row) for row in rows)
+
+
+def _staged_followup_target_prover_replay_row(
+    assembly: Mapping[str, object],
+    attempt: Mapping[str, object],
+    *,
+    attempt_index: int,
+    missing_attempt: bool,
+) -> dict[str, object]:
+    assembled_row = _dict_value(assembly, "assembled_llm_route_planner_row")
+    route_adoption_status = str(
+        assembly.get("assembled_route_adoption_status", "")
+        or assembled_row.get("route_adoption_status", "")
+        or ""
+    )
+    route_adoption_blockers = list(
+        _str_tuple(
+            assembly.get(
+                "assembled_route_adoption_blockers",
+                assembled_row.get("route_adoption_blockers", []),
+            )
+        )
+    )
+    assembly_ok = bool(assembly.get("assembled_response_contract_ok", False))
+    if not assembly_ok or missing_attempt:
+        status = LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS
+    elif route_adoption_status == ROUTE_ADOPTION_READY_STATUS:
+        status = LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_CANDIDATE_STATUS
+    else:
+        status = LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_ROUTE_BLOCKED_STATUS
+    attempt_id = str(attempt.get("attempt_id", "") or "")
+    formal_node_id = str(attempt.get("formal_node_id", "") or "")
+    replay_id = (
+        "formalization_gap_planner_llm_route_planner_staged_followup_target_prover_replay:"
+        + stable_hash(
+            [
+                assembly.get("assembly_row_id", ""),
+                attempt_index,
+                attempt_id,
+                formal_node_id,
+            ]
+        )[:20]
+    )
+    return {
+        "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
+        "replay_gate_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_GATE_KIND,
+        "target_prover_replay_row_id": replay_id,
+        "assembly_row_id": str(assembly.get("assembly_row_id", "") or ""),
+        "staged_followup_id": str(assembly.get("staged_followup_id", "") or ""),
+        "request_id": str(assembly.get("request_id", "") or ""),
+        "route_id": str(assembly.get("route_id", "") or ""),
+        "llm_route_planner_row_id": str(
+            assembled_row.get("llm_route_planner_row_id", "") or ""
+        ),
+        "assembled_response_contract_ok": assembly_ok,
+        "route_adoption_status": route_adoption_status,
+        "route_adoption_blockers": route_adoption_blockers,
+        "formal_attempt_queue_index": max(0, int(attempt_index)),
+        "attempt_id": attempt_id,
+        "formal_node_id": formal_node_id,
+        "primitive": str(attempt.get("primitive", "") or ""),
+        "target_prover_family": str(
+            attempt.get(
+                "target_prover_family",
+                assembled_row.get("target_prover_family", ""),
+            )
+            or ""
+        ),
+        "owner": str(attempt.get("owner", "") or ""),
+        "action": str(attempt.get("action", "") or ""),
+        "attempt_kind": str(attempt.get("attempt_kind", "") or ""),
+        "prerequisite_formal_node_ids": list(
+            _str_tuple(attempt.get("prerequisite_formal_node_ids", []))
+        ),
+        "expected_feedback": list(_str_tuple(attempt.get("expected_feedback", []))),
+        "target_primitives": list(_str_tuple(attempt.get("target_primitives", []))),
+        "replay_gate_status": status,
+        "next_gate": "target_prover_kernel_replay",
+        "adoption_gate": (
+            "Target-prover replay must be executed and recorded before this "
+            "assembled route can be treated as proof evidence or a closed "
+            "formalization gap."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "ok": status
+        == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_CANDIDATE_STATUS,
+        "errors": (
+            []
+            if status
+            != LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS
+            else [
+                "assembled response did not expose a replayable formal_attempt_queue"
+            ]
+        ),
     }
 
 
@@ -31003,6 +31170,25 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("staged_followup_assembly_rows") else ""),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_target_prover_replay.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get(
+                "staged_followup_target_prover_replay_rows",
+                [],
+            )
+            if isinstance(row, dict)
+        )
+        + (
+            "\n"
+            if payload.get("staged_followup_target_prover_replay_rows")
+            else ""
+        ),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -31176,6 +31362,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Staged followups required: {payload.get('n_staged_followups_required')} max-token={payload.get('n_staged_followups_due_to_max_tokens')}",
         f"- Staged followup stage attempts: {payload.get('n_staged_followup_stage_attempt_rows')} ok={payload.get('n_staged_followup_stage_response_contract_ok')} budget-blocked={payload.get('n_staged_followup_stage_calls_blocked_by_budget')}",
         f"- Staged followup assemblies: {payload.get('n_staged_followup_assembly_rows')} full-contract-ok={payload.get('n_staged_followup_assembled_response_contract_ok')} route-ready={payload.get('n_staged_followup_assembled_route_adoption_ready')}",
+        f"- Staged followup target-prover replay rows: {payload.get('n_staged_followup_target_prover_replay_rows')} candidates={payload.get('n_staged_followup_target_prover_replay_candidates')} route-blocked={payload.get('n_staged_followup_target_prover_replay_route_blocked')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",

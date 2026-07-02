@@ -1753,6 +1753,10 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "n_staged_followup_assembled_response_contract_ok": 1,
             "n_staged_followup_assembled_route_adoption_ready": 0,
             "n_staged_followup_assembly_incomplete": 0,
+            "n_staged_followup_target_prover_replay_rows": 2,
+            "n_staged_followup_target_prover_replay_candidates": 0,
+            "n_staged_followup_target_prover_replay_route_blocked": 2,
+            "n_staged_followup_target_prover_replay_rejected": 0,
             "n_awaiting_llm_response": 0,
             "n_route_adoption_ready": 0,
             "n_route_adoption_pending_refinement": 1,
@@ -1806,6 +1810,30 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "staged_followup_assembled_response_contract_ok"
         ]
         == 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "staged_followup_target_prover_replay_rows"
+        ]
+        == 2
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "staged_followup_target_prover_replay_candidates"
+        ]
+        == 0
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "staged_followup_target_prover_replay_route_blocked"
+        ]
+        == 2
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "staged_followup_target_prover_replay_rejected"
+        ]
+        == 0
     )
     assert manifest["live_route_planner_counts"]["input_routes"] == 3
     assert (
@@ -1874,6 +1902,10 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "staged_followup_assembled_response_contract_ok": 1,
                                 "staged_followup_assembled_route_adoption_ready": 0,
                                 "staged_followup_assembly_incomplete": 0,
+                                "staged_followup_target_prover_replay_rows": 2,
+                                "staged_followup_target_prover_replay_candidates": 0,
+                                "staged_followup_target_prover_replay_route_blocked": 2,
+                                "staged_followup_target_prover_replay_rejected": 0,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
@@ -1977,6 +2009,30 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
     assert (
         summary[
             "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_incomplete"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rows"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_candidates"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_route_blocked"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rejected"
         ]
         == 0
     )

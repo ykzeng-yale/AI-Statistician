@@ -12850,6 +12850,7 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
     assert payload["n_staged_followup_assembled_responses"] == 0
     assert payload["n_staged_followup_assembled_response_contract_ok"] == 0
     assert payload["n_staged_followup_assembly_incomplete"] == 1
+    assert payload["n_staged_followup_target_prover_replay_rows"] == 0
     assert payload["total_staged_followup_stage_provider_total_tokens"] == 70
     assert (
         payload["total_provider_total_tokens_including_staged_followups"]
@@ -12892,6 +12893,10 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
     valid_payload = _llm_response_payload()
+    valid_payload["search_requests"] = []
+    valid_payload["planner_next_actions"] = []
+    valid_payload["uncertainty_flags"] = []
+    valid_payload["semantic_alignment_risks"] = []
     calls: list[object] = []
 
     def stage_fragment(stage_id: str) -> dict[str, object]:
@@ -13005,18 +13010,22 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["n_staged_followup_assembly_rows"] == 1
     assert payload["n_staged_followup_assembled_responses"] == 1
     assert payload["n_staged_followup_assembled_response_contract_ok"] == 1
-    assert payload["n_staged_followup_assembled_route_adoption_ready"] == 0
+    assert payload["n_staged_followup_assembled_route_adoption_ready"] == 1
+    assert payload["n_staged_followup_target_prover_replay_rows"] == 2
+    assert payload["n_staged_followup_target_prover_replay_candidates"] == 2
+    assert payload["n_staged_followup_target_prover_replay_route_blocked"] == 0
+    assert payload["n_staged_followup_target_prover_replay_rejected"] == 0
     assembly = payload["staged_followup_assembly_rows"][0]
     assert assembly["assembly_status"] == "ASSEMBLED_FULL_ROUTE_CONTRACT_OK"
     assert assembly["assembled_response_contract_ok"] is True
     assert assembly["missing_stage_ids"] == []
     assert assembly["assembled_route_adoption_status"] == (
-        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        "READY_FOR_STANDALONE_REPLAY"
     )
     assembled_row = assembly["assembled_llm_route_planner_row"]
     assert assembled_row["response_contract_ok"] is True
     assert assembled_row["provider_name"] == "staged_followup_assembler"
-    assert assembled_row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
+    assert assembled_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
     assert assembled_row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
     assembled_payload = assembly["assembled_response"]["response_payload"]
     assert assembled_payload["minimal_delta_plan"]["selected_primitives"] == [
@@ -13033,10 +13042,36 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         if line.strip()
     ]
     assert persisted_assemblies == payload["staged_followup_assembly_rows"]
+    replay_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_target_prover_replay.jsonl"
+    )
+    replay_rows = [
+        json.loads(line)
+        for line in replay_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert replay_rows == payload["staged_followup_target_prover_replay_rows"]
+    assert [row["attempt_id"] for row in replay_rows] == [
+        "attempt:exchangeability_reuse",
+        "attempt:rank_uniformity_bridge",
+    ]
+    assert all(
+        row["replay_gate_status"] == "AWAITING_TARGET_PROVER_REPLAY"
+        for row in replay_rows
+    )
+    assert all(
+        row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+        for row in replay_rows
+    )
     report = (
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
-    assert "Staged followup assemblies: 1 full-contract-ok=1 route-ready=0" in report
+    assert "Staged followup assemblies: 1 full-contract-ok=1 route-ready=1" in report
+    assert (
+        "Staged followup target-prover replay rows: 2 candidates=2 route-blocked=0"
+        in report
+    )
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

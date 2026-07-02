@@ -13543,6 +13543,41 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             payload.get("staged_followup_assembly_rows", [])
                             or []
                         ),
+                        "n_staged_followup_target_prover_replay_rows": int(
+                            payload.get(
+                                "n_staged_followup_target_prover_replay_rows",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_target_prover_replay_candidates": int(
+                            payload.get(
+                                "n_staged_followup_target_prover_replay_candidates",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_target_prover_replay_route_blocked": int(
+                            payload.get(
+                                "n_staged_followup_target_prover_replay_route_blocked",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_target_prover_replay_rejected": int(
+                            payload.get(
+                                "n_staged_followup_target_prover_replay_rejected",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "staged_followup_target_prover_replay_rows": list(
+                            payload.get(
+                                "staged_followup_target_prover_replay_rows",
+                                [],
+                            )
+                            or []
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13631,6 +13666,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followup_assembled_route_adoption_ready": 0,
                         "n_staged_followup_assembly_incomplete": 0,
                         "staged_followup_assembly_rows": [],
+                        "n_staged_followup_target_prover_replay_rows": 0,
+                        "n_staged_followup_target_prover_replay_candidates": 0,
+                        "n_staged_followup_target_prover_replay_route_blocked": 0,
+                        "n_staged_followup_target_prover_replay_rejected": 0,
+                        "staged_followup_target_prover_replay_rows": [],
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13744,6 +13784,40 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "staged_followup_assembly_incomplete": sum(
                 int(row.get("n_staged_followup_assembly_incomplete", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_target_prover_replay_rows": sum(
+                int(row.get("n_staged_followup_target_prover_replay_rows", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_target_prover_replay_candidates": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_target_prover_replay_candidates",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_target_prover_replay_route_blocked": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_target_prover_replay_route_blocked",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_target_prover_replay_rejected": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_target_prover_replay_rejected",
+                        0,
+                    )
+                    or 0
+                )
                 for row in rows
             ),
             "awaiting_llm_response": sum(
@@ -53948,6 +54022,10 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "staged_followup_assembled_response_contract_ok",
         "staged_followup_assembled_route_adoption_ready",
         "staged_followup_assembly_incomplete",
+        "staged_followup_target_prover_replay_rows",
+        "staged_followup_target_prover_replay_candidates",
+        "staged_followup_target_prover_replay_route_blocked",
+        "staged_followup_target_prover_replay_rejected",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -54060,6 +54138,18 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_incomplete": int(
             aggregate_counts["staged_followup_assembly_incomplete"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rows": int(
+            aggregate_counts["staged_followup_target_prover_replay_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_candidates": int(
+            aggregate_counts["staged_followup_target_prover_replay_candidates"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_route_blocked": int(
+            aggregate_counts["staged_followup_target_prover_replay_route_blocked"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_target_prover_replay_rejected": int(
+            aggregate_counts["staged_followup_target_prover_replay_rejected"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]
