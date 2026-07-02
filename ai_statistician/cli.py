@@ -1190,6 +1190,8 @@ _FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
     {
         "FORMAL_GAP",
         "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+        "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR",
+        "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION",
     }
 )
 
@@ -1212,7 +1214,13 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
-    if learning_task not in {"next_action_routing", "generated_next_action_routing"}:
+    route_feedback_tasks = {
+        "next_action_routing",
+        "generated_next_action_routing",
+        "formalization_gap_planner_live_route_planner_contract_feedback",
+        "formalization_gap_planner_target_prover_replay_feedback",
+    }
+    if learning_task not in route_feedback_tasks:
         return False
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
@@ -1233,7 +1241,22 @@ def _runtime_learning_memory_formal_gap_next_action_stage(
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
     ).strip()
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
     trigger = _runtime_learning_memory_row_trigger(row)
+    if (
+        learning_task
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+        or trigger == "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+    ):
+        return "gap_planner_contract_repair"
+    if (
+        learning_task == "formalization_gap_planner_target_prover_replay_feedback"
+        or trigger
+        == "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+    ):
+        return "target_prover_replay_route_revision"
     if (
         agenda_id == "formal_gap:gap_planner_handoff"
         or trigger == "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
@@ -1390,9 +1413,11 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     if learning_task == "theory_derivation_trace_feedback":
         return 91
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
-        if _runtime_learning_memory_formal_gap_next_action_stage(row) == (
-            "gap_planner_handoff"
-        ):
+        if _runtime_learning_memory_formal_gap_next_action_stage(row) in {
+            "gap_planner_handoff",
+            "gap_planner_contract_repair",
+            "target_prover_replay_route_revision",
+        }:
             return 90
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
@@ -1613,6 +1638,13 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         agenda_id = str(
             row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
         ).strip()
+        feedback_id = str(
+            row.get("route_planner_contract_feedback_id", "")
+            or input_summary.get("route_planner_contract_feedback_id", "")
+            or row.get("route_revision_proposal_id", "")
+            or input_summary.get("route_revision_proposal_id", "")
+            or ""
+        ).strip()
         trigger = _runtime_learning_memory_row_trigger(row)
         target_scope = ",".join(
             _runtime_learning_memory_string_values(
@@ -1644,13 +1676,13 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "formal_gap_next_action_routing:"
             + (question_id or "global")
             + ":"
-            + (agenda_id or "formal_gap")
+            + (agenda_id or feedback_id or "formal_gap")
             + ":"
             + trigger
             + ":"
             + (target_scope or target)
             + ":"
-            + (",".join(bridge_ids) or ",".join(seed_ids) or ",".join(handoff_ids))
+            + (",".join(bridge_ids) or ",".join(handoff_ids) or ",".join(seed_ids))
         )
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         component_manifest = str(
@@ -2104,6 +2136,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_materialization_manifest_id",
         "source_failure_id",
         "source_manifest_path",
+        "source_rows_path",
         "source_formalizer_packet_id",
         "feedback_type",
         "algorithm_sandbox_manifest_id",
@@ -2238,6 +2271,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "metadata_authoring_status",
         "request_complete",
         "failure_classification",
+        "route_planner_contract_feedback_id",
+        "contract_counts",
+        "provider_token_counts",
         "runtime_requested_evidence_contract",
         "formalizer_candidate_local_lean",
         "proof_state_provider",
@@ -2391,6 +2427,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_to_bridge_premise_derivation_signature_excerpts",
         "premise_candidate_signature_excerpts",
         "failure_classifications",
+        "staged_followup_assembly_error_summary",
+        "staged_followup_assembly_error_preview",
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
@@ -2456,6 +2494,10 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "premise_candidate_declaration_name",
             "source_to_bridge_premise_candidate_artifact_path",
             "source_to_bridge_premise_candidate_declaration_name",
+            "route_planner_contract_feedback_id",
+            "contract_counts",
+            "provider_token_counts",
+            "source_rows_path",
         ):
             if key not in compact and input_summary.get(key) not in (None, "", [], {}):
                 compact[key] = input_summary[key]
@@ -2469,6 +2511,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "verified_source_to_bridge_premise_derivation_signature_excerpts",
             "source_to_bridge_premise_derivation_signature_excerpts",
             "premise_candidate_signature_excerpts",
+            "staged_followup_assembly_error_summary",
+            "staged_followup_assembly_error_preview",
         ):
             value = input_summary.get(key)
             if (
@@ -2590,6 +2634,10 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "authoring_trigger",
         "authoring_mode",
         "failure_classification",
+        "route_planner_contract_feedback_id",
+        "source_manifest_id",
+        "source_manifest_path",
+        "source_rows_path",
         "candidate_artifact_path",
         "source_candidate_artifact_path",
         "signature_probe_artifact_path",
@@ -2716,6 +2764,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "autonomous_live_failed_then_passed_repair_observed",
         "capability_evidence_scope",
         "target_component",
+        "contract_counts",
+        "provider_token_counts",
     )
     list_keys = (
         "target_ids",
@@ -2788,6 +2838,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_premise_derivation_signature_excerpts",
         "premise_candidate_signature_excerpts",
         "failure_classifications",
+        "staged_followup_assembly_error_summary",
+        "staged_followup_assembly_error_preview",
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
@@ -2808,6 +2860,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_premise_derivation_source_candidate_request",
         "source_to_bridge_grouped_premise_derivation_source_candidate_request",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
+        "contract_counts",
+        "provider_token_counts",
     )
     for key in scalar_keys:
         if key in value and value[key] not in (None, "", [], {}):

@@ -6273,6 +6273,150 @@ def test_runtime_learning_memory_pins_formal_gap_planner_routing(
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
+def test_runtime_learning_memory_pins_route_planner_contract_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "filler",
+            "target_behavior": f"old row {index}",
+        }
+        for index in range(8)
+    ]
+    rows.insert(
+        1,
+        {
+            "schema_version": 1,
+            "question_id": question.id,
+            "learning_task": (
+                "formalization_gap_planner_live_route_planner_contract_feedback"
+            ),
+            "route_planner_contract_feedback_id": "route-feedback:assembly-a",
+            "formalization_gap_planner_handoff_id": (
+                "runtime_formalization_gap_planner_handoff:assembly-a"
+            ),
+            "failure_classification": (
+                "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "contract_counts": {
+                "staged_followup_assembled_responses": 1,
+                "staged_followup_assembled_response_contract_ok": 0,
+                "route_adoption_ready": 0,
+            },
+            "provider_token_counts": {
+                "provider_total_tokens_including_staged_followups": 8123
+            },
+            "staged_followup_assembly_error_summary": [
+                {
+                    "assembly_row_id": "assembly:route-a",
+                    "assembled_response_contract_ok": False,
+                    "error_count": 1,
+                    "error_preview": [
+                        "formal_attempt_queue[0] does not resolve to a seed route"
+                    ],
+                }
+            ],
+            "staged_followup_assembly_error_preview": [
+                "formal_attempt_queue[0] does not resolve to a seed route"
+            ],
+            "input_summary": {
+                "trigger": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
+                ),
+                "runtime_queue_status": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            },
+            "target_behavior": (
+                "rerun the compact live route planner with exact schema feedback"
+            ),
+            "acceptance_gate": (
+                "schema-valid route response before target-prover replay"
+            ),
+            "proof_evidence_status": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+            ),
+        },
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    feedback_row = memory["rows"][0]
+    assert feedback_row["learning_task"] == (
+        "formalization_gap_planner_live_route_planner_contract_feedback"
+    )
+    assert feedback_row["route_planner_contract_feedback_id"] == (
+        "route-feedback:assembly-a"
+    )
+    assert runtime_module._runtime_learning_memory_should_pin_context_row(
+        feedback_row
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formal_gap_next_action_routing_active"] is True
+    assert summary["formal_gap_live_route_planner_contract_repair_required"] is True
+    assert summary["formalization_gap_planner_handoff_required"] is True
+    assert summary["formal_gap_route_planner_contract_feedback_ids"] == [
+        "route-feedback:assembly-a"
+    ]
+    assert summary["formal_gap_route_planner_failure_classifications"] == [
+        "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+    ]
+    assert summary["formal_gap_route_planner_staged_assembly_error_preview"] == [
+        "formal_attempt_queue[0] does not resolve to a seed route"
+    ]
+    assert summary["formal_gap_next_action_contract"][
+        "contract_counts_by_feedback"
+    ][0]["staged_followup_assembled_response_contract_ok"] == 0
+    assert summary["formal_gap_next_action_contract"][
+        "provider_token_counts_by_feedback"
+    ][0]["provider_total_tokens_including_staged_followups"] == 8123
+    assert summary["formal_gap_next_action_diagnostics"][0][
+        "staged_followup_assembly_error_summary"
+    ][0]["assembly_row_id"] == "assembly:route-a"
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Route-planner contract repair is active" in prompt
+    assert "route-feedback:assembly-a" in prompt
+    assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
+    assert (
+        "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+        in prompt
+    )
+    assert (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+        in prompt
+    )
+
+
 def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     memory = {

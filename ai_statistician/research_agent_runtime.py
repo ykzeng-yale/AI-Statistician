@@ -30372,7 +30372,13 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
-    if learning_task not in {"next_action_routing", "generated_next_action_routing"}:
+    route_feedback_tasks = {
+        "next_action_routing",
+        "generated_next_action_routing",
+        "formalization_gap_planner_live_route_planner_contract_feedback",
+        "formalization_gap_planner_target_prover_replay_feedback",
+    }
+    if learning_task not in route_feedback_tasks:
         return False
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
@@ -30388,10 +30394,26 @@ def _runtime_learning_memory_formal_gap_next_action_stage(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
 ) -> str:
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
     ).strip()
     trigger = _runtime_learning_row_trigger(row, input_summary)
+    if (
+        learning_task
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+        or trigger
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
+    ):
+        return "gap_planner_contract_repair"
+    if (
+        learning_task == "formalization_gap_planner_target_prover_replay_feedback"
+        or trigger
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+    ):
+        return "target_prover_replay_route_revision"
     if (
         agenda_id == "formal_gap:gap_planner_handoff"
         or trigger == "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
@@ -30588,13 +30610,14 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         row,
         input_summary,
     ):
-        if (
-            _runtime_learning_memory_formal_gap_next_action_stage(
-                row,
-                input_summary,
-            )
-            == "gap_planner_handoff"
-        ):
+        if _runtime_learning_memory_formal_gap_next_action_stage(
+            row,
+            input_summary,
+        ) in {
+            "gap_planner_handoff",
+            "gap_planner_contract_repair",
+            "target_prover_replay_route_revision",
+        }:
             return 90
         return 89
     if learning_task == "architect_orchestration_feedback":
@@ -30992,12 +31015,26 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         agenda_id = str(
             row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
         ).strip()
+        feedback_id = str(
+            row.get("route_planner_contract_feedback_id", "")
+            or input_summary.get("route_planner_contract_feedback_id", "")
+            or row.get("route_revision_proposal_id", "")
+            or input_summary.get("route_revision_proposal_id", "")
+            or ""
+        ).strip()
         trigger = _runtime_learning_row_trigger(row, input_summary)
         bridge_ids = _runtime_learning_row_string_values(
             row,
             input_summary,
             "formalization_gap_planner_bridge_id",
             "supporting_formalization_gap_planner_bridge_ids",
+        )
+        handoff_ids = _runtime_learning_row_string_values(
+            row,
+            input_summary,
+            "formalization_gap_planner_handoff_id",
+            "supporting_formalization_gap_planner_handoff_ids",
+            "handoff_id",
         )
         seed_ids = _runtime_learning_row_string_values(
             row,
@@ -31009,13 +31046,13 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             "formal_gap_next_action_routing:"
             + (question_id or "global")
             + ":"
-            + (agenda_id or "formal_gap")
+            + (agenda_id or feedback_id or "formal_gap")
             + ":"
             + trigger
             + ":"
             + target_scope
             + ":"
-            + (",".join(bridge_ids) or ",".join(seed_ids))
+            + (",".join(bridge_ids) or ",".join(handoff_ids) or ",".join(seed_ids))
         )
     if learning_task == "architect_orchestration_feedback":
         question_id = str(
@@ -41317,7 +41354,15 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                     _runtime_learning_row_string_values(
                         row,
                         input_summary,
+                        "failure_classification",
                         "failure_classifications",
+                    )
+                ),
+                "route_planner_contract_feedback_ids": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_planner_contract_feedback_id",
                     )
                 ),
                 "route_revision_proposal_ids": list(
@@ -41365,6 +41410,72 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                 "route_revision_summary": str(
                     row.get("route_revision_summary", "")
                     or input_summary.get("route_revision_summary", "")
+                    or ""
+                ),
+                "contract_counts": (
+                    dict(row.get("contract_counts", {}))
+                    if isinstance(row.get("contract_counts", {}), Mapping)
+                    else dict(input_summary.get("contract_counts", {}))
+                    if isinstance(input_summary.get("contract_counts", {}), Mapping)
+                    else {}
+                ),
+                "provider_token_counts": (
+                    dict(row.get("provider_token_counts", {}))
+                    if isinstance(row.get("provider_token_counts", {}), Mapping)
+                    else dict(input_summary.get("provider_token_counts", {}))
+                    if isinstance(
+                        input_summary.get("provider_token_counts", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "staged_followup_assembly_error_summary": (
+                    list(row.get("staged_followup_assembly_error_summary", []) or [])
+                    if isinstance(
+                        row.get("staged_followup_assembly_error_summary", []),
+                        list,
+                    )
+                    else list(
+                        input_summary.get(
+                            "staged_followup_assembly_error_summary",
+                            [],
+                        )
+                        or []
+                    )
+                    if isinstance(
+                        input_summary.get(
+                            "staged_followup_assembly_error_summary",
+                            [],
+                        ),
+                        list,
+                    )
+                    else []
+                )[:4],
+                "staged_followup_assembly_error_preview": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "staged_followup_assembly_error_preview",
+                    )
+                )[:24],
+                "source_manifest_id": str(
+                    row.get("source_manifest_id", "")
+                    or input_summary.get("source_manifest_id", "")
+                    or ""
+                ),
+                "source_manifest_path": str(
+                    row.get("source_manifest_path", "")
+                    or input_summary.get("source_manifest_path", "")
+                    or ""
+                ),
+                "source_rows_path": str(
+                    row.get("source_rows_path", "")
+                    or input_summary.get("source_rows_path", "")
+                    or ""
+                ),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "")
+                    or input_summary.get("runtime_queue_status", "")
                     or ""
                 ),
                 "prover_attempt_status": str(
@@ -42342,7 +42453,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
     formalization_gap_planner_routing_rows = tuple(
         row
         for row in formal_gap_next_action_routing_rows
-        if str(row.get("route_stage", "") or "") == "gap_planner_handoff"
+        if str(row.get("route_stage", "") or "")
+        in {
+            "gap_planner_handoff",
+            "gap_planner_contract_repair",
+            "target_prover_replay_route_revision",
+        }
     )
     proof_bank_expansion_routing_rows = tuple(
         row
@@ -42428,6 +42544,48 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(value).strip()
         )
     )
+    formal_gap_route_planner_contract_feedback_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("route_planner_contract_feedback_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_route_failure_classifications = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("failure_classifications", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_route_planner_contract_counts = tuple(
+        dict(row.get("contract_counts", {}))
+        for row in formal_gap_next_action_routing_rows
+        if isinstance(row.get("contract_counts", {}), Mapping)
+        and row.get("contract_counts")
+    )
+    formal_gap_route_planner_provider_token_counts = tuple(
+        dict(row.get("provider_token_counts", {}))
+        for row in formal_gap_next_action_routing_rows
+        if isinstance(row.get("provider_token_counts", {}), Mapping)
+        and row.get("provider_token_counts")
+    )
+    formal_gap_route_planner_staged_assembly_error_preview = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("staged_followup_assembly_error_preview", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_route_planner_staged_assembly_error_summary = tuple(
+        dict(item)
+        for row in formal_gap_next_action_routing_rows
+        for item in row.get("staged_followup_assembly_error_summary", []) or []
+        if isinstance(item, Mapping)
+    )
     formal_gap_next_action_contract = (
         {
             "contract_kind": "formal_gap_next_action_routing",
@@ -42459,6 +42617,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "route_revision_target_primitives": list(
                 formal_gap_route_revision_target_primitives
             ),
+            "route_planner_contract_feedback_ids": list(
+                formal_gap_route_planner_contract_feedback_ids
+            ),
+            "failure_classifications": list(formal_gap_route_failure_classifications),
+            "contract_counts_by_feedback": list(
+                formal_gap_route_planner_contract_counts
+            )[:4],
+            "provider_token_counts_by_feedback": list(
+                formal_gap_route_planner_provider_token_counts
+            )[:4],
+            "staged_followup_assembly_error_preview": list(
+                formal_gap_route_planner_staged_assembly_error_preview
+            )[:24],
+            "staged_followup_assembly_error_summary": list(
+                formal_gap_route_planner_staged_assembly_error_summary
+            )[:4],
             "required_execution_order": [
                 "reuse retrieved formal-source/prover context",
                 "stage LLM route-planner prompt packets from the runtime seed",
@@ -43026,6 +43200,19 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formal_gap_route_revision_target_primitives": list(
             formal_gap_route_revision_target_primitives
         ),
+        "formal_gap_live_route_planner_contract_repair_required": bool(
+            formal_gap_route_planner_contract_feedback_ids
+            or formal_gap_route_planner_staged_assembly_error_preview
+        ),
+        "formal_gap_route_planner_contract_feedback_ids": list(
+            formal_gap_route_planner_contract_feedback_ids
+        ),
+        "formal_gap_route_planner_failure_classifications": list(
+            formal_gap_route_failure_classifications
+        ),
+        "formal_gap_route_planner_staged_assembly_error_preview": list(
+            formal_gap_route_planner_staged_assembly_error_preview
+        )[:24],
         "formal_gap_next_action_contract": formal_gap_next_action_contract,
         "formal_gap_next_action_diagnostics": [
             {
@@ -43070,6 +43257,28 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "route_revision_summary": str(
                     row.get("route_revision_summary", "") or ""
                 ),
+                "route_planner_contract_feedback_ids": list(
+                    row.get("route_planner_contract_feedback_ids", []) or []
+                ),
+                "failure_classifications": list(
+                    row.get("failure_classifications", []) or []
+                ),
+                "contract_counts": (
+                    dict(row.get("contract_counts", {}))
+                    if isinstance(row.get("contract_counts", {}), Mapping)
+                    else {}
+                ),
+                "provider_token_counts": (
+                    dict(row.get("provider_token_counts", {}))
+                    if isinstance(row.get("provider_token_counts", {}), Mapping)
+                    else {}
+                ),
+                "staged_followup_assembly_error_preview": list(
+                    row.get("staged_followup_assembly_error_preview", []) or []
+                )[:12],
+                "staged_followup_assembly_error_summary": list(
+                    row.get("staged_followup_assembly_error_summary", []) or []
+                )[:2],
                 "prover_attempt_status": str(
                     row.get("prover_attempt_status", "") or ""
                 ),

@@ -3922,6 +3922,82 @@ def _formalizer_mode_specific_instructions(
             if acceptance_gate:
                 acceptance_gates.append(acceptance_gate)
         acceptance_gates = list(dict.fromkeys(acceptance_gates))[:3]
+        route_feedback_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formal_gap_route_planner_contract_feedback_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        route_failure_classes = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formal_gap_route_planner_failure_classifications",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        staged_error_preview = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "formal_gap_route_planner_staged_assembly_error_preview",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        if isinstance(contract, Mapping):
+            route_feedback_ids.extend(
+                str(value).strip()
+                for value in contract.get("route_planner_contract_feedback_ids", [])
+                or []
+                if str(value).strip()
+            )
+            route_failure_classes.extend(
+                str(value).strip()
+                for value in contract.get("failure_classifications", []) or []
+                if str(value).strip()
+            )
+            staged_error_preview.extend(
+                str(value).strip()
+                for value in contract.get("staged_followup_assembly_error_preview", [])
+                or []
+                if str(value).strip()
+            )
+        for row in formal_gap_next_action_agenda_rows:
+            route_feedback_ids.extend(
+                str(value).strip()
+                for value in (
+                    row.get("route_planner_contract_feedback_ids", [])
+                    or [
+                        row.get("route_planner_contract_feedback_id", ""),
+                    ]
+                )
+                if str(value).strip()
+            )
+            route_failure_classes.extend(
+                str(value).strip()
+                for value in (
+                    row.get("failure_classifications", [])
+                    or [
+                        row.get("failure_classification", ""),
+                    ]
+                )
+                if str(value).strip()
+            )
+            staged_error_preview.extend(
+                str(value).strip()
+                for value in (
+                    row.get("staged_followup_assembly_error_preview", []) or []
+                )
+                if str(value).strip()
+            )
+        route_feedback_ids = list(dict.fromkeys(route_feedback_ids))[:4]
+        route_failure_classes = list(dict.fromkeys(route_failure_classes))[:4]
+        staged_error_preview = list(dict.fromkeys(staged_error_preview))[:6]
         instruction = (
             "Formal-gap next-action routing is active: consume "
             "proof_bank_runtime_memory_summary.formal_gap_next_action_contract "
@@ -3974,6 +4050,26 @@ def _formalizer_mode_specific_instructions(
                 )
         if acceptance_gates:
             instruction += " Acceptance gate(s): " + "; ".join(acceptance_gates) + "."
+        if route_feedback_ids or route_failure_classes or staged_error_preview:
+            instruction += (
+                " Route-planner contract repair is active: preserve the same "
+                "handoff/seed and revise the route response against the exact "
+                "contract feedback before any target-prover replay."
+            )
+        if route_feedback_ids:
+            instruction += (
+                " Contract feedback id(s): " + ", ".join(route_feedback_ids) + "."
+            )
+        if route_failure_classes:
+            instruction += (
+                " Failure class(es): " + ", ".join(route_failure_classes) + "."
+            )
+        if staged_error_preview:
+            instruction += (
+                " Staged assembly error preview(s): "
+                + " | ".join(staged_error_preview)
+                + "."
+            )
         instructions.append(instruction)
     if source_theorem_candidate_materialization_required:
         targets = [
@@ -6100,6 +6196,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalization_gap_planner_execution_plan_stage_ids",
         "formalization_gap_planner_execution_contexts",
         "formal_gap_next_action_acceptance_gates",
+        "formal_gap_live_route_planner_contract_repair_required",
+        "formal_gap_route_planner_contract_feedback_ids",
+        "formal_gap_route_planner_failure_classifications",
+        "formal_gap_route_planner_staged_assembly_error_preview",
         "formal_gap_next_action_contract",
         "formal_gap_next_action_diagnostics",
         "source_theorem_proof_body_adapter_diagnostics",

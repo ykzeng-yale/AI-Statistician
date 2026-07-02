@@ -777,8 +777,42 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
                             "local Lean verifies the concrete premise derivation"
                         ),
                     },
+                    {
+                        "question_id": "conformal_prediction_coverage",
+                        "learning_task": (
+                            "formalization_gap_planner_live_route_planner_contract_feedback"
+                        ),
+                        "input_summary": {
+                            "trigger": (
+                                "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+                            ),
+                            "route_planner_contract_feedback_id": (
+                                "route-feedback:staged-assembly"
+                            ),
+                            "failure_classification": (
+                                "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+                            ),
+                            "target_ids": ["split_conformal_coverage"],
+                            "contract_counts": {
+                                "staged_followup_assembled_responses": 1,
+                                "staged_followup_assembled_response_contract_ok": 0,
+                            },
+                            "provider_token_counts": {
+                                "provider_total_tokens_including_staged_followups": 8123
+                            },
+                            "staged_followup_assembly_error_preview": [
+                                "formal_attempt_queue[0] does not resolve to a seed route"
+                            ],
+                        },
+                        "target_behavior": (
+                            "rerun the compact route planner with exact schema feedback"
+                        ),
+                        "acceptance_gate": (
+                            "schema-valid route response before target-prover replay"
+                        ),
+                    },
                 ],
-                "counts": {"rows_loaded": 2},
+                "counts": {"rows_loaded": 4},
                 "boundary": "Prior learning rows are orchestration memory, not proof evidence.",
             },
         },
@@ -814,6 +848,10 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered" in prompt
     assert "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r" in prompt
     assert "concrete_premise_target_lacks_nonvacuous_derivation_candidate" in prompt
+    assert "route-feedback:staged-assembly" in prompt
+    assert "staged_followup_assembly_error_preview" in prompt
+    assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
+    assert "provider_total_tokens_including_staged_followups" in prompt
     assert "orchestration memory, not proof evidence" in prompt
 
 
