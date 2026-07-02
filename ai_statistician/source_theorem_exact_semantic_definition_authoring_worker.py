@@ -89,6 +89,7 @@ FORBIDDEN_SOURCE_FRAGMENTS = (
     "by exact",
     "by aesop",
 )
+LIVE_AUTHORING_BACKEND_PROVIDERS = {"anthropic", "openai"}
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,16 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         and not config.dry_run
         and _is_external_llm_provider(config.provider_name)
     )
+    configured_provider_name = str(config.provider_name or "none")
+    backend_provider_name = str(getattr(provider, "provider_name", "") or "")
+    should_call_provider = provider is not None and not config.dry_run
+    live_llm_provider_requested = (
+        should_call_provider
+        and _is_live_external_llm_provider_pair(
+            configured_provider_name,
+            backend_provider_name,
+        )
+    )
     approvals = _load_external_export_approvals(
         Path(config.external_export_approval_manifest)
         if config.external_export_approval_manifest
@@ -187,7 +198,6 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         for packet in candidate_review_packets
         if str(packet.get("source_prompt_packet_id", "") or "") in blocked_prompt_ids
     ]
-    should_call_provider = provider is not None and not config.dry_run
     attempted_prompt_ids: list[str] = []
     candidate_packets: list[dict[str, Any]] = []
     if should_call_provider:
@@ -295,7 +305,12 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         "external_export_approval_manifest_loaded": bool(approvals.get("loaded")),
         "external_export_blocked": bool(blocked_prompt_ids),
         "external_export_mode": prompt_export_mode,
-        "provider_name": str(config.provider_name or "none"),
+        "provider_name": configured_provider_name,
+        "backend_provider_name": backend_provider_name,
+        "live_llm_provider_requested": live_llm_provider_requested,
+        "static_or_fixture_provider_attempted": (
+            should_call_provider and not live_llm_provider_requested
+        ),
         "model_tier": str(config.model_tier or ""),
         "requested_model": str(config.model or ""),
         "dry_run": bool(config.dry_run or provider is None),
@@ -323,6 +338,12 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         "n_external_export_approved_tasks": len(approved_prompt_ids),
         "n_external_export_blocked_tasks": len(blocked_prompt_ids),
         "n_llm_attempted": len(attempted_prompt_ids),
+        "n_live_llm_attempted": (
+            len(attempted_prompt_ids) if live_llm_provider_requested else 0
+        ),
+        "n_static_or_fixture_llm_attempted": (
+            len(attempted_prompt_ids) if not live_llm_provider_requested else 0
+        ),
         "n_candidate_packets": len(candidate_packets),
         "n_candidate_packets_ok": sum(1 for row in candidate_packets if row.get("ok")),
         "n_candidate_packets_with_semantic_review_decision": sum(
@@ -1253,6 +1274,7 @@ def _generate_candidate_packet(
             task=task,
             prompt_packet=prompt_packet,
             provider_name=config.provider_name or response.provider,
+            backend_provider_name=response.provider,
             model=response.model or request_model,
             model_tier=config.model_tier,
             raw_response=raw_text,
@@ -1274,6 +1296,9 @@ def _generate_candidate_packet(
             task,
             prompt_packet=prompt_packet,
             provider_name=config.provider_name,
+            backend_provider_name=str(
+                getattr(provider, "provider_name", config.provider_name) or ""
+            ),
             model=request_model,
             model_tier=config.model_tier,
             error=exc,
@@ -1373,6 +1398,7 @@ def _normalize_candidate_packet(
     task: Mapping[str, Any],
     prompt_packet: Mapping[str, Any],
     provider_name: str,
+    backend_provider_name: str,
     model: str,
     model_tier: str,
     raw_response: str,
@@ -1424,6 +1450,7 @@ def _normalize_candidate_packet(
             [
                 prompt_packet.get("prompt_packet_id", ""),
                 provider_name,
+                backend_provider_name,
                 model,
                 body,
             ]
@@ -1449,6 +1476,11 @@ def _normalize_candidate_packet(
         "question_title": str(task.get("question_title", "") or ""),
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
         "provider": provider_name,
+        "backend_provider": backend_provider_name,
+        "live_llm_generator": _is_live_external_llm_provider_pair(
+            provider_name,
+            backend_provider_name,
+        ),
         "model": model,
         "model_tier": model_tier,
         "raw_response_fingerprint": stable_hash(raw_response),
@@ -1475,6 +1507,7 @@ def _failed_candidate_packet(
     *,
     prompt_packet: Mapping[str, Any],
     provider_name: str,
+    backend_provider_name: str,
     model: str,
     model_tier: str,
     error: Exception,
@@ -1498,6 +1531,7 @@ def _failed_candidate_packet(
             [
                 prompt_packet.get("prompt_packet_id", ""),
                 provider_name,
+                backend_provider_name,
                 model,
                 type(error).__name__,
                 str(error),
@@ -1525,6 +1559,11 @@ def _failed_candidate_packet(
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
         "placeholder_symbol": str(task.get("placeholder_symbol", "") or ""),
         "provider": provider_name,
+        "backend_provider": backend_provider_name,
+        "live_llm_generator": _is_live_external_llm_provider_pair(
+            provider_name,
+            backend_provider_name,
+        ),
         "model": model,
         "model_tier": model_tier,
         **_exact_semantic_definition_context(task),
@@ -2471,6 +2510,17 @@ def _extract_payload(text: str) -> dict[str, Any]:
 
 def _is_external_llm_provider(provider_name: str) -> bool:
     return str(provider_name or "").strip().lower() in {"anthropic", "openai"}
+
+
+def _is_live_external_llm_provider_pair(
+    provider_name: str,
+    backend_provider_name: str,
+) -> bool:
+    return (
+        str(provider_name or "").strip().lower() in LIVE_AUTHORING_BACKEND_PROVIDERS
+        and str(backend_provider_name or "").strip().lower()
+        in LIVE_AUTHORING_BACKEND_PROVIDERS
+    )
 
 
 def _load_external_export_approvals(path: Path | None) -> dict[str, Any]:

@@ -2315,6 +2315,20 @@ def audit_research_agent_runtime(
             )
             or ""
         ),
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_provider_name",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name",
+                "",
+            )
+            or ""
+        ),
         "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
@@ -2325,6 +2339,13 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
                 0,
             )
             or 0
@@ -6969,6 +6990,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_definition_authoring_worker_live_llm_attempted = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_verifier_gate_work_orders = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
@@ -8316,22 +8344,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "exact_semantic_definition_authoring_worker_live_attempted",
             (not exact_semantic_definition_authoring_worker_required)
-            or exact_semantic_definition_authoring_worker_llm_attempted > 0,
+            or exact_semantic_definition_authoring_worker_live_llm_attempted > 0,
             (
                 "authoring_tasks="
                 f"{payload.get('n_source_theorem_exact_semantic_definition_authoring_tasks')} "
                 "ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_ran')} "
+                "provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                "backend_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
                 "dry_run="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_dry_run')} "
                 "external_export_mode="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_external_export_mode')} "
                 "llm_attempted="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted')}"
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted')} "
+                "live_llm_attempted="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted')}"
             ),
             (
                 "exact semantic-definition authoring tasks were only staged or "
-                "blocked; no live LLM authoring attempt was recorded"
+                "blocked, or used static/replay backend; no live LLM authoring "
+                "attempt was recorded"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -8342,7 +8377,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "candidates through materialization and local Lean/AXLE."
                 ),
                 success_metric=(
-                    "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted>0"
+                    "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted>0"
                 ),
             ),
         ),

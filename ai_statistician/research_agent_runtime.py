@@ -24939,6 +24939,15 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_authoring_retry_worker_manifest
+            or {}
+        ).get("n_live_llm_attempted", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets"
     ] = int(
         (
@@ -25063,6 +25072,12 @@ def run_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted"
     ] = sum(
         int(row.get("n_llm_attempted", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_authoring_worker_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted"
+    ] = sum(
+        int(row.get("n_live_llm_attempted", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_authoring_worker_manifests
     )
     manifest[
@@ -25868,6 +25883,27 @@ def run_research_agent_runtime(
         or ""
     )
     manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name"
+    ] = str(
+        (
+            source_theorem_exact_semantic_definition_authoring_worker_manifest
+            or {}
+        ).get(
+            "provider_name",
+            config.source_theorem_exact_semantic_definition_authoring_worker_provider,
+        )
+        or ""
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name"
+    ] = str(
+        (
+            source_theorem_exact_semantic_definition_authoring_worker_manifest
+            or {}
+        ).get("backend_provider_name", "")
+        or ""
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets"
     ] = int(
         (
@@ -25883,6 +25919,15 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_authoring_worker_manifest
             or {}
         ).get("n_llm_attempted", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_authoring_worker_manifest
+            or {}
+        ).get("n_live_llm_attempted", 0)
         or 0
     )
     manifest[

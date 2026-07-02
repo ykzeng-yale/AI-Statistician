@@ -53,6 +53,10 @@ from ai_statistician.formalizer_lean_candidate_repair_eval import (
 from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_executor import (
     run_source_theorem_exact_semantic_definition_lean_repair_executor as run_exact_semantic_definition_lean_repair_executor,
 )
+from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker import (
+    AuthoringWorkerConfig,
+    run_source_theorem_exact_semantic_definition_authoring_worker,
+)
 from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
@@ -29946,9 +29950,18 @@ def test_runtime_static_authoring_worker_materializes_repair_candidate(
         ).read_text(encoding="utf-8")
     )
     assert worker_manifest["provider_name"] == "static"
+    assert worker_manifest["backend_provider_name"] == "static"
     assert worker_manifest["dry_run"] is False
     assert worker_manifest["n_llm_attempted"] == 1
+    assert worker_manifest["n_live_llm_attempted"] == 0
+    assert worker_manifest["n_static_or_fixture_llm_attempted"] == 1
     assert worker_manifest["n_candidate_packets_ok"] == 1
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+        ]
+        == 0
+    )
     candidate_rows = [
         json.loads(line)
         for line in Path(
@@ -29957,6 +29970,8 @@ def test_runtime_static_authoring_worker_materializes_repair_candidate(
         if line.strip()
     ]
     assert candidate_rows[0]["provider"] == "static"
+    assert candidate_rows[0]["backend_provider"] == "static"
+    assert candidate_rows[0]["live_llm_generator"] is False
     assert candidate_rows[0]["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
     )
@@ -29965,6 +29980,72 @@ def test_runtime_static_authoring_worker_materializes_repair_candidate(
         candidate_rows[0]["proof_evidence_status"]
         == "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_exact_semantic_authoring_live_attempt_requires_backend_provenance(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:rank",
+                "question_id": "conformal_prediction_coverage",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Define rank from source anchors.",
+                    "required_anchor_names": ["n2"],
+                    "available_anchor_names": ["n2"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    static_response = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Use n2 directly as the diagnostic rank.",
+        "lean_definition_candidate": "def reviewedRank (n2 : Nat) : Nat := n2",
+        "required_imports": [],
+        "binder_usage": [{"name": "n2", "how_used": "returned directly"}],
+        "semantic_alignment_notes": ["diagnostic only"],
+        "known_gaps": ["not source theorem proof"],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+    }
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticArchitectLLMProvider(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+            dry_run=False,
+            max_tasks=1,
+            allow_external_export=True,
+        ),
+    )
+
+    assert manifest["provider_name"] == "anthropic"
+    assert manifest["backend_provider_name"] == "static"
+    assert manifest["n_llm_attempted"] == 1
+    assert manifest["n_live_llm_attempted"] == 0
+    assert manifest["n_static_or_fixture_llm_attempted"] == 1
+    candidate = json.loads(
+        Path(manifest["authoring_candidate_packets_jsonl"]).read_text(
+            encoding="utf-8"
+        ).splitlines()[0]
+    )
+    assert candidate["provider"] == "anthropic"
+    assert candidate["backend_provider"] == "static"
+    assert candidate["live_llm_generator"] is False
 
 
 def test_runtime_exact_semantic_authoring_live_provider_config_keeps_export_gate() -> None:
@@ -31560,6 +31641,12 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
         ]
         == 0
     )
@@ -53952,6 +54039,7 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
         ),
         "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
         "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -53995,6 +54083,25 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
     ] = "full"
     payload[
         "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "live_llm_attempted=0" in rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name"
+    ] = "anthropic"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name"
+    ] = "anthropic"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
     ] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
