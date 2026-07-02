@@ -77,11 +77,31 @@ class EvidenceLedgerEntry:
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+@dataclass(frozen=True)
+class TaskHandoffRecord:
+    handoff_id: str
+    from_task_id: str
+    to_task_id: str
+    from_subsystem: str
+    to_subsystem: str
+    status: RuntimeStatus
+    rationale: str
+    produced_artifact_ids: tuple[str, ...] = ()
+    evidence_ids: tuple[str, ...] = ()
+    next_task_input_keys: tuple[str, ...] = ()
+    next_task_allowed_tools: tuple[str, ...] = ()
+    next_task_expected_artifacts: tuple[str, ...] = ()
+    next_task_acceptance_gate: str = ""
+    failure_classification: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
 @dataclass
 class BlackboardState:
     project_id: str
     artifacts: dict[str, Any] = field(default_factory=dict)
     evidence_ledger: list[EvidenceLedgerEntry] = field(default_factory=list)
+    handoff_ledger: list[TaskHandoffRecord] = field(default_factory=list)
     active_blockers: list[str] = field(default_factory=list)
     task_history: list[str] = field(default_factory=list)
 
@@ -90,6 +110,7 @@ class BlackboardState:
             "project_id": self.project_id,
             "artifacts": self.artifacts,
             "evidence_ledger": [asdict(row) for row in self.evidence_ledger],
+            "handoff_ledger": [asdict(row) for row in self.handoff_ledger],
             "active_blockers": list(self.active_blockers),
             "task_history": list(self.task_history),
         }
@@ -118,6 +139,7 @@ class RuntimeIterationTrace:
     tool_calls: tuple[ToolCallRecord, ...] = ()
     produced_artifact_ids: tuple[str, ...] = ()
     evidence_ids: tuple[str, ...] = ()
+    handoff_id: str = ""
     next_task_id: str = ""
     next_task: AgentTask | None = None
     failure_classification: str = ""
@@ -304,6 +326,22 @@ class AgentRuntime:
 
             self.blackboard.artifacts.update(result.produced_artifacts)
             self.blackboard.evidence_ledger.extend(result.evidence_entries)
+            produced_artifact_ids = tuple(result.produced_artifacts.keys())
+            evidence_ids = tuple(row.evidence_id for row in result.evidence_entries)
+            handoff_record = (
+                _build_task_handoff_record(
+                    iteration=iteration,
+                    task=task,
+                    subsystem_name=getattr(subsystem, "name", task.owner_subsystem),
+                    result=result,
+                    produced_artifact_ids=produced_artifact_ids,
+                    evidence_ids=evidence_ids,
+                )
+                if result.next_task is not None
+                else None
+            )
+            if handoff_record is not None:
+                self.blackboard.handoff_ledger.append(handoff_record)
             if result.status in {"BLOCKED", "FAILED"} and result.rationale:
                 self.blackboard.active_blockers.append(result.rationale)
             trace = RuntimeIterationTrace(
@@ -314,8 +352,9 @@ class AgentRuntime:
                 rationale=result.rationale,
                 observations=result.observations,
                 tool_calls=result.tool_calls,
-                produced_artifact_ids=tuple(result.produced_artifacts.keys()),
-                evidence_ids=tuple(row.evidence_id for row in result.evidence_entries),
+                produced_artifact_ids=produced_artifact_ids,
+                evidence_ids=evidence_ids,
+                handoff_id=handoff_record.handoff_id if handoff_record is not None else "",
                 next_task_id=result.next_task.task_id if result.next_task is not None else "",
                 next_task=result.next_task,
                 failure_classification=result.failure_classification,
@@ -331,6 +370,7 @@ class AgentRuntime:
                 rationale=trace.rationale,
                 produced_artifact_ids=trace.produced_artifact_ids,
                 evidence_ids=trace.evidence_ids,
+                handoff_id=trace.handoff_id,
                 next_task_id=trace.next_task_id,
                 failure_classification=trace.failure_classification,
             )
@@ -365,6 +405,7 @@ def _emit_progress(
     rationale: str = "",
     produced_artifact_ids: tuple[str, ...] = (),
     evidence_ids: tuple[str, ...] = (),
+    handoff_id: str = "",
     next_task_id: str = "",
     failure_classification: str = "",
     retry_attempt: int = 0,
@@ -384,11 +425,42 @@ def _emit_progress(
             "rationale": rationale,
             "produced_artifact_ids": list(produced_artifact_ids),
             "evidence_ids": list(evidence_ids),
+            "handoff_id": handoff_id,
             "next_task_id": next_task_id,
             "failure_classification": failure_classification,
             "retry_attempt": retry_attempt,
             "max_retries": max_retries,
         }
+    )
+
+
+def _build_task_handoff_record(
+    *,
+    iteration: int,
+    task: AgentTask,
+    subsystem_name: str,
+    result: AgentStepResult,
+    produced_artifact_ids: tuple[str, ...],
+    evidence_ids: tuple[str, ...],
+) -> TaskHandoffRecord:
+    next_task = result.next_task
+    if next_task is None:  # pragma: no cover - caller guards this.
+        raise ValueError("cannot build task handoff record without next_task")
+    return TaskHandoffRecord(
+        handoff_id=f"handoff:{iteration}:{task.task_id}->{next_task.task_id}",
+        from_task_id=task.task_id,
+        to_task_id=next_task.task_id,
+        from_subsystem=subsystem_name,
+        to_subsystem=next_task.owner_subsystem,
+        status=result.status,
+        rationale=result.rationale,
+        produced_artifact_ids=produced_artifact_ids,
+        evidence_ids=evidence_ids,
+        next_task_input_keys=tuple(sorted(next_task.inputs.keys())),
+        next_task_allowed_tools=next_task.allowed_tools,
+        next_task_expected_artifacts=next_task.expected_artifacts,
+        next_task_acceptance_gate=next_task.acceptance_gate,
+        failure_classification=result.failure_classification,
     )
 
 

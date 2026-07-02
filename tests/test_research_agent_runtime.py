@@ -49675,7 +49675,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert progress_rows[0]["event_type"] == "subsystem_start"
     assert progress_rows[0]["subsystem"] == "ArchitectCoordinator"
-    assert any(row["event_type"] == "subsystem_finish" for row in progress_rows)
+    finish_rows = [
+        row for row in progress_rows if row["event_type"] == "subsystem_finish"
+    ]
+    assert finish_rows
+    handoff_ledger = result["blackboard"]["handoff_ledger"]
+    assert handoff_ledger[0]["from_subsystem"] == "ArchitectCoordinator"
+    assert handoff_ledger[0]["to_subsystem"] == "RetrievalMemory"
+    assert handoff_ledger[0]["handoff_id"] == result["traces"][0]["handoff_id"]
+    assert finish_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
     assert [row["status"] for row in result["traces"][:12]] == [
         "REROUTE",
         "REROUTE",
