@@ -8314,6 +8314,60 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
     )[0]
 
 
+def test_capability_scorecard_requires_architect_initial_routing_audit() -> None:
+    payload = {
+        "all_ok": True,
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 1,
+        "architect_coordinator_enabled": True,
+        "runtime_architect_coordinator_executed": True,
+        "n_runtime_architect_coordinator_traces": 1,
+        "n_results_with_architect_initial_routing": 0,
+        "n_architect_initial_routing_decisions": 0,
+        "n_architect_initial_routing_prerequisite_theory": 0,
+        "architect_initial_routing_selected_subsystems": {},
+        "architect_initial_routing_requested_subsystems": {},
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder_rows = {
+        row["level"]: row for row in _runtime_capability_ladder(payload)["levels"]
+    }
+
+    assert rows["architect_orchestrated"]["passed"] is True
+    assert rows["architect_initial_routing_audited"]["passed"] is False
+    assert "initial routing decision" in rows[
+        "architect_initial_routing_audited"
+    ]["blocker"]
+    assert ladder_rows[2]["passed"] is False
+    assert "initial routing decision" in ladder_rows[2]["blocker"]
+
+    routed_payload = {
+        **payload,
+        "n_results_with_architect_initial_routing": 1,
+        "n_architect_initial_routing_decisions": 1,
+        "architect_initial_routing_selected_subsystems": {
+            "TheoryDeveloper": 1,
+        },
+        "architect_initial_routing_requested_subsystems": {
+            "TheoryDeveloper": 1,
+        },
+    }
+    routed_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(routed_payload)["rows"]
+    }
+    routed_ladder_rows = {
+        row["level"]: row
+        for row in _runtime_capability_ladder(routed_payload)["levels"]
+    }
+
+    assert routed_rows["architect_initial_routing_audited"]["passed"] is True
+    assert routed_ladder_rows[2]["passed"] is True
+
+
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     runtime_config = {

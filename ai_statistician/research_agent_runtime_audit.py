@@ -7268,7 +7268,8 @@ def _runtime_architect_orchestration_evidence(payload: Mapping[str, Any]) -> str
         "runtime_resume_policy="
         f"{payload.get('runtime_resume_policy', '')} "
         "architect_control_status="
-        f"{_runtime_architect_control_status(payload)}"
+        f"{_runtime_architect_control_status(payload)} "
+        f"{_runtime_architect_initial_routing_evidence(payload)}"
     )
 
 
@@ -7291,6 +7292,55 @@ def _runtime_architect_orchestration_blocker(payload: Mapping[str, Any]) -> str:
     return (
         "ArchitectCoordinator was not configured or did not register; this is a "
         "subsystem-chain run, not architect-orchestrated research"
+    )
+
+
+def _runtime_architect_initial_routing_required(payload: Mapping[str, Any]) -> bool:
+    if not _runtime_architect_orchestration_executed(payload):
+        return False
+    if str(payload.get("runtime_resume_policy", "") or "") == "architect_resume_review":
+        return False
+    return (
+        "n_results_with_architect_initial_routing" in payload
+        or "n_architect_initial_routing_decisions" in payload
+    )
+
+
+def _runtime_architect_initial_routing_audited(payload: Mapping[str, Any]) -> bool:
+    if not _runtime_architect_initial_routing_required(payload):
+        return True
+    n_results = max(1, int(payload.get("n_results", 0) or 0))
+    return (
+        int(payload.get("n_results_with_architect_initial_routing", 0) or 0)
+        >= n_results
+        and int(payload.get("n_architect_initial_routing_decisions", 0) or 0)
+        >= n_results
+    )
+
+
+def _runtime_architect_initial_routing_evidence(payload: Mapping[str, Any]) -> str:
+    return (
+        "n_results_with_architect_initial_routing="
+        f"{payload.get('n_results_with_architect_initial_routing')} "
+        "n_architect_initial_routing_decisions="
+        f"{payload.get('n_architect_initial_routing_decisions')} "
+        "n_architect_initial_routing_prerequisite_theory="
+        f"{payload.get('n_architect_initial_routing_prerequisite_theory')} "
+        "selected="
+        f"{payload.get('architect_initial_routing_selected_subsystems')} "
+        "requested="
+        f"{payload.get('architect_initial_routing_requested_subsystems')}"
+    )
+
+
+def _runtime_architect_initial_routing_blocker(payload: Mapping[str, Any]) -> str:
+    if not _runtime_architect_initial_routing_required(payload):
+        return ""
+    return (
+        "ArchitectCoordinator executed, but the initial routing decision was "
+        "not exported and audited for every result; rerun with "
+        "ArchitectInitialRoutingDecision preserved in trace context or "
+        "Architect observation payload."
     )
 
 
@@ -9217,6 +9267,15 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     architect_orchestration_blocker = _runtime_architect_orchestration_blocker(
         payload
     )
+    architect_initial_routing_audited = _runtime_architect_initial_routing_audited(
+        payload
+    )
+    architect_initial_routing_evidence = _runtime_architect_initial_routing_evidence(
+        payload
+    )
+    architect_initial_routing_blocker = _runtime_architect_initial_routing_blocker(
+        payload
+    )
     integrated_algorithm_repair_sequences = int(
         payload.get(
             "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
@@ -9447,13 +9506,15 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "live_architect_controlled_runtime_completed",
             payload.get("all_ok") is True
             and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0
-            and architect_orchestration_executed,
+            and architect_orchestration_executed
+            and architect_initial_routing_audited,
             (
                 f"{architect_orchestration_evidence} "
                 "n_live_generator_agents_enabled="
                 f"{payload.get('n_live_generator_agents_enabled')}"
             ),
             architect_orchestration_blocker
+            or architect_initial_routing_blocker
             or "live run did not complete under ArchitectCoordinator control",
         ),
         _ladder_level(
@@ -9747,6 +9808,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload
     )
     architect_orchestration_blocker = _runtime_architect_orchestration_blocker(
+        payload
+    )
+    architect_initial_routing_audited = _runtime_architect_initial_routing_audited(
+        payload
+    )
+    architect_initial_routing_evidence = _runtime_architect_initial_routing_evidence(
+        payload
+    )
+    architect_initial_routing_blocker = _runtime_architect_initial_routing_blocker(
         payload
     )
     integrated_algorithm_repair_sequences = int(
@@ -10368,6 +10438,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             architect_orchestration_executed,
             architect_orchestration_evidence,
             architect_orchestration_blocker,
+        ),
+        _scorecard_row(
+            "architect_initial_routing_audited",
+            architect_initial_routing_audited,
+            architect_initial_routing_evidence,
+            architect_initial_routing_blocker,
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Rerun through ArchitectCoordinator so the first non-resume "
+                    "handoff exports an ArchitectInitialRoutingDecision with "
+                    "requested_subsystem, selected_subsystem, prerequisite status, "
+                    "and explicit non-proof boundary."
+                ),
+                success_metric=(
+                    "n_results_with_architect_initial_routing equals n_results "
+                    "and n_architect_initial_routing_decisions is at least n_results"
+                ),
+            ),
         ),
         _scorecard_row(
             "architect_research_path_control_propagated",
