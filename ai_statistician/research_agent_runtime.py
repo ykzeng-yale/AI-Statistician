@@ -13507,6 +13507,42 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             )
                             or []
                         ),
+                        "n_staged_followup_assembly_rows": int(
+                            payload.get("n_staged_followup_assembly_rows", 0)
+                            or 0
+                        ),
+                        "n_staged_followup_assembled_responses": int(
+                            payload.get(
+                                "n_staged_followup_assembled_responses",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_assembled_response_contract_ok": int(
+                            payload.get(
+                                "n_staged_followup_assembled_response_contract_ok",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_assembled_route_adoption_ready": int(
+                            payload.get(
+                                "n_staged_followup_assembled_route_adoption_ready",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_assembly_incomplete": int(
+                            payload.get(
+                                "n_staged_followup_assembly_incomplete",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "staged_followup_assembly_rows": list(
+                            payload.get("staged_followup_assembly_rows", [])
+                            or []
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13589,6 +13625,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followup_stage_provider_failures": 0,
                         "n_staged_followup_stage_calls_blocked_by_budget": 0,
                         "staged_followup_stage_attempt_rows": [],
+                        "n_staged_followup_assembly_rows": 0,
+                        "n_staged_followup_assembled_responses": 0,
+                        "n_staged_followup_assembled_response_contract_ok": 0,
+                        "n_staged_followup_assembled_route_adoption_ready": 0,
+                        "n_staged_followup_assembly_incomplete": 0,
+                        "staged_followup_assembly_rows": [],
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13672,6 +13714,38 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 )
                 for row in rows
             ),
+            "staged_followup_assembly_rows": sum(
+                int(row.get("n_staged_followup_assembly_rows", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_assembled_responses": sum(
+                int(row.get("n_staged_followup_assembled_responses", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_assembled_response_contract_ok": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_assembled_response_contract_ok",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_assembled_route_adoption_ready": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_assembled_route_adoption_ready",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_assembly_incomplete": sum(
+                int(row.get("n_staged_followup_assembly_incomplete", 0) or 0)
+                for row in rows
+            ),
             "awaiting_llm_response": sum(
                 int(row.get("n_awaiting_llm_response", 0) or 0) for row in rows
             ),
@@ -13723,7 +13797,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             counts["selected_handoffs"] > 0
             and counts["request_packets"] > 0
             and counts["response_present"] == counts["request_packets"]
-            and counts["response_contract_ok"] == counts["request_packets"]
+            and (
+                counts["response_contract_ok"]
+                + counts["staged_followup_assembled_response_contract_ok"]
+            )
+            >= counts["request_packets"]
             and counts["provider_failures"] == 0
             and counts["awaiting_llm_response"] == 0
             and not errors
@@ -53865,6 +53943,11 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "staged_followup_stage_response_contract_ok",
         "staged_followup_stage_provider_failures",
         "staged_followup_stage_calls_blocked_by_budget",
+        "staged_followup_assembly_rows",
+        "staged_followup_assembled_responses",
+        "staged_followup_assembled_response_contract_ok",
+        "staged_followup_assembled_route_adoption_ready",
+        "staged_followup_assembly_incomplete",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -53962,6 +54045,21 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_calls_blocked_by_budget": int(
             aggregate_counts["staged_followup_stage_calls_blocked_by_budget"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_rows": int(
+            aggregate_counts["staged_followup_assembly_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_responses": int(
+            aggregate_counts["staged_followup_assembled_responses"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_response_contract_ok": int(
+            aggregate_counts["staged_followup_assembled_response_contract_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_route_adoption_ready": int(
+            aggregate_counts["staged_followup_assembled_route_adoption_ready"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_incomplete": int(
+            aggregate_counts["staged_followup_assembly_incomplete"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]

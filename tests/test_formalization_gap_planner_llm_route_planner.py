@@ -12846,6 +12846,10 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
     assert payload["n_staged_followup_stage_response_contract_ok"] == 2
     assert payload["n_staged_followup_stage_provider_failures"] == 0
     assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 1
+    assert payload["n_staged_followup_assembly_rows"] == 1
+    assert payload["n_staged_followup_assembled_responses"] == 0
+    assert payload["n_staged_followup_assembled_response_contract_ok"] == 0
+    assert payload["n_staged_followup_assembly_incomplete"] == 1
     assert payload["total_staged_followup_stage_provider_total_tokens"] == 70
     assert (
         payload["total_provider_total_tokens_including_staged_followups"]
@@ -12876,6 +12880,163 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "Staged followup stage attempts: 2 ok=2 budget-blocked=1" in report
+    assert "Staged followup assemblies: 1 full-contract-ok=0 route-ready=0" in report
+
+
+def test_llm_route_planner_assembles_staged_followup_full_contract_response() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_staged_assembly"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    valid_payload = _llm_response_payload()
+    calls: list[object] = []
+
+    def stage_fragment(stage_id: str) -> dict[str, object]:
+        if stage_id == "route_core_compaction":
+            return {
+                "informal_knowledge_dag_nodes": deepcopy(
+                    valid_payload["informal_knowledge_dag_nodes"]
+                ),
+                "informal_knowledge_dag_edges": deepcopy(
+                    valid_payload["informal_knowledge_dag_edges"]
+                ),
+                "formal_realization_dag_nodes": deepcopy(
+                    valid_payload["lean_realization_dag_nodes"]
+                ),
+                "formal_realization_dag_edges": deepcopy(
+                    valid_payload["formal_realization_dag_edges"]
+                ),
+                "route_alignment_edges": deepcopy(
+                    valid_payload["route_alignment_edges"]
+                ),
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "residual_batch_interpretation":
+            return {
+                "residual_interpretations": deepcopy(
+                    valid_payload["residual_interpretations"]
+                ),
+                "search_requests": deepcopy(valid_payload["search_requests"]),
+                "planner_next_actions": deepcopy(
+                    valid_payload["planner_next_actions"]
+                ),
+            }
+        return {
+            "formal_attempt_queue": deepcopy(valid_payload["formal_attempt_queue"]),
+            "standalone_route": deepcopy(valid_payload["standalone_route"]),
+            "uncertainty_flags": deepcopy(valid_payload["uncertainty_flags"]),
+            "semantic_alignment_risks": deepcopy(
+                valid_payload["semantic_alignment_risks"]
+            ),
+        }
+
+    class AssemblingAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            if len(calls) == 1:
+                return GeneratorResponse(
+                    text='{"proof_evidence_boundary":"not theorem proof evidence", "minimal_delta_plan": ',
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={
+                        "generator_only": True,
+                        "tools_available": False,
+                        "schema_supplied": request.schema is not None,
+                        "provider_stop_reason": "max_tokens",
+                        "provider_usage": {
+                            "input_tokens": 111,
+                            "output_tokens": request.max_tokens,
+                        },
+                    },
+                )
+            stage_id = str(request.metadata["stage_id"])
+            payload = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": [f"{stage_id} ready for assembly"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_stop_reason": "end_turn",
+                    "provider_usage": {
+                        "input_tokens": 10 + len(calls),
+                        "output_tokens": 20 + len(calls),
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=AssemblingAnthropicBackend(),
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=3,
+    )
+
+    assert len(calls) == 4
+    assert not payload["all_ok"]
+    assert payload["n_response_present"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_staged_followup_stage_attempt_rows"] == 3
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 3
+    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 0
+    assert payload["n_staged_followup_assembly_rows"] == 1
+    assert payload["n_staged_followup_assembled_responses"] == 1
+    assert payload["n_staged_followup_assembled_response_contract_ok"] == 1
+    assert payload["n_staged_followup_assembled_route_adoption_ready"] == 0
+    assembly = payload["staged_followup_assembly_rows"][0]
+    assert assembly["assembly_status"] == "ASSEMBLED_FULL_ROUTE_CONTRACT_OK"
+    assert assembly["assembled_response_contract_ok"] is True
+    assert assembly["missing_stage_ids"] == []
+    assert assembly["assembled_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assembled_row = assembly["assembled_llm_route_planner_row"]
+    assert assembled_row["response_contract_ok"] is True
+    assert assembled_row["provider_name"] == "staged_followup_assembler"
+    assert assembled_row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
+    assert assembled_row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+    assembled_payload = assembly["assembled_response"]["response_payload"]
+    assert assembled_payload["minimal_delta_plan"]["selected_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assembly_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_assemblies.jsonl"
+    )
+    persisted_assemblies = [
+        json.loads(line)
+        for line in assembly_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert persisted_assemblies == payload["staged_followup_assembly_rows"]
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "Staged followup assemblies: 1 full-contract-ok=1 route-ready=0" in report
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

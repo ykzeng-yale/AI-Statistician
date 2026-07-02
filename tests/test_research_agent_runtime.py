@@ -1732,7 +1732,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
         ).write_text("{}", encoding="utf-8")
         return {
-            "all_ok": True,
+            "all_ok": False,
             "max_route_requests": 1,
             "n_input_routes": 3,
             "route_request_cap_applied": True,
@@ -1740,23 +1740,28 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "omitted_route_ids_by_max_route_requests": ["route:b", "route:c"],
             "n_request_packets": 1,
             "n_response_present": 1,
-            "n_response_contract_ok": 1,
+            "n_response_contract_ok": 0,
             "n_provider_failures": 0,
-            "n_staged_followups_required": 0,
-            "n_staged_followups_due_to_max_tokens": 0,
-            "n_staged_followup_stage_attempt_rows": 0,
-            "n_staged_followup_stage_response_contract_ok": 0,
+            "n_staged_followups_required": 1,
+            "n_staged_followups_due_to_max_tokens": 1,
+            "n_staged_followup_stage_attempt_rows": 3,
+            "n_staged_followup_stage_response_contract_ok": 3,
             "n_staged_followup_stage_provider_failures": 0,
             "n_staged_followup_stage_calls_blocked_by_budget": 0,
+            "n_staged_followup_assembly_rows": 1,
+            "n_staged_followup_assembled_responses": 1,
+            "n_staged_followup_assembled_response_contract_ok": 1,
+            "n_staged_followup_assembled_route_adoption_ready": 0,
+            "n_staged_followup_assembly_incomplete": 0,
             "n_awaiting_llm_response": 0,
-            "n_route_adoption_ready": 1,
-            "n_route_adoption_pending_refinement": 0,
+            "n_route_adoption_ready": 0,
+            "n_route_adoption_pending_refinement": 1,
             "n_route_adoption_awaiting_llm_response": 0,
             "total_provider_input_tokens": 123,
             "total_provider_output_tokens": 45,
             "total_provider_total_tokens": 168,
-            "total_staged_followup_stage_provider_total_tokens": 0,
-            "total_provider_total_tokens_including_staged_followups": 168,
+            "total_staged_followup_stage_provider_total_tokens": 70,
+            "total_provider_total_tokens_including_staged_followups": 238,
             "errors": [],
         }
 
@@ -1795,7 +1800,13 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert manifest["live_llm_invoked"] is True
     assert manifest["live_route_planner_all_responses_recorded"] is True
     assert manifest["live_route_planner_counts"]["response_present"] == 1
-    assert manifest["live_route_planner_counts"]["response_contract_ok"] == 1
+    assert manifest["live_route_planner_counts"]["response_contract_ok"] == 0
+    assert (
+        manifest["live_route_planner_counts"][
+            "staged_followup_assembled_response_contract_ok"
+        ]
+        == 1
+    )
     assert manifest["live_route_planner_counts"]["input_routes"] == 3
     assert (
         manifest["live_route_planner_counts"][
@@ -1807,7 +1818,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert live_manifest["counts"]["provider_total_tokens"] == 168
     assert (
         live_manifest["counts"]["provider_total_tokens_including_staged_followups"]
-        == 168
+        == 238
     )
     assert Path(live_manifest["manifest_path"]).exists()
     assert any(
@@ -1858,6 +1869,11 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "staged_followup_stage_response_contract_ok": 2,
                                 "staged_followup_stage_provider_failures": 0,
                                 "staged_followup_stage_calls_blocked_by_budget": 1,
+                                "staged_followup_assembly_rows": 1,
+                                "staged_followup_assembled_responses": 1,
+                                "staged_followup_assembled_response_contract_ok": 1,
+                                "staged_followup_assembled_route_adoption_ready": 0,
+                                "staged_followup_assembly_incomplete": 0,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
@@ -1933,6 +1949,36 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_calls_blocked_by_budget"
         ]
         == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_responses"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_response_contract_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_route_adoption_ready"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembly_incomplete"
+        ]
+        == 0
     )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"

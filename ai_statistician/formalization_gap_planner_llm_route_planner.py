@@ -82,6 +82,18 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND = (
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_ATTEMPT_KIND = (
     "formalization_gap_planner_llm_route_planner_staged_followup_stage_attempt"
 )
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_KIND = (
+    "formalization_gap_planner_llm_route_planner_staged_followup_assembly"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_OK_STATUS = (
+    "ASSEMBLED_FULL_ROUTE_CONTRACT_OK"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_REJECTED_STATUS = (
+    "ASSEMBLED_FULL_ROUTE_CONTRACT_REJECTED"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS = (
+    "AWAITING_STAGED_FOLLOWUP_STAGE_ATTEMPTS"
+)
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS = 2400
 LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS = 0
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
@@ -1330,6 +1342,15 @@ def export_formalization_gap_planner_llm_route_planner(
             max_stage_calls=max_staged_followup_stage_calls,
             errors=errors,
         )
+    staged_followup_assembly_rows = tuple(
+        _jsonable_mapping(row)
+        for row in _staged_followup_assembly_rows(
+            staged_followup_rows,
+            staged_followup_stage_attempt_rows,
+            request_packets,
+            request_contract_errors,
+        )
+    )
     provider_usage_rows = _provider_usage_rows(row_dicts)
     provider_usage_summary = _provider_usage_summary(provider_usage_rows)
     staged_followup_stage_provider_usage_rows = _provider_usage_rows(
@@ -2741,6 +2762,30 @@ def export_formalization_gap_planner_llm_route_planner(
                 for row in staged_followup_rows
             )
             - len(staged_followup_stage_attempt_rows),
+        ),
+        "staged_followup_assembly_rows": list(staged_followup_assembly_rows),
+        "n_staged_followup_assembly_rows": len(staged_followup_assembly_rows),
+        "n_staged_followup_assembled_responses": sum(
+            1
+            for row in staged_followup_assembly_rows
+            if row.get("assembled_response_present")
+        ),
+        "n_staged_followup_assembled_response_contract_ok": sum(
+            1
+            for row in staged_followup_assembly_rows
+            if row.get("assembled_response_contract_ok")
+        ),
+        "n_staged_followup_assembled_route_adoption_ready": sum(
+            1
+            for row in staged_followup_assembly_rows
+            if row.get("assembled_route_adoption_status")
+            == ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_staged_followup_assembly_incomplete": sum(
+            1
+            for row in staged_followup_assembly_rows
+            if row.get("assembly_status")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS
         ),
         "n_awaiting_llm_response": by_acceptance_status.get(
             "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
@@ -14662,6 +14707,251 @@ def _staged_followup_stage_required_fragment_fields(stage_id: str) -> tuple[str,
             "semantic_alignment_risks",
         )
     return tuple()
+
+
+def _staged_followup_assembly_rows(
+    followups: tuple[dict[str, object], ...],
+    stage_attempts: tuple[dict[str, object], ...],
+    requests: tuple[dict[str, Any], ...],
+    request_contract_errors: list[list[str]],
+) -> tuple[dict[str, object], ...]:
+    requests_by_id = {
+        str(request.get("request_id", "") or ""): request for request in requests
+    }
+    request_errors_by_id = {
+        str(request.get("request_id", "") or ""): list(errors)
+        for request, errors in zip(requests, request_contract_errors)
+    }
+    attempts_by_followup: dict[str, list[dict[str, object]]] = {}
+    for attempt in stage_attempts:
+        followup_id = str(attempt.get("staged_followup_id", "") or "")
+        if not followup_id:
+            continue
+        attempts_by_followup.setdefault(followup_id, []).append(dict(attempt))
+    return tuple(
+        _staged_followup_assembly_row(
+            followup,
+            requests_by_id,
+            request_errors_by_id,
+            attempts_by_followup,
+        )
+        for followup in followups
+    )
+
+
+def _staged_followup_assembly_row(
+    followup: Mapping[str, object],
+    requests_by_id: Mapping[str, Mapping[str, Any]],
+    request_errors_by_id: Mapping[str, list[str]],
+    attempts_by_followup: Mapping[str, list[dict[str, object]]],
+) -> dict[str, object]:
+    staged_followup_id = str(followup.get("staged_followup_id", "") or "")
+    request_id = str(followup.get("request_id", "") or "")
+    route_id = str(followup.get("route_id", "") or "")
+    request = requests_by_id.get(request_id, {})
+    required_stage_ids = tuple(
+        str(stage.get("stage_id", "") or "")
+        for stage in _dict_tuple(followup.get("stage_sequence", []))
+        if str(stage.get("stage_id", "") or "").strip()
+    )
+    attempts = tuple(attempts_by_followup.get(staged_followup_id, ()))
+    ok_attempts_by_stage: dict[str, dict[str, object]] = {}
+    rejected_stage_ids: list[str] = []
+    for attempt in sorted(
+        attempts,
+        key=lambda row: int(row.get("stage_index", 0) or 0),
+    ):
+        stage_id = str(attempt.get("stage_id", "") or "")
+        if not stage_id:
+            continue
+        if bool(attempt.get("response_contract_ok", False)):
+            ok_attempts_by_stage.setdefault(stage_id, dict(attempt))
+        else:
+            rejected_stage_ids.append(stage_id)
+    provided_stage_ids = tuple(
+        stage_id for stage_id in required_stage_ids if stage_id in ok_attempts_by_stage
+    )
+    missing_stage_ids = tuple(
+        stage_id for stage_id in required_stage_ids if stage_id not in ok_attempts_by_stage
+    )
+    stage_attempt_ids = tuple(
+        str(ok_attempts_by_stage[stage_id].get("stage_attempt_id", "") or "")
+        for stage_id in provided_stage_ids
+    )
+    base_row: dict[str, object] = {
+        "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
+        "assembly_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_KIND,
+        "assembly_row_id": (
+            "formalization_gap_planner_llm_route_planner_staged_followup_assembly:"
+            + stable_hash([staged_followup_id, request_id, route_id, stage_attempt_ids])[
+                :20
+            ]
+        ),
+        "staged_followup_id": staged_followup_id,
+        "request_id": request_id,
+        "route_id": route_id,
+        "required_stage_ids": list(required_stage_ids),
+        "provided_stage_ids": list(provided_stage_ids),
+        "missing_stage_ids": list(missing_stage_ids),
+        "rejected_stage_ids": list(_str_tuple(rejected_stage_ids)),
+        "stage_attempt_ids": list(stage_attempt_ids),
+        "assembled_response_present": False,
+        "assembled_response_contract_ok": False,
+        "assembled_route_adoption_status": "",
+        "assembled_route_adoption_blockers": [],
+        "assembled_response": {},
+        "assembled_llm_route_planner_row": {},
+        "errors": [],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "assembly_boundary": (
+            "Staged followup assembly is a route-planner proposal recovery "
+            "path. It is not theorem proof evidence; an assembled route is "
+            "usable only after the full route-planner response contract and "
+            "target-prover replay gates pass."
+        ),
+        "ok": False,
+    }
+    if request_id not in requests_by_id:
+        return {
+            **base_row,
+            "assembly_status": (
+                LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS
+            ),
+            "errors": ["assembly request_id missing from request packets"],
+        }
+    if missing_stage_ids:
+        return {
+            **base_row,
+            "assembly_status": (
+                LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_INCOMPLETE_STATUS
+            ),
+            "errors": [
+                "missing staged followup stage attempts: "
+                + ", ".join(missing_stage_ids)
+            ],
+        }
+    assembled_response = _assembled_response_from_stage_attempts(
+        followup,
+        request,
+        tuple(ok_attempts_by_stage[stage_id] for stage_id in required_stage_ids),
+    )
+    assembled_row = _row_for_request(
+        request,
+        request_errors=list(request_errors_by_id.get(request_id, [])),
+        response=assembled_response,
+    )
+    assembled_row_dict = asdict(assembled_row)
+    assembly_ok = bool(assembled_row.response_contract_ok)
+    return {
+        **base_row,
+        "assembly_status": (
+            LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_OK_STATUS
+            if assembly_ok
+            else LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_REJECTED_STATUS
+        ),
+        "assembled_response_present": True,
+        "assembled_response_contract_ok": assembly_ok,
+        "assembled_route_adoption_status": assembled_row.route_adoption_status,
+        "assembled_route_adoption_blockers": list(
+            assembled_row.route_adoption_blockers
+        ),
+        "assembled_response": assembled_response,
+        "assembled_llm_route_planner_row": assembled_row_dict,
+        "errors": list(_str_tuple(assembled_row.errors)),
+        "ok": assembly_ok,
+    }
+
+
+def _assembled_response_from_stage_attempts(
+    followup: Mapping[str, object],
+    request: Mapping[str, Any],
+    stage_attempts: tuple[Mapping[str, object], ...],
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    assembler_notes: list[str] = []
+    stage_attempt_ids: list[str] = []
+    for attempt in stage_attempts:
+        stage_attempt_ids.append(str(attempt.get("stage_attempt_id", "") or ""))
+        assembler_notes.extend(_str_tuple(attempt.get("assembler_notes", [])))
+        fragment = _dict_value(attempt, "fragment")
+        for field_name in _staged_followup_stage_required_fragment_fields(
+            str(attempt.get("stage_id", "") or "")
+        ):
+            if field_name in fragment:
+                payload[field_name] = fragment[field_name]
+    payload.setdefault("residual_interpretations", [])
+    payload.setdefault("search_requests", [])
+    payload.setdefault("planner_next_actions", [])
+    payload.setdefault("uncertainty_flags", [])
+    payload.setdefault("semantic_alignment_risks", [])
+    payload["staged_followup_assembly"] = {
+        "assembly_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_ASSEMBLY_KIND,
+        "staged_followup_id": str(followup.get("staged_followup_id", "") or ""),
+        "stage_attempt_ids": list(_str_tuple(stage_attempt_ids)),
+        "assembler_notes": list(_str_tuple(assembler_notes)),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    raw_response_text = json.dumps(payload, sort_keys=True, default=str)
+    model_tier = str(followup.get("model_tier") or request.get("model_tier", "") or "")
+    metadata = _generator_metadata_with_model_tier(
+        {
+            "generator_only": True,
+            "tools_available": False,
+            "staged_followup_assembler": True,
+            "staged_followup_id": str(
+                followup.get("staged_followup_id", "") or ""
+            ),
+            "stage_attempt_ids": list(_str_tuple(stage_attempt_ids)),
+            "stage_ids": [
+                str(attempt.get("stage_id", "") or "")
+                for attempt in stage_attempts
+            ],
+            "provider_names": list(
+                _str_tuple(
+                    [
+                        str(attempt.get("provider_name", "") or "")
+                        for attempt in stage_attempts
+                    ]
+                )
+            ),
+            "models": list(
+                _str_tuple(
+                    [
+                        str(attempt.get("model", "") or "")
+                        for attempt in stage_attempts
+                    ]
+                )
+            ),
+        },
+        requested_model_tier=model_tier,
+        effective_model_tier=model_tier,
+        model_tier_escalated=False,
+        model_tier_escalation_reason="",
+    )
+    return {
+        "request_id": str(request.get("request_id", "") or ""),
+        "route_id": str(request.get("route_id", "") or ""),
+        "provider_name": "staged_followup_assembler",
+        "model": "assembled-from-staged-followup",
+        "requested_model_tier": model_tier,
+        "model_tier": model_tier,
+        "model_tier_escalated": False,
+        "model_tier_escalation_reason": "",
+        "response_payload": payload,
+        "raw_response_text": raw_response_text,
+        "generator_metadata": _jsonable_mapping(metadata),
+        "provider_failure": False,
+        "kernel_verified": False,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "repair_attempts": 0,
+        "repair_error_history": [],
+        "generation_errors": [],
+    }
 
 
 def _empty_provider_usage_bucket() -> dict[str, int]:
@@ -30701,6 +30991,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         ),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_assemblies.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("staged_followup_assembly_rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("staged_followup_assembly_rows") else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -30873,6 +31175,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Staged followups required: {payload.get('n_staged_followups_required')} max-token={payload.get('n_staged_followups_due_to_max_tokens')}",
         f"- Staged followup stage attempts: {payload.get('n_staged_followup_stage_attempt_rows')} ok={payload.get('n_staged_followup_stage_response_contract_ok')} budget-blocked={payload.get('n_staged_followup_stage_calls_blocked_by_budget')}",
+        f"- Staged followup assemblies: {payload.get('n_staged_followup_assembly_rows')} full-contract-ok={payload.get('n_staged_followup_assembled_response_contract_ok')} route-ready={payload.get('n_staged_followup_assembled_route_adoption_ready')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",
