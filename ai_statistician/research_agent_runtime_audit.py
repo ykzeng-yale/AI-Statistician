@@ -26,6 +26,8 @@ from .research_agent_runtime import (
     RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS,
     RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS,
     RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS,
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS,
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
@@ -9487,6 +9489,22 @@ def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
 def _runtime_route_row_requires_target_identity(row: Any) -> bool:
     if not isinstance(row, Mapping):
         return False
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    ).strip()
+    trigger = str(
+        row.get("trigger", "") or input_summary.get("trigger", "") or ""
+    ).strip()
+    if (
+        learning_task in RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS
+        or trigger in RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS
+    ) and _runtime_route_row_has_target_identity_hint(row):
+        return True
     text = " ".join(
         str(value)
         for value in (
@@ -9506,11 +9524,6 @@ def _runtime_route_row_requires_target_identity(row: Any) -> bool:
         )
         if str(value).strip()
     ).lower()
-    input_summary = (
-        row.get("input_summary", {})
-        if isinstance(row.get("input_summary", {}), Mapping)
-        else {}
-    )
     text += " " + " ".join(
         str(input_summary.get(key, ""))
         for key in (
@@ -9556,9 +9569,10 @@ def _runtime_route_row_requires_target_identity(row: Any) -> bool:
         "premise_name",
         "proof_body_gate_status",
     ):
-        value = row.get(key)
-        if value not in (None, "", [], {}):
-            return True
+        for source in (row, input_summary):
+            value = source.get(key)
+            if value not in (None, "", [], {}):
+                return True
     return False
 
 
@@ -9627,10 +9641,16 @@ def _runtime_route_row_identifier(row: Any) -> str:
 def _runtime_route_row_field(row: Any, *keys: str) -> str:
     if not isinstance(row, Mapping):
         return ""
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
     for key in keys:
-        value = str(row.get(key, "") or "").strip()
-        if value:
-            return value
+        for source in (row, input_summary):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
     return ""
 
 

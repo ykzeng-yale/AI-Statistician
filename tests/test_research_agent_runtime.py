@@ -4718,6 +4718,59 @@ def test_runtime_target_identity_audit_prefers_pending_memory_over_history() -> 
     ]
 
 
+def test_runtime_target_identity_audit_uses_compact_route_critical_contract() -> None:
+    assert audit_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS == (
+        runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS
+    )
+    assert audit_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS == (
+        runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS
+    )
+
+    summary = _runtime_target_identity_audit_summary(
+        learning_rows=[
+            {
+                "runtime_learning_row_id": "compact:theory-trace-targeted",
+                "input_summary": {
+                    "learning_task": "theory_trace_downstream_alignment_feedback",
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                },
+            },
+            {
+                "runtime_learning_row_id": "compact:handoff-global",
+                "input_summary": {
+                    "learning_task": "runtime_handoff_artifact_missing_feedback",
+                },
+            },
+        ],
+        agenda_rows=[],
+    )
+
+    assert summary["n_runtime_route_critical_target_identity_rows"] == 1
+    assert summary["n_runtime_route_critical_rows_missing_target_ids"] == 1
+    missing = summary["runtime_route_critical_rows_missing_target_ids"][0]
+    assert missing["row_id"] == "compact:theory-trace-targeted"
+    assert missing["learning_task"] == "theory_trace_downstream_alignment_feedback"
+    assert missing["target_hint"] == (
+        "target_theorem_name=split_conformal_finite_sample_coverage"
+    )
+
+    fixed_summary = _runtime_target_identity_audit_summary(
+        learning_rows=[
+            {
+                "runtime_learning_row_id": "compact:theory-trace-targeted",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "input_summary": {
+                    "learning_task": "theory_trace_downstream_alignment_feedback",
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                },
+            }
+        ],
+        agenda_rows=[],
+    )
+    assert fixed_summary["n_runtime_route_critical_target_identity_rows"] == 1
+    assert fixed_summary["n_runtime_route_critical_rows_missing_target_ids"] == 0
+
+
 def test_runtime_source_to_bridge_feedback_contract_audit_flags_null_declaration() -> None:
     summary = _runtime_source_to_bridge_feedback_contract_audit_summary(
         pending_task_payload={
