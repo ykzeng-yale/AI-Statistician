@@ -2656,6 +2656,46 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
+    clean_tool_payload = {
+        "n_runtime_trace_tool_call_rows": 2,
+        "n_runtime_tool_call_export_rows": 2,
+        "n_runtime_tool_call_export_missing_rows": 0,
+        "n_runtime_tool_call_export_unknown_rows": 0,
+        "n_runtime_tool_call_export_mismatched_rows": 0,
+        "n_runtime_trace_tool_call_rows_missing_safety_boundary": 0,
+        "n_runtime_tool_call_export_rows_missing_safety_boundary": 0,
+        "runtime_tool_call_export_complete": True,
+        "runtime_tool_call_export_issues": [],
+    }
+    clean_tool_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_tool_payload)["rows"]
+    }
+    assert clean_tool_rows["runtime_tool_call_export_complete"]["passed"] is True
+
+    tool_payload = dict(clean_tool_payload)
+    tool_payload.update(
+        {
+            "n_runtime_tool_call_export_rows": 1,
+            "n_runtime_tool_call_export_missing_rows": 1,
+            "n_runtime_trace_tool_call_rows_missing_safety_boundary": 1,
+            "runtime_tool_call_export_complete": False,
+            "runtime_tool_call_export_issues": [
+                {"issue": "trace_tool_call_missing_export_row"}
+            ],
+        }
+    )
+    tool_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(tool_payload)["rows"]
+    }
+    tool_row = tool_rows["runtime_tool_call_export_complete"]
+    assert tool_row["passed"] is False
+    assert "missing=1" in tool_row["evidence"]
+    assert "trace_missing_boundary=1" in tool_row["evidence"]
+    assert "runtime_tool_calls.jsonl" in tool_row["blocker"]
+    assert tool_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
     clean_payload = {
         "n_runtime_task_handoff_trace_rows": 2,
         "n_runtime_task_handoff_ledger_rows": 2,
@@ -49783,6 +49823,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_learning_rows_jsonl"]).exists()
     assert Path(manifest["artifacts"]["runtime_task_handoffs_jsonl"]).exists()
+    assert Path(manifest["artifacts"]["runtime_tool_calls_jsonl"]).exists()
     result_path = Path(manifest["artifacts"]["per_question_results"][0])
     result = json.loads(result_path.read_text(encoding="utf-8"))
     progress_path = Path(manifest["artifacts"]["runtime_progress_jsonl"])
@@ -49815,6 +49856,22 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert task_handoff_rows[0]["question_id"] == question.id
     assert task_handoff_rows[0]["project_id"] == result["blackboard"]["project_id"]
     assert task_handoff_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
+    runtime_tool_call_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_tool_calls_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    expected_tool_calls = sum(
+        len(row.get("tool_calls", [])) for row in result["traces"]
+    )
+    assert expected_tool_calls > 0
+    assert manifest["n_runtime_tool_calls"] == len(runtime_tool_call_rows)
+    assert len(runtime_tool_call_rows) == expected_tool_calls
+    assert runtime_tool_call_rows[0]["question_id"] == question.id
+    assert runtime_tool_call_rows[0]["tool_name"]
+    assert all(row["safety_boundary"] for row in runtime_tool_call_rows)
     pending_task_path = Path(manifest["artifacts"]["runtime_pending_next_task_json"])
     pending_task_payload = json.loads(pending_task_path.read_text(encoding="utf-8"))
     final_handoff_id = result["traces"][-1]["handoff_id"]
@@ -50551,6 +50608,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["runtime_task_handoff_ledger_complete"] is True
+    assert audit["runtime_tool_call_export_complete"] is True
+    assert audit["n_runtime_trace_tool_call_rows"] == expected_tool_calls
+    assert audit["n_runtime_tool_call_export_rows"] == len(runtime_tool_call_rows)
+    assert audit["n_runtime_tool_call_export_missing_rows"] == 0
+    assert audit["n_runtime_tool_call_export_unknown_rows"] == 0
+    assert audit["n_runtime_tool_call_export_mismatched_rows"] == 0
+    assert audit["n_runtime_trace_tool_call_rows_missing_safety_boundary"] == 0
+    assert audit["n_runtime_tool_call_export_rows_missing_safety_boundary"] == 0
     assert audit["n_runtime_task_handoff_trace_rows"] == len(
         [row for row in result["traces"] if row["next_task_id"]]
     )
@@ -50600,6 +50665,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
+    assert scorecard_rows["runtime_tool_call_export_complete"]["passed"] is True
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
     assert (

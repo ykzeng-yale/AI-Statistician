@@ -651,6 +651,222 @@ def _runtime_task_handoff_ledger_mismatches(
     return mismatches
 
 
+def _runtime_tool_call_export_audit_summary(
+    *,
+    result_paths: list[Path],
+    tool_call_export_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    expected_by_key: dict[tuple[str, str, str, str, str, str, str], Mapping[str, Any]] = {}
+    n_trace_tool_calls = 0
+    n_trace_tool_calls_missing_boundary = 0
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        question_id = str(blackboard.get("project_id", "") or "").split(":", 1)[-1]
+        traces = (
+            payload.get("traces", [])
+            if isinstance(payload.get("traces", []), list)
+            else []
+        )
+        for trace_index, trace in enumerate(traces):
+            if not isinstance(trace, Mapping):
+                continue
+            task = (
+                trace.get("task", {})
+                if isinstance(trace.get("task", {}), Mapping)
+                else {}
+            )
+            tool_calls = (
+                trace.get("tool_calls", [])
+                if isinstance(trace.get("tool_calls", []), list)
+                else []
+            )
+            for tool_call_index, tool_call in enumerate(tool_calls):
+                if not isinstance(tool_call, Mapping):
+                    _append_handoff_issue(
+                        issues,
+                        path=path,
+                        issue="trace_tool_call_not_object",
+                        trace_index=trace_index,
+                        detail=f"tool_call_index={tool_call_index} is not an object",
+                    )
+                    continue
+                n_trace_tool_calls += 1
+                key = _runtime_tool_call_export_key(
+                    question_id=question_id,
+                    trace_index=trace_index,
+                    iteration=trace.get("iteration", 0),
+                    task_id=task.get("task_id", ""),
+                    subsystem=trace.get("subsystem", ""),
+                    tool_call_index=tool_call_index,
+                    tool_name=tool_call.get("tool_name", ""),
+                )
+                expected_by_key[key] = {
+                    "question_id": question_id,
+                    "trace_index": trace_index,
+                    "iteration": int(trace.get("iteration", 0) or 0),
+                    "task_id": str(task.get("task_id", "") or ""),
+                    "subsystem": str(trace.get("subsystem", "") or ""),
+                    "tool_call_index": tool_call_index,
+                    "tool_name": str(tool_call.get("tool_name", "") or ""),
+                    "exit_status": str(tool_call.get("exit_status", "") or ""),
+                    "safety_boundary": str(
+                        tool_call.get("safety_boundary", "") or ""
+                    ),
+                    "output_paths": _handoff_string_tuple(
+                        tool_call.get("output_paths", [])
+                    ),
+                }
+                if not str(tool_call.get("safety_boundary", "") or "").strip():
+                    n_trace_tool_calls_missing_boundary += 1
+                    _append_handoff_issue(
+                        issues,
+                        path=path,
+                        issue="trace_tool_call_missing_safety_boundary",
+                        trace_index=trace_index,
+                        detail=f"tool_call_index={tool_call_index} has no safety_boundary",
+                    )
+
+    export_by_key: dict[tuple[str, str, str, str, str, str, str], Mapping[str, Any]] = {}
+    n_export_unknown_rows = 0
+    n_export_mismatched_rows = 0
+    n_export_missing_boundary = 0
+    for row_index, row in enumerate(tool_call_export_rows):
+        key = _runtime_tool_call_export_key(
+            question_id=row.get("question_id", ""),
+            trace_index=row.get("trace_index", 0),
+            iteration=row.get("iteration", 0),
+            task_id=row.get("task_id", ""),
+            subsystem=row.get("subsystem", ""),
+            tool_call_index=row.get("tool_call_index", 0),
+            tool_name=row.get("tool_name", ""),
+        )
+        if key in export_by_key:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_tool_call_export_duplicate_key",
+                trace_index=row_index,
+                detail="runtime_tool_calls.jsonl repeats a trace/tool_call key",
+            )
+            continue
+        export_by_key[key] = row
+        expected = expected_by_key.get(key)
+        if expected is None:
+            n_export_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_tool_call_export_unknown_row",
+                trace_index=row_index,
+                detail="runtime_tool_calls.jsonl row is absent from per-question traces",
+            )
+            continue
+        mismatches = [
+            field
+            for field in (
+                "question_id",
+                "trace_index",
+                "iteration",
+                "task_id",
+                "subsystem",
+                "tool_call_index",
+                "tool_name",
+                "exit_status",
+                "safety_boundary",
+            )
+            if str(row.get(field, "") or "") != str(expected.get(field, "") or "")
+        ]
+        if _handoff_string_tuple(row.get("output_paths", [])) != expected[
+            "output_paths"
+        ]:
+            mismatches.append("output_paths")
+        if mismatches:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_tool_call_export_trace_mismatch",
+                trace_index=row_index,
+                detail=",".join(mismatches),
+            )
+        if not str(row.get("safety_boundary", "") or "").strip():
+            n_export_missing_boundary += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_tool_call_export_missing_safety_boundary",
+                trace_index=row_index,
+                detail="runtime_tool_calls.jsonl row has no safety_boundary",
+            )
+
+    missing_keys = sorted(set(expected_by_key) - set(export_by_key))
+    for key in missing_keys[:20]:
+        _append_handoff_issue(
+            issues,
+            issue="trace_tool_call_missing_export_row",
+            detail="runtime_tool_calls.jsonl missing key=" + repr(key),
+        )
+    n_missing_export_rows = len(missing_keys)
+    complete = (
+        (n_trace_tool_calls <= 0 and not tool_call_export_rows)
+        or (
+            n_missing_export_rows == 0
+            and n_export_unknown_rows == 0
+            and n_export_mismatched_rows == 0
+            and n_trace_tool_calls_missing_boundary == 0
+            and n_export_missing_boundary == 0
+            and len(tool_call_export_rows) == n_trace_tool_calls
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeToolCallExportAudit",
+        "runtime_tool_call_export_complete": complete,
+        "n_runtime_trace_tool_call_rows": n_trace_tool_calls,
+        "n_runtime_tool_call_export_rows": len(tool_call_export_rows),
+        "n_runtime_tool_call_export_missing_rows": n_missing_export_rows,
+        "n_runtime_tool_call_export_unknown_rows": n_export_unknown_rows,
+        "n_runtime_tool_call_export_mismatched_rows": n_export_mismatched_rows,
+        "n_runtime_trace_tool_call_rows_missing_safety_boundary": (
+            n_trace_tool_calls_missing_boundary
+        ),
+        "n_runtime_tool_call_export_rows_missing_safety_boundary": (
+            n_export_missing_boundary
+        ),
+        "runtime_tool_call_export_issues": issues,
+        "boundary": (
+            "Runtime tool-call export rows are execution observability records. "
+            "They preserve tool transcripts and safety boundaries, but proof, "
+            "simulation, and generated-code claims still require their dedicated "
+            "evidence ledgers and verifier gates."
+        ),
+    }
+
+
+def _runtime_tool_call_export_key(
+    *,
+    question_id: Any,
+    trace_index: Any,
+    iteration: Any,
+    task_id: Any,
+    subsystem: Any,
+    tool_call_index: Any,
+    tool_name: Any,
+) -> tuple[str, str, str, str, str, str, str]:
+    return (
+        str(question_id or ""),
+        str(_safe_int(trace_index)),
+        str(_safe_int(iteration)),
+        str(task_id or ""),
+        str(subsystem or ""),
+        str(_safe_int(tool_call_index)),
+        str(tool_name or ""),
+    )
+
+
 def _runtime_pending_task_handoff_lineage_summary(
     *,
     manifest: Mapping[str, Any],
@@ -1161,6 +1377,10 @@ def audit_research_agent_runtime(
         runtime_dir,
         artifacts.get("runtime_task_handoffs_jsonl", ""),
     )
+    tool_call_path = _resolve_path(
+        runtime_dir,
+        artifacts.get("runtime_tool_calls_jsonl", ""),
+    )
     agenda_path = _resolve_path(runtime_dir, artifacts.get("runtime_next_action_agenda_jsonl", ""))
     learning_path = _resolve_path(runtime_dir, artifacts.get("runtime_learning_rows_jsonl", ""))
     pending_task_raw_path = artifacts.get("runtime_pending_next_task_json", "")
@@ -1210,6 +1430,11 @@ def audit_research_agent_runtime(
         errors,
         required=bool(artifacts.get("runtime_task_handoffs_jsonl")),
     )
+    tool_call_export_rows = _load_jsonl(
+        tool_call_path,
+        errors,
+        required=bool(artifacts.get("runtime_tool_calls_jsonl")),
+    )
     agenda_rows = _load_jsonl(agenda_path, errors, required=True)
     learning_rows = _load_jsonl(learning_path, errors, required=True)
     exact_semantic_definition_authoring_task_rows = (
@@ -1232,6 +1457,12 @@ def audit_research_agent_runtime(
     ) != len(handoff_export_rows):
         errors.append(
             "manifest n_runtime_task_handoffs does not match runtime_task_handoffs JSONL"
+        )
+    if "n_runtime_tool_calls" in manifest and int(
+        manifest.get("n_runtime_tool_calls", -1)
+    ) != len(tool_call_export_rows):
+        errors.append(
+            "manifest n_runtime_tool_calls does not match runtime_tool_calls JSONL"
         )
     if artifacts.get("runtime_progress_jsonl") and len(progress_rows) < 2 * len(trace_rows):
         errors.append(
@@ -1314,6 +1545,11 @@ def audit_research_agent_runtime(
             handoff_export_rows=handoff_export_rows,
             errors=errors,
         )
+    )
+    runtime_tool_call_export_summary = _runtime_tool_call_export_audit_summary(
+        result_paths=result_paths,
+        tool_call_export_rows=tool_call_export_rows,
+        errors=errors,
     )
     runtime_pending_task_handoff_lineage_summary = (
         _runtime_pending_task_handoff_lineage_summary(
@@ -1811,6 +2047,44 @@ def audit_research_agent_runtime(
             runtime_task_handoff_ledger_summary[
                 "runtime_task_handoff_ledger_issues"
             ]
+        ),
+        "runtime_tool_call_export_audit_summary": runtime_tool_call_export_summary,
+        "runtime_tool_call_export_complete": bool(
+            runtime_tool_call_export_summary["runtime_tool_call_export_complete"]
+        ),
+        "n_runtime_trace_tool_call_rows": int(
+            runtime_tool_call_export_summary["n_runtime_trace_tool_call_rows"]
+        ),
+        "n_runtime_tool_call_export_rows": int(
+            runtime_tool_call_export_summary["n_runtime_tool_call_export_rows"]
+        ),
+        "n_runtime_tool_call_export_missing_rows": int(
+            runtime_tool_call_export_summary[
+                "n_runtime_tool_call_export_missing_rows"
+            ]
+        ),
+        "n_runtime_tool_call_export_unknown_rows": int(
+            runtime_tool_call_export_summary[
+                "n_runtime_tool_call_export_unknown_rows"
+            ]
+        ),
+        "n_runtime_tool_call_export_mismatched_rows": int(
+            runtime_tool_call_export_summary[
+                "n_runtime_tool_call_export_mismatched_rows"
+            ]
+        ),
+        "n_runtime_trace_tool_call_rows_missing_safety_boundary": int(
+            runtime_tool_call_export_summary[
+                "n_runtime_trace_tool_call_rows_missing_safety_boundary"
+            ]
+        ),
+        "n_runtime_tool_call_export_rows_missing_safety_boundary": int(
+            runtime_tool_call_export_summary[
+                "n_runtime_tool_call_export_rows_missing_safety_boundary"
+            ]
+        ),
+        "runtime_tool_call_export_issues": list(
+            runtime_tool_call_export_summary["runtime_tool_call_export_issues"]
         ),
         "runtime_pending_task_handoff_lineage_audit_summary": (
             runtime_pending_task_handoff_lineage_summary
@@ -7775,6 +8049,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and not runtime_pending_task_handoff_lineage_required
         else raw_pending_task_handoff_lineage_complete is True
     )
+    raw_tool_call_export_complete = payload.get("runtime_tool_call_export_complete")
+    runtime_tool_call_export_complete = (
+        True
+        if raw_tool_call_export_complete is None
+        and int(payload.get("n_runtime_trace_tool_call_rows", 0) or 0) <= 0
+        else raw_tool_call_export_complete is True
+    )
     runtime_resume_prior_ledger_continuity_required = (
         payload.get("runtime_resume_prior_ledger_continuity_required") is True
     )
@@ -9174,6 +9455,47 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "runtime_tool_call_export_complete",
+            runtime_tool_call_export_complete,
+            (
+                "trace_tool_calls="
+                f"{payload.get('n_runtime_trace_tool_call_rows')} "
+                "export_rows="
+                f"{payload.get('n_runtime_tool_call_export_rows')} "
+                "missing="
+                f"{payload.get('n_runtime_tool_call_export_missing_rows')} "
+                "unknown="
+                f"{payload.get('n_runtime_tool_call_export_unknown_rows')} "
+                "mismatched="
+                f"{payload.get('n_runtime_tool_call_export_mismatched_rows')} "
+                "trace_missing_boundary="
+                f"{payload.get('n_runtime_trace_tool_call_rows_missing_safety_boundary')} "
+                "export_missing_boundary="
+                f"{payload.get('n_runtime_tool_call_export_rows_missing_safety_boundary')} "
+                "issues="
+                f"{payload.get('runtime_tool_call_export_issues')}"
+            ),
+            (
+                "AgentRuntime tool calls were not preserved as a central "
+                "runtime_tool_calls.jsonl contract with safety boundaries; live "
+                "coding/prover/simulation execution is not auditable end to end"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Rerun with the current runtime so every trace tool_call is "
+                    "exported to runtime_tool_calls.jsonl with a safety_boundary "
+                    "and matching task/subsystem identity."
+                ),
+                success_metric=(
+                    "runtime_tool_call_export_complete=true with export rows "
+                    "matching every trace tool_call and zero missing safety "
+                    "boundaries"
+                ),
+            ),
         ),
         _scorecard_row(
             "runtime_task_handoff_ledger_complete",
@@ -10612,6 +10934,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
+        "- runtime tool-call export complete / rows: "
+        f"{payload.get('runtime_tool_call_export_complete')} / "
+        f"{payload.get('n_runtime_tool_call_export_rows')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
         f"- learning rows: {payload.get('n_runtime_learning_rows')}",
         "",

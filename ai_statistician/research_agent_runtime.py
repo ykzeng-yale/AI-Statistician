@@ -16527,6 +16527,7 @@ def run_research_agent_runtime(
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
     handoff_rows: list[dict[str, Any]] = []
+    tool_call_rows: list[dict[str, Any]] = []
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
     shared_formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
@@ -16793,7 +16794,7 @@ def run_research_agent_runtime(
                     **dict(handoff),
                 }
             )
-        for trace in result_json["traces"]:
+        for trace_index, trace in enumerate(result_json["traces"]):
             trace_rows.append(
                 {
                     "question_id": question.id,
@@ -16801,11 +16802,40 @@ def run_research_agent_runtime(
                     **trace,
                 }
             )
+            raw_tool_calls = (
+                trace.get("tool_calls", [])
+                if isinstance(trace.get("tool_calls", []), list)
+                else []
+            )
+            for tool_call_index, tool_call in enumerate(raw_tool_calls):
+                if not isinstance(tool_call, Mapping):
+                    continue
+                task_payload = (
+                    trace.get("task", {})
+                    if isinstance(trace.get("task", {}), Mapping)
+                    else {}
+                )
+                tool_call_rows.append(
+                    {
+                        "schema_version": RUNTIME_SCHEMA_VERSION,
+                        "question_id": question.id,
+                        "question_title": question.title,
+                        "trace_index": trace_index,
+                        "iteration": int(trace.get("iteration", 0) or 0),
+                        "task_id": str(task_payload.get("task_id", "") or ""),
+                        "subsystem": str(trace.get("subsystem", "") or ""),
+                        "status": str(trace.get("status", "") or ""),
+                        "tool_call_index": tool_call_index,
+                        **dict(tool_call),
+                    }
+                )
 
     traces_path = out_dir / "runtime_traces.jsonl"
     _write_jsonl(traces_path, trace_rows)
     task_handoffs_path = out_dir / "runtime_task_handoffs.jsonl"
     _write_jsonl(task_handoffs_path, handoff_rows)
+    tool_calls_path = out_dir / "runtime_tool_calls.jsonl"
+    _write_jsonl(tool_calls_path, tool_call_rows)
     llm_topology_path = out_dir / "runtime_llm_topology.json"
     llm_topology_path.write_text(json.dumps(llm_topology, indent=2, default=str), encoding="utf-8")
     manifest_path = out_dir / "research_agent_runtime_manifest.json"
@@ -16862,6 +16892,7 @@ def run_research_agent_runtime(
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
         "n_runtime_task_handoffs": len(handoff_rows),
+        "n_runtime_tool_calls": len(tool_call_rows),
         "status_counts": dict(sorted(status_counts.items())),
         "runtime_completion_summary": completion_summary,
         "runtime_failure_summary": failure_summary,
@@ -17237,11 +17268,18 @@ def run_research_agent_runtime(
             "They preserve subsystem routing, artifact, and evidence references "
             "but are not statistical, simulation, generated-code, or proof evidence."
         ),
+        "runtime_tool_call_boundary": (
+            "Runtime tool-call rows are environment execution transcripts. "
+            "They can support simulation, coding, retrieval, or prover feedback "
+            "claims only through their subsystem-specific evidence gates; they "
+            "are not theorem proof evidence by themselves."
+        ),
         "llm_runtime_topology": llm_topology,
         "artifacts": {
             "runtime_progress_jsonl": str(progress_path),
             "runtime_traces_jsonl": str(traces_path),
             "runtime_task_handoffs_jsonl": str(task_handoffs_path),
+            "runtime_tool_calls_jsonl": str(tool_calls_path),
             "runtime_llm_topology_json": str(llm_topology_path),
             "per_question_results": [str(row["artifact_path"]) for row in results],
         },
