@@ -50989,7 +50989,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
     assert ladder["noncontiguous_evidence_observed"] is True
     assert "exact_semantic_authoring_required=True" in rows[5]["evidence"]
     assert "exact_semantic_authoring_live_llm_attempted=0" in rows[5]["evidence"]
-    assert "exact_semantic_authoring_backend_provider=static" in rows[5]["evidence"]
+    assert "exact_semantic_authoring_backend_provider=['static']" in rows[5]["evidence"]
     assert "exact semantic-definition authoring required" in rows[5]["blocker"]
 
     payload[
@@ -51005,6 +51005,112 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
     assert rows[6]["passed"] is True
     assert rows[7]["passed"] is True
     assert ladder["max_contiguous_level"] == 7
+
+
+def test_runtime_readiness_surfaces_include_retry_semantic_authoring_provenance() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 1,
+        "n_formal_gaps": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": "anthropic",
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": "static",
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 0,
+    }
+
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert truth_table["exact_semantic_definition_authoring_required"] is True
+    assert truth_table["exact_semantic_definition_authoring_retry_required"] is True
+    assert truth_table["exact_semantic_definition_authoring_live_attempted"] is False
+    assert truth_table["exact_semantic_definition_authoring_provider_name"] == (
+        "anthropic"
+    )
+    assert truth_table[
+        "exact_semantic_definition_authoring_backend_provider_name"
+    ] == "static"
+    assert truth_rows["exact_semantic_definition_authoring_live_attempt"][
+        "status"
+    ] == "STATIC_OR_REPLAY_ATTEMPTED"
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "retry_required=True" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert "backend_provider=['static']" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert ladder_rows[5]["passed"] is False
+    assert "exact_semantic_authoring_retry_required=True" in ladder_rows[5][
+        "evidence"
+    ]
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "retry_required=True" in scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name"
+    ] = "anthropic"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+    ] = 1
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert truth_table["exact_semantic_definition_authoring_live_attempted"] is True
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert ladder_rows[5]["passed"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
 
 
 def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> None:
@@ -51817,7 +51923,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]
     assert authoring_row["passed"] is False
-    assert "backend_provider=static" in authoring_row["evidence"]
+    assert "backend_provider=['static']" in authoring_row["evidence"]
     assert "n_llm_attempted=1" in authoring_row["evidence"]
     assert "n_live_llm_attempted=0" in authoring_row["evidence"]
     assert "static/replay backend" in authoring_row["blocker"]
@@ -51832,7 +51938,8 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     assert learning_rows[0]["next_owner_subsystem"] == "FormalizationEvaluator"
     assert (
-        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted>0"
+        "sum(primary/retry/late exact semantic-definition authoring "
+        "n_live_llm_attempted)>0"
         in learning_rows[0]["success_metric"]
     )
 
@@ -53440,7 +53547,7 @@ def test_runtime_evidence_truth_table_reports_live_exact_semantic_authoring_boun
     assert authoring_row["count"] == 1
     assert authoring_row["proof_evidence"] is False
     assert "no live Claude/OpenAI backend attempt" in authoring_row["blocker"]
-    assert "backend_provider=static" in authoring_row["blocker"]
+    assert "backend_provider=['static']" in authoring_row["blocker"]
     assert "n_live_llm_attempted=0" in authoring_row["blocker"]
     assert "static/replay attempts" in authoring_row["boundary"]
 

@@ -33,6 +33,7 @@ from .research_agent_runtime import (
     _runtime_architect_recommended_research_path,
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
+    _runtime_exact_semantic_definition_authoring_provenance,
     _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary,
     _runtime_llm_topology_enabled_agent_rows,
     _runtime_llm_topology_live_generator_count,
@@ -2346,6 +2347,118 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_n_tasks",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_repair_tasks_required",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
                 0,
             )
             or 0
@@ -6090,39 +6203,21 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    exact_semantic_authoring_required = (
-        bool(
-            payload.get(
-                "source_theorem_exact_semantic_definition_authoring_worker_required",
-                False,
-            )
-        )
-        or int(
-            payload.get(
-                "n_source_theorem_exact_semantic_definition_authoring_tasks",
-                0,
-            )
-            or 0
-        )
-        > 0
+    exact_semantic_authoring = _runtime_exact_semantic_definition_authoring_provenance(
+        payload
+    )
+    exact_semantic_authoring_required = bool(
+        exact_semantic_authoring["required"]
     )
     exact_semantic_authoring_live_attempts = int(
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
-            0,
-        )
-        or 0
+        exact_semantic_authoring["n_live_llm_attempted"]
     )
     exact_semantic_authoring_generic_attempts = int(
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
-            0,
-        )
-        or 0
+        exact_semantic_authoring["n_llm_attempted"]
     )
-    exact_semantic_authoring_live_ready = (
-        not exact_semantic_authoring_required
-    ) or exact_semantic_authoring_live_attempts > 0
+    exact_semantic_authoring_live_ready = bool(
+        exact_semantic_authoring["live_ready"]
+    )
     integrated_generic_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
     )
@@ -6327,14 +6422,20 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_repair_sequences} "
                 "exact_semantic_authoring_required="
                 f"{exact_semantic_authoring_required} "
+                "exact_semantic_authoring_primary_required="
+                f"{exact_semantic_authoring['primary_required']} "
+                "exact_semantic_authoring_retry_required="
+                f"{exact_semantic_authoring['retry_required']} "
+                "exact_semantic_authoring_late_required="
+                f"{exact_semantic_authoring['late_required']} "
                 "exact_semantic_authoring_live_llm_attempted="
                 f"{exact_semantic_authoring_live_attempts} "
                 "exact_semantic_authoring_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts} "
                 "exact_semantic_authoring_provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
+                f"{exact_semantic_authoring['backend_provider_names']} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
@@ -6366,14 +6467,20 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_bound_lean_lsp_mcp_live_calls} "
                 "exact_semantic_authoring_required="
                 f"{exact_semantic_authoring_required} "
+                "exact_semantic_authoring_primary_required="
+                f"{exact_semantic_authoring['primary_required']} "
+                "exact_semantic_authoring_retry_required="
+                f"{exact_semantic_authoring['retry_required']} "
+                "exact_semantic_authoring_late_required="
+                f"{exact_semantic_authoring['late_required']} "
                 "exact_semantic_authoring_live_llm_attempted="
                 f"{exact_semantic_authoring_live_attempts} "
                 "exact_semantic_authoring_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts} "
                 "exact_semantic_authoring_provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
+                f"{exact_semantic_authoring['backend_provider_names']} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
@@ -7021,40 +7128,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    exact_semantic_definition_authoring = (
+        _runtime_exact_semantic_definition_authoring_provenance(payload)
+    )
     exact_semantic_definition_authoring_tasks = int(
-        payload.get(
-            "n_source_theorem_exact_semantic_definition_authoring_tasks",
-            0,
-        )
-        or 0
+        exact_semantic_definition_authoring["n_tasks"]
     )
     exact_semantic_definition_authoring_worker_required = bool(
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_required",
-            False,
-        )
-        or exact_semantic_definition_authoring_tasks > 0
+        exact_semantic_definition_authoring["required"]
     )
-    exact_semantic_definition_authoring_worker_ran = (
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_ran",
-            False,
-        )
-        is True
-    )
-    exact_semantic_definition_authoring_worker_llm_attempted = int(
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
-            0,
-        )
-        or 0
+    exact_semantic_definition_authoring_worker_ran = bool(
+        exact_semantic_definition_authoring["ran"]
     )
     exact_semantic_definition_authoring_worker_live_llm_attempted = int(
-        payload.get(
-            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
-            0,
-        )
-        or 0
+        exact_semantic_definition_authoring["n_live_llm_attempted"]
     )
     primary_typechecked_review_verifier_gate_work_orders = int(
         payload.get(
@@ -8383,15 +8470,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or exact_semantic_definition_authoring_worker_ran,
             (
                 "authoring_tasks="
-                f"{payload.get('n_source_theorem_exact_semantic_definition_authoring_tasks')} "
+                f"{exact_semantic_definition_authoring['n_tasks']} "
                 "required="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_required')} "
+                f"{exact_semantic_definition_authoring['required']} "
+                "primary_required="
+                f"{exact_semantic_definition_authoring['primary_required']} "
+                "retry_required="
+                f"{exact_semantic_definition_authoring['retry_required']} "
+                "late_required="
+                f"{exact_semantic_definition_authoring['late_required']} "
                 "requested="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_requested')} "
                 "ran="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_ran')} "
+                f"{exact_semantic_definition_authoring['ran']} "
                 "prompt_packets="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets')} "
+                f"{exact_semantic_definition_authoring['n_prompt_packets']} "
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_skipped_reason')}"
             ),
@@ -8406,21 +8499,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or exact_semantic_definition_authoring_worker_live_llm_attempted > 0,
             (
                 "authoring_tasks="
-                f"{payload.get('n_source_theorem_exact_semantic_definition_authoring_tasks')} "
+                f"{exact_semantic_definition_authoring['n_tasks']} "
+                "primary_required="
+                f"{exact_semantic_definition_authoring['primary_required']} "
+                "retry_required="
+                f"{exact_semantic_definition_authoring['retry_required']} "
+                "late_required="
+                f"{exact_semantic_definition_authoring['late_required']} "
                 "ran="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_ran')} "
+                f"{exact_semantic_definition_authoring['ran']} "
                 "provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                f"{exact_semantic_definition_authoring['provider_names']} "
                 "backend_provider="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
+                f"{exact_semantic_definition_authoring['backend_provider_names']} "
                 "dry_run="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_dry_run')} "
                 "external_export_mode="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_external_export_mode')} "
                 "llm_attempted="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted')} "
+                f"{exact_semantic_definition_authoring['n_llm_attempted']} "
                 "live_llm_attempted="
-                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted')}"
+                f"{exact_semantic_definition_authoring['n_live_llm_attempted']}"
             ),
             (
                 "exact semantic-definition authoring tasks were only staged or "
@@ -8436,7 +8535,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "candidates through materialization and local Lean/AXLE."
                 ),
                 success_metric=(
-                    "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted>0"
+                    "sum(primary/retry/late exact semantic-definition authoring "
+                    "n_live_llm_attempted)>0"
                 ),
             ),
         ),
