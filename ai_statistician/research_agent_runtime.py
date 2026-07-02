@@ -17193,6 +17193,7 @@ def run_research_agent_runtime(
     architect_initial_routing_summary = _runtime_architect_initial_routing_summary(
         results
     )
+    handoff_transition_summary = _runtime_handoff_transition_summary(results)
     proof_control_summary = evidence_summary["proof"]["proof_obligation_control"]
     llm_topology_summary = _runtime_llm_topology_summary(llm_topology)
     if not initial_task_overrides:
@@ -17259,6 +17260,19 @@ def run_research_agent_runtime(
                 "architect_initial_routing_requested_subsystems"
             ]
         ),
+        "runtime_handoff_transition_summary": handoff_transition_summary,
+        "runtime_handoff_trace_alignment_ok": handoff_transition_summary[
+            "handoff_trace_alignment_ok"
+        ],
+        "n_runtime_handoff_transition_rows": handoff_transition_summary[
+            "n_transition_rows"
+        ],
+        "runtime_handoff_transition_pairs": handoff_transition_summary[
+            "transition_pairs"
+        ],
+        "runtime_handoff_transition_route_sources": handoff_transition_summary[
+            "route_decision_sources"
+        ],
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),
@@ -60905,6 +60919,239 @@ def _append_runtime_architect_initial_routing_record(
         return
     seen.add(fingerprint)
     records.append(record)
+
+
+def _runtime_handoff_transition_summary(
+    results: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    transition_pairs: list[str] = []
+    route_decision_sources: list[str] = []
+    trace_handoff_ids: list[str] = []
+    ledger_handoff_ids: list[str] = []
+    n_transitions_with_acceptance_gate = 0
+    n_transitions_with_expected_artifacts = 0
+    n_transitions_with_architect_context = 0
+    n_transitions_with_environment_feedback = 0
+    for result_index, result in enumerate(results):
+        traces = result.get("traces", []) if isinstance(result, Mapping) else []
+        trace_rows = (
+            traces
+            if isinstance(traces, Sequence) and not isinstance(traces, (str, bytes))
+            else []
+        )
+        question_identity = _runtime_result_question_identity(result, trace_rows)
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result, Mapping)
+            and isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        ledger = (
+            blackboard.get("handoff_ledger", [])
+            if isinstance(blackboard.get("handoff_ledger", []), list)
+            else []
+        )
+        for ledger_row in ledger:
+            if not isinstance(ledger_row, Mapping):
+                continue
+            handoff_id = str(ledger_row.get("handoff_id", "") or "").strip()
+            if handoff_id:
+                ledger_handoff_ids.append(handoff_id)
+        for trace in trace_rows:
+            if not isinstance(trace, Mapping):
+                continue
+            next_task = (
+                trace.get("next_task", {})
+                if isinstance(trace.get("next_task", {}), Mapping)
+                else {}
+            )
+            if not next_task:
+                continue
+            task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+            inputs = (
+                next_task.get("inputs", {})
+                if isinstance(next_task.get("inputs", {}), Mapping)
+                else {}
+            )
+            architect_context = (
+                inputs.get("architect_context", {})
+                if isinstance(inputs.get("architect_context", {}), Mapping)
+                else {}
+            )
+            environment_feedback = (
+                inputs.get("environment_feedback", {})
+                if isinstance(inputs.get("environment_feedback", {}), Mapping)
+                else {}
+            )
+            handoff_id = str(trace.get("handoff_id", "") or "").strip()
+            if handoff_id:
+                trace_handoff_ids.append(handoff_id)
+            from_subsystem = str(trace.get("subsystem", "") or "").strip()
+            to_subsystem = str(next_task.get("owner_subsystem", "") or "").strip()
+            pair = f"{from_subsystem}->{to_subsystem}"
+            transition_pairs.append(pair)
+            sources = _runtime_transition_route_sources(
+                trace=trace,
+                next_task=next_task,
+            )
+            route_decision_sources.extend(sources)
+            acceptance_gate = str(next_task.get("acceptance_gate", "") or "").strip()
+            expected_artifacts = [
+                str(item)
+                for item in next_task.get("expected_artifacts", []) or []
+                if str(item)
+            ]
+            if acceptance_gate:
+                n_transitions_with_acceptance_gate += 1
+            if expected_artifacts:
+                n_transitions_with_expected_artifacts += 1
+            if architect_context:
+                n_transitions_with_architect_context += 1
+            if environment_feedback:
+                n_transitions_with_environment_feedback += 1
+            rows.append(
+                {
+                    "result_index": result_index,
+                    "question_id": question_identity["question_id"],
+                    "question_title": question_identity["question_title"],
+                    "iteration": int(trace.get("iteration", 0) or 0),
+                    "handoff_id": handoff_id,
+                    "from_task_id": str(task.get("task_id", "") or ""),
+                    "to_task_id": str(next_task.get("task_id", "") or ""),
+                    "from_subsystem": from_subsystem,
+                    "to_subsystem": to_subsystem,
+                    "status": str(trace.get("status", "") or ""),
+                    "route_decision_sources": sources,
+                    "has_architect_context": bool(architect_context),
+                    "has_environment_feedback": bool(environment_feedback),
+                    "next_task_input_keys": sorted(str(key) for key in inputs),
+                    "next_task_allowed_tools": [
+                        str(item)
+                        for item in next_task.get("allowed_tools", []) or []
+                        if str(item)
+                    ],
+                    "next_task_expected_artifacts": expected_artifacts,
+                    "next_task_acceptance_gate": acceptance_gate,
+                    "produced_artifact_ids": [
+                        str(item)
+                        for item in trace.get("produced_artifact_ids", []) or []
+                        if str(item)
+                    ],
+                    "evidence_ids": [
+                        str(item)
+                        for item in trace.get("evidence_ids", []) or []
+                        if str(item)
+                    ],
+                }
+            )
+    trace_id_set = {handoff_id for handoff_id in trace_handoff_ids if handoff_id}
+    ledger_id_set = {handoff_id for handoff_id in ledger_handoff_ids if handoff_id}
+    trace_ids_missing_from_ledger = sorted(trace_id_set - ledger_id_set)
+    ledger_ids_missing_from_trace = sorted(ledger_id_set - trace_id_set)
+    n_transition_rows = len(rows)
+    handoff_trace_alignment_ok = (
+        len(trace_handoff_ids) == len(ledger_handoff_ids)
+        and not trace_ids_missing_from_ledger
+        and not ledger_ids_missing_from_trace
+        and all(str(row.get("handoff_id", "") or "").strip() for row in rows)
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeHandoffTransitionSummary",
+        "n_transition_rows": n_transition_rows,
+        "n_trace_handoff_ids": len(trace_handoff_ids),
+        "n_handoff_ledger_rows": len(ledger_handoff_ids),
+        "n_trace_handoff_ids_missing_from_ledger": len(
+            trace_ids_missing_from_ledger
+        ),
+        "n_ledger_handoff_ids_missing_from_traces": len(
+            ledger_ids_missing_from_trace
+        ),
+        "trace_handoff_ids_missing_from_ledger": trace_ids_missing_from_ledger,
+        "ledger_handoff_ids_missing_from_traces": ledger_ids_missing_from_trace,
+        "handoff_trace_alignment_ok": handoff_trace_alignment_ok,
+        "n_transitions_with_acceptance_gate": n_transitions_with_acceptance_gate,
+        "n_transitions_with_expected_artifacts": (
+            n_transitions_with_expected_artifacts
+        ),
+        "n_transitions_with_architect_context": n_transitions_with_architect_context,
+        "n_transitions_with_environment_feedback": (
+            n_transitions_with_environment_feedback
+        ),
+        "all_transitions_have_acceptance_gate": bool(
+            n_transition_rows <= 0
+            or n_transitions_with_acceptance_gate == n_transition_rows
+        ),
+        "all_transitions_have_expected_artifacts": bool(
+            n_transition_rows <= 0
+            or n_transitions_with_expected_artifacts == n_transition_rows
+        ),
+        "transition_pairs": dict(sorted(Counter(transition_pairs).items())),
+        "route_decision_sources": dict(
+            sorted(Counter(route_decision_sources).items())
+        ),
+        "rows": rows,
+        "proof_evidence_status": "RUNTIME_HANDOFF_TRANSITION_SUMMARY_NOT_PROOF_EVIDENCE",
+        "control_plane_only": True,
+        "boundary": (
+            "This summary reports AgentRuntime control-flow handoffs from trace "
+            "next_task payloads and blackboard.handoff_ledger rows. It is "
+            "orchestration metadata only: it does not prove statistical claims, "
+            "execute generated code, certify simulations, or kernel-verify Lean."
+        ),
+    }
+
+
+def _runtime_transition_route_sources(
+    *,
+    trace: Mapping[str, Any],
+    next_task: Mapping[str, Any],
+) -> list[str]:
+    sources: list[str] = []
+    for observation in trace.get("observations", []) or []:
+        if not isinstance(observation, Mapping):
+            continue
+        observation_type = str(observation.get("observation_type", "") or "").strip()
+        payload = (
+            observation.get("payload", {})
+            if isinstance(observation.get("payload", {}), Mapping)
+            else {}
+        )
+        initial_routing = payload.get("initial_routing", {})
+        if (
+            isinstance(initial_routing, Mapping)
+            and initial_routing.get("artifact_kind")
+            == "ArchitectInitialRoutingDecision"
+        ):
+            sources.append("architect_initial_routing")
+        if payload.get("resume_review") is True:
+            sources.append("architect_resume_review")
+        runtime_reroute_decision = payload.get("runtime_reroute_decision")
+        if (
+            isinstance(runtime_reroute_decision, Mapping)
+            and bool(runtime_reroute_decision)
+        ):
+            sources.append("critic_reroute_decision")
+        if observation_type == "runtime_handoff_artifact_missing":
+            sources.append("runtime_handoff_artifact_recovery")
+        if observation_type == "formalization_gap_planner_runtime_bridge":
+            sources.append("formalization_gap_planner_bridge")
+    inputs = (
+        next_task.get("inputs", {})
+        if isinstance(next_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    environment_feedback = (
+        inputs.get("environment_feedback", {})
+        if isinstance(inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    if environment_feedback:
+        sources.append("environment_feedback")
+    if not sources:
+        sources.append("subsystem_explicit_next_task")
+    return list(dict.fromkeys(sources))
 
 
 def _proof_bank_obligation_request_ids(

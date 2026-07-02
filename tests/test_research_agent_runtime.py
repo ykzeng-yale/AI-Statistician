@@ -193,6 +193,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_architect_initial_routing_summary,
     _effective_recommended_research_path,
     _runtime_architect_recommended_research_path,
+    _runtime_handoff_transition_summary,
     _runtime_requested_evidence_contract,
     _runtime_architect_context_with_requested_evidence_contract,
     _architect_control_payload,
@@ -2954,12 +2955,31 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         "n_runtime_task_handoff_progress_rows_unknown_handoff_id": 0,
         "runtime_task_handoff_ledger_complete": True,
         "runtime_task_handoff_ledger_issues": [],
+        "runtime_handoff_transition_manifest_present": True,
+        "runtime_handoff_transition_manifest_stale": False,
+        "runtime_handoff_trace_alignment_ok": True,
+        "n_runtime_handoff_transition_rows": 2,
+        "runtime_handoff_transition_pairs": {
+            "TheoryDeveloper->SimulationEvaluator": 1,
+            "SimulationEvaluator->AlgorithmEngineer": 1,
+        },
+        "runtime_handoff_transition_route_sources": {
+            "subsystem_explicit_next_task": 2,
+        },
+        "runtime_handoff_transition_summary": {
+            "trace_handoff_ids_missing_from_ledger": [],
+            "ledger_handoff_ids_missing_from_traces": [],
+        },
     }
     clean_rows = {
         row["requirement_id"]: row
         for row in _runtime_capability_scorecard(clean_payload)["rows"]
     }
     assert clean_rows["runtime_task_handoff_ledger_complete"]["passed"] is True
+    assert (
+        clean_rows["runtime_handoff_transition_summary_audited"]["passed"]
+        is True
+    )
 
     payload = dict(clean_payload)
     payload.update(
@@ -2972,6 +2992,15 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "n_runtime_task_handoff_ledger_missing_rows": 1,
             "n_runtime_task_handoff_progress_rows_missing_handoff_id": 1,
             "runtime_task_handoff_ledger_complete": False,
+            "runtime_handoff_transition_manifest_present": False,
+            "runtime_handoff_transition_manifest_stale": True,
+            "runtime_handoff_trace_alignment_ok": False,
+            "runtime_handoff_transition_summary": {
+                "trace_handoff_ids_missing_from_ledger": [
+                    "handoff:1:theory->simulation"
+                ],
+                "ledger_handoff_ids_missing_from_traces": [],
+            },
             "runtime_task_handoff_ledger_issues": [
                 {
                     "issue": "trace_handoff_missing_ledger_row",
@@ -2994,6 +3023,13 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "progress_missing_handoff_id=1" in handoff_row["evidence"]
     assert "central blackboard.handoff_ledger" in handoff_row["blocker"]
     assert handoff_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    transition_row = rows["runtime_handoff_transition_summary_audited"]
+    assert transition_row["passed"] is False
+    assert "manifest_present=False" in transition_row["evidence"]
+    assert "manifest_stale=True" in transition_row["evidence"]
+    assert "alignment_ok=False" in transition_row["evidence"]
+    assert "hidden fixed-pipeline routing" in transition_row["blocker"]
+    assert transition_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
 
     lineage_payload = dict(clean_payload)
     lineage_payload.update(
@@ -8335,6 +8371,85 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
     assert "invalid proof boundary" in _architect_initial_routing_record_errors(
         [bad_record]
     )[0]
+
+
+def test_runtime_handoff_transition_summary_audits_explicit_next_task() -> None:
+    summary = _runtime_handoff_transition_summary(
+        [
+            {
+                "question_id": "handoff-case",
+                "question_title": "Handoff case",
+                "blackboard": {
+                    "handoff_ledger": [
+                        {
+                            "handoff_id": "handoff:1:a->b",
+                            "from_task_id": "a",
+                            "to_task_id": "b",
+                            "from_subsystem": "ArchitectCoordinator",
+                            "to_subsystem": "TheoryDeveloper",
+                        }
+                    ]
+                },
+                "traces": [
+                    {
+                        "iteration": 1,
+                        "subsystem": "ArchitectCoordinator",
+                        "status": "REROUTE",
+                        "handoff_id": "handoff:1:a->b",
+                        "task": {"task_id": "a"},
+                        "next_task": {
+                            "task_id": "b",
+                            "owner_subsystem": "TheoryDeveloper",
+                            "inputs": {
+                                "question": {"id": "handoff-case"},
+                                "environment_feedback": {
+                                    "feedback_source": "ArchitectCoordinator"
+                                },
+                            },
+                            "allowed_tools": ["model_backend"],
+                            "expected_artifacts": ["theory_derivation_packet"],
+                            "acceptance_gate": "validated theory packet",
+                        },
+                        "observations": [
+                            {
+                                "observation_type": (
+                                    "llm_architect_coordinator_proposal"
+                                ),
+                                "payload": {
+                                    "initial_routing": {
+                                        "artifact_kind": (
+                                            "ArchitectInitialRoutingDecision"
+                                        )
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+
+    assert summary["artifact_kind"] == "RuntimeHandoffTransitionSummary"
+    assert summary["n_transition_rows"] == 1
+    assert summary["n_trace_handoff_ids"] == 1
+    assert summary["n_handoff_ledger_rows"] == 1
+    assert summary["handoff_trace_alignment_ok"] is True
+    assert summary["transition_pairs"] == {
+        "ArchitectCoordinator->TheoryDeveloper": 1
+    }
+    assert summary["route_decision_sources"] == {
+        "architect_initial_routing": 1,
+        "environment_feedback": 1,
+    }
+    assert summary["all_transitions_have_acceptance_gate"] is True
+    assert summary["all_transitions_have_expected_artifacts"] is True
+    assert summary["rows"][0]["question_id"] == "handoff-case"
+    assert summary["rows"][0]["route_decision_sources"] == [
+        "architect_initial_routing",
+        "environment_feedback",
+    ]
+    assert "not prove statistical claims" in summary["boundary"]
 
 
 def test_capability_scorecard_requires_architect_initial_routing_audit() -> None:
@@ -51483,6 +51598,32 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert manifest["n_architect_initial_routing_decisions"] == route_summary[
         "n_architect_initial_routing_decisions"
     ]
+    transition_summary = manifest["runtime_handoff_transition_summary"]
+    assert transition_summary["artifact_kind"] == "RuntimeHandoffTransitionSummary"
+    assert transition_summary["n_transition_rows"] == len(handoff_ledger)
+    assert transition_summary["n_trace_handoff_ids"] == len(handoff_ledger)
+    assert transition_summary["n_handoff_ledger_rows"] == len(handoff_ledger)
+    assert transition_summary["handoff_trace_alignment_ok"] is True
+    assert transition_summary["transition_pairs"][
+        "ArchitectCoordinator->RetrievalMemory"
+    ] == 1
+    assert transition_summary["route_decision_sources"][
+        "architect_initial_routing"
+    ] == 1
+    assert sum(transition_summary["route_decision_sources"].values()) >= (
+        transition_summary["n_transition_rows"]
+    )
+    assert transition_summary["all_transitions_have_acceptance_gate"] is True
+    assert transition_summary["all_transitions_have_expected_artifacts"] is True
+    assert transition_summary["control_plane_only"] is True
+    assert "does not prove statistical claims" in transition_summary["boundary"]
+    assert manifest["runtime_handoff_trace_alignment_ok"] is True
+    assert manifest["n_runtime_handoff_transition_rows"] == transition_summary[
+        "n_transition_rows"
+    ]
+    assert manifest["runtime_handoff_transition_pairs"] == transition_summary[
+        "transition_pairs"
+    ]
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
@@ -51491,6 +51632,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["runtime_architect_initial_routing"] == route_summary
     assert audit["runtime_architect_initial_routing_manifest_present"] is True
     assert audit["runtime_architect_initial_routing_manifest_stale"] is False
+    assert audit["runtime_handoff_transition_summary"] == transition_summary
+    assert audit["runtime_handoff_transition_manifest_present"] is True
+    assert audit["runtime_handoff_transition_manifest_stale"] is False
+    assert audit["runtime_handoff_trace_alignment_ok"] is True
     assert audit["n_results_with_architect_initial_routing"] == 1
     assert audit["n_architect_initial_routing_decisions"] == 1
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
@@ -51696,6 +51841,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
     assert (
         scorecard_rows["runtime_task_handoff_ledger_complete"]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
         is True
     )
     assert (
@@ -58237,6 +58388,24 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert "not execute tools" in route_summary["boundary"]
     assert manifest["n_results_with_architect_initial_routing"] == 0
     assert manifest["n_architect_initial_routing_decisions"] == 0
+    transition_summary = manifest["runtime_handoff_transition_summary"]
+    assert transition_summary["artifact_kind"] == "RuntimeHandoffTransitionSummary"
+    assert transition_summary["n_transition_rows"] == manifest[
+        "n_runtime_task_handoffs"
+    ]
+    assert transition_summary["handoff_trace_alignment_ok"] is True
+    assert transition_summary["transition_pairs"][
+        "RetrievalMemory->TheoryDeveloper"
+    ] == 1
+    assert sum(transition_summary["route_decision_sources"].values()) >= (
+        transition_summary["n_transition_rows"]
+    )
+    assert transition_summary["control_plane_only"] is True
+    assert "does not prove statistical claims" in transition_summary["boundary"]
+    assert manifest["runtime_handoff_trace_alignment_ok"] is True
+    assert manifest["n_runtime_handoff_transition_rows"] == transition_summary[
+        "n_transition_rows"
+    ]
     coding_capability = manifest["runtime_coding_agent_capability"]
     assert coding_capability["artifact_kind"] == "RuntimeCodingAgentCapabilityTable"
     assert coding_capability["coding_agent_capability_ready"] is False
@@ -58548,8 +58717,18 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["runtime_architect_initial_routing"] == route_summary
     assert audit["runtime_architect_initial_routing_manifest_present"] is True
     assert audit["runtime_architect_initial_routing_manifest_stale"] is False
+    assert audit["runtime_handoff_transition_summary"] == transition_summary
+    assert audit["runtime_handoff_transition_manifest_present"] is True
+    assert audit["runtime_handoff_transition_manifest_stale"] is False
+    assert audit["runtime_handoff_trace_alignment_ok"] is True
     assert audit["n_results_with_architect_initial_routing"] == 0
     assert audit["n_architect_initial_routing_decisions"] == 0
+    assert (
+        scorecard_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is True
+    )
 
 
 def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None:

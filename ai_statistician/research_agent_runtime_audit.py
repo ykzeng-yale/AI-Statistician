@@ -41,6 +41,7 @@ from .research_agent_runtime import (
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_exact_semantic_definition_authoring_provenance,
+    _runtime_handoff_transition_summary,
     _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary,
     _runtime_llm_topology_enabled_agent_rows,
     _runtime_llm_topology_live_generator_count,
@@ -2552,6 +2553,13 @@ def audit_research_agent_runtime(
             errors=errors,
         )
     )
+    runtime_handoff_transition_summary = (
+        _runtime_handoff_transition_summary_from_results(
+            result_paths=result_paths,
+            manifest=manifest,
+            errors=errors,
+        )
+    )
 
     runtime_handoff_artifact_missing_summary = (
         _runtime_handoff_artifact_missing_audit_summary(
@@ -2932,6 +2940,46 @@ def audit_research_agent_runtime(
             runtime_architect_initial_routing_summary[
                 "runtime_architect_initial_routing_manifest_snapshot"
             ]
+        ),
+        "runtime_handoff_transition_summary": (
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]
+        ),
+        "runtime_handoff_transition_manifest_present": bool(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_manifest_present"
+            ]
+        ),
+        "runtime_handoff_transition_manifest_stale": bool(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_manifest_stale"
+            ]
+        ),
+        "runtime_handoff_transition_manifest_snapshot": (
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_manifest_snapshot"
+            ]
+        ),
+        "runtime_handoff_trace_alignment_ok": bool(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["handoff_trace_alignment_ok"]
+        ),
+        "n_runtime_handoff_transition_rows": int(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["n_transition_rows"]
+        ),
+        "runtime_handoff_transition_pairs": (
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["transition_pairs"]
+        ),
+        "runtime_handoff_transition_route_sources": (
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["route_decision_sources"]
         ),
         "n_results": len(rows),
         "question_ids": sorted(
@@ -6354,6 +6402,66 @@ def _runtime_architect_initial_routing_summary_from_results(
         "runtime_architect_initial_routing_manifest_stale": manifest_stale,
         "runtime_architect_initial_routing_manifest_snapshot": {
             "runtime_architect_initial_routing": manifest_summary,
+            **manifest_top_level,
+        },
+    }
+
+
+def _runtime_handoff_transition_summary_from_results(
+    *,
+    result_paths: list[Path],
+    manifest: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        if isinstance(payload, Mapping):
+            results.append(dict(payload))
+    summary = _runtime_handoff_transition_summary(results)
+    manifest_summary = (
+        dict(manifest.get("runtime_handoff_transition_summary", {}) or {})
+        if isinstance(manifest.get("runtime_handoff_transition_summary", {}), Mapping)
+        else {}
+    )
+    manifest_top_level = {
+        key: manifest.get(key)
+        for key in (
+            "runtime_handoff_trace_alignment_ok",
+            "n_runtime_handoff_transition_rows",
+            "runtime_handoff_transition_pairs",
+            "runtime_handoff_transition_route_sources",
+        )
+        if key in manifest
+    }
+    recomputed_top_level = {
+        "runtime_handoff_trace_alignment_ok": summary.get(
+            "handoff_trace_alignment_ok"
+        ),
+        "n_runtime_handoff_transition_rows": summary.get("n_transition_rows"),
+        "runtime_handoff_transition_pairs": summary.get("transition_pairs"),
+        "runtime_handoff_transition_route_sources": summary.get(
+            "route_decision_sources"
+        ),
+    }
+    summary_stale = bool(manifest_summary) and manifest_summary != summary
+    top_level_stale = bool(manifest_top_level) and (
+        manifest_top_level != recomputed_top_level
+    )
+    manifest_stale = summary_stale or top_level_stale
+    if manifest_stale:
+        errors.append(
+            "runtime handoff transition manifest summary does not match "
+            "per-question traces and blackboard handoff ledgers"
+        )
+    return {
+        "runtime_handoff_transition_summary": summary,
+        "runtime_handoff_transition_manifest_present": bool(
+            manifest_summary or manifest_top_level
+        ),
+        "runtime_handoff_transition_manifest_stale": manifest_stale,
+        "runtime_handoff_transition_manifest_snapshot": {
+            "runtime_handoff_transition_summary": manifest_summary,
             **manifest_top_level,
         },
     }
@@ -10147,6 +10255,28 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and runtime_task_handoff_trace_rows <= 0
         else raw_task_handoff_ledger_complete is True
     )
+    runtime_handoff_transition_manifest_present = (
+        payload.get("runtime_handoff_transition_manifest_present") is True
+    )
+    runtime_handoff_transition_manifest_stale = (
+        payload.get("runtime_handoff_transition_manifest_stale") is True
+    )
+    runtime_handoff_trace_alignment_ok = (
+        payload.get("runtime_handoff_trace_alignment_ok") is True
+    )
+    runtime_handoff_transition_summary_payload = (
+        payload.get("runtime_handoff_transition_summary", {})
+        if isinstance(payload.get("runtime_handoff_transition_summary", {}), Mapping)
+        else {}
+    )
+    runtime_handoff_transition_summary_audited = (
+        runtime_handoff_trace_alignment_ok
+        and not runtime_handoff_transition_manifest_stale
+        and (
+            runtime_handoff_transition_manifest_present
+            or runtime_task_handoff_trace_rows <= 0
+        )
+    )
     runtime_pending_task_handoff_lineage_required = (
         payload.get("runtime_pending_task_handoff_lineage_required") is True
     )
@@ -11882,6 +12012,53 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "handoff ledger rows matching every trace next_task, "
                     "runtime_task_handoffs.jsonl export row, and progress "
                     "finish handoff_id"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "runtime_handoff_transition_summary_audited",
+            runtime_handoff_transition_summary_audited,
+            (
+                "manifest_present="
+                f"{payload.get('runtime_handoff_transition_manifest_present')} "
+                "manifest_stale="
+                f"{payload.get('runtime_handoff_transition_manifest_stale')} "
+                "alignment_ok="
+                f"{payload.get('runtime_handoff_trace_alignment_ok')} "
+                "transition_rows="
+                f"{payload.get('n_runtime_handoff_transition_rows')} "
+                "trace_handoffs="
+                f"{payload.get('n_runtime_task_handoff_trace_rows')} "
+                "ledger_rows="
+                f"{payload.get('n_runtime_task_handoff_ledger_rows')} "
+                "pairs="
+                f"{payload.get('runtime_handoff_transition_pairs')} "
+                "route_sources="
+                f"{payload.get('runtime_handoff_transition_route_sources')} "
+                "missing_from_ledger="
+                f"{runtime_handoff_transition_summary_payload.get('trace_handoff_ids_missing_from_ledger')} "
+                "missing_from_traces="
+                f"{runtime_handoff_transition_summary_payload.get('ledger_handoff_ids_missing_from_traces')}"
+            ),
+            (
+                "AgentRuntime handoff transitions were not exported and audited "
+                "as a first-class control-flow summary; evaluator and follow-up "
+                "agents cannot distinguish explicit next_task communication "
+                "from hidden fixed-pipeline routing"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Rerun with the current runtime so "
+                    "research_agent_runtime_manifest.json contains "
+                    "runtime_handoff_transition_summary, with transition rows "
+                    "matching trace next_task payloads and blackboard.handoff_ledger."
+                ),
+                success_metric=(
+                    "runtime_handoff_transition_manifest_present=true, "
+                    "runtime_handoff_transition_manifest_stale=false, and "
+                    "runtime_handoff_trace_alignment_ok=true"
                 ),
             ),
         ),
