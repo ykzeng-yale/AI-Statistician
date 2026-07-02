@@ -65,6 +65,13 @@ LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-library-alignment-summary:1"
 )
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_KIND = (
+    "formalization_gap_planner_llm_route_planner_staged_followup"
+)
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION = 1
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS = (
+    "provider_max_tokens_json_truncation"
+)
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-manifest:1"
@@ -1290,6 +1297,12 @@ def export_formalization_gap_planner_llm_route_planner(
         for request, request_errors in zip(request_packets, request_contract_errors)
     )
     row_dicts = [asdict(row) for row in rows]
+    staged_followup_rows = _staged_followup_rows(
+        request_packets,
+        row_dicts,
+        max_tokens=max_tokens,
+        max_estimated_prompt_input_tokens=max_estimated_prompt_input_tokens,
+    )
     provider_usage_rows = _provider_usage_rows(row_dicts)
     provider_usage_summary = _provider_usage_summary(provider_usage_rows)
     model_tier_decision_ledger = tuple(
@@ -2596,6 +2609,15 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "n_rows_with_generation_errors": sum(
             1 for row in rows if row.generation_errors
+        ),
+        "staged_followup_rows": list(staged_followup_rows),
+        "n_staged_followup_rows": len(staged_followup_rows),
+        "n_staged_followups_required": len(staged_followup_rows),
+        "n_staged_followups_due_to_max_tokens": sum(
+            1
+            for row in staged_followup_rows
+            if row.get("followup_reason")
+            == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS
         ),
         "n_awaiting_llm_response": by_acceptance_status.get(
             "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
@@ -13873,6 +13895,213 @@ def _provider_usage_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _staged_followup_rows(
+    requests: tuple[dict[str, Any], ...],
+    rows: list[dict[str, Any]],
+    *,
+    max_tokens: int,
+    max_estimated_prompt_input_tokens: int,
+) -> tuple[dict[str, object], ...]:
+    followups: list[dict[str, object]] = []
+    for request, row in zip(requests, rows):
+        if not _row_requires_staged_followup(row):
+            continue
+        followups.append(
+            _staged_followup_row(
+                request,
+                row,
+                max_tokens=max_tokens,
+                max_estimated_prompt_input_tokens=max_estimated_prompt_input_tokens,
+            )
+        )
+    return tuple(followups)
+
+
+def _row_requires_staged_followup(row: Mapping[str, Any]) -> bool:
+    if not bool(row.get("response_present", False)):
+        return False
+    if bool(row.get("response_contract_ok", False)):
+        return False
+    generator_metadata = _dict_value(row, "generator_metadata")
+    stop_reason = str(generator_metadata.get("provider_stop_reason", "") or "")
+    if stop_reason == "max_tokens":
+        return True
+    if not str(row.get("raw_response_text", "") or "").strip():
+        return False
+    return any(
+        "json extraction failed" in str(error).lower()
+        for error in _str_tuple(row.get("generation_errors", []))
+    )
+
+
+def _staged_followup_row(
+    request: Mapping[str, Any],
+    row: Mapping[str, Any],
+    *,
+    max_tokens: int,
+    max_estimated_prompt_input_tokens: int,
+) -> dict[str, object]:
+    request_id = str(request.get("request_id", "") or "")
+    route_id = str(request.get("route_id", "") or "")
+    raw_response_text = str(row.get("raw_response_text", "") or "")
+    generator_metadata = _dict_value(row, "generator_metadata")
+    provider_usage = _provider_usage_from_metadata(generator_metadata)
+    followup_reason = (
+        LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS
+        if str(generator_metadata.get("provider_stop_reason", "") or "")
+        == "max_tokens"
+        else "json_extraction_failed_with_partial_response"
+    )
+    return {
+        "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
+        "followup_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_KIND,
+        "staged_followup_id": (
+            "formalization_gap_planner_llm_route_planner_staged_followup:"
+            + stable_hash([request_id, route_id, followup_reason, raw_response_text])[
+                :20
+            ]
+        ),
+        "request_id": request_id,
+        "route_id": route_id,
+        "display_name": str(request.get("display_name", "") or ""),
+        "llm_route_planner_row_id": str(
+            row.get("llm_route_planner_row_id", "") or ""
+        ),
+        "followup_reason": followup_reason,
+        "trigger_acceptance_status": str(row.get("acceptance_status", "") or ""),
+        "trigger_route_adoption_status": str(
+            row.get("route_adoption_status", "") or ""
+        ),
+        "provider_name": str(row.get("provider_name", "") or ""),
+        "model": str(row.get("model", "") or ""),
+        "model_tier": str(row.get("model_tier", "") or ""),
+        "provider_stop_reason": str(
+            generator_metadata.get("provider_stop_reason", "") or ""
+        ),
+        "provider_output_tokens": int(provider_usage.get("output_tokens", 0) or 0),
+        "provider_input_tokens": int(provider_usage.get("input_tokens", 0) or 0),
+        "max_tokens": max(0, int(max_tokens)),
+        "max_estimated_prompt_input_tokens": max(
+            0,
+            int(max_estimated_prompt_input_tokens),
+        ),
+        "raw_response_chars": len(raw_response_text),
+        "raw_response_fingerprint": stable_hash(raw_response_text),
+        "generation_errors": list(_str_tuple(row.get("generation_errors", [])))[:12],
+        "contract_error_count": len(_str_tuple(row.get("errors", []))),
+        "contract_error_preview": list(_str_tuple(row.get("errors", [])))[:12],
+        "recommended_execution_policy": (
+            "Do not retry the same monolithic response. Split the next live "
+            "handoff into compact route-core, residual-batch, and "
+            "formal-attempt/standalone stages, then validate the assembled "
+            "route against the full request packet."
+        ),
+        "stage_sequence": _staged_followup_stage_sequence(request),
+        "request_context_refs": {
+            "request_packet": "request_packets[].request_id",
+            "prompt_target_route": "request_packets[].prompt_target_route",
+            "prompt_context_packet": "request_packets[].prompt_context_packet",
+            "full_context_packet": "request_packets[].context_packet",
+            "full_target_route": "request_packets[].target_route",
+        },
+        "assembly_validation_gate": (
+            "The staged outputs are planning fragments until assembled into "
+            "the full LLM route-planner response schema and replayed through "
+            "validate_llm_route_planner_response plus _response_contract_errors."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _staged_followup_stage_sequence(
+    request: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    context_packet = _dict_value(request, "context_packet")
+    residual_goal_count = len(_str_tuple(request.get("residual_goals", [])))
+    target_prover_family = str(request.get("target_prover_family", "") or "")
+    route_option_hints = _dict_tuple(
+        _dict_value(context_packet, "minimal_delta_cost_hints").get(
+            "route_option_hints",
+            [],
+        )
+    )
+    baseline_route_option_ids = [
+        str(row.get("route_option_id", "") or "")
+        for row in route_option_hints
+        if str(row.get("route_option_id", "") or "").strip()
+    ]
+    return [
+        {
+            "stage_id": "route_core_compaction",
+            "owner": "formalization_gap_planner.llm_route_planner",
+            "target_prover_family": target_prover_family,
+            "purpose": (
+                "Return only compact informal/formal DAGs, alignment edges, "
+                "and minimal_delta_plan. No residual rows, standalone route, "
+                "or formal_attempt_queue in this stage."
+            ),
+            "required_output_fields": [
+                "proof_evidence_boundary",
+                "informal_knowledge_dag_nodes",
+                "informal_knowledge_dag_edges",
+                "formal_realization_dag_nodes",
+                "formal_realization_dag_edges",
+                "route_alignment_edges",
+                "minimal_delta_plan",
+            ],
+            "size_policy": [
+                "At most one candidate_declaration_rows item per formal node",
+                "No notes/proof_obligation objects",
+                "Action witness fields are compact 'primitive: action' strings",
+                "Route options do not duplicate top-level primitive_costs",
+            ],
+            "baseline_route_option_ids": baseline_route_option_ids,
+        },
+        {
+            "stage_id": "residual_batch_interpretation",
+            "owner": "formalization_gap_planner.llm_route_planner",
+            "target_prover_family": target_prover_family,
+            "purpose": (
+                "Cover prover/resource residuals using compact batches. Use "
+                "covered_residual_goal_indices instead of copying long Lean "
+                "diagnostics."
+            ),
+            "required_output_fields": [
+                "residual_interpretations",
+                "search_requests",
+                "planner_next_actions",
+            ],
+            "residual_goal_count": residual_goal_count,
+            "size_policy": [
+                "Prefer one row per residual class, not one row per diagnostic",
+                "Each row has interpretation, route_repair, target_primitives",
+                "Use formal_gap_boundary for environment/tool blockers",
+            ],
+        },
+        {
+            "stage_id": "formal_attempt_queue_and_standalone_route",
+            "owner": "formalization_gap_planner.llm_route_planner",
+            "target_prover_family": target_prover_family,
+            "purpose": (
+                "Emit the bottom-up prover schedule and standalone route after "
+                "route core and residual batches are fixed."
+            ),
+            "required_output_fields": [
+                "formal_attempt_queue",
+                "standalone_route",
+                "uncertainty_flags",
+                "semantic_alignment_risks",
+            ],
+            "size_policy": [
+                "One formal_attempt_queue row per selected formal node",
+                "standalone_route.primitives mirror selected/core primitives",
+                "No copied source snippets unless they exist in context",
+            ],
+        },
+    ]
 
 
 def _empty_provider_usage_bucket() -> dict[str, int]:
@@ -29884,6 +30113,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("model_tier_decision_ledger") else ""),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followups.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("staged_followup_rows", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("staged_followup_rows") else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -30044,6 +30285,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Route adoption blocker counts: {payload.get('route_adoption_blocker_counts')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
+        f"- Staged followups required: {payload.get('n_staged_followups_required')} max-token={payload.get('n_staged_followups_due_to_max_tokens')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",

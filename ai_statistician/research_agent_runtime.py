@@ -13430,6 +13430,19 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_provider_failures": int(
                             payload.get("n_provider_failures", 0) or 0
                         ),
+                        "n_staged_followups_required": int(
+                            payload.get("n_staged_followups_required", 0) or 0
+                        ),
+                        "n_staged_followups_due_to_max_tokens": int(
+                            payload.get(
+                                "n_staged_followups_due_to_max_tokens",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "staged_followup_rows": list(
+                            payload.get("staged_followup_rows", []) or []
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13490,6 +13503,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_response_present": 0,
                         "n_response_contract_ok": 0,
                         "n_provider_failures": 1,
+                        "n_staged_followups_required": 0,
+                        "n_staged_followups_due_to_max_tokens": 0,
+                        "staged_followup_rows": [],
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13530,6 +13546,14 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "provider_failures": sum(
                 int(row.get("n_provider_failures", 0) or 0) for row in rows
+            ),
+            "staged_followups_required": sum(
+                int(row.get("n_staged_followups_required", 0) or 0)
+                for row in rows
+            ),
+            "staged_followups_due_to_max_tokens": sum(
+                int(row.get("n_staged_followups_due_to_max_tokens", 0) or 0)
+                for row in rows
             ),
             "awaiting_llm_response": sum(
                 int(row.get("n_awaiting_llm_response", 0) or 0) for row in rows
@@ -53693,6 +53717,8 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "response_present",
         "response_contract_ok",
         "provider_failures",
+        "staged_followups_required",
+        "staged_followups_due_to_max_tokens",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -53770,6 +53796,12 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": int(
             aggregate_counts["provider_failures"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_required": int(
+            aggregate_counts["staged_followups_required"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_max_tokens": int(
+            aggregate_counts["staged_followups_due_to_max_tokens"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]

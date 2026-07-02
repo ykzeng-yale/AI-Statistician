@@ -1838,6 +1838,8 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "awaiting_llm_response": 0,
                                 "route_adoption_ready": 1,
                                 "routes_omitted_by_max_route_requests": 2,
+                                "staged_followups_required": 1,
+                                "staged_followups_due_to_max_tokens": 1,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
@@ -1875,6 +1877,18 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests"
         ]
         == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_required"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_max_tokens"
+        ]
+        == 1
     )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"

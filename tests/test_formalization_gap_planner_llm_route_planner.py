@@ -12665,6 +12665,83 @@ def test_llm_route_planner_does_not_repair_retry_provider_exceptions() -> None:
     assert row["generator_metadata"]["provider_exception_not_repaired"] is True
 
 
+def test_llm_route_planner_records_staged_followup_for_max_token_truncation() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_staged_followup"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    calls: list[object] = []
+
+    class TruncatingAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            return GeneratorResponse(
+                text='{"proof_evidence_boundary":"not theorem proof evidence", "minimal_delta_plan": ',
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_stop_reason": "max_tokens",
+                    "provider_usage": {
+                        "input_tokens": 111,
+                        "output_tokens": request.max_tokens,
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=TruncatingAnthropicBackend(),
+        max_repair_attempts=0,
+    )
+
+    assert len(calls) == 1
+    assert not payload["all_ok"]
+    assert payload["n_response_present"] == 1
+    assert payload["n_provider_failures"] == 0
+    assert payload["n_staged_followups_required"] == 1
+    assert payload["n_staged_followups_due_to_max_tokens"] == 1
+    followup = payload["staged_followup_rows"][0]
+    assert followup["followup_kind"] == (
+        "formalization_gap_planner_llm_route_planner_staged_followup"
+    )
+    assert followup["followup_reason"] == "provider_max_tokens_json_truncation"
+    assert followup["provider_stop_reason"] == "max_tokens"
+    assert [stage["stage_id"] for stage in followup["stage_sequence"]] == [
+        "route_core_compaction",
+        "residual_batch_interpretation",
+        "formal_attempt_queue_and_standalone_route",
+    ]
+    assert "Do not retry the same monolithic response" in followup[
+        "recommended_execution_policy"
+    ]
+    staged_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followups.jsonl"
+    )
+    assert staged_jsonl.exists()
+    staged_rows = [
+        json.loads(line)
+        for line in staged_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert staged_rows == payload["staged_followup_rows"]
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "Staged followups required: 1 max-token=1" in report
+
+
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_haiku_fake")
     out_dir = root / "llm_route_planner"
