@@ -30678,6 +30678,11 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     }
     if learning_task not in route_feedback_tasks:
         return False
+    if learning_task in {
+        "formalization_gap_planner_live_route_planner_contract_feedback",
+        "formalization_gap_planner_target_prover_replay_feedback",
+    }:
+        return True
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
     ).strip()

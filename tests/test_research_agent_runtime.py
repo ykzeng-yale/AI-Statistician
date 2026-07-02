@@ -6764,6 +6764,124 @@ def test_runtime_learning_memory_pins_route_planner_contract_feedback(
     )
 
 
+def test_runtime_learning_memory_pins_bare_target_prover_route_revision_overlay(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    overlay_dir = tmp_path / "bare_route_revision_overlay"
+    overlay_dir.mkdir()
+    overlay_manifest = (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    overlay_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "all_ok": True,
+                "n_overlay_rows": 1,
+                "n_routes_with_revision": 1,
+                "rows": [
+                    {
+                        "route_revision_overlay_id": (
+                            "formalization_gap_planner_route_revision_overlay:"
+                            "bare-memory"
+                        ),
+                        "route_id": "route:bare-memory",
+                        "target_primitives": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "revision_status": "ROUTE_REVISION_APPLIED",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    replay_feedback_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "learning_task": "formalization_gap_planner_target_prover_replay_feedback",
+        "route_revision_proposal_id": "route-revision:bare-memory",
+        "formalization_gap_planner_bridge_id": (
+            "runtime_formalization_gap_planner_bridge:bare-memory"
+        ),
+        "formalization_gap_planner_handoff_id": (
+            "runtime_formalization_gap_planner_handoff:bare-memory"
+        ),
+        "standalone_seed_path": "runs/bare-memory-seed.json",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_primitives": ["split_conformal_finite_sample_coverage"],
+        "revised_selected_primitives": [
+            "split_conformal_finite_sample_coverage",
+            "rank_exchangeability_bridge",
+        ],
+        "route_revision_overlay_dir": str(overlay_dir),
+        "route_revision_overlay_manifest": str(overlay_manifest),
+        "n_route_revision_overlay_rows": 1,
+        "n_route_revision_overlay_routes_with_revision": 1,
+        "n_route_revision_overlay_orphan_rows": 0,
+        "runtime_queue_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+        ),
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
+        ),
+    }
+    filler_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "latest_filler",
+            "target_behavior": f"latest filler row {index}",
+        }
+        for index in range(8)
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in [replay_feedback_row, *filler_rows])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == (
+        "formalization_gap_planner_target_prover_replay_feedback"
+    )
+    assert retained["route_revision_overlay_manifest"] == str(overlay_manifest)
+    assert runtime_module._runtime_learning_memory_should_pin_context_row(retained)
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formal_gap_next_action_routing_active"] is True
+    assert summary["formalization_gap_planner_handoff_required"] is True
+    assert summary["formal_gap_route_revision_proposal_ids"] == [
+        "route-revision:bare-memory"
+    ]
+    assert summary["formal_gap_route_revision_overlay_manifests"] == [
+        str(overlay_manifest)
+    ]
+    assert summary["n_formal_gap_route_revision_overlay_rows"] == 1
+    assert summary["formal_gap_next_action_contract"][
+        "route_revision_overlay_manifests"
+    ] == [str(overlay_manifest)]
+    assert summary["formal_gap_next_action_diagnostics"][0]["route_stage"] == (
+        "target_prover_replay_route_revision"
+    )
+    assert summary["formal_gap_next_action_diagnostics"][0][
+        "route_revision_overlay_manifests"
+    ] == [str(overlay_manifest)]
+
+
 def test_runtime_handoff_materializes_route_contract_feedback_jsonl(
     tmp_path: Path,
 ) -> None:
