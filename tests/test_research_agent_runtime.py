@@ -21673,6 +21673,7 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
             "artifact_kind": "RuntimeAlgorithmSandboxManifest",
             "created_at": "2026-06-22T00:00:00+00:00",
             "manifest_id": "algorithm_sandbox_manifest:one_shot",
+            "question": {"id": "q_algorithm"},
             "prototypes": [
                 {
                     "executor": "generated_python_sandbox",
@@ -21685,6 +21686,7 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
             "artifact_kind": "RuntimeSimulationManifest",
             "created_at": "2026-06-22T00:01:00+00:00",
             "manifest_id": "simulation_manifest:fail",
+            "question": {"id": "q_simulation"},
             "generated_simulation_sandbox_prototypes": [
                 {
                     "executor": "generated_simulation_sandbox",
@@ -21697,6 +21699,7 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
             "artifact_kind": "RuntimeAlgorithmSandboxManifest",
             "created_at": "2026-06-22T00:02:00+00:00",
             "manifest_id": "algorithm_sandbox_manifest:fail",
+            "question": {"id": "q_algorithm"},
             "prototypes": [
                 {
                     "executor": "generated_python_sandbox",
@@ -21709,6 +21712,7 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
             "artifact_kind": "RuntimeSimulationManifest",
             "created_at": "2026-06-22T00:03:00+00:00",
             "manifest_id": "simulation_manifest:pass",
+            "question": {"id": "q_simulation"},
             "generated_simulation_sandbox_prototypes": [
                 {
                     "executor": "generated_simulation_sandbox",
@@ -21721,6 +21725,7 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
             "artifact_kind": "RuntimeAlgorithmSandboxManifest",
             "created_at": "2026-06-22T00:04:00+00:00",
             "manifest_id": "algorithm_sandbox_manifest:pass",
+            "question": {"id": "q_algorithm"},
             "prototypes": [
                 {
                     "executor": "generated_python_sandbox",
@@ -21744,7 +21749,19 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
     )
     assert (
         sequence_counts[
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        sequence_counts[
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ]
         == 1
     )
@@ -21755,10 +21772,107 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
         == 1
     )
     assert (
+        evidence_summary["algorithm"][
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
         evidence_summary["simulation"][
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
         ]
         == 1
+    )
+    assert (
+        evidence_summary["simulation"][
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+
+
+def test_generated_sandbox_repair_sequence_counts_do_not_cross_questions() -> None:
+    artifacts = {
+        "algorithm_sandbox_manifest:fail_q1": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "created_at": "2026-06-22T00:00:00+00:00",
+            "manifest_id": "algorithm_sandbox_manifest:fail_q1",
+            "question": {"id": "q1"},
+            "prototypes": [
+                {
+                    "executor": "generated_python_sandbox",
+                    "prototype_status": "FAILED_METRIC_GATE",
+                    "smoke_passed": False,
+                }
+            ],
+        },
+        "algorithm_sandbox_manifest:pass_q2": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "created_at": "2026-06-22T00:01:00+00:00",
+            "manifest_id": "algorithm_sandbox_manifest:pass_q2",
+            "question": {"id": "q2"},
+            "prototypes": [
+                {
+                    "executor": "generated_python_sandbox",
+                    "prototype_status": "EXECUTED",
+                    "smoke_passed": True,
+                }
+            ],
+        },
+        "simulation_manifest:fail_q1": {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "created_at": "2026-06-22T00:02:00+00:00",
+            "manifest_id": "simulation_manifest:fail_q1",
+            "question": {"id": "q1"},
+            "generated_simulation_sandbox_prototypes": [
+                {
+                    "executor": "generated_simulation_sandbox",
+                    "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
+                    "safety_errors": ["unsafe import"],
+                    "smoke_passed": False,
+                }
+            ],
+        },
+        "simulation_manifest:pass_q2": {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "created_at": "2026-06-22T00:03:00+00:00",
+            "manifest_id": "simulation_manifest:pass_q2",
+            "question": {"id": "q2"},
+            "generated_simulation_sandbox_prototypes": [
+                {
+                    "executor": "generated_simulation_sandbox",
+                    "prototype_status": "EXECUTED",
+                    "smoke_passed": True,
+                }
+            ],
+        },
+    }
+
+    sequence_counts = _generated_sandbox_repair_sequence_counts(artifacts)
+
+    assert (
+        sequence_counts[
+            "n_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        sequence_counts[
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ]
+        == 0
     )
 
 
@@ -23357,7 +23471,19 @@ def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
     )
     assert (
         manifest[
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ]
         == 0
     )
@@ -23460,7 +23586,19 @@ def test_simulation_engineer_generated_code_repair_eval_static_fixture(
     )
     assert (
         manifest[
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ]
         == 0
     )
@@ -23559,8 +23697,10 @@ def test_coding_agent_generated_code_repair_eval_static_fixture_is_not_capabilit
     assert manifest["fixture_plumbing_ok"] is True
     assert manifest["static_or_fixture_only"] is True
     assert manifest["algorithm_repair_sequences"] == 1
+    assert manifest["algorithm_metric_repair_sequences"] == 1
     assert manifest["algorithm_live_repair_sequences"] == 0
     assert manifest["simulation_repair_sequences"] == 1
+    assert manifest["simulation_metric_repair_sequences"] == 1
     assert manifest["simulation_live_repair_sequences"] == 0
     assert manifest["prior_failure_feedback_injected"] is True
     assert manifest["autonomous_live_failed_then_passed_repair_observed"] is False
@@ -51418,10 +51558,52 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload["n_formalizer_lean_candidate_local_lean_checked"] = 1
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 1
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 1
+    payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 0
+    payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
+    payload[
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
     payload["n_generated_code_sandbox_metric_gate_failed"] = 1
     payload["n_generated_simulation_sandbox_metric_gate_failed"] = 1
     payload["n_unsafe_generated_code_rejected"] = 1
     payload["n_unsafe_generated_simulation_code_rejected"] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["generated_algorithm_sandbox_clean"]["passed"] is False
+    assert "same-question unsafe-code repair" in rows[
+        "generated_algorithm_sandbox_clean"
+    ]["blocker"]
+    assert "integrated_algorithm_unsafe_repair_sequences=0" in rows[
+        "generated_algorithm_sandbox_clean"
+    ]["evidence"]
+    assert rows["generated_algorithm_metric_gate_clean"]["passed"] is False
+    assert "same-question metric-gate repair" in rows[
+        "generated_algorithm_metric_gate_clean"
+    ]["blocker"]
+    assert "integrated_algorithm_metric_repair_sequences=0" in rows[
+        "generated_algorithm_metric_gate_clean"
+    ]["evidence"]
+    assert rows["generated_simulation_sandbox_clean"]["passed"] is False
+    assert "same-question unsafe-code repair" in rows[
+        "generated_simulation_sandbox_clean"
+    ]["blocker"]
+    assert rows["generated_simulation_metric_gate_clean"]["passed"] is False
+    assert "same-question metric-gate repair" in rows[
+        "generated_simulation_metric_gate_clean"
+    ]["blocker"]
+
+    payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
+    payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 1
+    payload[
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
@@ -51432,11 +51614,19 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
 
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 0
+    payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
+    payload[
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["generated_algorithm_sandbox_clean"]["passed"] is False
-    assert "no later generated-code repair loop passed" in rows[
+    assert "no later same-question unsafe-code repair loop passed" in rows[
         "generated_algorithm_sandbox_clean"
     ]["blocker"]
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is False
@@ -51444,7 +51634,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "generated_algorithm_metric_gate_clean"
     ]["blocker"]
     assert rows["generated_simulation_sandbox_clean"]["passed"] is False
-    assert "no later generated-code repair loop passed" in rows[
+    assert "no later same-question unsafe-code repair loop passed" in rows[
         "generated_simulation_sandbox_clean"
     ]["blocker"]
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is False

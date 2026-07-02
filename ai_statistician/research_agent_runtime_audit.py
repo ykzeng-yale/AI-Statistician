@@ -142,6 +142,17 @@ def _payload_cross_task_full_theorem_family_count(
     return 0
 
 
+def _payload_specific_or_total_count(
+    payload: Mapping[str, Any],
+    *,
+    specific_key: str,
+    total_key: str,
+) -> int:
+    if specific_key in payload:
+        return int(payload.get(specific_key, 0) or 0)
+    return int(payload.get(total_key, 0) or 0)
+
+
 def _runtime_source_theorem_formal_environment_work_order_recompute_summary(
     *,
     result_paths: list[Path],
@@ -328,12 +339,16 @@ class RuntimeAuditRow:
     n_generated_simulation_sandbox_passed: int
     n_generated_simulation_sandbox_metric_gate_failed: int
     n_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
+    n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences: int
+    n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences: int
     n_unsafe_generated_simulation_code_rejected: int
     n_algorithm_manifests: int
     n_algorithm_sandbox_executed: int
     n_generated_code_sandbox_executed: int
     n_generated_code_sandbox_metric_gate_failed: int
     n_generated_code_sandbox_failed_then_passed_repair_sequences: int
+    n_generated_code_sandbox_metric_failed_then_passed_repair_sequences: int
+    n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences: int
     n_unsafe_generated_code_rejected: int
     n_formalization_manifests: int
     n_critic_manifests: int
@@ -1446,6 +1461,14 @@ def audit_research_agent_runtime(
             row.n_generated_simulation_sandbox_failed_then_passed_repair_sequences
             for row in rows
         ),
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": sum(
+            row.n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
+            row.n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
+            for row in rows
+        ),
         "n_unsafe_generated_simulation_code_rejected": sum(
             row.n_unsafe_generated_simulation_code_rejected for row in rows
         ),
@@ -1457,6 +1480,14 @@ def audit_research_agent_runtime(
         ),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": sum(
             row.n_generated_code_sandbox_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": sum(
+            row.n_generated_code_sandbox_metric_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
+            row.n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
             for row in rows
         ),
         "n_unsafe_generated_code_rejected": sum(
@@ -3341,6 +3372,20 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         )
         or 0
     )
+    n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     n_unsafe_generated_simulation_code_rejected = sum(
         int(row.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
         for row in simulation
@@ -3356,6 +3401,20 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_generated_code_sandbox_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
             "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_generated_code_sandbox_metric_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -3424,6 +3483,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_simulation_sandbox_failed_then_passed_repair_sequences=(
             n_generated_simulation_sandbox_failed_then_passed_repair_sequences
         ),
+        n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences=(
+            n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
+        ),
+        n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences=(
+            n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
+        ),
         n_unsafe_generated_simulation_code_rejected=n_unsafe_generated_simulation_code_rejected,
         n_algorithm_manifests=len(algorithm),
         n_algorithm_sandbox_executed=n_algorithm_sandbox_executed,
@@ -3431,6 +3496,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_code_sandbox_metric_gate_failed=n_generated_code_sandbox_metric_gate_failed,
         n_generated_code_sandbox_failed_then_passed_repair_sequences=(
             n_generated_code_sandbox_failed_then_passed_repair_sequences
+        ),
+        n_generated_code_sandbox_metric_failed_then_passed_repair_sequences=(
+            n_generated_code_sandbox_metric_failed_then_passed_repair_sequences
+        ),
+        n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences=(
+            n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
         ),
         n_unsafe_generated_code_rejected=n_unsafe_generated_code_rejected,
         n_formalization_manifests=len(formalization),
@@ -5798,12 +5869,44 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
         or 0
     )
+    integrated_algorithm_metric_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ),
+        total_key="n_generated_code_sandbox_failed_then_passed_repair_sequences",
+    )
+    integrated_algorithm_unsafe_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ),
+        total_key="n_generated_code_sandbox_failed_then_passed_repair_sequences",
+    )
     integrated_simulation_repair_sequences = int(
         payload.get(
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
+    )
+    integrated_simulation_metric_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ),
+        total_key=(
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ),
+    )
+    integrated_simulation_unsafe_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ),
+        total_key=(
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ),
     )
     attached_repair_eval_algorithm_sequences = int(
         payload.get(
@@ -6755,16 +6858,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "generated_algorithm_sandbox_clean",
             int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) <= 0
-            or integrated_algorithm_repair_sequences > 0,
+            or integrated_algorithm_unsafe_repair_sequences > 0,
             (
                 "n_unsafe_generated_code_rejected="
                 f"{payload.get('n_unsafe_generated_code_rejected')} "
                 "integrated_algorithm_repair_sequences="
-                f"{integrated_algorithm_repair_sequences}"
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_algorithm_unsafe_repair_sequences="
+                f"{integrated_algorithm_unsafe_repair_sequences}"
             ),
             (
                 "at least one generated algorithm draft was rejected by the "
-                "sandbox guard and no later generated-code repair loop passed"
+                "sandbox guard and no later same-question unsafe-code repair "
+                "loop passed"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6776,7 +6882,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_unsafe_generated_code_rejected is zero or "
-                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -6784,17 +6890,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_algorithm_metric_gate_clean",
             int(payload.get("n_generated_code_sandbox_metric_gate_failed", 0) or 0)
             <= 0
-            or integrated_algorithm_repair_sequences > 0,
+            or integrated_algorithm_metric_repair_sequences > 0,
             (
                 "n_generated_code_sandbox_metric_gate_failed="
                 f"{payload.get('n_generated_code_sandbox_metric_gate_failed')} "
                 "integrated_algorithm_repair_sequences="
-                f"{integrated_algorithm_repair_sequences}"
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_algorithm_metric_repair_sequences="
+                f"{integrated_algorithm_metric_repair_sequences}"
             ),
             (
                 "at least one generated algorithm draft executed locally but failed "
-                "the statistical metric gate and no later generated-code repair "
-                "loop passed"
+                "the statistical metric gate and no later same-question "
+                "metric-gate repair loop passed"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6806,7 +6914,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_generated_code_sandbox_metric_gate_failed is zero or "
-                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -6873,16 +6981,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_simulation_sandbox_clean",
             int(payload.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
             <= 0
-            or integrated_simulation_repair_sequences > 0,
+            or integrated_simulation_unsafe_repair_sequences > 0,
             (
                 "n_unsafe_generated_simulation_code_rejected="
                 f"{payload.get('n_unsafe_generated_simulation_code_rejected')} "
                 "integrated_simulation_repair_sequences="
-                f"{integrated_simulation_repair_sequences}"
+                f"{integrated_simulation_repair_sequences} "
+                "integrated_simulation_unsafe_repair_sequences="
+                f"{integrated_simulation_unsafe_repair_sequences}"
             ),
             (
                 "at least one generated simulation draft was rejected by the "
-                "sandbox guard and no later generated-code repair loop passed"
+                "sandbox guard and no later same-question unsafe-code repair "
+                "loop passed"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6894,7 +7005,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_unsafe_generated_simulation_code_rejected is zero or "
-                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -6908,17 +7019,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 or 0
             )
             <= 0
-            or integrated_simulation_repair_sequences > 0,
+            or integrated_simulation_metric_repair_sequences > 0,
             (
                 "n_generated_simulation_sandbox_metric_gate_failed="
                 f"{payload.get('n_generated_simulation_sandbox_metric_gate_failed')} "
                 "integrated_simulation_repair_sequences="
-                f"{integrated_simulation_repair_sequences}"
+                f"{integrated_simulation_repair_sequences} "
+                "integrated_simulation_metric_repair_sequences="
+                f"{integrated_simulation_metric_repair_sequences}"
             ),
             (
                 "at least one generated simulation draft executed locally but failed "
-                "the statistical metric gate and no later generated-code repair "
-                "loop passed"
+                "the statistical metric gate and no later same-question "
+                "metric-gate repair loop passed"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6930,7 +7043,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_generated_simulation_sandbox_metric_gate_failed is zero or "
-                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),

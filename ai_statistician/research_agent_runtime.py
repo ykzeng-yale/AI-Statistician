@@ -16305,6 +16305,16 @@ def run_research_agent_runtime(
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
+            evidence_summary["simulation"][
+                "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+            ]
+        ),
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            evidence_summary["simulation"][
+                "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+            ]
+        ),
         "n_unsafe_generated_simulation_code_rejected": evidence_summary["simulation"][
             "n_unsafe_generated_simulation_code_rejected"
         ],
@@ -16316,6 +16326,16 @@ def run_research_agent_runtime(
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
             evidence_summary["algorithm"][
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences"
+            ]
+        ),
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            evidence_summary["algorithm"][
+                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+            ]
+        ),
+        "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            evidence_summary["algorithm"][
+                "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
             ]
         ),
         "n_unsafe_generated_code_rejected": evidence_summary["algorithm"]["n_unsafe_generated_code_rejected"],
@@ -57003,12 +57023,30 @@ def _generated_sandbox_repair_sequence_counts(
         elif kind == "RuntimeSimulationManifest":
             simulation_manifests.append(artifact)
 
+    algorithm_repair_sequences = _generated_python_repair_sequence_breakdown(
+        algorithm_manifests
+    )
+    simulation_repair_sequences = _generated_simulation_repair_sequence_breakdown(
+        simulation_manifests
+    )
     return {
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
-            _generated_python_repair_sequences(algorithm_manifests)
+            algorithm_repair_sequences["total"]
+        ),
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            algorithm_repair_sequences["metric"]
+        ),
+        "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            algorithm_repair_sequences["unsafe"]
         ),
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
-            _generated_simulation_repair_sequences(simulation_manifests)
+            simulation_repair_sequences["total"]
+        ),
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
+            simulation_repair_sequences["metric"]
+        ),
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            simulation_repair_sequences["unsafe"]
         ),
     }
 
@@ -57092,7 +57130,13 @@ def _formalizer_lean_candidate_repair_sequence_count(
 def _generated_python_repair_sequences(
     manifests: Sequence[Mapping[str, Any]],
 ) -> int:
-    return _generated_sandbox_repair_sequences(
+    return _generated_python_repair_sequence_breakdown(manifests)["total"]
+
+
+def _generated_python_repair_sequence_breakdown(
+    manifests: Sequence[Mapping[str, Any]],
+) -> Counter[str]:
+    return _generated_sandbox_repair_sequence_breakdown(
         manifests,
         prototype_key="prototypes",
         generated_executor="generated_python_sandbox",
@@ -57103,7 +57147,13 @@ def _generated_python_repair_sequences(
 def _generated_simulation_repair_sequences(
     manifests: Sequence[Mapping[str, Any]],
 ) -> int:
-    return _generated_sandbox_repair_sequences(
+    return _generated_simulation_repair_sequence_breakdown(manifests)["total"]
+
+
+def _generated_simulation_repair_sequence_breakdown(
+    manifests: Sequence[Mapping[str, Any]],
+) -> Counter[str]:
+    return _generated_sandbox_repair_sequence_breakdown(
         manifests,
         prototype_key="generated_simulation_sandbox_prototypes",
         generated_executor="generated_simulation_sandbox",
@@ -57118,8 +57168,23 @@ def _generated_sandbox_repair_sequences(
     generated_executor: str,
     missing_statuses: set[str],
 ) -> int:
-    saw_prior_generated_failure = False
-    closed_sequences = 0
+    return _generated_sandbox_repair_sequence_breakdown(
+        manifests,
+        prototype_key=prototype_key,
+        generated_executor=generated_executor,
+        missing_statuses=missing_statuses,
+    )["total"]
+
+
+def _generated_sandbox_repair_sequence_breakdown(
+    manifests: Sequence[Mapping[str, Any]],
+    *,
+    prototype_key: str,
+    generated_executor: str,
+    missing_statuses: set[str],
+) -> Counter[str]:
+    pending_failure_classes_by_scope: dict[str, set[str]] = {}
+    closed_sequences: Counter[str] = Counter()
     for manifest in sorted(
         manifests,
         key=lambda row: (
@@ -57130,7 +57195,7 @@ def _generated_sandbox_repair_sequences(
         rows = manifest.get(prototype_key, [])
         if not isinstance(rows, list):
             rows = []
-        manifest_has_generated_failure = False
+        manifest_failure_classes: set[str] = set()
         manifest_has_generated_pass = False
         for row in rows:
             if not isinstance(row, Mapping):
@@ -57152,13 +57217,66 @@ def _generated_sandbox_repair_sequences(
                 }
                 or smoke_passed is False
             ):
-                manifest_has_generated_failure = True
-        if manifest_has_generated_pass and saw_prior_generated_failure:
-            closed_sequences += 1
-            saw_prior_generated_failure = False
-        if manifest_has_generated_failure:
-            saw_prior_generated_failure = True
+                manifest_failure_classes.update(
+                    _generated_sandbox_failure_classes(
+                        row,
+                        status=status,
+                        missing_statuses=missing_statuses,
+                    )
+                )
+        scope_key = _generated_sandbox_repair_scope_key(manifest)
+        pending_failure_classes = pending_failure_classes_by_scope.setdefault(
+            scope_key,
+            set(),
+        )
+        if manifest_has_generated_pass and pending_failure_classes:
+            closed_sequences["total"] += 1
+            for failure_class in pending_failure_classes:
+                closed_sequences[failure_class] += 1
+            pending_failure_classes.clear()
+        if manifest_failure_classes:
+            pending_failure_classes.update(manifest_failure_classes)
     return closed_sequences
+
+
+def _generated_sandbox_repair_scope_key(manifest: Mapping[str, Any]) -> str:
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question", {}), Mapping)
+        else {}
+    )
+    for value in (
+        question.get("id", ""),
+        manifest.get("question_id", ""),
+        manifest.get("runtime_question_id", ""),
+    ):
+        text = str(value or "").strip()
+        if text:
+            return f"question:{text}"
+    manifest_id = str(manifest.get("manifest_id", "") or "").strip()
+    if manifest_id:
+        return f"manifest:{manifest_id}"
+    return "manifest:" + stable_hash(manifest)[:16]
+
+
+def _generated_sandbox_failure_classes(
+    row: Mapping[str, Any],
+    *,
+    status: str,
+    missing_statuses: set[str],
+) -> set[str]:
+    classes: set[str] = set()
+    if status == "FAILED_METRIC_GATE" or bool(row.get("metric_gate_errors", []) or []):
+        classes.add("metric")
+    if status == "REJECTED_UNSAFE_GENERATED_CODE" or bool(
+        row.get("safety_errors", []) or []
+    ):
+        classes.add("unsafe")
+    if status in missing_statuses:
+        classes.add("missing")
+    if status == "FAILED" or row.get("smoke_passed") is False:
+        classes.add("execution")
+    return classes or {"execution"}
 
 
 def _runtime_safe_list_len(value: Any) -> int:
@@ -57598,6 +57716,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_generated_simulation_sandbox_passed": 0,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
         "n_unsafe_generated_simulation_code_rejected": 0,
         "boundary": SIMULATION_NOT_PROOF_BOUNDARY,
     }
@@ -57609,6 +57729,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_generated_code_sandbox_executed": 0,
         "n_generated_code_sandbox_metric_gate_failed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
         "n_unsafe_generated_code_rejected": 0,
         "promotion_ready": False,
         "boundary": (
@@ -57652,11 +57774,47 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             )
             or 0
         )
+        simulation[
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        simulation[
+            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
         algorithm[
             "n_generated_code_sandbox_failed_then_passed_repair_sequences"
         ] += int(
             repair_sequences.get(
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        algorithm[
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        algorithm[
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
                 0,
             )
             or 0

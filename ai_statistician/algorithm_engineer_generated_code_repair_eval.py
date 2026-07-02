@@ -86,6 +86,12 @@ def run_algorithm_engineer_generated_code_repair_eval(
     prior_failure_manifest = _prior_metric_gate_failure_manifest(
         estimator_id=estimator_id,
         target_coverage=target_coverage,
+        question={
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+        },
     )
     blackboard = BlackboardState(
         project_id=f"algorithm-repair-eval:{question.id}",
@@ -240,9 +246,37 @@ def run_algorithm_engineer_generated_code_repair_eval(
         )
         or 0
     )
+    n_metric_repair_sequences = int(
+        sequence_counts.get(
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_unsafe_repair_sequences = int(
+        sequence_counts.get(
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     n_live_repair_sequences = int(
         live_sequence_counts.get(
             "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_live_metric_repair_sequences = int(
+        live_sequence_counts.get(
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_live_unsafe_repair_sequences = int(
+        live_sequence_counts.get(
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -277,8 +311,20 @@ def run_algorithm_engineer_generated_code_repair_eval(
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
             n_repair_sequences
         ),
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            n_metric_repair_sequences
+        ),
+        "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            n_unsafe_repair_sequences
+        ),
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": (
             n_live_repair_sequences
+        ),
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            n_live_metric_repair_sequences
+        ),
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            n_live_unsafe_repair_sequences
         ),
         "prior_failure_feedback_injected": True,
         "repair_loop_observed": repair_loop_observed,
@@ -452,8 +498,9 @@ def _prior_metric_gate_failure_manifest(
     *,
     estimator_id: str,
     target_coverage: float,
+    question: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
         "manifest_id": "algorithm_sandbox_manifest:injected_metric_gate_failure",
@@ -488,6 +535,10 @@ def _prior_metric_gate_failure_manifest(
             "evidence and not a production algorithm."
         ),
     }
+    if isinstance(question, Mapping) and str(question.get("id", "") or "").strip():
+        payload["question"] = dict(question)
+        payload["question_id"] = str(question.get("id", "") or "")
+    return payload
 
 
 def _prior_metric_gate_feedback(

@@ -121,9 +121,37 @@ def run_coding_agent_generated_code_repair_eval(
         )
         or 0
     )
+    algorithm_metric_repair_sequences = int(
+        algorithm_manifest.get(
+            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    algorithm_unsafe_repair_sequences = int(
+        algorithm_manifest.get(
+            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     simulation_live_repair_sequences = int(
         simulation_manifest.get(
             "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    simulation_metric_repair_sequences = int(
+        simulation_manifest.get(
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    simulation_unsafe_repair_sequences = int(
+        simulation_manifest.get(
+            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -176,6 +204,8 @@ def run_coding_agent_generated_code_repair_eval(
             )
             or 0
         ),
+        "algorithm_metric_repair_sequences": algorithm_metric_repair_sequences,
+        "algorithm_unsafe_repair_sequences": algorithm_unsafe_repair_sequences,
         "algorithm_live_repair_sequences": algorithm_live_repair_sequences,
         "simulation_repair_sequences": int(
             simulation_manifest.get(
@@ -184,6 +214,8 @@ def run_coding_agent_generated_code_repair_eval(
             )
             or 0
         ),
+        "simulation_metric_repair_sequences": simulation_metric_repair_sequences,
+        "simulation_unsafe_repair_sequences": simulation_unsafe_repair_sequences,
         "simulation_live_repair_sequences": simulation_live_repair_sequences,
         "prior_failure_feedback_injected": True,
         "autonomous_live_failed_then_passed_repair_observed": (
