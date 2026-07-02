@@ -10385,11 +10385,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         else {}
     )
     runtime_handoff_transition_summary_audited = (
-        runtime_handoff_trace_alignment_ok
-        and not runtime_handoff_transition_manifest_stale
-        and (
-            runtime_handoff_transition_manifest_present
-            or runtime_task_handoff_trace_rows <= 0
+        _runtime_handoff_transition_summary_scorecard_passed(
+            payload,
+            runtime_task_handoff_trace_rows=runtime_task_handoff_trace_rows,
+            runtime_handoff_transition_manifest_present=(
+                runtime_handoff_transition_manifest_present
+            ),
+            runtime_handoff_transition_manifest_stale=(
+                runtime_handoff_transition_manifest_stale
+            ),
+            runtime_handoff_trace_alignment_ok=runtime_handoff_trace_alignment_ok,
+            runtime_handoff_transition_summary_payload=(
+                runtime_handoff_transition_summary_payload
+            ),
         )
     )
     runtime_handoff_transitions_aligned_with_architect_plan = int(
@@ -12175,6 +12183,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_task_handoff_trace_rows')} "
                 "ledger_rows="
                 f"{payload.get('n_runtime_task_handoff_ledger_rows')} "
+                "summary_rows="
+                f"{runtime_handoff_transition_summary_payload.get('n_transition_rows')} "
+                "summary_trace_handoffs="
+                f"{runtime_handoff_transition_summary_payload.get('n_trace_handoff_ids')} "
+                "summary_ledger_rows="
+                f"{runtime_handoff_transition_summary_payload.get('n_handoff_ledger_rows')} "
+                "summary_alignment="
+                f"{runtime_handoff_transition_summary_payload.get('handoff_trace_alignment_ok')} "
                 "pairs="
                 f"{payload.get('runtime_handoff_transition_pairs')} "
                 "route_sources="
@@ -13177,6 +13193,65 @@ def _runtime_research_path_control_scorecard_passed(payload: Mapping[str, Any]) 
         == 0
         and _safe_int(summary.get("n_policy_mismatches")) == 0
         and _safe_int(summary.get("n_path_mismatches")) == 0
+    )
+
+
+def _runtime_handoff_transition_summary_scorecard_passed(
+    payload: Mapping[str, Any],
+    *,
+    runtime_task_handoff_trace_rows: int,
+    runtime_handoff_transition_manifest_present: bool,
+    runtime_handoff_transition_manifest_stale: bool,
+    runtime_handoff_trace_alignment_ok: bool,
+    runtime_handoff_transition_summary_payload: Mapping[str, Any],
+) -> bool:
+    if runtime_handoff_transition_manifest_stale:
+        return False
+    if not runtime_handoff_trace_alignment_ok:
+        return False
+    if runtime_task_handoff_trace_rows <= 0:
+        return True
+    if not runtime_handoff_transition_manifest_present:
+        return False
+    if not isinstance(runtime_handoff_transition_summary_payload, Mapping):
+        return False
+    n_transition_rows = _safe_int(
+        runtime_handoff_transition_summary_payload.get("n_transition_rows")
+    )
+    n_trace_handoff_ids = _safe_int(
+        runtime_handoff_transition_summary_payload.get("n_trace_handoff_ids")
+    )
+    n_ledger_handoff_ids = _safe_int(
+        runtime_handoff_transition_summary_payload.get("n_handoff_ledger_rows")
+    )
+    return bool(
+        runtime_handoff_transition_summary_payload.get("handoff_trace_alignment_ok")
+        is True
+        and n_transition_rows == _safe_int(
+            payload.get("n_runtime_handoff_transition_rows")
+        )
+        and n_transition_rows == runtime_task_handoff_trace_rows
+        and n_trace_handoff_ids == runtime_task_handoff_trace_rows
+        and n_ledger_handoff_ids
+        == _safe_int(payload.get("n_runtime_task_handoff_ledger_rows"))
+        and _safe_int(
+            runtime_handoff_transition_summary_payload.get(
+                "n_trace_handoff_ids_missing_from_ledger"
+            )
+        )
+        == 0
+        and _safe_int(
+            runtime_handoff_transition_summary_payload.get(
+                "n_ledger_handoff_ids_missing_from_traces"
+            )
+        )
+        == 0
+        and not runtime_handoff_transition_summary_payload.get(
+            "trace_handoff_ids_missing_from_ledger"
+        )
+        and not runtime_handoff_transition_summary_payload.get(
+            "ledger_handoff_ids_missing_from_traces"
+        )
     )
 
 

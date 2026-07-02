@@ -2980,6 +2980,12 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": 0,
         "runtime_architect_context_default_route_handoff_ids": [],
         "runtime_handoff_transition_summary": {
+            "n_transition_rows": 2,
+            "n_trace_handoff_ids": 2,
+            "n_handoff_ledger_rows": 2,
+            "n_trace_handoff_ids_missing_from_ledger": 0,
+            "n_ledger_handoff_ids_missing_from_traces": 0,
+            "handoff_trace_alignment_ok": True,
             "trace_handoff_ids_missing_from_ledger": [],
             "ledger_handoff_ids_missing_from_traces": [],
         },
@@ -3053,6 +3059,29 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "alignment_ok=False" in transition_row["evidence"]
     assert "hidden fixed-pipeline routing" in transition_row["blocker"]
     assert transition_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
+    stale_summary_payload = dict(clean_payload)
+    stale_summary_payload["runtime_handoff_transition_summary"] = {
+        **clean_payload["runtime_handoff_transition_summary"],
+        "n_transition_rows": 1,
+        "n_trace_handoff_ids": 1,
+        "n_trace_handoff_ids_missing_from_ledger": 1,
+        "trace_handoff_ids_missing_from_ledger": [
+            "handoff:missing-from-ledger"
+        ],
+    }
+    stale_summary_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_summary_payload)["rows"]
+    }
+    stale_transition_row = stale_summary_rows[
+        "runtime_handoff_transition_summary_audited"
+    ]
+    assert stale_transition_row["passed"] is False
+    assert "alignment_ok=True" in stale_transition_row["evidence"]
+    assert "summary_rows=1" in stale_transition_row["evidence"]
+    assert "summary_trace_handoffs=1" in stale_transition_row["evidence"]
+    assert "handoff:missing-from-ledger" in stale_transition_row["evidence"]
 
     architect_policy_payload = dict(clean_payload)
     architect_policy_payload.update(
