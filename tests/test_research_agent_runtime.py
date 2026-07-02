@@ -49336,6 +49336,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     theory_row = next(row for row in topology["llm_agents"] if row["subsystem"] == "TheoryDeveloper")
     assert theory_row["max_tokens"] == 4500
     assert theory_row["expected_model_tier"] == "sonnet"
+    assert topology["policy"]["supported_live_generator_providers"] == [
+        "anthropic",
+        "openai",
+    ]
     assert topology["policy"]["supported_generator_providers"] == ["anthropic", "openai", "static"]
     assert topology["policy"]["default_live_provider"] == "anthropic"
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {

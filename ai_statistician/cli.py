@@ -415,6 +415,7 @@ from .coding_agent_generated_code_repair_eval import (
 from .model_backend import (
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
@@ -2875,11 +2876,10 @@ def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
 
 
 LIVE_GENERATOR_PROVIDER_CHOICES = SUPPORTED_LIVE_GENERATOR_PROVIDERS
+GENERATOR_PROVIDER_CHOICES = SUPPORTED_GENERATOR_PROVIDERS
 SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     "same",
-    "anthropic",
-    "openai",
-    "static",
+    *GENERATOR_PROVIDER_CHOICES,
     "none",
 )
 
@@ -11284,7 +11284,7 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof instead of mock verifier")
     demo.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     demo.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    demo.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    demo.add_argument("--llm-provider", choices=GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
     demo.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
     demo.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
     demo.add_argument("--llm-max-tokens", type=int, default=700)
@@ -11301,7 +11301,7 @@ def build_parser() -> argparse.ArgumentParser:
     eval_cmd.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof instead of mock verifier")
     eval_cmd.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     eval_cmd.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    eval_cmd.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    eval_cmd.add_argument("--llm-provider", choices=GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
     eval_cmd.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
     eval_cmd.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
     eval_cmd.add_argument("--llm-max-tokens", type=int, default=700)
@@ -11907,7 +11907,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source_theorem_exact_semantic_definition_authoring_worker.add_argument(
         "--provider",
-        choices=("none",) + LIVE_GENERATOR_PROVIDER_CHOICES,
+        choices=("none",) + GENERATOR_PROVIDER_CHOICES,
         default="none",
         help=(
             "generator backend for authoring; default none writes prompt packets "
@@ -16281,7 +16281,7 @@ def build_parser() -> argparse.ArgumentParser:
     theory_intake.add_argument("--question-file", required=True, help="question JSON file")
     theory_intake.add_argument("--llm-theory", action="store_true", help="allow a generator backend to classify supported estimator/DGP families during intake")
     theory_intake.add_argument("--force-llm-theory", action="store_true", help="always ask the LLM for family classification")
-    theory_intake.add_argument("--llm-provider", choices=LIVE_GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
+    theory_intake.add_argument("--llm-provider", choices=GENERATOR_PROVIDER_CHOICES, default=_default_live_generator_provider())
     theory_intake.add_argument("--llm-static-response-file", default="", help="JSON response to replay when --llm-provider static is used")
     theory_intake.add_argument("--llm-model", default="", help="model name for the intake generator; Anthropic defaults to Claude Haiku 4.5 for this light classifier")
     theory_intake.add_argument("--llm-max-tokens", type=int, default=700)
@@ -16349,7 +16349,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_loop.add_argument(
         "--llm-theory-provider",
-        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        choices=GENERATOR_PROVIDER_CHOICES,
         default=_default_live_generator_provider(),
         help=(
             "generator backend for --llm-theory-developer; defaults to Anthropic "
@@ -16761,7 +16761,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_architect_theory.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
     research_architect_theory.add_argument(
         "--provider",
-        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        choices=GENERATOR_PROVIDER_CHOICES,
         default=_default_live_generator_provider(),
         help="generator backend; defaults to Anthropic Claude API",
     )
@@ -16841,7 +16841,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
     research_agent_runtime.add_argument(
         "--provider",
-        choices=LIVE_GENERATOR_PROVIDER_CHOICES,
+        choices=GENERATOR_PROVIDER_CHOICES,
         default=_default_live_generator_provider(),
         help="generator backend; defaults to Anthropic Claude API",
     )
@@ -17345,7 +17345,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-authoring-worker-provider",
-        choices=("none",) + LIVE_GENERATOR_PROVIDER_CHOICES,
+        choices=("none",) + GENERATOR_PROVIDER_CHOICES,
         default="none",
         help=(
             "generator backend for exact semantic-definition authoring tasks; "

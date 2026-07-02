@@ -2169,6 +2169,17 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert {"codex", "codex_exec"}.isdisjoint(
         set(generation_policy["supported_live_generator_providers"])
     )
+    assert generation_policy["supported_live_generator_providers"] == [
+        "anthropic",
+        "openai",
+    ]
+    assert generation_policy["supported_generator_providers"] == [
+        "anthropic",
+        "openai",
+        "static",
+    ]
+    assert generation_policy["static_replay_generator_providers"] == ["static"]
+    assert "static" not in generation_policy["supported_live_generator_providers"]
     assert generation_policy["proof_evidence_status"] == (
         "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
     )

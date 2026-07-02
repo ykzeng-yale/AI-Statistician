@@ -109,6 +109,7 @@ from .model_backend import (
     AnthropicGeneratorBackend,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     OpenAIResponsesGeneratorBackend,
+    SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     GeneratorBackend,
     StaticJSONGeneratorBackend,
@@ -3864,7 +3865,7 @@ def _exact_semantic_definition_authoring_worker_config(
         config.source_theorem_exact_semantic_definition_authoring_worker_provider
         or "none"
     ).strip().lower()
-    if provider_name not in {"none", *SUPPORTED_LIVE_GENERATOR_PROVIDERS}:
+    if provider_name not in {"none", *SUPPORTED_GENERATOR_PROVIDERS}:
         raise ValueError(
             "unsupported source theorem exact semantic-definition authoring worker "
             f"provider: {provider_name}"
@@ -28859,7 +28860,8 @@ def _runtime_llm_topology(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "policy": {
             "default_live_provider": "anthropic",
-            "supported_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+            "supported_live_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+            "supported_generator_providers": list(SUPPORTED_GENERATOR_PROVIDERS),
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
             "claude_tier_routing_contract": claude_tier_contract,
             "resolved_claude_models_by_tier": resolved_claude_models_by_tier,
@@ -30902,7 +30904,7 @@ def _has_unsupported_generator_provider(row: Mapping[str, Any]) -> bool:
 
 
 def _unsupported_generator_providers(row: Mapping[str, Any]) -> set[str]:
-    allowed = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+    allowed = set(SUPPORTED_GENERATOR_PROVIDERS)
     providers = {
         str(row.get("provider_name", "") or "").strip().lower(),
         str(row.get("backend_provider_name", "") or "").strip().lower(),

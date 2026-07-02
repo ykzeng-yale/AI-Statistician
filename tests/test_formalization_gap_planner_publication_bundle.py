@@ -3742,6 +3742,17 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     }
     assert "codex" not in llm_model_policy["supported_live_generator_providers"]
     assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
+    assert llm_model_policy["supported_live_generator_providers"] == [
+        "anthropic",
+        "openai",
+    ]
+    assert llm_model_policy["supported_generator_providers"] == [
+        "anthropic",
+        "openai",
+        "static",
+    ]
+    assert llm_model_policy["static_replay_generator_providers"] == ["static"]
+    assert "static" not in llm_model_policy["supported_live_generator_providers"]
     assert set(llm_model_policy["prohibited_generator_providers"]) == {
         "codex",
         "codex_exec",

@@ -33,7 +33,9 @@ from .model_backend import (
     GeneratorRequest,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     claude_model_tier_mismatch,
     default_generator_model,
 )
@@ -12928,6 +12930,10 @@ def _llm_generation_policy_snapshot(
         "auto_tier_rules": list(LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["auto_tier_rules"]),
         "route_planner_provider_names": list(LLM_ROUTE_PLANNER_PROVIDER_NAMES),
         "supported_live_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+        "supported_generator_providers": list(SUPPORTED_GENERATOR_PROVIDERS),
+        "static_replay_generator_providers": list(
+            SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS
+        ),
         "prohibited_generator_providers": ["codex", "codex_exec"],
         "codex_policy": (
             "Codex/Codex exec are not accepted as pure LLM route-planner "
@@ -12979,6 +12985,18 @@ def _llm_generation_policy_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "llm_generation_policy.supported_live_generator_providers must not "
             "include codex or codex_exec"
+        )
+    if "static" in supported:
+        errors.append(
+            "llm_generation_policy.supported_live_generator_providers must not "
+            "include static; static belongs in static_replay_generator_providers"
+        )
+    static_replay = set(
+        _str_tuple(policy.get("static_replay_generator_providers", []))
+    )
+    if "static" not in static_replay:
+        errors.append(
+            "llm_generation_policy.static_replay_generator_providers must include static"
         )
     if policy.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
         errors.append("llm_generation_policy.proof_evidence_status mismatch")

@@ -9,7 +9,12 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
 
-SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai", "static")
+SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai")
+SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS = ("static",)
+SUPPORTED_GENERATOR_PROVIDERS = (
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS
+    + SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS
+)
 PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
     "codex",
     "codex_exec",
@@ -166,8 +171,9 @@ def llm_subsystem_expected_model_tier(subsystem: str) -> str:
 def default_generator_provider(env: Mapping[str, str] | None = None) -> str:
     """Default live generator provider for AI Statistician LLM use.
 
-    Anthropic is the default live provider. Other providers remain overrideable
-    so the same prompts/contracts can run against OpenAI or static replay.
+    Anthropic is the default live provider. OpenAI remains overrideable for live
+    calls; static replay must be selected explicitly by the command or subsystem
+    that owns the replay fixture.
     """
 
     env = env or os.environ
@@ -189,6 +195,15 @@ def generator_provider_override_warnings(
     provider = raw_provider.lower()
     if provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
         return []
+    if provider in SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
+        return [
+            (
+                "AI_STATISTICIAN_LLM_PROVIDER is set to static replay provider "
+                f"{raw_provider!r}; static is supported only as an explicit "
+                "fixture/replay backend and is not accepted as the default live "
+                f"provider. The runtime falls back to {DEFAULT_LIVE_GENERATOR_PROVIDER!r}."
+            )
+        ]
     if provider in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
         return [
             (
@@ -201,8 +216,9 @@ def generator_provider_override_warnings(
     return [
         (
             "AI_STATISTICIAN_LLM_PROVIDER is set to unsupported provider "
-            f"{raw_provider!r}; supported generator-only providers are "
+            f"{raw_provider!r}; supported external live generator-only providers are "
             + ", ".join(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+            + "; static is available only through explicit replay provider flags"
             + f". The runtime falls back to {DEFAULT_LIVE_GENERATOR_PROVIDER!r}."
         )
     ]
@@ -457,6 +473,10 @@ def claude_tier_routing_contract(
         "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
         "effective_live_generator_provider": provider,
         "supported_live_generator_providers": tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+        "supported_generator_providers": tuple(SUPPORTED_GENERATOR_PROVIDERS),
+        "static_replay_generator_providers": tuple(
+            SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS
+        ),
         "prohibited_agent_generator_providers": tuple(
             PROHIBITED_AGENT_GENERATOR_PROVIDERS
         ),
@@ -489,6 +509,9 @@ def claude_tier_routing_contract(
         "all_ok": (
             DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
             and not set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).intersection(
+                SUPPORTED_GENERATOR_PROVIDERS
+            )
+            and not set(SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS).intersection(
                 SUPPORTED_LIVE_GENERATOR_PROVIDERS
             )
             and not tier_violations

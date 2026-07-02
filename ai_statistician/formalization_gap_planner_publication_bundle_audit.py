@@ -4599,6 +4599,12 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     supported_llm_providers = set(
         _str_tuple(llm_model_policy.get("supported_live_generator_providers", []))
     )
+    supported_generator_providers = set(
+        _str_tuple(llm_model_policy.get("supported_generator_providers", []))
+    )
+    static_replay_providers = set(
+        _str_tuple(llm_model_policy.get("static_replay_generator_providers", []))
+    )
     prohibited_llm_providers = set(
         _str_tuple(llm_model_policy.get("prohibited_generator_providers", []))
     )
@@ -4715,11 +4721,20 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             == "anthropic",
         ),
         _check(
-            "llm_model_policy_supported_providers",
+            "llm_model_policy_supported_live_providers",
             "contract",
-            "anthropic,openai,static",
+            "anthropic,openai",
             ",".join(sorted(supported_llm_providers)),
-            supported_llm_providers == {"anthropic", "openai", "static"},
+            supported_llm_providers == {"anthropic", "openai"},
+        ),
+        _check(
+            "llm_model_policy_static_replay_provider",
+            "contract",
+            "static replay is supported but not live",
+            ",".join(sorted(static_replay_providers)),
+            static_replay_providers == {"static"}
+            and "static" in supported_generator_providers
+            and "static" not in supported_llm_providers,
         ),
         _check(
             "llm_model_policy_rejects_codex",
@@ -9091,10 +9106,15 @@ def _llm_request_generation_policy_errors(
             "llm_generation_policy.selected_model_tier does not match request"
         )
     supported = set(_str_tuple(policy.get("supported_live_generator_providers", [])))
-    if supported != {"anthropic", "openai", "static"}:
+    if supported != {"anthropic", "openai"}:
         errors.append(
             "llm_generation_policy.supported_live_generator_providers must be "
-            "anthropic/openai/static"
+            "anthropic/openai"
+        )
+    static_replay = set(_str_tuple(policy.get("static_replay_generator_providers", [])))
+    if static_replay != {"static"}:
+        errors.append(
+            "llm_generation_policy.static_replay_generator_providers must be static"
         )
     prohibited = set(_str_tuple(policy.get("prohibited_generator_providers", [])))
     if not {"codex", "codex_exec"}.issubset(prohibited):

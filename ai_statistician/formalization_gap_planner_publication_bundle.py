@@ -161,7 +161,9 @@ from .model_backend import (
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
+    SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
 )
 
 
@@ -3208,7 +3210,9 @@ def _llm_model_policy_payload() -> dict[str, object]:
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
     )
     outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
-    supported_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+    supported_live_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+    supported_providers = tuple(SUPPORTED_GENERATOR_PROVIDERS)
+    static_replay_providers = tuple(SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS)
     prohibited_providers = tuple(PROHIBITED_AGENT_GENERATOR_PROVIDERS[:2])
     all_ok = (
         DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
@@ -3220,6 +3224,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
         }
         and outside_cost_tier_models
         and not set(prohibited_providers).intersection(supported_providers)
+        and not set(static_replay_providers).intersection(supported_live_providers)
     )
     return {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_SCHEMA_VERSION,
@@ -3228,7 +3233,9 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
         "source_evidence": ANTHROPIC_MODEL_SOURCE_EVIDENCE,
         "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
-        "supported_live_generator_providers": supported_providers,
+        "supported_live_generator_providers": supported_live_providers,
+        "supported_generator_providers": supported_providers,
+        "static_replay_generator_providers": static_replay_providers,
         "prohibited_generator_providers": prohibited_providers,
         "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
         "latest_claude_models_by_tier": models_by_tier,
@@ -3291,7 +3298,8 @@ def _llm_model_policy_payload() -> dict[str, object]:
             "opus": ("operator_explicit_only",),
         },
         "generator_boundary": (
-            "Claude/OpenAI/static providers are generator-only backends. "
+            "Claude/OpenAI providers are live generator-only backends; static is "
+            "a replay-only generator backend. "
             "Agent loops, retrieval, tool calls, filesystem writes, tests, "
             "Lean/prover execution, validation, and route repair remain owned "
             "by AI Statistician runtime components."
@@ -3328,6 +3336,7 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         f"- Default live provider: `{payload.get('default_live_generator_provider')}`",
         f"- Source checked date: `{payload.get('source_checked_date')}`",
         f"- Supported live providers: {', '.join(str(item) for item in payload.get('supported_live_generator_providers', []))}",
+        f"- Static replay providers: {', '.join(str(item) for item in payload.get('static_replay_generator_providers', []))}",
         f"- Prohibited generator providers: {', '.join(str(item) for item in payload.get('prohibited_generator_providers', []))}",
         "",
         "## Claude Tiers",

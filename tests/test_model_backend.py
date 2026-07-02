@@ -18,6 +18,9 @@ from ai_statistician.model_backend import (
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    SUPPORTED_GENERATOR_PROVIDERS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
     LiveGeneratorTimeoutError,
@@ -463,6 +466,30 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("codex") == ""
     assert default_generator_model("codex_exec") == ""
+
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "static")
+    assert default_generator_provider() == "anthropic"
+    assert default_generator_model("static") == "static"
+    static_warning_contract = claude_tier_routing_contract()
+    assert static_warning_contract["effective_live_generator_provider"] == "anthropic"
+    assert static_warning_contract["supported_live_generator_providers"] == (
+        "anthropic",
+        "openai",
+    )
+    assert static_warning_contract["supported_generator_providers"] == (
+        "anthropic",
+        "openai",
+        "static",
+    )
+    assert static_warning_contract["static_replay_generator_providers"] == ("static",)
+    assert set(SUPPORTED_LIVE_GENERATOR_PROVIDERS) == {"anthropic", "openai"}
+    assert set(SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS) == {"static"}
+    assert set(SUPPORTED_GENERATOR_PROVIDERS) == {"anthropic", "openai", "static"}
+    assert static_warning_contract["environment_override_status"] == "WARN"
+    assert any(
+        "static is supported only as an explicit fixture/replay backend" in warning
+        for warning in static_warning_contract["provider_override_warnings"]
+    )
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-test")

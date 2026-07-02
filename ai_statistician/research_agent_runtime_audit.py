@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
+from .model_backend import SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
@@ -67,7 +67,7 @@ REQUIRED_SUBSYSTEMS = (
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 ROUTEABLE_RUNTIME_SUBSYSTEMS = (*REQUIRED_ARCHITECT_SUBSYSTEMS, "ProofEngineer")
-SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+SUPPORTED_GENERATOR_PROVIDERS = set(MODEL_SUPPORTED_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
     "proof_state_feedback_manifest:",
