@@ -26,6 +26,7 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     _effective_formal_verification_policy,
     _effective_recommended_research_path,
+    _generated_sandbox_live_counts_from_rows,
     _formalizer_lean_candidate_repair_sequence_count,
     _generated_sandbox_repair_sequence_counts,
     _runtime_architect_recommended_formal_verification_policy,
@@ -397,20 +398,33 @@ class RuntimeAuditRow:
     n_theory_packets: int
     n_simulation_manifests: int
     n_generated_simulation_sandbox_executed: int
+    n_live_generated_simulation_sandbox_executed: int
     n_generated_simulation_sandbox_passed: int
+    n_live_generated_simulation_sandbox_passed: int
     n_generated_simulation_sandbox_metric_gate_failed: int
+    n_live_generated_simulation_sandbox_metric_gate_failed: int
     n_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
+    n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
     n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences: int
+    n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences: int
     n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences: int
+    n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences: int
     n_unsafe_generated_simulation_code_rejected: int
+    n_live_unsafe_generated_simulation_code_rejected: int
     n_algorithm_manifests: int
     n_algorithm_sandbox_executed: int
     n_generated_code_sandbox_executed: int
+    n_live_generated_code_sandbox_executed: int
     n_generated_code_sandbox_metric_gate_failed: int
+    n_live_generated_code_sandbox_metric_gate_failed: int
     n_generated_code_sandbox_failed_then_passed_repair_sequences: int
+    n_live_generated_code_sandbox_failed_then_passed_repair_sequences: int
     n_generated_code_sandbox_metric_failed_then_passed_repair_sequences: int
+    n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences: int
     n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences: int
+    n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences: int
     n_unsafe_generated_code_rejected: int
+    n_live_unsafe_generated_code_rejected: int
     n_formalization_manifests: int
     n_critic_manifests: int
     n_kernel_verified_subclaims: int
@@ -1653,47 +1667,93 @@ def audit_research_agent_runtime(
         "n_generated_simulation_sandbox_executed": sum(
             row.n_generated_simulation_sandbox_executed for row in rows
         ),
+        "n_live_generated_simulation_sandbox_executed": sum(
+            row.n_live_generated_simulation_sandbox_executed for row in rows
+        ),
         "n_generated_simulation_sandbox_passed": sum(
             row.n_generated_simulation_sandbox_passed for row in rows
+        ),
+        "n_live_generated_simulation_sandbox_passed": sum(
+            row.n_live_generated_simulation_sandbox_passed for row in rows
         ),
         "n_generated_simulation_sandbox_metric_gate_failed": sum(
             row.n_generated_simulation_sandbox_metric_gate_failed for row in rows
         ),
+        "n_live_generated_simulation_sandbox_metric_gate_failed": sum(
+            row.n_live_generated_simulation_sandbox_metric_gate_failed
+            for row in rows
+        ),
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": sum(
             row.n_generated_simulation_sandbox_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences
             for row in rows
         ),
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": sum(
             row.n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
             for row in rows
         ),
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
+            for row in rows
+        ),
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
             row.n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
             for row in rows
         ),
         "n_unsafe_generated_simulation_code_rejected": sum(
             row.n_unsafe_generated_simulation_code_rejected for row in rows
         ),
+        "n_live_unsafe_generated_simulation_code_rejected": sum(
+            row.n_live_unsafe_generated_simulation_code_rejected for row in rows
+        ),
         "n_generated_code_sandbox_executed": sum(
             row.n_generated_code_sandbox_executed for row in rows
+        ),
+        "n_live_generated_code_sandbox_executed": sum(
+            row.n_live_generated_code_sandbox_executed for row in rows
         ),
         "n_generated_code_sandbox_metric_gate_failed": sum(
             row.n_generated_code_sandbox_metric_gate_failed for row in rows
         ),
+        "n_live_generated_code_sandbox_metric_gate_failed": sum(
+            row.n_live_generated_code_sandbox_metric_gate_failed for row in rows
+        ),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": sum(
             row.n_generated_code_sandbox_failed_then_passed_repair_sequences
+            for row in rows
+        ),
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_code_sandbox_failed_then_passed_repair_sequences
             for row in rows
         ),
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": sum(
             row.n_generated_code_sandbox_metric_failed_then_passed_repair_sequences
             for row in rows
         ),
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences
+            for row in rows
+        ),
         "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
             row.n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
             for row in rows
         ),
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": sum(
+            row.n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
+            for row in rows
+        ),
         "n_unsafe_generated_code_rejected": sum(
             row.n_unsafe_generated_code_rejected for row in rows
+        ),
+        "n_live_unsafe_generated_code_rejected": sum(
+            row.n_live_unsafe_generated_code_rejected for row in rows
         ),
         "internal_coding_agent_generated_code_repair_eval_attached": bool(
             attached_coding_agent_repair_eval
@@ -3640,22 +3700,54 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         int(row.get("n_executed", 0) or 0)
         for row in algorithm
     )
+    simulation_live_counts: Counter[str] = Counter()
+    for row in simulation:
+        simulation_live_counts.update(
+            _generated_sandbox_live_counts_from_rows(
+                row.get("generated_simulation_sandbox_prototypes", []),
+                generated_executor="generated_simulation_sandbox",
+            )
+        )
+    algorithm_live_counts: Counter[str] = Counter()
+    for row in algorithm:
+        algorithm_live_counts.update(
+            _generated_sandbox_live_counts_from_rows(
+                row.get("prototypes", []),
+                generated_executor="generated_python_sandbox",
+            )
+        )
     n_generated_simulation_sandbox_executed = sum(
         int(row.get("n_generated_simulation_sandbox_executed", 0) or 0)
         for row in simulation
+    )
+    n_live_generated_simulation_sandbox_executed = int(
+        simulation_live_counts["executed"]
     )
     n_generated_simulation_sandbox_passed = sum(
         int(row.get("n_generated_simulation_sandbox_passed", 0) or 0)
         for row in simulation
     )
+    n_live_generated_simulation_sandbox_passed = int(
+        simulation_live_counts["passed"]
+    )
     n_generated_simulation_sandbox_metric_gate_failed = sum(
         int(row.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0)
         for row in simulation
+    )
+    n_live_generated_simulation_sandbox_metric_gate_failed = int(
+        simulation_live_counts["metric_gate_failed"]
     )
     repair_sequences = _generated_sandbox_repair_sequence_counts(artifacts)
     n_generated_simulation_sandbox_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -3667,9 +3759,23 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         )
         or 0
     )
+    n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
             "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -3678,17 +3784,31 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         int(row.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
         for row in simulation
     )
+    n_live_unsafe_generated_simulation_code_rejected = int(
+        simulation_live_counts["unsafe_rejected"]
+    )
     n_generated_code_sandbox_executed = sum(
         int(row.get("n_generated_code_executed", 0) or 0)
         for row in algorithm
     )
+    n_live_generated_code_sandbox_executed = int(algorithm_live_counts["executed"])
     n_generated_code_sandbox_metric_gate_failed = sum(
         int(row.get("n_metric_gate_failed", 0) or 0)
         for row in algorithm
     )
+    n_live_generated_code_sandbox_metric_gate_failed = int(
+        algorithm_live_counts["metric_gate_failed"]
+    )
     n_generated_code_sandbox_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
             "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    n_live_generated_code_sandbox_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -3700,6 +3820,13 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         )
         or 0
     )
+    n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
             "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
@@ -3707,9 +3834,19 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         )
         or 0
     )
+    n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences = int(
+        repair_sequences.get(
+            "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     n_unsafe_generated_code_rejected = sum(
         int(row.get("n_unsafe_generated_code_rejected", 0) or 0)
         for row in algorithm
+    )
+    n_live_unsafe_generated_code_rejected = int(
+        algorithm_live_counts["unsafe_rejected"]
     )
     n_critic_reroutes = sum(
         1
@@ -3764,34 +3901,71 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_theory_packets=len(theory),
         n_simulation_manifests=len(simulation),
         n_generated_simulation_sandbox_executed=n_generated_simulation_sandbox_executed,
+        n_live_generated_simulation_sandbox_executed=(
+            n_live_generated_simulation_sandbox_executed
+        ),
         n_generated_simulation_sandbox_passed=n_generated_simulation_sandbox_passed,
+        n_live_generated_simulation_sandbox_passed=(
+            n_live_generated_simulation_sandbox_passed
+        ),
         n_generated_simulation_sandbox_metric_gate_failed=(
             n_generated_simulation_sandbox_metric_gate_failed
+        ),
+        n_live_generated_simulation_sandbox_metric_gate_failed=(
+            n_live_generated_simulation_sandbox_metric_gate_failed
         ),
         n_generated_simulation_sandbox_failed_then_passed_repair_sequences=(
             n_generated_simulation_sandbox_failed_then_passed_repair_sequences
         ),
+        n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences=(
+            n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences
+        ),
         n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences=(
             n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
+        ),
+        n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences=(
+            n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences
         ),
         n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences=(
             n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
         ),
+        n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences=(
+            n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences
+        ),
         n_unsafe_generated_simulation_code_rejected=n_unsafe_generated_simulation_code_rejected,
+        n_live_unsafe_generated_simulation_code_rejected=(
+            n_live_unsafe_generated_simulation_code_rejected
+        ),
         n_algorithm_manifests=len(algorithm),
         n_algorithm_sandbox_executed=n_algorithm_sandbox_executed,
         n_generated_code_sandbox_executed=n_generated_code_sandbox_executed,
+        n_live_generated_code_sandbox_executed=(
+            n_live_generated_code_sandbox_executed
+        ),
         n_generated_code_sandbox_metric_gate_failed=n_generated_code_sandbox_metric_gate_failed,
+        n_live_generated_code_sandbox_metric_gate_failed=(
+            n_live_generated_code_sandbox_metric_gate_failed
+        ),
         n_generated_code_sandbox_failed_then_passed_repair_sequences=(
             n_generated_code_sandbox_failed_then_passed_repair_sequences
+        ),
+        n_live_generated_code_sandbox_failed_then_passed_repair_sequences=(
+            n_live_generated_code_sandbox_failed_then_passed_repair_sequences
         ),
         n_generated_code_sandbox_metric_failed_then_passed_repair_sequences=(
             n_generated_code_sandbox_metric_failed_then_passed_repair_sequences
         ),
+        n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences=(
+            n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences
+        ),
         n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences=(
             n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
         ),
+        n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences=(
+            n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences
+        ),
         n_unsafe_generated_code_rejected=n_unsafe_generated_code_rejected,
+        n_live_unsafe_generated_code_rejected=n_live_unsafe_generated_code_rejected,
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
         n_kernel_verified_subclaims=n_kernel,
@@ -5793,21 +5967,24 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload
     )
     integrated_algorithm_repair_sequences = int(
-        payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
+        payload.get(
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
         or 0
     )
     integrated_algorithm_code_executed = int(
-        payload.get("n_generated_code_sandbox_executed", 0) or 0
+        payload.get("n_live_generated_code_sandbox_executed", 0) or 0
     )
     integrated_simulation_repair_sequences = int(
         payload.get(
-            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
     )
     integrated_simulation_code_executed = int(
-        payload.get("n_generated_simulation_sandbox_executed", 0) or 0
+        payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
     )
     attached_coding_repair_ready = (
         bool(
@@ -6035,13 +6212,13 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_algorithm_and_simulation_code_executed",
             generated_code_execution_ready,
             (
-                "integrated_algorithm_code_executed="
+                "live_integrated_algorithm_code_executed="
                 f"{integrated_algorithm_code_executed} "
-                "integrated_simulation_code_executed="
+                "live_integrated_simulation_code_executed="
                 f"{integrated_simulation_code_executed} "
-                "integrated_algorithm_repair_sequences="
+                "live_integrated_algorithm_repair_sequences="
                 f"{integrated_algorithm_repair_sequences} "
-                "integrated_simulation_repair_sequences="
+                "live_integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
                 "attached_coding_repair_ready="
                 f"{attached_coding_repair_ready}"
@@ -6286,26 +6463,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload
     )
     integrated_algorithm_repair_sequences = int(
-        payload.get("n_generated_code_sandbox_failed_then_passed_repair_sequences", 0)
+        payload.get(
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+            0,
+        )
         or 0
     )
     integrated_algorithm_metric_repair_sequences = _payload_specific_or_total_count(
         payload,
         specific_key=(
-            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ),
-        total_key="n_generated_code_sandbox_failed_then_passed_repair_sequences",
+        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
     )
     integrated_algorithm_unsafe_repair_sequences = _payload_specific_or_total_count(
         payload,
         specific_key=(
-            "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+            "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
         ),
-        total_key="n_generated_code_sandbox_failed_then_passed_repair_sequences",
+        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
     )
     integrated_simulation_repair_sequences = int(
         payload.get(
-            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
             0,
         )
         or 0
@@ -6313,19 +6493,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_simulation_metric_repair_sequences = _payload_specific_or_total_count(
         payload,
         specific_key=(
-            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ),
         total_key=(
-            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
         ),
     )
     integrated_simulation_unsafe_repair_sequences = _payload_specific_or_total_count(
         payload,
         specific_key=(
-            "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+            "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
         ),
         total_key=(
-            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
         ),
     )
     attached_repair_eval_algorithm_sequences = int(
@@ -7270,8 +7450,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "generated_algorithm_code_executed",
-            int(payload.get("n_generated_code_sandbox_executed", 0) or 0) > 0,
+            int(payload.get("n_live_generated_code_sandbox_executed", 0) or 0)
+            > 0,
             (
+                "n_live_generated_code_sandbox_executed="
+                f"{payload.get('n_live_generated_code_sandbox_executed')} "
                 "n_generated_code_sandbox_executed="
                 f"{payload.get('n_generated_code_sandbox_executed')} "
                 "attached_live_component_repair_gate_passed="
@@ -7294,16 +7477,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "Python algorithm code and executes it in the local sandbox."
                 ),
                 success_metric=(
-                    "n_generated_code_sandbox_executed>0 for an integrated "
+                    "n_live_generated_code_sandbox_executed>0 for an integrated "
                     "runtime AlgorithmEngineer artifact"
                 ),
             ),
         ),
         _scorecard_row(
             "generated_algorithm_sandbox_clean",
-            int(payload.get("n_unsafe_generated_code_rejected", 0) or 0) <= 0
+            int(payload.get("n_live_unsafe_generated_code_rejected", 0) or 0) <= 0
             or integrated_algorithm_unsafe_repair_sequences > 0,
             (
+                "n_live_unsafe_generated_code_rejected="
+                f"{payload.get('n_live_unsafe_generated_code_rejected')} "
                 "n_unsafe_generated_code_rejected="
                 f"{payload.get('n_unsafe_generated_code_rejected')} "
                 "integrated_algorithm_repair_sequences="
@@ -7325,17 +7510,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "local sandbox guard."
                 ),
                 success_metric=(
-                    "n_unsafe_generated_code_rejected is zero or "
-                    "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences>0"
+                    "n_live_unsafe_generated_code_rejected is zero or "
+                    "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
         _scorecard_row(
             "generated_algorithm_metric_gate_clean",
-            int(payload.get("n_generated_code_sandbox_metric_gate_failed", 0) or 0)
+            int(
+                payload.get(
+                    "n_live_generated_code_sandbox_metric_gate_failed",
+                    0,
+                )
+                or 0
+            )
             <= 0
             or integrated_algorithm_metric_repair_sequences > 0,
             (
+                "n_live_generated_code_sandbox_metric_gate_failed="
+                f"{payload.get('n_live_generated_code_sandbox_metric_gate_failed')} "
                 "n_generated_code_sandbox_metric_gate_failed="
                 f"{payload.get('n_generated_code_sandbox_metric_gate_failed')} "
                 "integrated_algorithm_repair_sequences="
@@ -7357,8 +7550,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "that passes the metric gate."
                 ),
                 success_metric=(
-                    "n_generated_code_sandbox_metric_gate_failed is zero or "
-                    "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
+                    "n_live_generated_code_sandbox_metric_gate_failed is zero or "
+                    "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -7366,6 +7559,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_algorithm_repair_loop_observed",
             integrated_algorithm_repair_sequences > 0,
             (
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
+                f"{payload.get('n_live_generated_code_sandbox_failed_then_passed_repair_sequences')} "
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_generated_code_sandbox_failed_then_passed_repair_sequences')}"
             ),
@@ -7385,15 +7580,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "runtime question."
                 ),
                 success_metric=(
-                    "n_generated_code_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
         _scorecard_row(
             "generated_simulation_code_executed",
-            int(payload.get("n_generated_simulation_sandbox_executed", 0) or 0)
+            int(
+                payload.get(
+                    "n_live_generated_simulation_sandbox_executed",
+                    0,
+                )
+                or 0
+            )
             > 0,
             (
+                "n_live_generated_simulation_sandbox_executed="
+                f"{payload.get('n_live_generated_simulation_sandbox_executed')} "
                 "n_generated_simulation_sandbox_executed="
                 f"{payload.get('n_generated_simulation_sandbox_executed')} "
                 "attached_live_component_repair_gate_passed="
@@ -7416,17 +7619,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "runs in the local sandbox."
                 ),
                 success_metric=(
-                    "n_generated_simulation_sandbox_executed>0 for an integrated "
+                    "n_live_generated_simulation_sandbox_executed>0 for an integrated "
                     "runtime SimulationEvaluator artifact"
                 ),
             ),
         ),
         _scorecard_row(
             "generated_simulation_sandbox_clean",
-            int(payload.get("n_unsafe_generated_simulation_code_rejected", 0) or 0)
+            int(
+                payload.get(
+                    "n_live_unsafe_generated_simulation_code_rejected",
+                    0,
+                )
+                or 0
+            )
             <= 0
             or integrated_simulation_unsafe_repair_sequences > 0,
             (
+                "n_live_unsafe_generated_simulation_code_rejected="
+                f"{payload.get('n_live_unsafe_generated_simulation_code_rejected')} "
                 "n_unsafe_generated_simulation_code_rejected="
                 f"{payload.get('n_unsafe_generated_simulation_code_rejected')} "
                 "integrated_simulation_repair_sequences="
@@ -7448,8 +7659,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "local sandbox guard."
                 ),
                 success_metric=(
-                    "n_unsafe_generated_simulation_code_rejected is zero or "
-                    "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences>0"
+                    "n_live_unsafe_generated_simulation_code_rejected is zero or "
+                    "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -7457,7 +7668,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_simulation_metric_gate_clean",
             int(
                 payload.get(
-                    "n_generated_simulation_sandbox_metric_gate_failed",
+                    "n_live_generated_simulation_sandbox_metric_gate_failed",
                     0,
                 )
                 or 0
@@ -7465,6 +7676,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             <= 0
             or integrated_simulation_metric_repair_sequences > 0,
             (
+                "n_live_generated_simulation_sandbox_metric_gate_failed="
+                f"{payload.get('n_live_generated_simulation_sandbox_metric_gate_failed')} "
                 "n_generated_simulation_sandbox_metric_gate_failed="
                 f"{payload.get('n_generated_simulation_sandbox_metric_gate_failed')} "
                 "integrated_simulation_repair_sequences="
@@ -7486,8 +7699,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "test that passes the configured metric gate."
                 ),
                 success_metric=(
-                    "n_generated_simulation_sandbox_metric_gate_failed is zero or "
-                    "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
+                    "n_live_generated_simulation_sandbox_metric_gate_failed is zero or "
+                    "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -7495,6 +7708,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "generated_simulation_repair_loop_observed",
             integrated_simulation_repair_sequences > 0,
             (
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences="
+                f"{payload.get('n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences')} "
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}"
             ),
@@ -7513,7 +7728,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "runtime question."
                 ),
                 success_metric=(
-                    "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                    "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -9213,17 +9428,33 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_theory_trace_alignment_contracts_with_historical_unsupported_anchors')}",
         f"- theory trace alignment boundary: {payload.get('theory_trace_alignment_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
-        f"- generated-code sandbox executed: {payload.get('n_generated_code_sandbox_executed')}",
-        f"- generated-code metric gate failed: {payload.get('n_generated_code_sandbox_metric_gate_failed')}",
-        "- generated-code fail->pass repair sequences: "
+        "- generated-code sandbox executed / live-generated: "
+        f"{payload.get('n_generated_code_sandbox_executed')} / "
+        f"{payload.get('n_live_generated_code_sandbox_executed')}",
+        "- generated-code metric gate failed / live-generated: "
+        f"{payload.get('n_generated_code_sandbox_metric_gate_failed')} / "
+        f"{payload.get('n_live_generated_code_sandbox_metric_gate_failed')}",
+        "- generated-code fail->pass repair sequences / live-generated: "
         f"{payload.get('n_generated_code_sandbox_failed_then_passed_repair_sequences')}",
-        f"- unsafe generated-code rejected: {payload.get('n_unsafe_generated_code_rejected')}",
-        f"- generated simulation sandbox executed: {payload.get('n_generated_simulation_sandbox_executed')}",
-        f"- generated simulation sandbox passed: {payload.get('n_generated_simulation_sandbox_passed')}",
-        f"- generated simulation metric gate failed: {payload.get('n_generated_simulation_sandbox_metric_gate_failed')}",
-        "- generated simulation fail->pass repair sequences: "
+        f" / {payload.get('n_live_generated_code_sandbox_failed_then_passed_repair_sequences')}",
+        "- unsafe generated-code rejected / live-generated: "
+        f"{payload.get('n_unsafe_generated_code_rejected')} / "
+        f"{payload.get('n_live_unsafe_generated_code_rejected')}",
+        "- generated simulation sandbox executed / live-generated: "
+        f"{payload.get('n_generated_simulation_sandbox_executed')} / "
+        f"{payload.get('n_live_generated_simulation_sandbox_executed')}",
+        "- generated simulation sandbox passed / live-generated: "
+        f"{payload.get('n_generated_simulation_sandbox_passed')} / "
+        f"{payload.get('n_live_generated_simulation_sandbox_passed')}",
+        "- generated simulation metric gate failed / live-generated: "
+        f"{payload.get('n_generated_simulation_sandbox_metric_gate_failed')} / "
+        f"{payload.get('n_live_generated_simulation_sandbox_metric_gate_failed')}",
+        "- generated simulation fail->pass repair sequences / live-generated: "
         f"{payload.get('n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}",
-        f"- unsafe generated simulation rejected: {payload.get('n_unsafe_generated_simulation_code_rejected')}",
+        f" / {payload.get('n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences')}",
+        "- unsafe generated simulation rejected / live-generated: "
+        f"{payload.get('n_unsafe_generated_simulation_code_rejected')} / "
+        f"{payload.get('n_live_unsafe_generated_simulation_code_rejected')}",
         f"- Lean LSP/MCP live calls: {payload.get('n_lean_lsp_mcp_live_calls')}",
         f"- runtime-learning-memory inputs: {payload.get('n_results_with_runtime_learning_memory_input')}",
         f"- runtime-learning-memory input rows: {payload.get('n_runtime_learning_memory_input_rows')}",

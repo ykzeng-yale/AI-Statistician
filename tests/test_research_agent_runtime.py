@@ -8209,6 +8209,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
         model="claude-haiku-4-5-20251001",
         model_tier="haiku",
         provider_name="anthropic",
+        backend_provider_name="anthropic",
         raw_response="{}",
         theory_packet=_structured_theory_packet_fixture(),
         implementation_gaps=[
@@ -8223,6 +8224,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
     assert draft["estimator_id"] == "E1"
+    assert packet["backend_provider"] == "anthropic"
     contract = packet["theory_trace_consumption_contract"]
     assert contract["consumer_subsystem"] == "AlgorithmEngineer"
     assert contract["theory_derivation_trace_supplied"] is True
@@ -8278,6 +8280,7 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
         model="claude-haiku-4-5-20251001",
         model_tier="haiku",
         provider_name="anthropic",
+        backend_provider_name="anthropic",
         raw_response="{}",
         theory_packet=_structured_theory_packet_fixture(),
         n_runs=12,
@@ -8287,6 +8290,7 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
     draft = packet["simulation_code_drafts"][0]
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
+    assert packet["backend_provider"] == "anthropic"
     contract = packet["theory_trace_consumption_contract"]
     assert contract["consumer_subsystem"] == "SimulationEngineer"
     assert contract["theory_derivation_trace_supplied"] is True
@@ -23096,9 +23100,13 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
     payload = {
         "n_live_generator_agents_enabled": 6,
         "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_local_lean_checked"],
@@ -23367,9 +23375,13 @@ def test_formalizer_proof_state_feedback_must_bind_materialization() -> None:
     payload = {
         "n_live_generator_agents_enabled": 6,
         "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": proof_summary[
             "n_formalizer_lean_candidate_local_lean_checked"
         ],
@@ -49115,7 +49127,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert proof_control["deferred_priority_proof_obligation_ids_due_to_max"] == []
     assert evidence_summary["algorithm"]["n_algorithm_sandbox_executed"] == 4
     assert evidence_summary["algorithm"]["n_generated_code_sandbox_executed"] == 2
+    assert evidence_summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 0
     assert evidence_summary["algorithm"]["n_unsafe_generated_code_rejected"] == 0
+    assert (
+        evidence_summary["simulation"][
+            "n_live_generated_simulation_sandbox_executed"
+        ]
+        == 0
+    )
     assert evidence_summary["honesty_boundary"]["kernel_subclaims_imply_full_frontier_theorem"] is False
     topology_summary = manifest["llm_runtime_topology_summary"]
     assert topology_summary["artifact_kind"] == "RuntimeLLMTopologySummary"
@@ -49131,7 +49150,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert manifest["n_formal_gaps"] == 6
     assert manifest["n_algorithm_sandbox_executed"] == 4
     assert manifest["n_generated_code_sandbox_executed"] == 2
+    assert manifest["n_live_generated_code_sandbox_executed"] == 0
     assert manifest["n_unsafe_generated_code_rejected"] == 0
+    assert manifest["n_live_generated_simulation_sandbox_executed"] == 0
     assert Path(manifest["artifacts"]["runtime_llm_topology_json"]).exists()
     theorem_closure_queue_path = Path(
         manifest["artifacts"]["runtime_theorem_reduction_closure_work_orders_jsonl"]
@@ -50041,6 +50062,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
     assert audit["n_live_generator_agents_enabled"] == 0
+    assert audit["n_live_generated_code_sandbox_executed"] == 0
+    assert audit["n_live_generated_simulation_sandbox_executed"] == 0
     assert audit["n_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_critic_reroutes"] == 1
     assert audit["has_kernel_evidence"] is False
@@ -50779,7 +50802,9 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "architect_coordinator_enabled": True,
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -50826,7 +50851,9 @@ def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> Non
         "architect_coordinator_enabled": False,
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 2,
         "n_llm_formalizer_proof_engineer_proposals": 3,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
@@ -50864,7 +50891,9 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "architect_coordinator_enabled": True,
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -50909,7 +50938,9 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         **_scorecard_theory_trace_consumption_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -50964,7 +50995,9 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         **_scorecard_theory_trace_consumption_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -51019,7 +51052,9 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         **_scorecard_theory_trace_consumption_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -51074,7 +51109,9 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         **_scorecard_theory_trace_consumption_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -51409,9 +51446,13 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "question_ids": ["conformal_prediction_coverage"],
         "n_live_generator_agents_enabled": 6,
         "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
         "n_formalizer_lean_candidate_live_proof_state_requests": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 0,
@@ -51485,7 +51526,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert "--learning-memory-jsonl runs/current/runtime_learning_rows.jsonl" in (
         algorithm_learning_row["recommended_capability_eval_command"]
     )
-    assert "n_generated_code_sandbox_failed_then_passed_repair_sequences>0" in algorithm_learning_row[
+    assert "n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0" in algorithm_learning_row[
         "success_metric"
     ]
     proof_state_learning_row = learning_rows_by_id[
@@ -51532,6 +51573,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
 
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 1
+    payload["n_live_generated_code_sandbox_failed_then_passed_repair_sequences"] = 1
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert table["coding_agent_capability_ready"] is False
@@ -51614,6 +51656,32 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     payload = {
         "question_ids": ["conformal_prediction_coverage"],
         "n_live_generator_agents_enabled": 6,
+        "n_generated_code_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_executed": 0,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_simulation_sandbox_executed": 0,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
+    }
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+
+    assert rows["generated_algorithm_code_executed_locally"]["passed"] is False
+    assert rows["generated_algorithm_repair_loop_observed"]["passed"] is False
+    assert rows["generated_simulation_code_executed_locally"]["passed"] is False
+    assert rows["generated_simulation_repair_loop_observed"]["passed"] is False
+    assert "n_generated_code_sandbox_executed=1" in rows[
+        "generated_algorithm_code_executed_locally"
+    ]["evidence"]
+    assert "n_generated_simulation_sandbox_executed=1" in rows[
+        "generated_simulation_code_executed_locally"
+    ]["evidence"]
+
+    payload = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "n_live_generator_agents_enabled": 6,
         "n_generated_code_sandbox_executed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_simulation_sandbox_executed": 0,
@@ -51672,6 +51740,49 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
 
 
+def test_runtime_evidence_summary_recomputes_live_generated_counts_from_rows() -> None:
+    artifacts = {
+        "algorithm_sandbox_manifest:static_counter": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "n_generated_code_executed": 1,
+            "n_live_generated_code_executed": 1,
+            "prototypes": [
+                {
+                    "executor": "generated_python_sandbox",
+                    "prototype_status": "EXECUTED",
+                    "smoke_passed": True,
+                    "source_llm_proposal_provider": "anthropic",
+                    "source_llm_proposal_backend_provider": "static",
+                    "source_llm_proposal_live_generator": True,
+                }
+            ],
+        },
+        "simulation_manifest:live_row": {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "n_generated_simulation_sandbox_executed": 1,
+            "generated_simulation_sandbox_prototypes": [
+                {
+                    "executor": "generated_simulation_sandbox",
+                    "prototype_status": "EXECUTED",
+                    "smoke_passed": True,
+                    "source_llm_proposal_provider": "anthropic",
+                    "source_llm_proposal_backend_provider": "anthropic",
+                    "source_llm_proposal_live_generator": True,
+                }
+            ],
+        },
+    }
+
+    summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert summary["algorithm"]["n_generated_code_sandbox_executed"] == 1
+    assert summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 0
+    assert summary["simulation"]["n_generated_simulation_sandbox_executed"] == 1
+    assert summary["simulation"]["n_live_generated_simulation_sandbox_executed"] == 1
+
+
 def test_runtime_capability_scorecard_requires_architect_path_propagation() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
@@ -51703,14 +51814,23 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         },
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_metric_gate_failed": 0,
+        "n_live_generated_code_sandbox_metric_gate_failed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_unsafe_generated_code_rejected": 0,
+        "n_live_unsafe_generated_code_rejected": 0,
         "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_passed": 1,
+        "n_live_generated_simulation_sandbox_passed": 1,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_unsafe_generated_simulation_code_rejected": 0,
+        "n_live_unsafe_generated_simulation_code_rejected": 0,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
@@ -51880,7 +52000,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
 
     payload["requested_recommended_research_path"] = ""
     payload["n_generated_code_sandbox_executed"] = 0
+    payload["n_live_generated_code_sandbox_executed"] = 0
     payload["n_generated_simulation_sandbox_executed"] = 0
+    payload["n_live_generated_simulation_sandbox_executed"] = 0
     payload["n_formalizer_lean_candidate_local_lean_checked"] = 0
     payload[
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
@@ -51920,12 +52042,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["next_owner_subsystem"] == "FormalizationEvaluator"
 
     payload["n_generated_code_sandbox_executed"] = 1
+    payload["n_live_generated_code_sandbox_executed"] = 1
     payload["n_generated_simulation_sandbox_executed"] = 1
+    payload["n_live_generated_simulation_sandbox_executed"] = 1
     payload["n_formalizer_lean_candidate_local_lean_checked"] = 1
     payload["n_formalizer_lean_candidate_live_proof_state_requests"] = 0
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests"] = 0
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload["n_live_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+    ] = 0
     payload[
         "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
     ] = False
@@ -52002,22 +52130,44 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
 
     payload["n_generated_code_sandbox_executed"] = 1
+    payload["n_live_generated_code_sandbox_executed"] = 1
     payload["n_generated_simulation_sandbox_executed"] = 1
+    payload["n_live_generated_simulation_sandbox_executed"] = 1
     payload["n_formalizer_lean_candidate_local_lean_checked"] = 1
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 1
+    payload["n_live_generated_code_sandbox_failed_then_passed_repair_sequences"] = 1
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 1
+    payload[
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+    ] = 1
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
     payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
     payload[
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
     ] = 0
     payload[
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
+    payload[
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
     ] = 0
+    payload[
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
     payload["n_generated_code_sandbox_metric_gate_failed"] = 1
+    payload["n_live_generated_code_sandbox_metric_gate_failed"] = 1
     payload["n_generated_simulation_sandbox_metric_gate_failed"] = 1
+    payload["n_live_generated_simulation_sandbox_metric_gate_failed"] = 1
     payload["n_unsafe_generated_code_rejected"] = 1
+    payload["n_live_unsafe_generated_code_rejected"] = 1
     payload["n_unsafe_generated_simulation_code_rejected"] = 1
+    payload["n_live_unsafe_generated_simulation_code_rejected"] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
@@ -52045,12 +52195,24 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["blocker"]
 
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
+    payload[
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
     payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 1
+    payload[
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 1
     payload[
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
     ] = 1
     payload[
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
     ] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
@@ -52061,14 +52223,30 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is True
 
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload["n_live_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
     payload["n_generated_simulation_sandbox_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+    ] = 0
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
     payload["n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"] = 0
+    payload[
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
     payload[
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
     ] = 0
     payload[
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 0
+    payload[
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+    ] = 0
+    payload[
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
     ] = 0
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}

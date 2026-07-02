@@ -1032,19 +1032,19 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     live_generators = _runtime_manifest_int(payload, "n_live_generator_agents_enabled")
     algorithm_executed = _runtime_manifest_int(
         payload,
-        "n_generated_code_sandbox_executed",
+        "n_live_generated_code_sandbox_executed",
     )
     algorithm_repair_sequences = _runtime_manifest_int(
         payload,
-        "n_generated_code_sandbox_failed_then_passed_repair_sequences",
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
     )
     simulation_executed = _runtime_manifest_int(
         payload,
-        "n_generated_simulation_sandbox_executed",
+        "n_live_generated_simulation_sandbox_executed",
     )
     simulation_repair_sequences = _runtime_manifest_int(
         payload,
-        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
     )
     formalizer_checked = _runtime_manifest_int(
         payload,
@@ -1191,7 +1191,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "passed": algorithm_executed > 0,
             "count": algorithm_executed,
             "evidence": (
-                f"n_generated_code_sandbox_executed={algorithm_executed}; "
+                "n_live_generated_code_sandbox_executed="
+                f"{algorithm_executed}; "
+                "n_generated_code_sandbox_executed="
+                f"{_runtime_manifest_int(payload, 'n_generated_code_sandbox_executed')}; "
                 "attached_component_algorithm_repair_calibration="
                 f"{attached_coding_algorithm_calibration}"
             ),
@@ -1209,8 +1212,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "passed": algorithm_repair_sequences > 0,
             "count": algorithm_repair_sequences,
             "evidence": (
-                "n_generated_code_sandbox_failed_then_passed_repair_sequences="
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{algorithm_repair_sequences}; "
+                "n_generated_code_sandbox_failed_then_passed_repair_sequences="
+                f"{_runtime_manifest_int(payload, 'n_generated_code_sandbox_failed_then_passed_repair_sequences')}; "
                 "attached_component_algorithm_repair_calibration="
                 f"{attached_coding_algorithm_calibration}"
             ),
@@ -1228,8 +1233,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "passed": simulation_executed > 0,
             "count": simulation_executed,
             "evidence": (
-                "n_generated_simulation_sandbox_executed="
+                "n_live_generated_simulation_sandbox_executed="
                 f"{simulation_executed}; "
+                "n_generated_simulation_sandbox_executed="
+                f"{_runtime_manifest_int(payload, 'n_generated_simulation_sandbox_executed')}; "
                 "attached_component_simulation_repair_calibration="
                 f"{attached_coding_simulation_calibration}"
             ),
@@ -1247,8 +1254,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "passed": simulation_repair_sequences > 0,
             "count": simulation_repair_sequences,
             "evidence": (
-                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{simulation_repair_sequences}; "
+                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
+                f"{_runtime_manifest_int(payload, 'n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}; "
                 "attached_component_simulation_repair_calibration="
                 f"{attached_coding_simulation_calibration}"
             ),
@@ -1593,9 +1602,9 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_code_sandbox_failed_then_passed_repair_sequences>0 "
-                "in the integrated AgentRuntime manifest; attached component "
-                "calibration alone does not satisfy this row"
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; static/replay drafts "
+                "and attached component calibration alone do not satisfy this row"
             )
         elif capability_id == "generated_simulation_repair_loop_observed":
             next_owner = "SimulationEvaluator"
@@ -1608,9 +1617,9 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_simulation_sandbox_failed_then_passed_repair_sequences>0 "
-                "in the integrated AgentRuntime manifest; attached component "
-                "calibration alone does not satisfy this row"
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; static/replay drafts "
+                "and attached component calibration alone do not satisfy this row"
             )
         elif capability_id == "generated_algorithm_code_executed_locally":
             next_owner = "AlgorithmEngineer"
@@ -1621,8 +1630,8 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_code_sandbox_executed>0 from the integrated "
-                "AgentRuntime AlgorithmEngineer artifact with live providers"
+                "n_live_generated_code_sandbox_executed>0 from the integrated "
+                "AgentRuntime AlgorithmEngineer artifact"
             )
         elif capability_id == "generated_simulation_code_executed_locally":
             next_owner = "SimulationEvaluator"
@@ -1633,8 +1642,8 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_generated_simulation_sandbox_executed>0 from the integrated "
-                "AgentRuntime SimulationEvaluator artifact with live providers"
+                "n_live_generated_simulation_sandbox_executed>0 from the integrated "
+                "AgentRuntime SimulationEvaluator artifact"
             )
         elif capability_id == "llm_formalizer_proofengineer_proposal_observed":
             next_owner = "FormalizationEvaluator"
@@ -5112,21 +5121,26 @@ class SimulationEvaluatorRuntimeSubsystem:
             and not simulation_code_drafts
         ):
             generated_simulation_rows.append(
-                {
-                    "simulation_id": "generated_simulation_required",
-                    "prototype_status": "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
-                    "executor": "generated_simulation_sandbox",
-                    "reason": (
-                        "Capability evaluation requires a Claude/OpenAI-generated "
-                        "simulation_code_drafts entry. Registered simulators are "
-                        "baselines and were not accepted for this capability gate."
-                    ),
-                    "smoke_passed": False,
-                    "execution_smoke_passed": False,
-                    "simulation_evidence_status": (
-                        "GENERATED_SIMULATION_SANDBOX_EXECUTION_MISSING"
-                    ),
-                }
+                _annotate_generated_sandbox_prototype_provenance(
+                    {
+                        "simulation_id": "generated_simulation_required",
+                        "prototype_status": (
+                            "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
+                        ),
+                        "executor": "generated_simulation_sandbox",
+                        "reason": (
+                            "Capability evaluation requires a Claude/OpenAI-generated "
+                            "simulation_code_drafts entry. Registered simulators are "
+                            "baselines and were not accepted for this capability gate."
+                        ),
+                        "smoke_passed": False,
+                        "execution_smoke_passed": False,
+                        "simulation_evidence_status": (
+                            "GENERATED_SIMULATION_SANDBOX_EXECUTION_MISSING"
+                        ),
+                    },
+                    proposal_packet=proposal_packet,
+                )
             )
         for draft in simulation_code_drafts:
             simulation_id = str(draft.get("simulation_id", "") or "simulation_draft")
@@ -5144,25 +5158,54 @@ class SimulationEvaluatorRuntimeSubsystem:
                 seed=seed,
                 timeout_s=30,
             )
-            generated_simulation_rows.append(prototype)
+            generated_simulation_rows.append(
+                _annotate_generated_sandbox_prototype_provenance(
+                    prototype,
+                    proposal_packet=proposal_packet,
+                )
+            )
             generated_simulation_tool_calls.append(tool_call)
         n_generated_simulation_executed = sum(
             1
             for row in generated_simulation_rows
-            if row.get("prototype_status") in {"EXECUTED", "FAILED_METRIC_GATE"}
+            if _generated_sandbox_row_executed(row)
+        )
+        n_live_generated_simulation_executed = sum(
+            1
+            for row in generated_simulation_rows
+            if _generated_sandbox_row_executed(row)
+            and _generated_sandbox_row_live_generated(row)
         )
         n_generated_simulation_passed = sum(
             1 for row in generated_simulation_rows if row.get("smoke_passed") is True
+        )
+        n_live_generated_simulation_passed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("smoke_passed") is True
+            and _generated_sandbox_row_live_generated(row)
         )
         n_generated_simulation_metric_gate_failed = sum(
             1
             for row in generated_simulation_rows
             if row.get("prototype_status") == "FAILED_METRIC_GATE"
         )
+        n_live_generated_simulation_metric_gate_failed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("prototype_status") == "FAILED_METRIC_GATE"
+            and _generated_sandbox_row_live_generated(row)
+        )
         n_unsafe_generated_simulation_rejected = sum(
             1
             for row in generated_simulation_rows
             if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
+        )
+        n_live_unsafe_generated_simulation_rejected = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
+            and _generated_sandbox_row_live_generated(row)
         )
         generated_simulation_revision_required = bool(
             self.proposal_agent is not None
@@ -5216,11 +5259,23 @@ class SimulationEvaluatorRuntimeSubsystem:
             "generated_simulation_sandbox_prototypes": generated_simulation_rows,
             "n_generated_simulation_sandbox_prototypes": len(generated_simulation_rows),
             "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
+            "n_live_generated_simulation_sandbox_executed": (
+                n_live_generated_simulation_executed
+            ),
             "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
+            "n_live_generated_simulation_sandbox_passed": (
+                n_live_generated_simulation_passed
+            ),
             "n_generated_simulation_sandbox_metric_gate_failed": (
                 n_generated_simulation_metric_gate_failed
             ),
+            "n_live_generated_simulation_sandbox_metric_gate_failed": (
+                n_live_generated_simulation_metric_gate_failed
+            ),
             "n_unsafe_generated_simulation_code_rejected": n_unsafe_generated_simulation_rejected,
+            "n_live_unsafe_generated_simulation_code_rejected": (
+                n_live_unsafe_generated_simulation_rejected
+            ),
             "simulation_passed": simulation_passed,
             "implementation_gaps": implementation_gaps,
             "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
@@ -5693,23 +5748,31 @@ class AlgorithmEngineerRuntimeSubsystem:
                     timeout_s=self.timeout_s,
                 )
                 prototype["llm_algorithm_engineer_target"] = proposal_target
-                prototype_rows.append(prototype)
+                prototype_rows.append(
+                    _annotate_generated_sandbox_prototype_provenance(
+                        prototype,
+                        proposal_packet=proposal_packet,
+                    )
+                )
                 tool_calls.append(tool_call)
             elif requires_generated_algorithm_code:
                 prototype_rows.append(
-                    {
-                        "estimator_id": estimator_id,
-                        "prototype_status": "GENERATED_CODE_REQUIRED_BUT_MISSING",
-                        "executor": "generated_python_sandbox",
-                        "spec": dict(spec),
-                        "reason": (
-                            "Capability evaluation requires a Claude/OpenAI-generated "
-                            "sandbox_code_drafts entry. Registered templates are "
-                            "baselines and were not executed for this capability gate."
-                        ),
-                        "promotion_ready": False,
-                        "llm_algorithm_engineer_target": proposal_target,
-                    }
+                    _annotate_generated_sandbox_prototype_provenance(
+                        {
+                            "estimator_id": estimator_id,
+                            "prototype_status": "GENERATED_CODE_REQUIRED_BUT_MISSING",
+                            "executor": "generated_python_sandbox",
+                            "spec": dict(spec),
+                            "reason": (
+                                "Capability evaluation requires a Claude/OpenAI-generated "
+                                "sandbox_code_drafts entry. Registered templates are "
+                                "baselines and were not executed for this capability gate."
+                            ),
+                            "promotion_ready": False,
+                            "llm_algorithm_engineer_target": proposal_target,
+                        },
+                        proposal_packet=proposal_packet,
+                    )
                 )
             elif estimator_id == "crossfit_aipw" or template_hint == "crossfit_aipw":
                 prototype, tool_call = _run_crossfit_aipw_prototype(
@@ -5783,12 +5846,32 @@ class AlgorithmEngineerRuntimeSubsystem:
                 1
                 for row in prototype_rows
                 if row.get("executor") == "generated_python_sandbox"
-                and row.get("prototype_status") in {"EXECUTED", "FAILED_METRIC_GATE"}
+                and _generated_sandbox_row_executed(row)
+            ),
+            "n_live_generated_code_executed": sum(
+                1
+                for row in prototype_rows
+                if row.get("executor") == "generated_python_sandbox"
+                and _generated_sandbox_row_executed(row)
+                and _generated_sandbox_row_live_generated(row)
+            ),
+            "n_live_generated_code_metric_gate_failed": sum(
+                1
+                for row in prototype_rows
+                if row.get("executor") == "generated_python_sandbox"
+                and row.get("prototype_status") == "FAILED_METRIC_GATE"
+                and _generated_sandbox_row_live_generated(row)
             ),
             "n_unsafe_generated_code_rejected": sum(
                 1
                 for row in prototype_rows
                 if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
+            ),
+            "n_live_unsafe_generated_code_rejected": sum(
+                1
+                for row in prototype_rows
+                if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
+                and _generated_sandbox_row_live_generated(row)
             ),
             "promotion_ready": False,
             "boundary": (
@@ -16530,15 +16613,29 @@ def run_research_agent_runtime(
         "n_generated_simulation_sandbox_executed": evidence_summary["simulation"][
             "n_generated_simulation_sandbox_executed"
         ],
+        "n_live_generated_simulation_sandbox_executed": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_sandbox_executed"],
         "n_generated_simulation_sandbox_passed": evidence_summary["simulation"][
             "n_generated_simulation_sandbox_passed"
         ],
+        "n_live_generated_simulation_sandbox_passed": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_sandbox_passed"],
         "n_generated_simulation_sandbox_metric_gate_failed": evidence_summary[
             "simulation"
         ]["n_generated_simulation_sandbox_metric_gate_failed"],
+        "n_live_generated_simulation_sandbox_metric_gate_failed": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_sandbox_metric_gate_failed"],
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
             evidence_summary["simulation"][
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+            ]
+        ),
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
+            evidence_summary["simulation"][
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
             ]
         ),
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
@@ -16546,22 +16643,46 @@ def run_research_agent_runtime(
                 "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
+            evidence_summary["simulation"][
+                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+            ]
+        ),
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
             evidence_summary["simulation"][
                 "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            evidence_summary["simulation"][
+                "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+            ]
+        ),
         "n_unsafe_generated_simulation_code_rejected": evidence_summary["simulation"][
             "n_unsafe_generated_simulation_code_rejected"
         ],
+        "n_live_unsafe_generated_simulation_code_rejected": evidence_summary[
+            "simulation"
+        ]["n_live_unsafe_generated_simulation_code_rejected"],
         "n_algorithm_sandbox_executed": evidence_summary["algorithm"]["n_algorithm_sandbox_executed"],
         "n_generated_code_sandbox_executed": evidence_summary["algorithm"]["n_generated_code_sandbox_executed"],
+        "n_live_generated_code_sandbox_executed": evidence_summary["algorithm"][
+            "n_live_generated_code_sandbox_executed"
+        ],
         "n_generated_code_sandbox_metric_gate_failed": evidence_summary[
             "algorithm"
         ]["n_generated_code_sandbox_metric_gate_failed"],
+        "n_live_generated_code_sandbox_metric_gate_failed": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_code_sandbox_metric_gate_failed"],
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
             evidence_summary["algorithm"][
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences"
+            ]
+        ),
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": (
+            evidence_summary["algorithm"][
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
             ]
         ),
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
@@ -16569,12 +16690,25 @@ def run_research_agent_runtime(
                 "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            evidence_summary["algorithm"][
+                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+            ]
+        ),
         "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
             evidence_summary["algorithm"][
                 "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
             ]
         ),
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            evidence_summary["algorithm"][
+                "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+            ]
+        ),
         "n_unsafe_generated_code_rejected": evidence_summary["algorithm"]["n_unsafe_generated_code_rejected"],
+        "n_live_unsafe_generated_code_rejected": evidence_summary["algorithm"][
+            "n_live_unsafe_generated_code_rejected"
+        ],
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "simulation_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
         "llm_runtime_topology": llm_topology,
@@ -30112,6 +30246,102 @@ def _runtime_llm_topology_live_generator_count(
     topology: Mapping[str, Any],
 ) -> int:
     return len(_runtime_llm_topology_live_generator_rows(topology))
+
+
+def _runtime_llm_proposal_packet_provider(packet: Mapping[str, Any]) -> str:
+    return str(
+        packet.get("provider", "")
+        or packet.get("provider_name", "")
+        or ""
+    ).strip().lower()
+
+
+def _runtime_llm_proposal_packet_backend_provider(packet: Mapping[str, Any]) -> str:
+    return str(
+        packet.get("backend_provider", "")
+        or packet.get("backend_provider_name", "")
+    ).strip().lower()
+
+
+def _runtime_llm_proposal_packet_live_generator(packet: Mapping[str, Any]) -> bool:
+    provider = _runtime_llm_proposal_packet_provider(packet)
+    backend_provider = _runtime_llm_proposal_packet_backend_provider(packet)
+    return (
+        provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+    )
+
+
+def _annotate_generated_sandbox_prototype_provenance(
+    prototype: Mapping[str, Any],
+    *,
+    proposal_packet: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    annotated = dict(prototype)
+    packet = proposal_packet if isinstance(proposal_packet, Mapping) else {}
+    annotated["source_llm_proposal_id"] = str(packet.get("packet_id", "") or "")
+    annotated["source_llm_proposal_agent"] = str(packet.get("source_agent", "") or "")
+    annotated["source_llm_proposal_provider"] = (
+        _runtime_llm_proposal_packet_provider(packet) if packet else ""
+    )
+    annotated["source_llm_proposal_backend_provider"] = (
+        _runtime_llm_proposal_packet_backend_provider(packet) if packet else ""
+    )
+    annotated["source_llm_proposal_model"] = str(packet.get("model", "") or "")
+    annotated["source_llm_proposal_model_tier"] = str(
+        packet.get("model_tier", "") or ""
+    )
+    annotated["source_llm_proposal_live_generator"] = (
+        _runtime_llm_proposal_packet_live_generator(packet) if packet else False
+    )
+    return annotated
+
+
+def _generated_sandbox_row_executed(row: Mapping[str, Any]) -> bool:
+    return str(row.get("prototype_status", "") or "") in {
+        "EXECUTED",
+        "FAILED_METRIC_GATE",
+    }
+
+
+def _generated_sandbox_row_live_generated(row: Mapping[str, Any]) -> bool:
+    provider = str(row.get("source_llm_proposal_provider", "") or "").strip().lower()
+    backend_provider = str(
+        row.get("source_llm_proposal_backend_provider", "") or ""
+    ).strip().lower()
+    return (
+        row.get("source_llm_proposal_live_generator") is True
+        and provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+    )
+
+
+def _generated_sandbox_live_counts_from_rows(
+    rows: Any,
+    *,
+    generated_executor: str,
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    if not isinstance(rows, list):
+        return counts
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("executor", "") or "") != generated_executor:
+            continue
+        if not _generated_sandbox_row_live_generated(row):
+            continue
+        if _generated_sandbox_row_executed(row):
+            counts["executed"] += 1
+        if row.get("smoke_passed") is True:
+            counts["passed"] += 1
+        if str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE":
+            counts["metric_gate_failed"] += 1
+        if str(row.get("prototype_status", "") or "") == (
+            "REJECTED_UNSAFE_GENERATED_CODE"
+        ):
+            counts["unsafe_rejected"] += 1
+    return counts
 
 
 def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]:
@@ -57353,27 +57583,53 @@ def _generated_sandbox_repair_sequence_counts(
     algorithm_repair_sequences = _generated_python_repair_sequence_breakdown(
         algorithm_manifests
     )
+    live_algorithm_repair_sequences = _generated_python_repair_sequence_breakdown(
+        algorithm_manifests,
+        live_generated_only=True,
+    )
     simulation_repair_sequences = _generated_simulation_repair_sequence_breakdown(
         simulation_manifests
+    )
+    live_simulation_repair_sequences = _generated_simulation_repair_sequence_breakdown(
+        simulation_manifests,
+        live_generated_only=True,
     )
     return {
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
             algorithm_repair_sequences["total"]
         ),
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": (
+            live_algorithm_repair_sequences["total"]
+        ),
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
             algorithm_repair_sequences["metric"]
+        ),
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": (
+            live_algorithm_repair_sequences["metric"]
         ),
         "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
             algorithm_repair_sequences["unsafe"]
         ),
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            live_algorithm_repair_sequences["unsafe"]
+        ),
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
             simulation_repair_sequences["total"]
+        ),
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
+            live_simulation_repair_sequences["total"]
         ),
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
             simulation_repair_sequences["metric"]
         ),
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": (
+            live_simulation_repair_sequences["metric"]
+        ),
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
             simulation_repair_sequences["unsafe"]
+        ),
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": (
+            live_simulation_repair_sequences["unsafe"]
         ),
     }
 
@@ -57492,12 +57748,15 @@ def _generated_python_repair_sequences(
 
 def _generated_python_repair_sequence_breakdown(
     manifests: Sequence[Mapping[str, Any]],
+    *,
+    live_generated_only: bool = False,
 ) -> Counter[str]:
     return _generated_sandbox_repair_sequence_breakdown(
         manifests,
         prototype_key="prototypes",
         generated_executor="generated_python_sandbox",
         missing_statuses={"GENERATED_CODE_REQUIRED_BUT_MISSING"},
+        live_generated_only=live_generated_only,
     )
 
 
@@ -57509,12 +57768,15 @@ def _generated_simulation_repair_sequences(
 
 def _generated_simulation_repair_sequence_breakdown(
     manifests: Sequence[Mapping[str, Any]],
+    *,
+    live_generated_only: bool = False,
 ) -> Counter[str]:
     return _generated_sandbox_repair_sequence_breakdown(
         manifests,
         prototype_key="generated_simulation_sandbox_prototypes",
         generated_executor="generated_simulation_sandbox",
         missing_statuses={"GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"},
+        live_generated_only=live_generated_only,
     )
 
 
@@ -57539,6 +57801,7 @@ def _generated_sandbox_repair_sequence_breakdown(
     prototype_key: str,
     generated_executor: str,
     missing_statuses: set[str],
+    live_generated_only: bool = False,
 ) -> Counter[str]:
     pending_failure_classes_by_scope: dict[str, set[str]] = {}
     closed_sequences: Counter[str] = Counter()
@@ -57560,6 +57823,8 @@ def _generated_sandbox_repair_sequence_breakdown(
             executor = str(row.get("executor", "") or "")
             status = str(row.get("prototype_status", "") or "")
             if executor != generated_executor and status not in missing_statuses:
+                continue
+            if live_generated_only and not _generated_sandbox_row_live_generated(row):
                 continue
             smoke_passed = row.get("smoke_passed")
             if status == "EXECUTED" and smoke_passed is True:
@@ -58076,12 +58341,19 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_simulation_manifests_passed": 0,
         "n_generated_simulation_sandbox_prototypes": 0,
         "n_generated_simulation_sandbox_executed": 0,
+        "n_live_generated_simulation_sandbox_executed": 0,
         "n_generated_simulation_sandbox_passed": 0,
+        "n_live_generated_simulation_sandbox_passed": 0,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
         "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
         "n_unsafe_generated_simulation_code_rejected": 0,
+        "n_live_unsafe_generated_simulation_code_rejected": 0,
         "boundary": SIMULATION_NOT_PROOF_BOUNDARY,
     }
     algorithm = {
@@ -58090,11 +58362,17 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_algorithm_sandbox_executed": 0,
         "n_algorithm_sandbox_passed": 0,
         "n_generated_code_sandbox_executed": 0,
+        "n_live_generated_code_sandbox_executed": 0,
         "n_generated_code_sandbox_metric_gate_failed": 0,
+        "n_live_generated_code_sandbox_metric_gate_failed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
         "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences": 0,
         "n_unsafe_generated_code_rejected": 0,
+        "n_live_unsafe_generated_code_rejected": 0,
         "promotion_ready": False,
         "boundary": (
             "Algorithm sandbox summaries are implementation evidence only; "
@@ -58146,6 +58424,15 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             or 0
         )
         simulation[
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        simulation[
             "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ] += int(
             repair_sequences.get(
@@ -58155,10 +58442,28 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             or 0
         )
         simulation[
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        simulation[
             "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
         ] += int(
             repair_sequences.get(
                 "n_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        simulation[
+            "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
                 0,
             )
             or 0
@@ -58173,6 +58478,15 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             or 0
         )
         algorithm[
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        algorithm[
             "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ] += int(
             repair_sequences.get(
@@ -58182,10 +58496,28 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             or 0
         )
         algorithm[
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        algorithm[
             "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
         ] += int(
             repair_sequences.get(
                 "n_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        algorithm[
+            "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
+        ] += int(
+            repair_sequences.get(
+                "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
                 0,
             )
             or 0
@@ -58736,6 +59068,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     ),
                 )
             elif kind == "RuntimeSimulationManifest":
+                live_counts = _generated_sandbox_live_counts_from_rows(
+                    artifact.get("generated_simulation_sandbox_prototypes", []),
+                    generated_executor="generated_simulation_sandbox",
+                )
                 simulation["n_simulation_manifests"] += 1
                 simulation["n_simulation_rows"] += len(artifact.get("simulations", []) or [])
                 simulation["n_generated_simulation_sandbox_prototypes"] += int(
@@ -58744,8 +59080,14 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 simulation["n_generated_simulation_sandbox_executed"] += int(
                     artifact.get("n_generated_simulation_sandbox_executed", 0) or 0
                 )
+                simulation["n_live_generated_simulation_sandbox_executed"] += int(
+                    live_counts["executed"]
+                )
                 simulation["n_generated_simulation_sandbox_passed"] += int(
                     artifact.get("n_generated_simulation_sandbox_passed", 0) or 0
+                )
+                simulation["n_live_generated_simulation_sandbox_passed"] += int(
+                    live_counts["passed"]
                 )
                 simulation["n_generated_simulation_sandbox_metric_gate_failed"] += int(
                     artifact.get(
@@ -58753,12 +59095,24 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     )
                     or 0
                 )
+                simulation[
+                    "n_live_generated_simulation_sandbox_metric_gate_failed"
+                ] += int(
+                    live_counts["metric_gate_failed"]
+                )
                 simulation["n_unsafe_generated_simulation_code_rejected"] += int(
                     artifact.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
+                )
+                simulation["n_live_unsafe_generated_simulation_code_rejected"] += int(
+                    live_counts["unsafe_rejected"]
                 )
                 if artifact.get("simulation_passed") is True:
                     simulation["n_simulation_manifests_passed"] += 1
             elif kind == "RuntimeAlgorithmSandboxManifest":
+                live_counts = _generated_sandbox_live_counts_from_rows(
+                    artifact.get("prototypes", []),
+                    generated_executor="generated_python_sandbox",
+                )
                 algorithm["n_algorithm_manifests"] += 1
                 algorithm["n_algorithm_sandbox_prototypes"] += int(artifact.get("n_prototypes", 0) or 0)
                 algorithm["n_algorithm_sandbox_executed"] += int(artifact.get("n_executed", 0) or 0)
@@ -58766,11 +59120,20 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 algorithm["n_generated_code_sandbox_executed"] += int(
                     artifact.get("n_generated_code_executed", 0) or 0
                 )
+                algorithm["n_live_generated_code_sandbox_executed"] += int(
+                    live_counts["executed"]
+                )
                 algorithm["n_generated_code_sandbox_metric_gate_failed"] += int(
                     artifact.get("n_metric_gate_failed", 0) or 0
                 )
+                algorithm["n_live_generated_code_sandbox_metric_gate_failed"] += int(
+                    live_counts["metric_gate_failed"]
+                )
                 algorithm["n_unsafe_generated_code_rejected"] += int(
                     artifact.get("n_unsafe_generated_code_rejected", 0) or 0
+                )
+                algorithm["n_live_unsafe_generated_code_rejected"] += int(
+                    live_counts["unsafe_rejected"]
                 )
                 algorithm["promotion_ready"] = bool(algorithm["promotion_ready"] or artifact.get("promotion_ready"))
     proof["n_non_kernel_proved_subclaims"] = max(

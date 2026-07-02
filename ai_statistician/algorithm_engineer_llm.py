@@ -101,6 +101,7 @@ class LLMAlgorithmEngineerAgent:
                 model=response.model or request_model,
                 model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
+                backend_provider_name=response.provider,
                 raw_response=raw_text,
                 theory_packet=theory_packet,
                 implementation_gaps=implementation_gaps,
@@ -887,6 +888,7 @@ def _normalize_algorithm_packet(
     model: str,
     model_tier: str,
     provider_name: str,
+    backend_provider_name: str,
     raw_response: str,
     theory_packet: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
@@ -918,6 +920,7 @@ def _normalize_algorithm_packet(
         {
             "question_id": question.id,
             "provider": provider_name,
+            "backend_provider": backend_provider_name,
             "model": model,
             "model_tier": model_tier,
             "body": body,
@@ -931,6 +934,7 @@ def _normalize_algorithm_packet(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_agent": "LLMAlgorithmEngineerAgent",
         "provider": provider_name,
+        "backend_provider": backend_provider_name,
         "model": model,
         "model_tier": model_tier,
         "question": {
