@@ -795,12 +795,12 @@ def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, An
         "n_runtime_architect_coordinator_traces",
     )
     architect_executed = (
-        payload.get("architect_coordinator_enabled") is True
-        or payload.get("runtime_architect_coordinator_executed") is True
+        payload.get("runtime_architect_coordinator_executed") is True
         or n_architect_traces > 0
     )
     architect_context_propagated = (
         payload.get("runtime_research_path_control_propagated") is True
+        or payload.get("architect_coordinator_enabled") is True
         or payload.get("runtime_architect_coordinator_registered") is True
         or str(payload.get("runtime_stage", "") or "").startswith("architect_")
     )

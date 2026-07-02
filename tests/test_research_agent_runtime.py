@@ -2608,6 +2608,14 @@ def _bound_formalizer_proof_state_feedback_payload() -> dict[str, object]:
     }
 
 
+def _scorecard_architect_executed_payload() -> dict[str, object]:
+    return {
+        "architect_coordinator_enabled": True,
+        "runtime_architect_coordinator_executed": True,
+        "n_runtime_architect_coordinator_traces": 1,
+    }
+
+
 def _target_bound_source_theorem_payload(
     target: str = "split_conformal_coverage",
 ) -> dict[str, object]:
@@ -53005,7 +53013,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
@@ -53055,7 +53063,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -53111,7 +53119,7 @@ def test_runtime_readiness_surfaces_include_retry_semantic_authoring_provenance(
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -53257,7 +53265,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
@@ -53294,7 +53302,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -53352,7 +53360,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -53410,7 +53418,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -53468,7 +53476,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_results": 1,
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
-        "architect_coordinator_enabled": True,
+        **_scorecard_architect_executed_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -55856,6 +55864,52 @@ def test_runtime_manifest_truth_table_marks_resume_architect_context_as_propagat
         "PROOF_BODY_ATTEMPT_BLOCKED"
     )
     assert rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
+
+
+def test_runtime_architect_control_requires_executed_trace_not_enabled_hint() -> None:
+    payload = {
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 1,
+        "architect_coordinator_enabled": True,
+        "runtime_architect_coordinator_registered": True,
+        "runtime_architect_coordinator_executed": False,
+        "n_runtime_architect_coordinator_traces": 0,
+    }
+
+    truth_rows = {
+        row["evidence_id"]: row
+        for row in _runtime_evidence_truth_table_from_manifest(payload)["rows"]
+    }
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+
+    assert truth_rows["architect_control"]["status"] == "PROPAGATED_FROM_RESUME"
+    assert truth_rows["architect_control"]["count"] == 0
+    assert scorecard_rows["architect_orchestrated"]["passed"] is False
+    assert "no ArchitectCoordinator trace executed" in scorecard_rows[
+        "architect_orchestrated"
+    ]["blocker"]
+
+    payload["runtime_architect_coordinator_executed"] = True
+    payload["n_runtime_architect_coordinator_traces"] = 1
+    truth_rows = {
+        row["evidence_id"]: row
+        for row in _runtime_evidence_truth_table_from_manifest(payload)["rows"]
+    }
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+
+    assert truth_rows["architect_control"]["status"] == "PRESENT"
+    assert truth_rows["architect_control"]["count"] == 1
+    assert scorecard_rows["architect_orchestrated"]["passed"] is True
 
 
 def test_runtime_capability_scorecard_names_resume_architect_context_boundary() -> None:
