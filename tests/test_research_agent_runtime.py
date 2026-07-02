@@ -51309,6 +51309,56 @@ def test_runtime_capability_scorecard_recomputes_full_frontier_target_binding() 
     assert ladder_rows[9]["passed"] is True
 
 
+def test_runtime_capability_scorecard_caps_full_frontier_count_by_matching_targets() -> None:
+    payload = {
+        "n_results": 2,
+        "n_distinct_question_ids": 2,
+        "question_ids": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_full_frontier_theorem_proved": 2,
+        "n_full_frontier_target_bound_kernel_verified": 2,
+        "full_frontier_current_target_ids": ["causal_ate_aipw:main"],
+        "full_frontier_theorem_kernel_verified_target_ids": [
+            "causal_ate_aipw:main"
+        ],
+        "question_ids_with_full_frontier_theorem_proved": [
+            "causal_ate_aipw",
+            "conformal_prediction_coverage",
+        ],
+        "n_question_ids_with_full_frontier_theorem_proved": 2,
+        "task_families": ["causal", "conformal"],
+        "n_distinct_task_families": 2,
+        "task_families_with_full_frontier_theorem_proved": [
+            "causal",
+            "conformal",
+        ],
+        "n_task_families_with_full_frontier_theorem_proved": 2,
+        "task_families_with_full_frontier_target_bound_kernel_verified": [
+            "causal",
+            "conformal",
+        ],
+        "n_task_families_with_full_frontier_target_bound_kernel_verified": 2,
+        "n_formal_gaps": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert ladder_rows[8]["passed"] is True
+    assert ladder_rows[9]["passed"] is False
+    assert "target_bound_full_frontier_kernel=1" in rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["evidence"]
+
+
 def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
     payload = {
         "target_theorem_name": "split_conformal_coverage",

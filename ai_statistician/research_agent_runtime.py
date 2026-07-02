@@ -939,7 +939,10 @@ def _runtime_source_theorem_target_bound_kernel_evidence_summary(
     elif not current_targets:
         target_bound_count = 0
     elif evidence_targets and matching_targets:
-        target_bound_count = max(raw_kernel_count, explicit_bound_count)
+        target_bound_count = min(
+            max(raw_kernel_count, explicit_bound_count),
+            len(matching_targets),
+        )
     else:
         target_bound_count = 0
     return {
@@ -1002,7 +1005,7 @@ def _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary(
                 evidence_targets.append(text)
     matching_targets = sorted(set(current_targets) & set(evidence_targets))
     target_bound_count = (
-        explicit_bound_count
+        min(explicit_bound_count, len(matching_targets))
         if explicit_bound_count > 0 and current_targets and matching_targets
         else 0
     )
