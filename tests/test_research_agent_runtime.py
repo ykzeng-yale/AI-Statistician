@@ -106,6 +106,8 @@ from ai_statistician.research_agent_runtime import (
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
+    SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS,
+    SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS,
     SimulationEvaluatorRuntimeSubsystem,
     TheoryDeveloperRuntimeSubsystem,
     _critic_learning_rows,
@@ -2582,6 +2584,17 @@ def _bound_formalizer_proof_state_feedback_payload() -> dict[str, object]:
         "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
         "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 1,
+    }
+
+
+def _target_bound_source_theorem_payload(
+    target: str = "split_conformal_coverage",
+) -> dict[str, object]:
+    return {
+        "target_theorem_name": target,
+        "source_theorem_kernel_verified_target_ids": [target],
+        "source_theorem_target_bound_kernel_verified_target_ids": [target],
+        "n_source_theorem_target_bound_kernel_verified": 1,
     }
 
 
@@ -50002,7 +50015,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
     assert "Lean LSP/MCP was not called live for proof-state diagnostics" in audit["capability_gaps"]
-    assert "no full frontier theorem was kernel-proved" in audit["capability_gaps"]
+    assert (
+        "no full frontier theorem was kernel-proved for the current "
+        "source theorem target"
+    ) in audit["capability_gaps"]
     assert audit["architect_coordinator_enabled"] is True
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
@@ -50521,6 +50537,7 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran": True,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows": 1,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_dominant_failure_classification": "",
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt": [
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
@@ -50632,6 +50649,7 @@ def test_runtime_audit_counts_source_theorem_promotion_kernel_evidence(
         "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified": 1,
         "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified": 1,
         "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
     (runtime_dir / "research_agent_runtime_manifest.json").write_text(
@@ -50700,6 +50718,7 @@ def test_runtime_audit_counts_candidate_synthesis_recheck_kernel_evidence(
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran": True,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows": 1,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification": "",
         "n_full_frontier_theorem_proved": 0,
         "n_formal_gaps": 0,
@@ -50840,6 +50859,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_runtime_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
 
@@ -50887,6 +50907,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_runtime_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
 
@@ -50941,6 +50962,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_runtime_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
 
@@ -50995,6 +51017,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_runtime_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
 
@@ -51049,6 +51072,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_runtime_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
         "n_formal_gaps": 0,
     }
 
@@ -51070,6 +51094,10 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
 def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts() -> None:
     raw_keys = set(SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS)
     audit_keys = set(SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS)
+    target_bound_keys = set(SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS)
+    target_bound_target_keys = set(
+        SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS
+    )
     aggregate_kernel_keys = set(
         SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS
     )
@@ -51136,6 +51164,30 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
         "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified"
         not in aggregate_kernel_keys
     )
+    assert "n_source_theorem_target_bound_kernel_verified" in target_bound_keys
+    assert "source_theorem_kernel_verified_target_ids" in target_bound_target_keys
+
+
+def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
+    payload = {
+        "target_theorem_name": "split_conformal_coverage",
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 1,
+        "source_theorem_kernel_verified_target_ids": ["unrelated_theorem"],
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is False
+    assert "target_bound_source_kernel=0" in rows[
+        "full_frontier_theorem_kernel_proved"
+    ]["evidence"]
+    assert ladder_rows[7]["passed"] is True
+    assert ladder_rows[8]["passed"] is False
 
 
 def test_runtime_audit_count_prefers_manifest_or_proof_summary_max() -> None:
@@ -52495,6 +52547,7 @@ def test_runtime_evidence_truth_table_counts_post_executor_promotion_source_kern
             "n_algorithm_sandbox_executed": 1,
             "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 1,
             "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified": 1,
+            **_target_bound_source_theorem_payload(),
             "n_formal_gaps": 0,
         }
     )
@@ -52509,6 +52562,29 @@ def test_runtime_evidence_truth_table_counts_post_executor_promotion_source_kern
     assert rows["full_source_theorem_kernel_evidence"]["status"] == "KERNEL_VERIFIED"
     assert rows["full_source_theorem_kernel_evidence"]["count"] == 1
     assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
+
+
+def test_runtime_evidence_truth_table_requires_source_kernel_target_binding() -> None:
+    truth_table = _runtime_evidence_truth_table_from_manifest(
+        {
+            "target_theorem_name": "split_conformal_coverage",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 1,
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified": 1,
+            "source_theorem_kernel_verified_target_ids": ["unrelated_theorem"],
+            "n_formal_gaps": 0,
+        }
+    )
+    rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert truth_table["source_theorem_raw_kernel_verified"] is True
+    assert truth_table["source_theorem_kernel_verified"] is False
+    assert truth_table[
+        "source_theorem_kernel_verified_target_binding_missing"
+    ] is True
+    assert rows["full_source_theorem_kernel_evidence"]["status"] == (
+        "TARGET_BINDING_MISSING"
+    )
+    assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
 
 
 def test_runtime_audit_truth_table_tracks_typechecked_review_recheck_attempt() -> None:

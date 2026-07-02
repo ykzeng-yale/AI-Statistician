@@ -34,6 +34,7 @@ from .research_agent_runtime import (
     _runtime_evidence_truth_table_from_manifest,
     _runtime_manifest_int_sum,
     _runtime_research_path_execution_summary,
+    _runtime_source_theorem_target_bound_kernel_evidence_summary,
     _runtime_source_theorem_formal_environment_work_order_rows,
 )
 from .task_family import (
@@ -625,6 +626,9 @@ def audit_research_agent_runtime(
         source_theorem_formal_environment_bridge_skipped_reason = (
             "manifest_stale_no_bridge_run_recomputed_source_theorem_formal_environment_work_orders"
         )
+    source_theorem_target_binding = (
+        _runtime_source_theorem_target_bound_kernel_evidence_summary(manifest)
+    )
     formalizer_repair_sequences = max(
         int(
             manifest.get(
@@ -1663,6 +1667,32 @@ def audit_research_agent_runtime(
                 0,
             )
             or 0
+        ),
+        "n_source_theorem_raw_kernel_verified": int(
+            source_theorem_target_binding["n_source_theorem_raw_kernel_verified"]
+        ),
+        "n_source_theorem_target_bound_kernel_verified": int(
+            source_theorem_target_binding[
+                "n_source_theorem_target_bound_kernel_verified"
+            ]
+        ),
+        "source_theorem_current_target_ids": list(
+            source_theorem_target_binding["source_theorem_current_target_ids"]
+        ),
+        "source_theorem_kernel_verified_target_ids": list(
+            source_theorem_target_binding[
+                "source_theorem_kernel_verified_target_ids"
+            ]
+        ),
+        "source_theorem_kernel_verified_matching_target_ids": list(
+            source_theorem_target_binding[
+                "source_theorem_kernel_verified_matching_target_ids"
+            ]
+        ),
+        "source_theorem_kernel_verified_target_binding_missing": bool(
+            source_theorem_target_binding[
+                "source_theorem_kernel_verified_target_binding_missing"
+            ]
         ),
         "source_theorem_formal_environment_proofengineer_bridge_ran": (
             source_theorem_formal_environment_bridge_ran
@@ -3814,6 +3844,13 @@ def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
     )
 
 
+def _payload_source_theorem_target_bound_kernel_count(
+    payload: Mapping[str, Any],
+) -> int:
+    summary = _runtime_source_theorem_target_bound_kernel_evidence_summary(payload)
+    return int(summary["n_source_theorem_target_bound_kernel_verified"])
+
+
 def _payload_source_theorem_proof_body_goal_reached_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -5427,6 +5464,9 @@ def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
 
 def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    source_theorem_target_bound_kernel_count = (
+        _payload_source_theorem_target_bound_kernel_count(payload)
+    )
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
         _payload_cross_task_full_theorem_family_count(payload)
@@ -5636,7 +5676,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_theorem_kernel_ready = (
         (
             int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
-            or source_theorem_kernel_count > 0
+            or source_theorem_target_bound_kernel_count > 0
         )
         and int(payload.get("n_formal_gaps", 0) or 0) <= 0
     )
@@ -5779,6 +5819,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')} "
                 "source_theorem_kernel="
                 f"{source_theorem_kernel_count} "
+                "target_bound_source_theorem_kernel="
+                f"{source_theorem_target_bound_kernel_count} "
             ),
             "no local Lean/AXLE kernel-verified helper or bridge subclaim was available",
         ),
@@ -5790,9 +5832,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
                 "proof_body_source_kernel="
                 f"{source_theorem_kernel_count} "
+                "target_bound_source_kernel="
+                f"{source_theorem_target_bound_kernel_count} "
                 f"n_formal_gaps={payload.get('n_formal_gaps')}"
             ),
-            "no full source/frontier theorem was kernel-verified with formal gaps closed",
+            (
+                "no full source/frontier theorem was kernel-verified for the "
+                "current target with formal gaps closed"
+            ),
         ),
         _ladder_level(
             9,
@@ -5894,6 +5941,9 @@ def _ladder_level(
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
+    source_theorem_target_bound_kernel_count = (
+        _payload_source_theorem_target_bound_kernel_count(payload)
+    )
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
         _payload_cross_task_full_theorem_family_count(payload)
@@ -8087,13 +8137,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "full_frontier_theorem_kernel_proved",
             int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
-            or source_theorem_kernel_count > 0,
+            or source_theorem_target_bound_kernel_count > 0,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
                 "proof_body_source_kernel="
-                f"{source_theorem_kernel_count}"
+                f"{source_theorem_kernel_count} "
+                "target_bound_source_kernel="
+                f"{source_theorem_target_bound_kernel_count} "
+                "current_targets="
+                f"{payload.get('source_theorem_current_target_ids')} "
+                "verified_targets="
+                f"{payload.get('source_theorem_kernel_verified_target_ids')}"
             ),
-            "no full frontier theorem was kernel-proved",
+            (
+                "no full frontier theorem was kernel-proved for the current "
+                "source theorem target"
+            ),
         ),
         _scorecard_row(
             "cross_task_full_theorem_generalization_demonstrated",

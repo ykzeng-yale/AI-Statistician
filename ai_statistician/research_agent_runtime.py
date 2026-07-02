@@ -263,6 +263,18 @@ SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
     "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
 )
+SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "n_source_theorem_target_bound_kernel_verified",
+    "n_source_theorem_current_target_kernel_verified",
+    "source_theorem_target_bound_n_source_theorem_kernel_verified",
+)
+SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS: tuple[str, ...] = (
+    "source_theorem_target_bound_kernel_verified_target_ids",
+    "source_theorem_target_bound_kernel_verified_target_names",
+    "source_theorem_kernel_verified_target_ids",
+    "source_theorem_kernel_verified_target_names",
+    "source_theorem_kernel_verified_target_theorem_names",
+)
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
@@ -517,6 +529,14 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
     )
+    source_kernel_target_binding = (
+        _runtime_source_theorem_target_bound_kernel_evidence_summary(payload)
+    )
+    source_target_bound_kernel_count = int(
+        source_kernel_target_binding[
+            "n_source_theorem_target_bound_kernel_verified"
+        ]
+    )
     proof_body_result_rows = _runtime_manifest_int_sum(
         payload,
         SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
@@ -631,7 +651,7 @@ def _runtime_evidence_truth_table_from_manifest(
         _runtime_manifest_truth_row(
             "exact_source_proof_body_attempt",
             "SOURCE_KERNEL_VERIFIED"
-            if source_kernel_count > 0
+            if source_target_bound_kernel_count > 0
             else "PROOF_BODY_REACHED_OPEN"
             if proof_body_goal_evidence_count > 0
             else "PROOF_BODY_ATTEMPT_BLOCKED"
@@ -640,18 +660,38 @@ def _runtime_evidence_truth_table_from_manifest(
             proof_body_result_rows
             or proof_body_goal_evidence_count,
             "Proof-body attempts expose Lean goals/residuals; they are source theorem proof only when source-kernel verified.",
-            proof_evidence=source_kernel_count > 0,
+            proof_evidence=source_target_bound_kernel_count > 0,
             blocker=proof_body_blocker,
             goal_excerpt=proof_body_goal_excerpt,
         ),
         _runtime_manifest_truth_row(
             "full_source_theorem_kernel_evidence",
-            "KERNEL_VERIFIED" if source_kernel_count > 0 else "UNPROVED",
-            source_kernel_count,
-            "Only exact source theorem or reviewed theorem-equivalent local Lean/AXLE verification counts here.",
-            proof_evidence=source_kernel_count > 0,
-            blocker="" if source_kernel_count > 0 else proof_body_blocker,
-            goal_excerpt=[] if source_kernel_count > 0 else proof_body_goal_excerpt,
+            (
+                "KERNEL_VERIFIED"
+                if source_target_bound_kernel_count > 0
+                else "TARGET_BINDING_MISSING"
+                if source_kernel_count > 0
+                else "UNPROVED"
+            ),
+            source_target_bound_kernel_count,
+            (
+                "Only exact source theorem or reviewed theorem-equivalent "
+                "local Lean/AXLE verification bound to the current target "
+                "counts here."
+            ),
+            proof_evidence=source_target_bound_kernel_count > 0,
+            blocker=(
+                ""
+                if source_target_bound_kernel_count > 0
+                else "source theorem kernel evidence was not bound to the current target"
+                if source_kernel_count > 0
+                else proof_body_blocker
+            ),
+            goal_excerpt=(
+                []
+                if source_target_bound_kernel_count > 0
+                else proof_body_goal_excerpt
+            ),
         ),
         _runtime_manifest_truth_row(
             "formal_gaps",
@@ -664,7 +704,30 @@ def _runtime_evidence_truth_table_from_manifest(
     return {
         "artifact_kind": "RuntimeEvidenceTruthTable",
         "rows": rows,
-        "source_theorem_kernel_verified": source_kernel_count > 0,
+        "source_theorem_kernel_verified": source_target_bound_kernel_count > 0,
+        "source_theorem_raw_kernel_verified": source_kernel_count > 0,
+        "n_source_theorem_raw_kernel_verified": source_kernel_count,
+        "n_source_theorem_target_bound_kernel_verified": (
+            source_target_bound_kernel_count
+        ),
+        "source_theorem_current_target_ids": list(
+            source_kernel_target_binding["source_theorem_current_target_ids"]
+        ),
+        "source_theorem_kernel_verified_target_ids": list(
+            source_kernel_target_binding[
+                "source_theorem_kernel_verified_target_ids"
+            ]
+        ),
+        "source_theorem_kernel_verified_matching_target_ids": list(
+            source_kernel_target_binding[
+                "source_theorem_kernel_verified_matching_target_ids"
+            ]
+        ),
+        "source_theorem_kernel_verified_target_binding_missing": bool(
+            source_kernel_target_binding[
+                "source_theorem_kernel_verified_target_binding_missing"
+            ]
+        ),
         "formal_gaps_open": _runtime_manifest_int(payload, "n_formal_gaps") > 0,
         "current_exact_proof_body_blocker": proof_body_blocker,
         "current_exact_proof_body_goal_excerpt": proof_body_goal_excerpt,
@@ -711,6 +774,7 @@ def _runtime_source_theorem_target_names_from_manifest(
         if depth > 4 or not isinstance(value, Mapping):
             return
         for key in (
+            "source_theorem_current_target_ids",
             "target_ids",
             "target_id",
             "target_theorem_goal_ids",
@@ -775,6 +839,7 @@ def _runtime_source_theorem_target_names_from_manifest(
         "source_theorem_exact_candidate_repair_target_names",
         "source_theorem_exact_semantic_definition_repair_target_names",
         "memory_source_theorem_exact_candidate_repair_target_names",
+        "source_theorem_current_target_ids",
         "runtime_formalization_gap_planner_target_ids",
         "runtime_formalization_gap_planner_bridge_target_ids",
         "runtime_formalization_gap_planner_handoff_target_ids",
@@ -823,6 +888,51 @@ def _runtime_source_theorem_target_names_from_manifest(
             or row.get("target_lean_declaration", "")
         )
     return list(dict.fromkeys(names))
+
+
+def _runtime_source_theorem_target_bound_kernel_evidence_summary(
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Separate raw source-kernel counts from current-target proof evidence."""
+
+    raw_kernel_count = _runtime_manifest_int_sum(
+        manifest,
+        SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
+    )
+    explicit_bound_count = _runtime_manifest_int_sum(
+        manifest,
+        SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS,
+    )
+    current_targets = _runtime_source_theorem_target_names_from_manifest(manifest)
+    evidence_targets: list[str] = []
+    for key in SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS:
+        for value in _str_tuple(manifest.get(key, [])):
+            text = str(value or "").strip()
+            if text and text not in evidence_targets:
+                evidence_targets.append(text)
+    current_target_set = set(current_targets)
+    evidence_target_set = set(evidence_targets)
+    matching_targets = sorted(current_target_set & evidence_target_set)
+    if raw_kernel_count <= 0:
+        target_bound_count = 0
+    elif not current_targets:
+        target_bound_count = 0
+    elif evidence_targets and matching_targets:
+        target_bound_count = max(raw_kernel_count, explicit_bound_count)
+    else:
+        target_bound_count = 0
+    return {
+        "n_source_theorem_raw_kernel_verified": raw_kernel_count,
+        "n_source_theorem_target_bound_kernel_verified": target_bound_count,
+        "n_source_theorem_target_bound_kernel_verified_explicit": explicit_bound_count,
+        "source_theorem_current_target_ids": current_targets,
+        "source_theorem_kernel_verified_target_ids": evidence_targets,
+        "source_theorem_kernel_verified_matching_target_ids": matching_targets,
+        "source_theorem_kernel_verified_target_binding_ok": target_bound_count > 0,
+        "source_theorem_kernel_verified_target_binding_missing": (
+            raw_kernel_count > 0 and target_bound_count <= 0
+        ),
+    }
 
 
 def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[str, Any]:
