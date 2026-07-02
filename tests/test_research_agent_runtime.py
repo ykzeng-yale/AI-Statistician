@@ -229,6 +229,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gap_routing_contract_summary,
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
+    _runtime_learning_rows_contract_audit_summary,
     _architect_initial_routing_record_errors,
     _runtime_audit_expected_subsystem_sequence,
     _runtime_trace_sequence_has_control_contract,
@@ -2673,6 +2674,65 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
     assert "simulation_manifest:missing" in handoff_score["evidence"]
     assert "SimulationEvaluator" in handoff_score["evidence"]
     assert "rerun or rehydrate" in handoff_score["blocker"]
+
+
+def test_runtime_learning_rows_writer_normalizes_evidence_boundaries(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    proof_boundary = (
+        "Exact proof claims require local Lean or AXLE kernel verification."
+    )
+    learning_rows = [
+        {
+            "learning_task": "next_action_routing",
+            "input_summary": {
+                "target_theorem_name": "thm1",
+                "owner_subsystem": "ProofEngineer",
+            },
+            "target_behavior": "reroute the failed proof body to ProofEngineer",
+            "acceptance_gate": "local Lean rerun passes on the exact artifact",
+            "proof_boundary": proof_boundary,
+        },
+        {
+            "learning_task": "retrieval_to_theory_context",
+            "input_summary": {
+                "target_behavior": "refresh the theory derivation context",
+                "proof_evidence_boundary": (
+                    "Retrieval context is not formal proof evidence."
+                ),
+            },
+        },
+    ]
+
+    runtime_module._write_jsonl(learning_path, learning_rows)
+
+    written_rows = [
+        json.loads(line)
+        for line in learning_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert learning_rows == written_rows
+    assert all(row["schema_version"] for row in written_rows)
+    assert all(row["artifact_kind"] == "RuntimeLearningRow" for row in written_rows)
+    assert written_rows[0]["target_theorem_name"] == "thm1"
+    assert written_rows[0]["proof_evidence_status"] == (
+        "RUNTIME_NEXT_ACTION_LEARNING_NOT_PROOF_EVIDENCE"
+    )
+    assert written_rows[0]["proof_evidence_boundary"] == proof_boundary
+    assert written_rows[0]["boundary"] == proof_boundary
+    assert written_rows[1]["proof_evidence_status"] == (
+        "RETRIEVAL_CONTEXT_LEARNING_NOT_PROOF_EVIDENCE"
+    )
+    assert (
+        written_rows[1]["proof_evidence_boundary"]
+        == "Retrieval context is not formal proof evidence."
+    )
+    summary = _runtime_learning_rows_contract_audit_summary(
+        learning_rows=written_rows
+    )
+    assert summary["runtime_learning_rows_contract_complete"] is True
+    assert summary["n_runtime_learning_rows_missing_evidence_boundary"] == 0
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:

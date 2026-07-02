@@ -49781,6 +49781,14 @@ def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[s
         normalized["target_theorem_name"] = target_theorem_name
     if target_ids and not normalized.get("target_ids"):
         normalized["target_ids"] = target_ids
+    row_boundary = str(
+        normalized.get("proof_boundary", "")
+        or normalized.get("proof_evidence_boundary", "")
+        or normalized.get("boundary", "")
+        or normalized.get("evidence_boundary", "")
+        or normalized.get("runtime_evidence_boundary", "")
+        or ""
+    ).strip()
     input_summary_boundary = ""
     if isinstance(input_summary, Mapping):
         input_summary_boundary = str(
@@ -49790,7 +49798,8 @@ def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[s
             or ""
         ).strip()
     default_boundary = (
-        input_summary_boundary
+        row_boundary
+        or input_summary_boundary
         or "Runtime learning rows are repair and routing memory for later "
         "LLM/coding/prover work. They are not proof, simulation, generated-code, "
         "or verifier evidence unless separately recorded in the evidence ledger "
@@ -49821,6 +49830,15 @@ def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[s
     ):
         normalized["boundary"] = default_boundary
     return normalized
+
+
+def _normalize_runtime_learning_rows(rows: Sequence[Any]) -> list[Any]:
+    return [
+        _runtime_learning_row_with_surface_targets(row)
+        if isinstance(row, Mapping)
+        else row
+        for row in rows
+    ]
 
 
 def _runtime_recommended_commands(row: Mapping[str, Any]) -> list[str]:
@@ -63289,9 +63307,15 @@ def _safe_identifier(raw: str) -> str:
     return value or "question"
 
 
-def _write_jsonl(path: Path, rows: list[Mapping[str, Any]]) -> None:
+def _write_jsonl(path: Path, rows: Sequence[Any]) -> None:
+    rows_to_write = rows
+    if path.name == "runtime_learning_rows.jsonl":
+        normalized_learning_rows = _normalize_runtime_learning_rows(rows)
+        if isinstance(rows, list):
+            rows[:] = normalized_learning_rows
+        rows_to_write = normalized_learning_rows
     with path.open("w", encoding="utf-8") as handle:
-        for row in rows:
+        for row in rows_to_write:
             handle.write(json.dumps(row, default=str) + "\n")
 
 
@@ -63301,6 +63325,14 @@ def _write_runtime_next_action_agenda_jsonl(
 ) -> None:
     agenda_rows[:] = _normalize_runtime_next_action_agenda_rows(agenda_rows)
     _write_jsonl(path, agenda_rows)
+
+
+def _write_runtime_learning_rows_jsonl(
+    path: Path,
+    learning_rows: list[dict[str, Any]],
+) -> None:
+    learning_rows[:] = _normalize_runtime_learning_rows(learning_rows)
+    _write_jsonl(path, learning_rows)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
