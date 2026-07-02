@@ -2737,6 +2737,243 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
     )
 
 
+def test_runtime_gap_planner_nested_contract_feedback_routes_repair_agenda() -> None:
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": "q-route",
+        "input_summary": {
+            "learning_task": (
+                "formalization_gap_planner_live_route_planner_contract_feedback"
+            ),
+            "route_planner_contract_feedback_id": "route-feedback:nested-agenda",
+            "formalization_gap_planner_bridge_id": "bridge:nested-contract",
+            "formalization_gap_planner_handoff_id": "handoff:nested-contract",
+            "standalone_seed_path": "runs/nested-contract/seed.json",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "failure_classification": (
+                "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
+            ),
+            "contract_counts": {
+                "staged_followup_assembled_responses": 1,
+                "staged_followup_assembled_response_contract_ok": 0,
+                "route_adoption_ready": 0,
+            },
+            "provider_token_counts": {
+                "provider_total_tokens_including_staged_followups": 59235
+            },
+            "staged_followup_assembly_error_preview": [
+                "formal_attempt_queue[0] does not resolve to a seed route"
+            ],
+            "acceptance_gate": "schema-valid compact retry before replay",
+            "target_behavior": "rerun compact route planner with feedback",
+        },
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+    }
+
+    agenda_rows: list[dict[str, object]] = []
+    appended = (
+        runtime_module._append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows(
+            agenda_rows,
+            [feedback_row],
+        )
+    )
+
+    assert len(appended) == 1
+    agenda_row = appended[0]
+    assert agenda_row["route_planner_contract_feedback_id"] == (
+        "route-feedback:nested-agenda"
+    )
+    assert agenda_row["trigger"] == (
+        "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+    )
+    assert agenda_row["formalization_gap_planner_bridge_id"] == (
+        "bridge:nested-contract"
+    )
+    assert agenda_row["target_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert agenda_row["contract_counts"][
+        "staged_followup_assembled_response_contract_ok"
+    ] == 0
+    assert agenda_row["provider_token_counts"][
+        "provider_total_tokens_including_staged_followups"
+    ] == 59235
+    assert agenda_row["staged_followup_assembly_error_preview"] == [
+        "formal_attempt_queue[0] does not resolve to a seed route"
+    ]
+    assert agenda_row["recommended_next_action"] == (
+        "rerun compact route planner with feedback"
+    )
+
+    generated_rows = _runtime_generated_next_action_learning_rows(appended)
+    assert generated_rows[0]["learning_task"] == "generated_next_action_routing"
+    assert generated_rows[0]["input_summary"][
+        "route_planner_contract_feedback_id"
+    ] == "route-feedback:nested-agenda"
+
+    memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [feedback_row, *generated_rows],
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert memory_summary["formal_gap_route_planner_contract_feedback_ids"] == [
+        "route-feedback:nested-agenda"
+    ]
+    assert memory_summary["formal_gap_next_action_contract"][
+        "contract_counts_by_feedback"
+    ][0]["staged_followup_assembled_response_contract_ok"] == 0
+    assert memory_summary["formal_gap_next_action_contract"][
+        "provider_token_counts_by_feedback"
+    ][0]["provider_total_tokens_including_staged_followups"] == 59235
+    assert memory_summary["formal_gap_next_action_diagnostics"][0][
+        "staged_followup_assembly_error_preview"
+    ] == ["formal_attempt_queue[0] does not resolve to a seed route"]
+
+
+def test_runtime_gap_planner_nested_target_prover_replay_feedback_routes_agenda(
+    tmp_path: Path,
+) -> None:
+    overlay_dir = tmp_path / "nested_replay_overlay"
+    overlay_dir.mkdir()
+    overlay_manifest = (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    overlay_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "all_ok": True,
+                "n_overlay_rows": 1,
+                "n_routes_with_revision": 1,
+                "rows": [
+                    {
+                        "route_revision_overlay_id": (
+                            "formalization_gap_planner_route_revision_overlay:"
+                            "nested-agenda"
+                        ),
+                        "route_id": "route:nested-agenda",
+                        "target_primitives": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "revision_status": "ROUTE_REVISION_APPLIED",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": "q-route",
+        "input_summary": {
+            "learning_task": "formalization_gap_planner_target_prover_replay_feedback",
+            "route_revision_proposal_id": "route-revision:nested-agenda",
+            "formalization_gap_planner_bridge_id": "bridge:nested-replay",
+            "formalization_gap_planner_handoff_id": "handoff:nested-replay",
+            "standalone_seed_path": "runs/nested-replay/seed.json",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "target_primitives": ["split_conformal_finite_sample_coverage"],
+            "revised_selected_primitives": [
+                "split_conformal_finite_sample_coverage",
+                "rank_exchangeability_bridge",
+            ],
+            "route_revision_reasons": ["local proof-state replay exposed a gap"],
+            "route_revision_summary": "add the rank exchangeability bridge",
+            "route_revision_overlay_dir": str(overlay_dir),
+            "route_revision_overlay_manifest": str(overlay_manifest),
+            "n_route_revision_overlay_rows": 1,
+            "n_route_revision_overlay_routes_with_revision": 1,
+            "n_route_revision_overlay_orphan_rows": 0,
+            "formalization_gap_planner_execution_contexts": [
+                {
+                    "handoff_id": "handoff:nested-replay",
+                    "bridge_id": "bridge:nested-replay",
+                    "llm_route_planner_prompt_cli": (
+                        "ai-statistician formalization-gap-planner-llm-route-planner"
+                    ),
+                    "execution_plan_stage_ids": ["llm_route_planner_prompt"],
+                }
+            ],
+            "target_behavior": "revise route then rerun target-prover replay",
+        },
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
+        ),
+    }
+
+    agenda_rows: list[dict[str, object]] = []
+    appended = (
+        runtime_module._append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
+            agenda_rows,
+            [feedback_row],
+        )
+    )
+
+    assert len(appended) == 1
+    agenda_row = appended[0]
+    assert agenda_row["route_revision_proposal_id"] == (
+        "route-revision:nested-agenda"
+    )
+    assert agenda_row["trigger"] == (
+        "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+    )
+    assert agenda_row["formalization_gap_planner_bridge_id"] == (
+        "bridge:nested-replay"
+    )
+    assert agenda_row["route_revision_overlay_manifest"] == str(overlay_manifest)
+    assert agenda_row["n_route_revision_overlay_rows"] == 1
+    assert agenda_row["revised_selected_primitives"] == [
+        "split_conformal_finite_sample_coverage",
+        "rank_exchangeability_bridge",
+    ]
+    assert agenda_row["formalization_gap_planner_execution_contexts"][0][
+        "handoff_id"
+    ] == "handoff:nested-replay"
+    assert agenda_row["recommended_next_action"] == (
+        "revise route then rerun target-prover replay"
+    )
+
+    generated_rows = _runtime_generated_next_action_learning_rows(appended)
+    generated_row = generated_rows[0]
+    assert generated_row["learning_task"] == "generated_next_action_routing"
+    assert generated_row["input_summary"]["route_revision_proposal_id"] == (
+        "route-revision:nested-agenda"
+    )
+    assert generated_row["input_summary"]["route_revision_overlay_manifest"] == (
+        str(overlay_manifest)
+    )
+
+    memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [feedback_row, *generated_rows],
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert memory_summary["formal_gap_route_revision_proposal_ids"] == [
+        "route-revision:nested-agenda"
+    ]
+    assert memory_summary["formal_gap_route_revision_overlay_manifests"] == [
+        str(overlay_manifest)
+    ]
+    assert memory_summary["formal_gap_next_action_contract"][
+        "route_revision_overlay_manifests"
+    ] == [str(overlay_manifest)]
+
+
 def test_runtime_gap_planner_staged_assembly_contract_failure_routes_repair_agenda() -> None:
     live_manifest = {
         "schema_version": 1,

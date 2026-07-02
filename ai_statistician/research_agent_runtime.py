@@ -30262,6 +30262,38 @@ def _runtime_learning_row_string_values(
     return tuple(dict.fromkeys(value for value in values if value))
 
 
+def _runtime_learning_row_mapping_value(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    key: str,
+) -> dict[str, Any]:
+    row_value = row.get(key)
+    input_value = input_summary.get(key)
+    if isinstance(row_value, Mapping) and row_value:
+        return dict(row_value)
+    if isinstance(input_value, Mapping):
+        return dict(input_value)
+    if isinstance(row_value, Mapping):
+        return dict(row_value)
+    return {}
+
+
+def _runtime_learning_row_list_value(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    key: str,
+) -> list[Any]:
+    row_value = row.get(key)
+    input_value = input_summary.get(key)
+    if isinstance(row_value, list) and row_value:
+        return list(row_value)
+    if isinstance(input_value, list):
+        return list(input_value)
+    if isinstance(row_value, list):
+        return list(row_value)
+    return []
+
+
 _FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS = (
     "bridge_id",
     "formalization_gap_planner_bridge_id",
@@ -41802,45 +41834,23 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                     or input_summary.get("n_route_revision_overlay_orphan_rows", 0)
                     or 0
                 ),
-                "contract_counts": (
-                    dict(row.get("contract_counts", {}))
-                    if isinstance(row.get("contract_counts", {}), Mapping)
-                    else dict(input_summary.get("contract_counts", {}))
-                    if isinstance(input_summary.get("contract_counts", {}), Mapping)
-                    else {}
+                "contract_counts": _runtime_learning_row_mapping_value(
+                    row,
+                    input_summary,
+                    "contract_counts",
                 ),
-                "provider_token_counts": (
-                    dict(row.get("provider_token_counts", {}))
-                    if isinstance(row.get("provider_token_counts", {}), Mapping)
-                    else dict(input_summary.get("provider_token_counts", {}))
-                    if isinstance(
-                        input_summary.get("provider_token_counts", {}),
-                        Mapping,
-                    )
-                    else {}
+                "provider_token_counts": _runtime_learning_row_mapping_value(
+                    row,
+                    input_summary,
+                    "provider_token_counts",
                 ),
                 "staged_followup_assembly_error_summary": (
-                    list(row.get("staged_followup_assembly_error_summary", []) or [])
-                    if isinstance(
-                        row.get("staged_followup_assembly_error_summary", []),
-                        list,
-                    )
-                    else list(
-                        input_summary.get(
-                            "staged_followup_assembly_error_summary",
-                            [],
-                        )
-                        or []
-                    )
-                    if isinstance(
-                        input_summary.get(
-                            "staged_followup_assembly_error_summary",
-                            [],
-                        ),
-                        list,
-                    )
-                    else []
-                )[:4],
+                    _runtime_learning_row_list_value(
+                        row,
+                        input_summary,
+                        "staged_followup_assembly_error_summary",
+                    )[:4]
+                ),
                 "staged_followup_assembly_error_preview": list(
                     _runtime_learning_row_string_values(
                         row,
@@ -50797,16 +50807,21 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
     for row in learning_rows:
         if not isinstance(row, Mapping):
             continue
-        if (
-            str(row.get("learning_task", "") or "")
-            != "formalization_gap_planner_target_prover_replay_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        learning_task = str(
+            row.get("learning_task", "")
+            or input_summary.get("learning_task", "")
+            or ""
+        )
+        if (
+            learning_task
+            not in RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
+        ):
+            continue
         proposal_id = str(
             row.get("route_revision_proposal_id", "")
             or input_summary.get("route_revision_proposal_id", "")
@@ -50864,7 +50879,11 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
                 f"formalization-gap route, and rerun replay before proof promotion: "
                 f"{action_tail}"
             ),
-            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or input_summary.get("acceptance_gate", "")
+                or ""
+            ),
             "target_ids": target_ids,
             "formalization_gap_planner_bridge_id": str(
                 row.get("formalization_gap_planner_bridge_id", "")
@@ -50882,7 +50901,12 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
                 or ""
             ),
             "formalization_gap_planner_execution_contexts": list(
-                row.get("formalization_gap_planner_execution_contexts", []) or []
+                row.get("formalization_gap_planner_execution_contexts", [])
+                or input_summary.get(
+                    "formalization_gap_planner_execution_contexts",
+                    [],
+                )
+                or []
             ),
             "route_revision_proposal_id": proposal_id,
             "refinement_evidence_id": str(
@@ -50998,7 +51022,11 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
             "runtime_queue_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
             ),
-            "recommended_next_action": str(row.get("target_behavior", "") or ""),
+            "recommended_next_action": str(
+                row.get("target_behavior", "")
+                or input_summary.get("target_behavior", "")
+                or ""
+            ),
             "priority": "high",
             "proof_evidence_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
@@ -51038,16 +51066,21 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
     for row in learning_rows:
         if not isinstance(row, Mapping):
             continue
-        if (
-            str(row.get("learning_task", "") or "")
-            != "formalization_gap_planner_live_route_planner_contract_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        learning_task = str(
+            row.get("learning_task", "")
+            or input_summary.get("learning_task", "")
+            or ""
+        )
+        if (
+            learning_task
+            not in RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+        ):
+            continue
         feedback_id = str(
             row.get("route_planner_contract_feedback_id", "")
             or input_summary.get("route_planner_contract_feedback_id", "")
@@ -51091,7 +51124,11 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
                 "contract-repair request before target-prover replay: "
                 f"{failure_classification}"
             ),
-            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or input_summary.get("acceptance_gate", "")
+                or ""
+            ),
             "target_ids": target_ids,
             "formalization_gap_planner_bridge_id": str(
                 row.get("formalization_gap_planner_bridge_id", "")
@@ -51125,41 +51162,22 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
             ),
             "route_planner_contract_feedback_id": feedback_id,
             "failure_classification": failure_classification,
-            "contract_counts": (
-                dict(row.get("contract_counts", {}))
-                if isinstance(row.get("contract_counts", {}), Mapping)
-                else dict(input_summary.get("contract_counts", {}))
-                if isinstance(input_summary.get("contract_counts", {}), Mapping)
-                else {}
+            "contract_counts": _runtime_learning_row_mapping_value(
+                row,
+                input_summary,
+                "contract_counts",
             ),
-            "provider_token_counts": (
-                dict(row.get("provider_token_counts", {}))
-                if isinstance(row.get("provider_token_counts", {}), Mapping)
-                else dict(input_summary.get("provider_token_counts", {}))
-                if isinstance(input_summary.get("provider_token_counts", {}), Mapping)
-                else {}
+            "provider_token_counts": _runtime_learning_row_mapping_value(
+                row,
+                input_summary,
+                "provider_token_counts",
             ),
             "staged_followup_assembly_error_summary": (
-                list(row.get("staged_followup_assembly_error_summary", []) or [])
-                if isinstance(
-                    row.get("staged_followup_assembly_error_summary", []),
-                    list,
+                _runtime_learning_row_list_value(
+                    row,
+                    input_summary,
+                    "staged_followup_assembly_error_summary",
                 )
-                else list(
-                    input_summary.get(
-                        "staged_followup_assembly_error_summary",
-                        [],
-                    )
-                    or []
-                )
-                if isinstance(
-                    input_summary.get(
-                        "staged_followup_assembly_error_summary",
-                        [],
-                    ),
-                    list,
-                )
-                else []
             ),
             "staged_followup_assembly_error_preview": list(
                 _runtime_learning_row_string_values(
@@ -51171,7 +51189,11 @@ def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair
             "runtime_queue_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
             ),
-            "recommended_next_action": str(row.get("target_behavior", "") or ""),
+            "recommended_next_action": str(
+                row.get("target_behavior", "")
+                or input_summary.get("target_behavior", "")
+                or ""
+            ),
             "priority": "high",
             "proof_evidence_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
