@@ -2335,6 +2335,10 @@ class RuntimeAuditRow:
     n_agenda_items: int
     n_learning_rows: int
     architect_coordinator_enabled: bool
+    n_architect_initial_routing_decisions: int
+    architect_initial_routing_selected_subsystems: tuple[str, ...]
+    architect_initial_routing_requested_subsystems: tuple[str, ...]
+    n_architect_initial_routing_prerequisite_theory: int
     n_critic_reroutes: int
     n_lean_lsp_mcp_live_calls: int
     has_runtime_learning_memory_input: bool
@@ -5757,6 +5761,33 @@ def audit_research_agent_runtime(
         "unsupported_generator_backends_enabled": _topology_unsupported_count(manifest),
         "n_live_generator_agents_enabled": _topology_live_generator_count(manifest),
         "n_critic_reroutes": sum(row.n_critic_reroutes for row in rows),
+        "n_results_with_architect_initial_routing": sum(
+            1 for row in rows if row.n_architect_initial_routing_decisions > 0
+        ),
+        "n_architect_initial_routing_decisions": sum(
+            row.n_architect_initial_routing_decisions for row in rows
+        ),
+        "n_architect_initial_routing_prerequisite_theory": sum(
+            row.n_architect_initial_routing_prerequisite_theory for row in rows
+        ),
+        "architect_initial_routing_selected_subsystems": dict(
+            sorted(
+                Counter(
+                    subsystem
+                    for row in rows
+                    for subsystem in row.architect_initial_routing_selected_subsystems
+                ).items()
+            )
+        ),
+        "architect_initial_routing_requested_subsystems": dict(
+            sorted(
+                Counter(
+                    subsystem
+                    for row in rows
+                    for subsystem in row.architect_initial_routing_requested_subsystems
+                ).items()
+            )
+        ),
         "n_results_with_runtime_learning_memory_input": sum(
             1 for row in rows if row.has_runtime_learning_memory_input
         ),
@@ -6246,17 +6277,18 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     artifacts = blackboard.get("artifacts", {}) if isinstance(blackboard.get("artifacts"), Mapping) else {}
     traces = data.get("traces", []) if isinstance(data.get("traces"), list) else []
     subsystem_sequence = [str(row.get("subsystem", "")) for row in traces if isinstance(row, Mapping)]
+    architect_initial_routing_records = _trace_architect_initial_routing_records(
+        traces
+    )
     pending_contract = _runtime_result_pending_next_task_contract(data, traces)
     pending_contract_errors = list(pending_contract["errors"])
     budgeted_continuation_contract_ok = bool(pending_contract["ok"])
     architect_enabled = bool(subsystem_sequence and subsystem_sequence[0] == "ArchitectCoordinator")
     architect_resume = architect_enabled and _trace_is_architect_resume(traces)
-    expected_sequence = (
-        ("ArchitectCoordinator",)
-        if architect_resume
-        else REQUIRED_ARCHITECT_SUBSYSTEMS
-        if architect_enabled
-        else REQUIRED_SUBSYSTEMS
+    expected_sequence = _runtime_audit_expected_subsystem_sequence(
+        architect_enabled=architect_enabled,
+        architect_resume=architect_resume,
+        architect_initial_routing_records=architect_initial_routing_records,
     )
     static_order_ok = tuple(subsystem_sequence[: len(expected_sequence)]) == expected_sequence
     budgeted_continuation_order_ok = (
@@ -6618,6 +6650,30 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     has_runtime_capability_gap_routing_input = (
         _trace_has_runtime_capability_gap_routing_input(traces)
     )
+    architect_initial_routing_errors = _architect_initial_routing_record_errors(
+        architect_initial_routing_records
+    )
+    errors.extend(architect_initial_routing_errors)
+    if (
+        architect_enabled
+        and not architect_resume
+        and not architect_initial_routing_records
+    ):
+        errors.append("Architect initial routing decision is missing")
+    architect_initial_routing_selected_subsystems = tuple(
+        dict.fromkeys(
+            str(row.get("selected_subsystem", "") or "").strip()
+            for row in architect_initial_routing_records
+            if str(row.get("selected_subsystem", "") or "").strip()
+        )
+    )
+    architect_initial_routing_requested_subsystems = tuple(
+        dict.fromkeys(
+            str(row.get("requested_subsystem", "") or "").strip()
+            for row in architect_initial_routing_records
+            if str(row.get("requested_subsystem", "") or "").strip()
+        )
+    )
     has_problem_analysis = _trace_has_architect_runtime_field(traces, "problem_analysis")
     has_stat_knowledge_bank_plan = _trace_has_architect_runtime_field(traces, "stat_knowledge_bank_plan")
     has_literature_fair_comparison_plan = _trace_has_architect_runtime_field(
@@ -6755,6 +6811,20 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_agenda_items=n_agenda,
         n_learning_rows=n_learning,
         architect_coordinator_enabled=architect_enabled,
+        n_architect_initial_routing_decisions=len(
+            architect_initial_routing_records
+        ),
+        architect_initial_routing_selected_subsystems=(
+            architect_initial_routing_selected_subsystems
+        ),
+        architect_initial_routing_requested_subsystems=(
+            architect_initial_routing_requested_subsystems
+        ),
+        n_architect_initial_routing_prerequisite_theory=sum(
+            1
+            for row in architect_initial_routing_records
+            if row.get("requires_prerequisite_theory") is True
+        ),
         n_critic_reroutes=n_critic_reroutes,
         n_lean_lsp_mcp_live_calls=n_lean_lsp_mcp_live_calls,
         has_runtime_learning_memory_input=has_runtime_learning_memory_input,
@@ -6772,6 +6842,28 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         has_literature_fair_comparison_plan=has_literature_fair_comparison_plan,
         errors=tuple(errors),
     )
+
+
+def _runtime_audit_expected_subsystem_sequence(
+    *,
+    architect_enabled: bool,
+    architect_resume: bool,
+    architect_initial_routing_records: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    if not architect_enabled:
+        return REQUIRED_SUBSYSTEMS
+    if architect_resume:
+        return ("ArchitectCoordinator",)
+    selected = ""
+    if architect_initial_routing_records:
+        selected = str(
+            architect_initial_routing_records[0].get("selected_subsystem", "") or ""
+        ).strip()
+    if selected == "TheoryDeveloper":
+        return ("ArchitectCoordinator", "TheoryDeveloper")
+    if selected == "RetrievalMemory":
+        return REQUIRED_ARCHITECT_SUBSYSTEMS
+    return REQUIRED_ARCHITECT_SUBSYSTEMS
 
 
 def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
@@ -12717,6 +12809,90 @@ def _trace_has_runtime_capability_gap_routing_input(traces: list[Any]) -> bool:
     return False
 
 
+def _trace_architect_initial_routing_records(
+    traces: list[Any],
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        context = (
+            inputs.get("architect_context", {})
+            if isinstance(inputs.get("architect_context"), Mapping)
+            else {}
+        )
+        _append_architect_initial_routing_record(
+            records,
+            seen,
+            context.get("architect_initial_routing", {}),
+        )
+        for observation in trace.get("observations", []) or []:
+            if not isinstance(observation, Mapping):
+                continue
+            payload = (
+                observation.get("payload", {})
+                if isinstance(observation.get("payload"), Mapping)
+                else {}
+            )
+            _append_architect_initial_routing_record(
+                records,
+                seen,
+                payload.get("initial_routing", {}),
+            )
+    return records
+
+
+def _append_architect_initial_routing_record(
+    records: list[dict[str, Any]],
+    seen: set[str],
+    value: Any,
+) -> None:
+    if not (
+        isinstance(value, Mapping)
+        and value.get("artifact_kind") == "ArchitectInitialRoutingDecision"
+    ):
+        return
+    record = dict(value)
+    fingerprint = json.dumps(record, sort_keys=True, default=str)
+    if fingerprint in seen:
+        return
+    seen.add(fingerprint)
+    records.append(record)
+
+
+def _architect_initial_routing_record_errors(
+    records: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    for index, record in enumerate(records):
+        selected = str(record.get("selected_subsystem", "") or "").strip()
+        requested = str(record.get("requested_subsystem", "") or "").strip()
+        if not selected:
+            errors.append(
+                f"Architect initial routing decision {index} missing selected_subsystem"
+            )
+        if not requested:
+            errors.append(
+                f"Architect initial routing decision {index} missing requested_subsystem"
+            )
+        if (
+            record.get("proof_evidence_status")
+            != "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
+        ):
+            errors.append(
+                f"Architect initial routing decision {index} has invalid proof boundary"
+            )
+        boundary = str(record.get("boundary", "") or "")
+        if "not execute tools" not in boundary or "prove a theorem" not in boundary:
+            errors.append(
+                f"Architect initial routing decision {index} missing orchestration boundary"
+            )
+    return errors
+
+
 def _trace_has_architect_runtime_field(traces: list[Any], field: str) -> bool:
     for trace in traces:
         if not isinstance(trace, Mapping):
@@ -13124,6 +13300,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
     lines.extend([
         f"- live generator agents enabled: {payload.get('n_live_generator_agents_enabled')}",
         f"- ArchitectCoordinator trace executed: {payload.get('architect_coordinator_enabled')}",
+        "- Architect initial routing decisions / prerequisite-theory: "
+        f"{payload.get('n_architect_initial_routing_decisions')} / "
+        f"{payload.get('n_architect_initial_routing_prerequisite_theory')}",
+        "- Architect initial routing selected / requested: "
+        f"{payload.get('architect_initial_routing_selected_subsystems')} / "
+        f"{payload.get('architect_initial_routing_requested_subsystems')}",
         f"- Architect control status: {payload.get('runtime_architect_control_status')}",
         f"- Architect orchestration evidence: {payload.get('runtime_architect_orchestration_evidence')}",
         f"- Architect orchestration blocker: {payload.get('runtime_architect_orchestration_blocker')}",

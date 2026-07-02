@@ -227,6 +227,9 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gap_routing_contract_summary,
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
+    _architect_initial_routing_record_errors,
+    _runtime_audit_expected_subsystem_sequence,
+    _trace_architect_initial_routing_records,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
     _runtime_component_calibration_gaps_from_scorecard,
@@ -8225,6 +8228,90 @@ def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> Non
     assert "runtime_capability_gap_routing" not in {
         entry.evidence_type for entry in result.evidence_entries
     }
+
+
+def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> None:
+    traces = [
+        {
+            "task": {
+                "inputs": {
+                    "architect_context": {
+                        "architect_initial_routing": {
+                            "artifact_kind": "ArchitectInitialRoutingDecision",
+                            "selected_subsystem": "TheoryDeveloper",
+                            "requested_subsystem": "FormalizationEvaluator",
+                            "source": "runtime_capability_gap_routing_agenda",
+                            "requires_prerequisite_theory": True,
+                            "proof_evidence_status": (
+                                "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
+                            ),
+                            "boundary": (
+                                "Architect initial routing is orchestration "
+                                "control only. It does not execute tools, "
+                                "validate generated code or simulations, or "
+                                "prove a theorem."
+                            ),
+                        }
+                    }
+                }
+            },
+            "observations": [
+                {
+                    "payload": {
+                        "initial_routing": {
+                            "artifact_kind": "ArchitectInitialRoutingDecision",
+                            "selected_subsystem": "TheoryDeveloper",
+                            "requested_subsystem": "FormalizationEvaluator",
+                            "source": "runtime_capability_gap_routing_agenda",
+                            "requires_prerequisite_theory": True,
+                            "proof_evidence_status": (
+                                "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
+                            ),
+                            "boundary": (
+                                "Architect initial routing is orchestration "
+                                "control only. It does not execute tools, "
+                                "validate generated code or simulations, or "
+                                "prove a theorem."
+                            ),
+                        }
+                    }
+                }
+            ],
+        }
+    ]
+
+    records = _trace_architect_initial_routing_records(traces)
+
+    assert len(records) == 1
+    assert records[0]["selected_subsystem"] == "TheoryDeveloper"
+    assert records[0]["requested_subsystem"] == "FormalizationEvaluator"
+    assert records[0]["requires_prerequisite_theory"] is True
+    assert _architect_initial_routing_record_errors(records) == []
+    assert _runtime_audit_expected_subsystem_sequence(
+        architect_enabled=True,
+        architect_resume=False,
+        architect_initial_routing_records=[
+            {
+                "selected_subsystem": "TheoryDeveloper",
+                "requested_subsystem": "TheoryDeveloper",
+            }
+        ],
+    ) == ("ArchitectCoordinator", "TheoryDeveloper")
+    assert _runtime_audit_expected_subsystem_sequence(
+        architect_enabled=True,
+        architect_resume=False,
+        architect_initial_routing_records=[
+            {
+                "selected_subsystem": "RetrievalMemory",
+                "requested_subsystem": "RetrievalMemory",
+            }
+        ],
+    )[:2] == ("ArchitectCoordinator", "RetrievalMemory")
+    bad_record = dict(records[0])
+    bad_record["proof_evidence_status"] = "PROOF_EVIDENCE"
+    assert "invalid proof boundary" in _architect_initial_routing_record_errors(
+        [bad_record]
+    )[0]
 
 
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
@@ -51303,6 +51390,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["all_ok"] is True
     assert audit["result_errors"] == []
     assert audit["n_result_errors"] == 0
+    assert audit["n_results_with_architect_initial_routing"] == 1
+    assert audit["n_architect_initial_routing_decisions"] == 1
+    assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
+    assert audit["architect_initial_routing_selected_subsystems"] == {
+        "RetrievalMemory": 1
+    }
+    assert audit["architect_initial_routing_requested_subsystems"] == {
+        "RetrievalMemory": 1
+    }
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["runtime_progress_export_complete"] is True
@@ -58336,6 +58432,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_runtime_learning_memory_input_rows"] == 1
     assert audit["n_results_with_runtime_capability_gap_routing_input"] == 1
     assert audit["n_runtime_capability_gap_routing_input_rows"] == 1
+    assert audit["n_results_with_architect_initial_routing"] == 0
+    assert audit["n_architect_initial_routing_decisions"] == 0
 
 
 def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None:
