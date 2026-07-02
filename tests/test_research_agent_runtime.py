@@ -2291,6 +2291,18 @@ def test_runtime_gap_planner_staged_assembly_contract_failure_routes_repair_agen
         "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
     )
 
+    generated_rows = _runtime_generated_next_action_learning_rows(appended)
+    generated_row = generated_rows[0]
+    assert generated_row["staged_followup_assembly_error_preview"] == (
+        agenda_row["staged_followup_assembly_error_preview"]
+    )
+    assert generated_row["input_summary"][
+        "staged_followup_assembly_error_preview"
+    ] == agenda_row["staged_followup_assembly_error_preview"]
+    assert generated_row["staged_followup_assembly_error_summary"][0][
+        "assembly_row_id"
+    ] == "assembly:route-a"
+
 
 def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifest() -> None:
     summary = _runtime_formalization_gap_planner_live_route_planner_summary(

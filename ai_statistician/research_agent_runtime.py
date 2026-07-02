@@ -49111,6 +49111,20 @@ def _runtime_generated_next_action_learning_rows(
                 if isinstance(row.get("provider_token_counts", {}), Mapping)
                 else {}
             ),
+            "staged_followup_assembly_error_summary": (
+                list(row.get("staged_followup_assembly_error_summary", []) or [])
+                if isinstance(
+                    row.get("staged_followup_assembly_error_summary", []),
+                    list,
+                )
+                else []
+            ),
+            "staged_followup_assembly_error_preview": list(
+                _runtime_row_string_values(
+                    row,
+                    "staged_followup_assembly_error_preview",
+                )
+            )[:24],
             "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
             "source_manifest_path": str(row.get("source_manifest_path", "") or ""),
             "source_rows_path": str(row.get("source_rows_path", "") or ""),
