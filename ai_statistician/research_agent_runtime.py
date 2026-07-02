@@ -56726,38 +56726,78 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         if isinstance(architect_context, Mapping)
         else {}
     )
-    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
-        return {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "artifact_kind": "RuntimeInputContextSummary",
-            "runtime_learning_memory_supplied": False,
-            "runtime_learning_memory_rows_loaded": 0,
-            "runtime_learning_memory_source_paths": [],
-            "runtime_learning_memory_errors": 0,
-            "runtime_requested_evidence_contract": dict(requested_contract),
-            "boundary": (
-                "Runtime input context is orchestration prompt memory only. "
-                "It is not proof evidence, simulation evidence, execution evidence, "
-                "or source authority."
-            ),
-        }
-    counts = memory.get("counts", {}) if isinstance(memory.get("counts"), Mapping) else {}
-    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    capability_gap_routing = (
+        architect_context.get("runtime_capability_gap_routing", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    memory_supplied = (
+        isinstance(memory, Mapping)
+        and memory.get("artifact_kind") == "RuntimeLearningMemoryContext"
+    )
+    capability_gap_routing_supplied = (
+        isinstance(capability_gap_routing, Mapping)
+        and capability_gap_routing.get("artifact_kind")
+        == "RuntimeCapabilityGapRoutingContext"
+    )
+    counts = (
+        memory.get("counts", {})
+        if memory_supplied and isinstance(memory.get("counts"), Mapping)
+        else {}
+    )
+    rows = (
+        memory.get("rows", [])
+        if memory_supplied and isinstance(memory.get("rows"), list)
+        else []
+    )
+    gap_counts = (
+        capability_gap_routing.get("counts", {})
+        if capability_gap_routing_supplied
+        and isinstance(capability_gap_routing.get("counts"), Mapping)
+        else {}
+    )
+    gap_rows = (
+        capability_gap_routing.get("rows", [])
+        if capability_gap_routing_supplied
+        and isinstance(capability_gap_routing.get("rows"), list)
+        else []
+    )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeInputContextSummary",
-        "runtime_learning_memory_supplied": True,
-        "runtime_learning_memory_rows_loaded": int(counts.get("rows_loaded", len(rows)) or 0),
+        "runtime_learning_memory_supplied": bool(memory_supplied),
+        "runtime_learning_memory_rows_loaded": int(
+            counts.get("rows_loaded", len(rows)) or 0
+        ),
         "runtime_learning_memory_source_paths": [
             str(path) for path in memory.get("source_paths", []) or []
-        ],
+        ]
+        if memory_supplied
+        else [],
         "runtime_learning_memory_errors": int(counts.get("errors", 0) or 0),
         "runtime_learning_memory_max_rows": int(counts.get("max_rows", 0) or 0),
+        "runtime_capability_gap_routing_supplied": bool(
+            capability_gap_routing_supplied
+        ),
+        "runtime_capability_gap_routing_rows_loaded": int(
+            gap_counts.get("rows_loaded", len(gap_rows)) or 0
+        ),
+        "runtime_capability_gap_routing_source_paths": [
+            str(path) for path in capability_gap_routing.get("source_paths", []) or []
+        ]
+        if capability_gap_routing_supplied
+        else [],
+        "runtime_capability_gap_routing_errors": int(
+            gap_counts.get("errors", 0) or 0
+        ),
+        "runtime_capability_gap_routing_max_rows": int(
+            gap_counts.get("max_rows", 0) or 0
+        ),
         "runtime_requested_evidence_contract": dict(requested_contract),
         "boundary": (
-            "Prior runtime learning rows are bounded prompt memory and orchestration "
-            "guidance. They are not proof evidence, simulation evidence, execution "
-            "evidence, or source authority."
+            "Runtime input context is bounded prompt memory, capability-gap routing, "
+            "and orchestration guidance. It is not proof evidence, simulation "
+            "evidence, generated-code evidence, verifier evidence, or source authority."
         ),
     }
 

@@ -11,6 +11,7 @@ import pytest
 
 import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.cli import (
+    _load_runtime_capability_gap_routing,
     _load_runtime_learning_memory,
     _apply_research_agent_runtime_capability_eval_preset,
     _apply_research_agent_runtime_live_lean_defaults,
@@ -218,6 +219,8 @@ from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator imp
 from ai_statistician.research_agent_runtime_audit import (
     _audit_result_path,
     _audit_topology,
+    _capability_full_live_rerun_command,
+    _capability_resume_command,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
     _manifest_or_proof_summary_count,
     _runtime_capability_gap_routing_contract_summary,
@@ -3075,6 +3078,9 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
         "runtime_evaluation_mode": "debug",
         "runtime_resumable_manifest_path": "runs/debug/research_agent_runtime_manifest.json",
         "runtime_learning_rows_jsonl": "runs/debug/runtime_learning_rows.jsonl",
+        "runtime_capability_gap_routing_jsonl": (
+            "runs/debug_audit/runtime_capability_gap_routing.jsonl"
+        ),
     }
     scorecard = _runtime_capability_scorecard(payload)
     failed_scorecard_rows = [
@@ -3108,6 +3114,12 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
     assert "research-agent-runtime" in live_generator_row[
         "recommended_capability_eval_command"
     ]
+    assert "--capability-gap-routing-jsonl" in live_generator_row[
+        "recommended_capability_eval_command"
+    ]
+    assert "runs/debug_audit/runtime_capability_gap_routing.jsonl" in (
+        live_generator_row["recommended_capability_eval_command"]
+    )
     assert (
         live_generator_row["proof_evidence_status"]
         == "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
@@ -3121,6 +3133,81 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
         rows_by_requirement["runtime_progress_observable"]["next_owner_subsystem"]
         == "AgentRuntimeOrchestrator"
     )
+
+
+def test_runtime_capability_gap_routing_loader_preserves_non_evidence_context(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": f"capability_gap:integrated_runtime:gap_{index}",
+            "requirement_id": f"gap_{index}",
+            "scope": "integrated_runtime",
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "target_behavior": f"resolve gap {index}",
+            "success_metric": f"gap_{index}.passed=true",
+            "recommended_capability_eval_command": (
+                "research-agent-runtime --provider anthropic --capability-eval"
+            ),
+            "blocker": f"blocker {index}",
+            "evidence": f"evidence {index}",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not proof evidence",
+            "fingerprint": f"hash-{index}",
+        }
+        for index in range(3)
+    ]
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=2)
+
+    assert context["artifact_kind"] == "RuntimeCapabilityGapRoutingContext"
+    assert context["counts"]["rows_seen"] == 3
+    assert context["counts"]["rows_loaded"] == 2
+    assert context["counts"]["retention_policy"] == "latest_rows"
+    assert context["rows"][0]["requirement_id"] == "gap_1"
+    assert context["rows"][1]["requirement_id"] == "gap_2"
+    assert context["rows"][0]["proof_evidence_status"] == (
+        "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof evidence" in context["boundary"]
+
+
+def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
+    payload = {
+        "runtime_dir": "runs/current",
+        "runtime_resumable_manifest_path": "runs/current/research_agent_runtime_manifest.json",
+        "runtime_learning_rows_jsonl": "runs/current/runtime_learning_rows.jsonl",
+        "runtime_capability_gap_routing_jsonl": (
+            "runs/current_audit/runtime_capability_gap_routing.jsonl"
+        ),
+        "runtime_resume_manifest_has_pending_task": False,
+        "question_ids": ["split_conformal_q1"],
+    }
+
+    rerun_command = _capability_full_live_rerun_command(payload)
+    resume_command = _capability_resume_command(payload)
+
+    assert "--learning-memory-jsonl runs/current/runtime_learning_rows.jsonl" in (
+        rerun_command
+    )
+    assert (
+        "--capability-gap-routing-jsonl "
+        "runs/current_audit/runtime_capability_gap_routing.jsonl"
+    ) in rerun_command
+    assert "--max-capability-gap-routing-rows 40" in rerun_command
+    assert (
+        "--capability-gap-routing-jsonl "
+        "runs/current_audit/runtime_capability_gap_routing.jsonl"
+    ) in resume_command
+    assert "--max-capability-gap-routing-rows 40" in resume_command
 
 
 def test_runtime_target_identity_audit_flags_route_critical_targetless_rows() -> None:
@@ -57559,6 +57646,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     root.mkdir(parents=True, exist_ok=True)
     response_file = root / "response.json"
     learning_file = root / "runtime_learning_rows.jsonl"
+    capability_gap_routing_file = root / "runtime_capability_gap_routing.jsonl"
     out_dir = root / "out"
     response_file.write_text(json.dumps(_runtime_sample_response()), encoding="utf-8")
     algorithm_repair_response_file = _write_algorithm_repair_static_response(root)
@@ -57581,6 +57669,36 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
                 ],
                 "target_behavior": "rerun representative obligations through local Lean before claiming proof evidence",
                 "acceptance_gate": "kernel_verified counts only come from local Lean or AXLE verifier rows",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    capability_gap_routing_file.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                "id": "capability_gap:integrated_runtime:live_generator_agents_enabled",
+                "requirement_id": "live_generator_agents_enabled",
+                "scope": "integrated_runtime",
+                "gap_status": "OPEN",
+                "next_owner_subsystem": "ArchitectCoordinator",
+                "target_behavior": (
+                    "Run the next capability eval with live generator agents."
+                ),
+                "success_metric": "live_generator_agents_enabled.passed=true",
+                "recommended_capability_eval_command": (
+                    "research-agent-runtime --provider anthropic --capability-eval"
+                ),
+                "blocker": "no live generator agents were enabled",
+                "evidence": "n_live_generator_agents_enabled=0",
+                "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+                "routing_boundary": (
+                    "Capability routing only; not proof, simulation, code, or "
+                    "verifier evidence."
+                ),
+                "fingerprint": "live-generator-gap",
             }
         )
         + "\n",
@@ -57613,6 +57731,10 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
             "--learning-memory-jsonl",
             str(learning_file),
             "--max-learning-memory-rows",
+            "5",
+            "--capability-gap-routing-jsonl",
+            str(capability_gap_routing_file),
+            "--max-capability-gap-routing-rows",
             "5",
             "--max-proof-obligations",
             "2",
@@ -57772,8 +57894,19 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is True
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 1
+    assert (
+        manifest["runtime_input_context"]["runtime_capability_gap_routing_supplied"]
+        is True
+    )
+    assert (
+        manifest["runtime_input_context"]["runtime_capability_gap_routing_rows_loaded"]
+        == 1
+    )
     assert manifest["runtime_evaluation_mode"] == "debug"
     assert str(learning_file) in manifest["runtime_input_context"]["runtime_learning_memory_source_paths"]
+    assert str(capability_gap_routing_file) in manifest["runtime_input_context"][
+        "runtime_capability_gap_routing_source_paths"
+    ]
     assert "not proof evidence" in manifest["runtime_input_context"]["boundary"]
     assert "n_kernel_verified_subclaims" in manifest
     assert "n_formal_gaps" in manifest
@@ -57845,8 +57978,23 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         "not_registered_obligation",
     ]
     assert "local Lean before claiming proof evidence" in learning_context["rows"][0]["target_behavior"]
+    capability_gap_context = result["traces"][1]["task"]["inputs"][
+        "architect_context"
+    ]["runtime_capability_gap_routing"]
+    assert capability_gap_context["artifact_kind"] == (
+        "RuntimeCapabilityGapRoutingContext"
+    )
+    assert capability_gap_context["counts"]["rows_loaded"] == 1
+    assert capability_gap_context["rows"][0]["requirement_id"] == (
+        "live_generator_agents_enabled"
+    )
+    assert capability_gap_context["rows"][0]["next_owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+    assert "not proof evidence" in capability_gap_context["boundary"]
     evidence_types = {row["evidence_type"] for row in result["blackboard"]["evidence_ledger"]}
     assert "runtime_learning_memory" not in evidence_types
+    assert "runtime_capability_gap_routing" not in evidence_types
     assert "proof_state_feedback" not in evidence_types
     assert "formalization_proof_feedback" in evidence_types
     audit = audit_research_agent_runtime(out_dir, root / "out_audit")
@@ -57920,6 +58068,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_runtime_progress_events"] >= audit["n_runtime_traces"] * 2
     assert audit["n_results_with_runtime_learning_memory_input"] == 1
     assert audit["n_runtime_learning_memory_input_rows"] == 1
+    assert audit["n_results_with_runtime_capability_gap_routing_input"] == 1
+    assert audit["n_runtime_capability_gap_routing_input_rows"] == 1
 
 
 def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None:

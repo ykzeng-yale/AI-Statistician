@@ -2338,6 +2338,7 @@ class RuntimeAuditRow:
     n_critic_reroutes: int
     n_lean_lsp_mcp_live_calls: int
     has_runtime_learning_memory_input: bool
+    has_runtime_capability_gap_routing_input: bool
     has_kernel_verified_theorem_reduction_closure_memory: bool
     has_source_theorem_semantic_primitive_target_mode: bool
     has_problem_analysis: bool
@@ -2507,12 +2508,33 @@ def audit_research_agent_runtime(
     runtime_learning_memory_supplied = (
         runtime_input_context.get("runtime_learning_memory_supplied") is True
     )
+    runtime_capability_gap_routing_rows_loaded = int(
+        runtime_input_context.get("runtime_capability_gap_routing_rows_loaded", 0)
+        or 0
+    )
+    runtime_capability_gap_routing_supplied = (
+        runtime_input_context.get("runtime_capability_gap_routing_supplied") is True
+    )
     if runtime_learning_memory_supplied and runtime_learning_memory_rows_loaded <= 0:
         errors.append("runtime input context declares learning memory but loaded zero rows")
     if runtime_learning_memory_rows_loaded > 0 and not any(
         row.has_runtime_learning_memory_input for row in rows
     ):
         errors.append("runtime input context memory rows were not propagated into per-question traces")
+    if (
+        runtime_capability_gap_routing_supplied
+        and runtime_capability_gap_routing_rows_loaded <= 0
+    ):
+        errors.append(
+            "runtime input context declares capability gap routing but loaded zero rows"
+        )
+    if runtime_capability_gap_routing_rows_loaded > 0 and not any(
+        row.has_runtime_capability_gap_routing_input for row in rows
+    ):
+        errors.append(
+            "runtime input context capability gap routing rows were not propagated "
+            "into per-question traces"
+        )
     runtime_research_path_control = _runtime_research_path_control_from_results(
         result_paths=result_paths,
         manifest=manifest,
@@ -5738,6 +5760,9 @@ def audit_research_agent_runtime(
         "n_results_with_runtime_learning_memory_input": sum(
             1 for row in rows if row.has_runtime_learning_memory_input
         ),
+        "n_results_with_runtime_capability_gap_routing_input": sum(
+            1 for row in rows if row.has_runtime_capability_gap_routing_input
+        ),
         "n_results_with_kernel_verified_theorem_reduction_closure_memory": sum(
             1 for row in rows if row.has_kernel_verified_theorem_reduction_closure_memory
         ),
@@ -5746,6 +5771,12 @@ def audit_research_agent_runtime(
         ),
         "n_runtime_learning_memory_input_rows": runtime_learning_memory_rows_loaded,
         "runtime_learning_memory_input_supplied": runtime_learning_memory_supplied,
+        "n_runtime_capability_gap_routing_input_rows": (
+            runtime_capability_gap_routing_rows_loaded
+        ),
+        "runtime_capability_gap_routing_input_supplied": (
+            runtime_capability_gap_routing_supplied
+        ),
         "n_results_with_problem_analysis": sum(1 for row in rows if row.has_problem_analysis),
         "n_results_with_stat_knowledge_bank_plan": sum(
             1 for row in rows if row.has_stat_knowledge_bank_plan
@@ -5976,6 +6007,11 @@ def audit_research_agent_runtime(
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
     payload["evidence_truth_table"] = _runtime_evidence_truth_table(payload)
+    payload["runtime_capability_gap_routing_jsonl"] = (
+        str(out_dir / "runtime_capability_gap_routing.jsonl")
+        if out_dir is not None
+        else ""
+    )
     capability_gap_routing_rows = _runtime_capability_gap_routing_rows(
         capability_scorecard,
         payload,
@@ -5987,7 +6023,6 @@ def audit_research_agent_runtime(
         )
     )
     payload["runtime_capability_gap_routing_rows"] = capability_gap_routing_rows
-    payload["runtime_capability_gap_routing_jsonl"] = ""
     payload["runtime_capability_gap_routing_contract_audit_summary"] = (
         capability_gap_routing_summary
     )
@@ -6095,9 +6130,8 @@ def audit_research_agent_runtime(
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_out = out_dir / "research_agent_runtime_audit_manifest.json"
         report_out = out_dir / "research_agent_runtime_audit.md"
-        capability_gap_routing_out = out_dir / "runtime_capability_gap_routing.jsonl"
-        payload["runtime_capability_gap_routing_jsonl"] = str(
-            capability_gap_routing_out
+        capability_gap_routing_out = Path(
+            str(payload["runtime_capability_gap_routing_jsonl"])
         )
         _write_jsonl(capability_gap_routing_out, capability_gap_routing_rows)
         manifest_out.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
@@ -6581,6 +6615,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     ):
         errors.append("critic evaluator reroute decision is missing")
     has_runtime_learning_memory_input = _trace_has_runtime_learning_memory_input(traces)
+    has_runtime_capability_gap_routing_input = (
+        _trace_has_runtime_capability_gap_routing_input(traces)
+    )
     has_problem_analysis = _trace_has_architect_runtime_field(traces, "problem_analysis")
     has_stat_knowledge_bank_plan = _trace_has_architect_runtime_field(traces, "stat_knowledge_bank_plan")
     has_literature_fair_comparison_plan = _trace_has_architect_runtime_field(
@@ -6721,6 +6758,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_critic_reroutes=n_critic_reroutes,
         n_lean_lsp_mcp_live_calls=n_lean_lsp_mcp_live_calls,
         has_runtime_learning_memory_input=has_runtime_learning_memory_input,
+        has_runtime_capability_gap_routing_input=(
+            has_runtime_capability_gap_routing_input
+        ),
         has_kernel_verified_theorem_reduction_closure_memory=(
             has_kernel_verified_theorem_reduction_closure_memory
         ),
@@ -12526,6 +12566,17 @@ def _capability_rerun_out_dir(payload: Mapping[str, Any]) -> str:
     return str(path.with_name(f"{path.name}_rerun_full_live"))
 
 
+def _capability_gap_routing_command_args(payload: Mapping[str, Any]) -> str:
+    routing_path = str(payload.get("runtime_capability_gap_routing_jsonl", "") or "")
+    if not routing_path.strip():
+        return ""
+    return (
+        " --capability-gap-routing-jsonl "
+        f"{shlex.quote(routing_path.strip())} "
+        "--max-capability-gap-routing-rows 40"
+    )
+
+
 def _capability_resume_command(
     payload: Mapping[str, Any],
     *,
@@ -12546,6 +12597,7 @@ def _capability_resume_command(
         "--capability-eval-preset full-live "
         "--resume-through-architect "
         f"--max-iterations {max_iterations} "
+        f"{_capability_gap_routing_command_args(payload)} "
         f"--out {shlex.quote(out_arg)}"
     )
 
@@ -12588,6 +12640,7 @@ def _capability_full_live_rerun_command(
         "--formalization-gap-planner-live-max-handoffs 1 "
         "--formalization-gap-planner-live-max-route-requests-per-handoff 1"
         f"{learning_memory_args} "
+        f"{_capability_gap_routing_command_args(payload)} "
         f"--out {shlex.quote(out_arg)}"
     )
 
@@ -12644,6 +12697,22 @@ def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:
         context = inputs.get("architect_context", {}) if isinstance(inputs.get("architect_context"), Mapping) else {}
         memory = context.get("runtime_learning_memory", {})
         if isinstance(memory, Mapping) and memory.get("artifact_kind") == "RuntimeLearningMemoryContext":
+            return True
+    return False
+
+
+def _trace_has_runtime_capability_gap_routing_input(traces: list[Any]) -> bool:
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        context = inputs.get("architect_context", {}) if isinstance(inputs.get("architect_context"), Mapping) else {}
+        routing = context.get("runtime_capability_gap_routing", {})
+        if (
+            isinstance(routing, Mapping)
+            and routing.get("artifact_kind") == "RuntimeCapabilityGapRoutingContext"
+        ):
             return True
     return False
 
@@ -13127,6 +13196,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- Lean LSP/MCP live calls: {payload.get('n_lean_lsp_mcp_live_calls')}",
         f"- runtime-learning-memory inputs: {payload.get('n_results_with_runtime_learning_memory_input')}",
         f"- runtime-learning-memory input rows: {payload.get('n_runtime_learning_memory_input_rows')}",
+        "- runtime capability-gap-routing inputs / rows: "
+        f"{payload.get('n_results_with_runtime_capability_gap_routing_input')} / "
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows')}",
         f"- problem-analysis rows: {payload.get('n_results_with_problem_analysis')}",
         f"- stat-knowledge-bank rows: {payload.get('n_results_with_stat_knowledge_bank_plan')}",
         f"- literature-fair-comparison rows: {payload.get('n_results_with_literature_fair_comparison_plan')}",

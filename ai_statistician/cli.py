@@ -497,6 +497,26 @@ def _attach_runtime_learning_memory(
     )
 
 
+def _attach_runtime_capability_gap_routing(
+    args: argparse.Namespace,
+    context: dict[str, object],
+) -> None:
+    raw_paths = [
+        str(item)
+        for item in getattr(args, "capability_gap_routing_jsonl", []) or []
+        if str(item).strip()
+    ]
+    paths = list(dict.fromkeys(raw_paths))
+    if not paths:
+        return
+    context["runtime_capability_gap_routing"] = (
+        _load_runtime_capability_gap_routing(
+            [Path(item) for item in paths],
+            max_rows=int(getattr(args, "max_capability_gap_routing_rows", 20) or 20),
+        )
+    )
+
+
 def _load_runtime_resume_task_from_manifest(
     path: Path,
 ) -> tuple[str, AgentTask, dict[str, Any]]:
@@ -1062,6 +1082,100 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
         "boundary": (
             "Prior runtime learning rows are prompt memory and orchestration guidance. "
             "They are not proof evidence, simulation evidence, execution evidence, or source authority."
+        ),
+    }
+
+
+def _compact_runtime_capability_gap_routing_row(
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    compact = {
+        "schema_version": row.get("schema_version", 1),
+        "artifact_kind": str(
+            row.get("artifact_kind", "RuntimeCapabilityGapRoutingRow")
+            or "RuntimeCapabilityGapRoutingRow"
+        ),
+        "id": str(row.get("id", "")),
+        "requirement_id": str(row.get("requirement_id", "")),
+        "scope": str(row.get("scope", "")),
+        "gap_status": str(row.get("gap_status", "")),
+        "next_owner_subsystem": str(row.get("next_owner_subsystem", "")),
+        "target_behavior": str(row.get("target_behavior", "")),
+        "success_metric": str(row.get("success_metric", "")),
+        "recommended_capability_eval_command": str(
+            row.get("recommended_capability_eval_command", "")
+        ),
+        "blocker": str(row.get("blocker", "")),
+        "evidence": str(row.get("evidence", "")),
+        "proof_evidence_status": str(row.get("proof_evidence_status", "")),
+        "routing_boundary": str(row.get("routing_boundary", "")),
+        "fingerprint": str(row.get("fingerprint", "")),
+    }
+    for key in (
+        "priority",
+        "source_artifact_kind",
+        "source_scorecard_ready",
+        "source_scorecard_runtime_evaluation_mode",
+    ):
+        if key in row:
+            compact[key] = row[key]
+    return compact
+
+
+def _load_runtime_capability_gap_routing(
+    paths: list[Path],
+    *,
+    max_rows: int = 20,
+) -> dict[str, object]:
+    all_rows: list[dict[str, object]] = []
+    errors: list[str] = []
+    for path in paths:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            errors.append(f"{path}: {exc}")
+            continue
+        for line_no, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{path}:{line_no}: {exc}")
+                continue
+            if not isinstance(payload, dict):
+                errors.append(f"{path}:{line_no}: expected JSON object")
+                continue
+            if str(payload.get("artifact_kind", "") or "") not in {
+                "",
+                "RuntimeCapabilityGapRoutingRow",
+            }:
+                errors.append(
+                    f"{path}:{line_no}: expected RuntimeCapabilityGapRoutingRow"
+                )
+                continue
+            all_rows.append(_compact_runtime_capability_gap_routing_row(payload))
+    row_limit = max(int(max_rows or 0), 0)
+    rows = all_rows[-row_limit:] if row_limit else []
+    return {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+        "source_paths": [str(path) for path in paths],
+        "rows": rows,
+        "counts": {
+            "rows_loaded": len(rows),
+            "rows_seen": len(all_rows),
+            "source_paths": len(paths),
+            "errors": len(errors),
+            "max_rows": max_rows,
+            "retention_policy": "latest_rows",
+        },
+        "errors": errors[:10],
+        "boundary": (
+            "Capability gap routing rows are prompt-routing and work-allocation "
+            "context only. They are not proof evidence, simulation evidence, "
+            "generated-code evidence, verifier evidence, or source authority."
         ),
     }
 
@@ -9364,6 +9478,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     if args.context_json:
         context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
     _attach_runtime_learning_memory(args, context)
+    _attach_runtime_capability_gap_routing(args, context)
     model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -9498,6 +9613,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         context,
         extra_paths=resume_learning_memory_paths,
     )
+    _attach_runtime_capability_gap_routing(args, context)
     model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -16961,6 +17077,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_architect_theory.add_argument("--max-learning-memory-rows", type=int, default=20)
     research_architect_theory.add_argument(
+        "--capability-gap-routing-jsonl",
+        action="append",
+        default=[],
+        help=(
+            "runtime_capability_gap_routing.jsonl from a prior runtime audit to "
+            "inject as bounded non-evidence Architect routing context; repeatable"
+        ),
+    )
+    research_architect_theory.add_argument(
+        "--max-capability-gap-routing-rows",
+        type=int,
+        default=20,
+    )
+    research_architect_theory.add_argument(
         "--llm-model",
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
@@ -17070,6 +17200,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="prior runtime_learning_rows.jsonl to inject as bounded non-evidence prompt memory; repeatable",
     )
     research_agent_runtime.add_argument("--max-learning-memory-rows", type=int, default=20)
+    research_agent_runtime.add_argument(
+        "--capability-gap-routing-jsonl",
+        action="append",
+        default=[],
+        help=(
+            "runtime_capability_gap_routing.jsonl from a prior runtime audit to "
+            "inject as bounded non-evidence Architect/runtime routing context; "
+            "repeatable"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--max-capability-gap-routing-rows",
+        type=int,
+        default=20,
+    )
     research_agent_runtime.add_argument(
         "--llm-model",
         default="",
