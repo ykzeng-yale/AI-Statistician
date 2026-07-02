@@ -21,6 +21,11 @@ from .research_agent_runtime import (
     RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY,
     RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS,
     RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
+    RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS,
+    RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS,
+    RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS,
+    RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS,
+    RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
@@ -8438,7 +8443,7 @@ def _runtime_source_to_bridge_feedback_row_requires_declaration(row: Any) -> boo
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     ).strip()
-    if learning_task == "generated_next_action_routing":
+    if learning_task in RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS:
         return False
     request = (
         row.get("source_to_bridge_premise_derivation_candidate_request", {})
@@ -8947,13 +8952,13 @@ def _runtime_target_prover_replay_route_revision_learning_row(row: Any) -> bool:
     if not isinstance(row, Mapping):
         return False
     input_summary = _runtime_row_input_summary(row)
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    ).strip()
     return (
-        str(
-            row.get("learning_task", "")
-            or input_summary.get("learning_task", "")
-            or ""
-        ).strip()
-        == "formalization_gap_planner_target_prover_replay_feedback"
+        learning_task in RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
+        and learning_task
+        in RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
     )
 
 
@@ -8966,7 +8971,9 @@ def _runtime_target_prover_replay_route_revision_generated_routing_row(
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     ).strip()
-    return learning_task in {"generated_next_action_routing", "next_action_routing"} and (
+    return (
+        learning_task in RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS
+    ) and (
         _runtime_route_row_trigger_value(row)
         == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
     )
@@ -9184,8 +9191,10 @@ def _runtime_formal_gap_planner_handoff_row(row: Any) -> bool:
         if isinstance(row.get("input_summary", {}), Mapping)
         else {}
     )
-    if _runtime_formal_gap_planner_row_agenda_id(row) == (
-        FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID
+    agenda_id = _runtime_formal_gap_planner_row_agenda_id(row)
+    if (
+        agenda_id == FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID
+        and agenda_id in RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
     ):
         return True
     trigger = _runtime_route_row_trigger_value(row)
@@ -9204,7 +9213,11 @@ def _runtime_formal_gap_planner_handoff_row(row: Any) -> bool:
                 marker_values.append(key)
             elif str(value or "").strip():
                 marker_values.append(str(value))
-    if trigger == FORMAL_GAP_PLANNER_HANDOFF_TRIGGER and marker_values:
+    if (
+        trigger == FORMAL_GAP_PLANNER_HANDOFF_TRIGGER
+        and trigger in RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+        and marker_values
+    ):
         return True
     return any(
         "runtime_formalization_gap_planner_handoff:" in value

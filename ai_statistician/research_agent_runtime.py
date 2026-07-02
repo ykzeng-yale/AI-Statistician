@@ -30190,17 +30190,38 @@ RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
         RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
     }
 )
-RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = frozenset(
+RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS = frozenset(
     {
         "next_action_routing",
         "generated_next_action_routing",
-        "formalization_gap_planner_live_route_planner_contract_feedback",
-        "formalization_gap_planner_target_prover_replay_feedback",
     }
+)
+RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS = (
+    frozenset({"formalization_gap_planner_live_route_planner_contract_feedback"})
+)
+RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS = frozenset(
+    {"formalization_gap_planner_target_prover_replay_feedback"}
+)
+RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS = frozenset(
+    RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+    | RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
+)
+RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = frozenset(
+    RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS
+    | RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS
 )
 
 _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
 _FORMAL_GAP_NEXT_ACTION_TRIGGERS = RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS
+)
+_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+)
+_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
+)
 _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = (
     RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
 )
@@ -30686,10 +30707,7 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     )
     if learning_task not in _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS:
         return False
-    if learning_task in {
-        "formalization_gap_planner_live_route_planner_contract_feedback",
-        "formalization_gap_planner_target_prover_replay_feedback",
-    }:
+    if learning_task in _FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS:
         return True
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
@@ -30714,13 +30732,13 @@ def _runtime_learning_memory_formal_gap_next_action_stage(
     trigger = _runtime_learning_row_trigger(row, input_summary)
     if (
         learning_task
-        == "formalization_gap_planner_live_route_planner_contract_feedback"
+        in _FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
         or trigger
         == RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
     ):
         return "gap_planner_contract_repair"
     if (
-        learning_task == "formalization_gap_planner_target_prover_replay_feedback"
+        learning_task in _FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
         or trigger
         == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
     ):

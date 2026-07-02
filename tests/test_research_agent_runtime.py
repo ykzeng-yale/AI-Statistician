@@ -11,6 +11,7 @@ import pytest
 
 import ai_statistician.cli as cli_module
 import ai_statistician.research_agent_runtime as runtime_module
+import ai_statistician.research_agent_runtime_audit as audit_module
 from ai_statistician.cli import (
     _load_runtime_capability_gap_routing,
     _load_runtime_learning_memory,
@@ -6890,8 +6891,34 @@ def test_cli_and_runtime_formal_gap_route_memory_classifiers_stay_aligned() -> N
     assert cli_module._FORMAL_GAP_NEXT_ACTION_TRIGGERS == (
         runtime_module.RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
     )
+    assert cli_module._FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS == (
+        runtime_module.RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS
+    )
+    assert (
+        cli_module._FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+        == runtime_module.RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+    )
     assert cli_module._FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS == (
         runtime_module.RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
+    )
+    assert cli_module._FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS == (
+        runtime_module.RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
+    )
+    assert audit_module.FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID in (
+        runtime_module.RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+    )
+    assert audit_module.FORMAL_GAP_PLANNER_HANDOFF_TRIGGER in (
+        runtime_module.RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+    )
+    assert audit_module.RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS == (
+        runtime_module.RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS
+    )
+    assert audit_module.RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS == (
+        runtime_module.RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
+    )
+    assert (
+        audit_module.RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
+        == runtime_module.RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
     )
     rows = [
         {
@@ -6914,6 +6941,16 @@ def test_cli_and_runtime_formal_gap_route_memory_classifiers_stay_aligned() -> N
                 "formalization_gap_planner_route_revision_overlay_manifest.json"
             ),
             "target_ids": ["split_conformal_finite_sample_coverage"],
+        },
+        {
+            "learning_task": "next_action_routing",
+            "input_summary": {
+                "trigger": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+                ),
+                "route_revision_proposal_id": "route-revision:generated",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            },
         },
         {
             "learning_task": "next_action_routing",
@@ -6950,6 +6987,29 @@ def test_cli_and_runtime_formal_gap_route_memory_classifiers_stay_aligned() -> N
                 row,
                 input_summary,
             )
+
+    target_replay_feedback_row = rows[1]
+    target_replay_generated_row = rows[2]
+    live_contract_feedback_row = rows[0]
+    assert audit_module._runtime_target_prover_replay_route_revision_learning_row(
+        target_replay_feedback_row
+    )
+    assert not (
+        audit_module._runtime_target_prover_replay_route_revision_generated_routing_row(
+            target_replay_feedback_row
+        )
+    )
+    assert not audit_module._runtime_target_prover_replay_route_revision_learning_row(
+        target_replay_generated_row
+    )
+    assert (
+        audit_module._runtime_target_prover_replay_route_revision_generated_routing_row(
+            target_replay_generated_row
+        )
+    )
+    assert not audit_module._runtime_target_prover_replay_route_revision_learning_row(
+        live_contract_feedback_row
+    )
 
 
 def test_runtime_handoff_materializes_route_contract_feedback_jsonl(

@@ -428,9 +428,14 @@ from .proof_state_feedback import (
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
+    RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS,
+    RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS,
     RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS,
     RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS,
     RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS,
+    RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS,
     RUNTIME_SCHEMA_VERSION,
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
@@ -1185,8 +1190,17 @@ def _load_runtime_capability_gap_routing(
 
 _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
 _FORMAL_GAP_NEXT_ACTION_TRIGGERS = RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS
+)
+_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+)
 _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = (
     RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
+)
+_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
 )
 
 
@@ -1210,10 +1224,7 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     )
     if learning_task not in _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS:
         return False
-    if learning_task in {
-        "formalization_gap_planner_live_route_planner_contract_feedback",
-        "formalization_gap_planner_target_prover_replay_feedback",
-    }:
+    if learning_task in _FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS:
         return True
     agenda_id = str(
         row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
@@ -1240,14 +1251,15 @@ def _runtime_learning_memory_formal_gap_next_action_stage(
     trigger = _runtime_learning_memory_row_trigger(row)
     if (
         learning_task
-        == "formalization_gap_planner_live_route_planner_contract_feedback"
-        or trigger == "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+        in _FORMAL_GAP_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_LEARNING_TASKS
+        or trigger
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
     ):
         return "gap_planner_contract_repair"
     if (
-        learning_task == "formalization_gap_planner_target_prover_replay_feedback"
+        learning_task in _FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
         or trigger
-        == "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
     ):
         return "target_prover_replay_route_revision"
     if (
