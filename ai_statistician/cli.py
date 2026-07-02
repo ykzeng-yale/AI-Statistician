@@ -3745,7 +3745,11 @@ def _source_theorem_exact_semantic_definition_authoring_worker(
     print(
         f"tasks={manifest['n_authoring_tasks']} "
         f"prompt_packets={manifest['n_prompt_packets']} "
+        f"provider={manifest.get('provider_name', '')} "
+        f"backend_provider={manifest.get('backend_provider_name', '')} "
         f"llm_attempted={manifest['n_llm_attempted']} "
+        f"live_llm_attempted={manifest.get('n_live_llm_attempted', 0)} "
+        f"static_or_fixture_llm_attempted={manifest.get('n_static_or_fixture_llm_attempted', 0)} "
         f"candidate_packets={manifest['n_candidate_packets']} "
         f"candidate_ok={manifest['n_candidate_packets_ok']}"
     )

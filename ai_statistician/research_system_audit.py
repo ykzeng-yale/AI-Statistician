@@ -3043,6 +3043,9 @@ async def run_research_system_audit(
             "research_agent_runtime_live_generator_agents_enabled": research_agent_runtime_audit_manifest[
                 "n_live_generator_agents_enabled"
             ],
+            **_research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
+                research_agent_runtime_audit_manifest
+            ),
             "research_agent_runtime_lean_lsp_mcp_live_calls": research_agent_runtime_audit_manifest[
                 "n_lean_lsp_mcp_live_calls"
             ],
@@ -8752,6 +8755,115 @@ async def run_research_system_audit(
     return payload
 
 
+def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
+    manifest: Mapping[str, Any],
+) -> dict[str, object]:
+    def _manifest_int(key: str) -> int:
+        return int(manifest.get(key, 0) or 0)
+
+    def _manifest_bool(key: str) -> bool:
+        return bool(manifest.get(key, False))
+
+    def _manifest_str(key: str) -> str:
+        return str(manifest.get(key, "") or "").strip()
+
+    primary_required = _manifest_bool(
+        "source_theorem_exact_semantic_definition_authoring_worker_required"
+    )
+    retry_required = _manifest_bool(
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required"
+    ) or _manifest_bool(
+        "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
+    )
+    late_required = _manifest_bool(
+        "source_theorem_exact_semantic_definition_late_authoring_worker_ran"
+    ) or _manifest_int(
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests"
+    ) > 0
+    provider_names = list(
+        dict.fromkeys(
+            value
+            for value in (
+                _manifest_str(
+                    "source_theorem_exact_semantic_definition_authoring_worker_provider_name"
+                ),
+                _manifest_str(
+                    "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name"
+                ),
+                *(
+                    str(value).strip()
+                    for value in manifest.get(
+                        "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
+                        [],
+                    )
+                    or []
+                ),
+            )
+            if value
+        )
+    )
+    backend_provider_names = list(
+        dict.fromkeys(
+            value
+            for value in (
+                _manifest_str(
+                    "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name"
+                ),
+                _manifest_str(
+                    "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name"
+                ),
+                *(
+                    str(value).strip()
+                    for value in manifest.get(
+                        "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
+                        [],
+                    )
+                    or []
+                ),
+            )
+            if value
+        )
+    )
+    return {
+        "research_agent_runtime_exact_semantic_definition_authoring_required": (
+            primary_required or retry_required or late_required
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_primary_required": primary_required,
+        "research_agent_runtime_exact_semantic_definition_authoring_retry_required": retry_required,
+        "research_agent_runtime_exact_semantic_definition_authoring_late_required": late_required,
+        "research_agent_runtime_exact_semantic_definition_authoring_tasks": (
+            _manifest_int("n_source_theorem_exact_semantic_definition_authoring_tasks")
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_authoring_retry_n_tasks"
+            )
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted": (
+            _manifest_int(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted"
+            )
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted"
+            )
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted"
+            )
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted": (
+            _manifest_int(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+            )
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+            )
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted"
+            )
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_provider_names": provider_names,
+        "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": backend_provider_names,
+    }
+
+
 def _proof_search_kernel_rerun_local_lean_overlay(out_dir: Path) -> dict[str, object]:
     manifest_path = (
         out_dir.parent
@@ -9133,6 +9245,25 @@ def _research_agent_runtime_audit_overlay(
         "n_live_generator_agents_enabled": 0,
         "n_critic_reroutes": 0,
         "n_lean_lsp_mcp_live_calls": 0,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": "",
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": "",
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": False,
+        "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": False,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": "",
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": "",
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests": 0,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names": [],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names": [],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted": 0,
         "n_algorithm_sandbox_executed": 0,
         "n_generated_code_sandbox_executed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,

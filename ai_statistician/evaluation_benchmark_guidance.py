@@ -622,6 +622,18 @@ def _suite_rows(
                 "research_agent_runtime_live_generator_agents_enabled": counts.get(
                     "research_agent_runtime_live_generator_agents_enabled"
                 ),
+                "research_agent_runtime_exact_semantic_definition_authoring_required": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_required"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names"
+                ),
                 "research_agent_runtime_generated_code_sandbox_executed": counts.get(
                     "research_agent_runtime_generated_code_sandbox_executed"
                 ),
@@ -653,7 +665,7 @@ def _suite_rows(
             issues=()
             if bool(counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician"))
             else (
-                "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard",
+                "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard, including aggregate live exact semantic-definition authoring when required",
             ),
         ),
     ]
@@ -726,9 +738,9 @@ def _top_actions(
             {
                 "rank": len(actions) + 1,
                 "owner_suite": "S13_live_integrated_agent_runtime_capability",
-                "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, and internal ProofEngineer handoffs in the same run.",
-                "why": "S10/S11/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution.",
-                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, and explicit theorem-proof boundary fields.",
+                "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
+                "why": "S10/S11/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
+                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, aggregate primary/retry/late exact semantic-definition authoring n_live_llm_attempted>0 when required, ProofEngineer handoff feedback, and explicit theorem-proof boundary fields.",
             }
         )
     if (

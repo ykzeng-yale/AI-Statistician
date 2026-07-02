@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from ai_statistician.cli import main
 from ai_statistician.model_backend import GeneratorResponse, StaticJSONGeneratorBackend
 from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker import (
     AuthoringCandidateMaterializerConfig,
@@ -1339,3 +1340,38 @@ def test_authoring_candidate_materializer_blocks_invalid_candidate(
     assert rows[0]["definition_only_candidate_artifact_path"] == ""
     repair_tasks = Path(manifest["materialized_lean_repair_tasks_jsonl"]).read_text()
     assert repair_tasks == ""
+
+
+def test_authoring_worker_cli_reports_live_and_static_attempts(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    static_response = tmp_path / "static_response.json"
+    static_response.write_text(
+        json.dumps(_valid_authoring_response(), sort_keys=True),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "source-theorem-exact-semantic-definition-authoring-worker",
+            "--authoring-tasks-jsonl",
+            str(tasks_path),
+            "--provider",
+            "static",
+            "--static-response-file",
+            str(static_response),
+            "--out",
+            str(tmp_path / "authoring_worker_cli"),
+        ]
+    )
+
+    captured = capsys.readouterr().out
+    assert code == 0
+    assert "provider=static" in captured
+    assert "backend_provider=static" in captured
+    assert "llm_attempted=1" in captured
+    assert "live_llm_attempted=0" in captured
+    assert "static_or_fixture_llm_attempted=1" in captured

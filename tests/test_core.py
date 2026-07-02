@@ -270,6 +270,7 @@ from ai_statistician.research_system_audit import (
     _coding_agent_generated_code_repair_eval_overlay,
     _formalizer_lean_candidate_repair_eval_overlay,
     _formalization_gap_planner_evaluation_route_adoption_count_rollups,
+    _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
 )
@@ -5014,6 +5015,12 @@ class SystemTests(unittest.TestCase):
                 "fresh_holdout_frontier_identity_withheld": True,
                 "fresh_holdout_frontier_source_leakage_detected": False,
                 "fresh_holdout_frontier_all_ok": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_required": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": [
+                    "static"
+                ],
             },
             "artifacts": {
                 "research_benchmark": "runs/example/research_benchmark_manifest.json",
@@ -5081,11 +5088,33 @@ class SystemTests(unittest.TestCase):
             "no single live Architect-orchestrated AgentRuntime run",
             suites["S13_live_integrated_agent_runtime_capability"]["issues"][0],
         )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names"
+            ],
+            ["static"],
+        )
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertEqual(
             guidance["top_actions"][1]["action"],
             "Run and gate all-60 frontier theory-target scoring with per-topic triage, not only the release smoke subset.",
         )
+        s13_action = next(
+            action
+            for action in guidance["top_actions"]
+            if action["owner_suite"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertIn(
+            "aggregate primary/retry/late exact semantic-definition authoring",
+            s13_action["success_metric"],
+        )
+        self.assertIn("n_live_llm_attempted>0 when required", s13_action["success_metric"])
         self.assertTrue(
             Path(
                 "runs/test_evaluation_benchmark_guidance/"
@@ -5283,6 +5312,69 @@ class SystemTests(unittest.TestCase):
         )
         self.assertNotIn("kernel verification", " ".join(overlay_kernel_s5["issues"]))
         self.assertNotIn("AXLE/local Lean", overlay_kernel_guidance["top_actions"][2]["action"])
+
+    def test_research_agent_runtime_exact_semantic_authoring_rollup_aggregates_retry_and_late_paths(
+        self,
+    ) -> None:
+        counts = _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
+            {
+                "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+                "source_theorem_exact_semantic_definition_authoring_worker_provider_name": "anthropic",
+                "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": "static",
+                "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+                "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+                "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+                "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": False,
+                "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 2,
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": "anthropic",
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": "anthropic",
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 2,
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 2,
+                "source_theorem_exact_semantic_definition_late_authoring_worker_ran": True,
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests": 1,
+                "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names": [
+                    "openai"
+                ],
+                "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names": [
+                    "openai"
+                ],
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted": 1,
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted": 1,
+                "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+            }
+        )
+
+        self.assertTrue(
+            counts["research_agent_runtime_exact_semantic_definition_authoring_required"]
+        )
+        self.assertTrue(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_retry_required"
+            ]
+        )
+        self.assertTrue(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_late_required"
+            ]
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted"
+            ],
+            4,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
+            ],
+            3,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names"
+            ],
+            ["static", "anthropic", "openai"],
+        )
 
     def test_research_system_audit_reads_coding_agent_repair_eval_overlay(self) -> None:
         root = Path("runs/test_coding_agent_generated_repair_overlay")
@@ -20385,6 +20477,17 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 0)
         self.assertEqual(payload["counts"]["research_agent_runtime_critic_reroutes"], 0)
         self.assertEqual(payload["counts"]["research_agent_runtime_learning_rows"], 0)
+        self.assertFalse(
+            payload["counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_required"
+            ]
+        )
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
+            ],
+            0,
+        )
         self.assertGreater(payload["counts"]["verifier_cache_hits"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_misses"], 0)
         self.assertGreater(payload["counts"]["verifier_cache_size"], 0)

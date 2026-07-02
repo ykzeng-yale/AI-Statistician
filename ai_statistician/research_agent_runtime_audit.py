@@ -3515,9 +3515,11 @@ def audit_research_agent_runtime(
         "all_ok only means runtime artifacts satisfy the audit contract. "
         "capability_ready_for_full_ai_statistician is the stricter gate for the "
         "original goal: live Architect orchestration, executable algorithm feedback, "
-        "live Lean LSP/MCP proof-state interaction, real kernel evidence, and no "
-        "remaining full-theorem formal gaps. Attached component calibration is "
-        "reported separately and does not substitute for integrated readiness."
+        "live Lean LSP/MCP proof-state interaction, aggregate primary/retry/late "
+        "exact semantic-definition authoring with live backend provenance whenever "
+        "authoring is required, real kernel evidence, and no remaining full-theorem "
+        "formal gaps. Attached component calibration is reported separately and "
+        "does not substitute for integrated readiness."
     )
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)

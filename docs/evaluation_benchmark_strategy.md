@@ -1185,7 +1185,8 @@ Sources:
 - `research-agent-runtime --capability-eval`
 - `research-agent-runtime-audit`
 - runtime manifests, progress, LLM topology, generated-code sandbox results,
-  Formalizer Lean-candidate materialization, and ProofEngineer handoff fields
+  Formalizer Lean-candidate materialization, aggregate primary/retry/late exact
+  semantic-definition authoring provenance, and ProofEngineer handoff fields
 
 Current inspected signal:
 
@@ -1203,7 +1204,10 @@ capability checks, but passing them separately does not mean the full system can
 run as an autonomous AI Statistician. Static replay, no-Architect routing,
 registered-template-only success, manual path overrides, and one-shot generated
 code execution cannot satisfy S13. S13 is still capability evidence, not theorem
-proof, unless exact local Lean/AXLE source-theorem verification succeeds.
+proof, unless exact local Lean/AXLE source-theorem verification succeeds. When
+exact semantic-definition authoring is required, static/replay authoring and
+prompt staging do not satisfy S13; the aggregate primary/retry/late authoring
+path must record a live Claude/OpenAI backend attempt.
 
 ## Recommended Near-Term Gate
 
