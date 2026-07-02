@@ -1591,6 +1591,13 @@ def audit_research_agent_runtime(
                 "n_formalizer_lean_candidate_proof_state_feedback_rows",
             )
         ),
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+            )
+        ),
         "n_formalizer_lean_candidate_local_lean_tool_calls": int(
             _manifest_or_proof_summary_count(
                 manifest,
@@ -1598,11 +1605,25 @@ def audit_research_agent_runtime(
                 "n_formalizer_lean_candidate_local_lean_tool_calls",
             )
         ),
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+            )
+        ),
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": int(
             _manifest_or_proof_summary_count(
                 manifest,
                 runtime_proof_summary,
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+            )
+        ),
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
             )
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
@@ -5485,11 +5506,32 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_formalizer_proof_state_feedback_rows = int(
         payload.get("n_formalizer_lean_candidate_proof_state_feedback_rows", 0) or 0
     )
+    integrated_formalizer_bound_proof_state_feedback_rows = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+            0,
+        )
+        or 0
+    )
     integrated_formalizer_local_lean_tool_calls = int(
         payload.get("n_formalizer_lean_candidate_local_lean_tool_calls", 0) or 0
     )
+    integrated_formalizer_bound_local_lean_tool_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+            0,
+        )
+        or 0
+    )
     integrated_formalizer_lean_lsp_mcp_live_calls = int(
         payload.get("n_formalizer_lean_candidate_lean_lsp_mcp_live_calls", 0) or 0
+    )
+    integrated_formalizer_bound_lean_lsp_mcp_live_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
+            0,
+        )
+        or 0
     )
     integrated_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
@@ -5558,9 +5600,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     proofengineer_feedback_repair_ready = (
         integrated_formalizer_agentic_repair_ready
         and (
-            integrated_formalizer_proof_state_feedback_rows > 0
-            or integrated_formalizer_local_lean_tool_calls > 0
-            or integrated_formalizer_lean_lsp_mcp_live_calls > 0
+            integrated_formalizer_bound_proof_state_feedback_rows > 0
+            or integrated_formalizer_bound_local_lean_tool_calls > 0
+            or integrated_formalizer_bound_lean_lsp_mcp_live_calls > 0
         )
     )
     helper_kernel_evidence_ready = (
@@ -5702,10 +5744,16 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_repair_sequences} "
                 "proof_state_feedback_rows="
                 f"{integrated_formalizer_proof_state_feedback_rows} "
+                "bound_proof_state_feedback_rows="
+                f"{integrated_formalizer_bound_proof_state_feedback_rows} "
                 "local_lean_tool_calls="
                 f"{integrated_formalizer_local_lean_tool_calls} "
+                "bound_local_lean_tool_calls="
+                f"{integrated_formalizer_bound_local_lean_tool_calls} "
                 "lean_lsp_mcp_live_calls="
                 f"{integrated_formalizer_lean_lsp_mcp_live_calls} "
+                "bound_lean_lsp_mcp_live_calls="
+                f"{integrated_formalizer_bound_lean_lsp_mcp_live_calls} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
@@ -5965,6 +6013,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_formalizer_bound_proof_state_feedback_rows = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+            0,
+        )
+        or 0
+    )
     integrated_formalizer_local_lean_tool_calls = int(
         payload.get(
             "n_formalizer_lean_candidate_local_lean_tool_calls",
@@ -5972,9 +6027,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_formalizer_bound_local_lean_tool_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+            0,
+        )
+        or 0
+    )
     integrated_formalizer_lean_lsp_mcp_live_calls = int(
         payload.get(
             "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+            0,
+        )
+        or 0
+    )
+    integrated_formalizer_bound_lean_lsp_mcp_live_calls = int(
+        payload.get(
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
             0,
         )
         or 0
@@ -7198,61 +7267,71 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "formalizer_lean_candidate_proof_state_feedback_recorded",
             integrated_llm_formalizer_proposals > 0
-            and integrated_formalizer_proof_state_feedback_rows > 0,
+            and integrated_formalizer_bound_proof_state_feedback_rows > 0,
             (
                 "proof_state_feedback_rows="
-                f"{payload.get('n_formalizer_lean_candidate_proof_state_feedback_rows')}"
+                f"{payload.get('n_formalizer_lean_candidate_proof_state_feedback_rows')} "
+                "bound_proof_state_feedback_rows="
+                f"{payload.get('n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows')}"
             ),
             (
                 "Formalizer Lean candidate failures did not produce structured "
-                "ProofEngineer feedback rows with diagnostics/residual goals for "
-                "the next Claude/OpenAI repair turn"
+                "ProofEngineer feedback rows bound to the exact materialized "
+                "candidate, with diagnostics/residual goals for the next "
+                "Claude/OpenAI repair turn"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalizationEvaluator",
                 target_behavior=(
                     "Record structured proof-state feedback rows with Lean "
-                    "diagnostics, residual goals, and target ids for the next "
-                    "Formalizer/ProofEngineer repair turn."
+                    "diagnostics, residual goals, target ids, and the source "
+                    "materialization id for the next Formalizer/ProofEngineer "
+                    "repair turn."
                 ),
                 success_metric=(
-                    "n_formalizer_lean_candidate_proof_state_feedback_rows>0"
+                    "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows>0"
                 ),
             ),
         ),
         _scorecard_row(
             "formalizer_local_lean_tool_call_observed",
             integrated_llm_formalizer_proposals > 0
-            and integrated_formalizer_local_lean_tool_calls > 0,
+            and integrated_formalizer_bound_local_lean_tool_calls > 0,
             (
                 "local_lean_tool_calls="
-                f"{payload.get('n_formalizer_lean_candidate_local_lean_tool_calls')}"
+                f"{payload.get('n_formalizer_lean_candidate_local_lean_tool_calls')} "
+                "bound_local_lean_tool_calls="
+                f"{payload.get('n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls')}"
             ),
             (
                 "ProofEngineer feedback did not record actual local Lean tool "
-                "execution in executed_tools/tool_call_trace; candidate local "
-                "checks without tool-call transcript are weaker repair context"
+                "execution bound to the materialized candidate in "
+                "executed_tools/tool_call_trace; candidate local checks without "
+                "bound tool-call transcript are weaker repair context"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalizationEvaluator",
                 target_behavior=(
                     "Attach actual local Lean tool-call traces to ProofEngineer "
-                    "feedback so later LLM repair turns see executable diagnostics."
+                    "feedback for the exact source materialization so later LLM "
+                    "repair turns see executable diagnostics."
                 ),
                 success_metric=(
-                    "n_formalizer_lean_candidate_local_lean_tool_calls>0"
+                    "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls>0"
                 ),
             ),
         ),
         _scorecard_row(
             "formalizer_live_prover_tool_call_observed",
             integrated_llm_formalizer_proposals > 0
-            and integrated_formalizer_lean_lsp_mcp_live_calls > 0,
+            and integrated_formalizer_bound_lean_lsp_mcp_live_calls > 0,
             (
                 "lean_lsp_mcp_live_calls="
                 f"{payload.get('n_formalizer_lean_candidate_lean_lsp_mcp_live_calls')}"
+                " bound_lean_lsp_mcp_live_calls="
+                f"{payload.get('n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls')}"
                 " attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
                 f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
                 " attached_formalizer_live_gate="
@@ -7261,19 +7340,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "LeanDojo/ReProver/Lean-LSP style prover tools were requested "
                 "or calibrated by attached component probes, but no integrated "
-                "live Formalizer repair prover tool call was observed; request "
-                "rows alone are not full ProofEngineer capacity"
+                "live Formalizer repair prover tool call was observed on the "
+                "exact materialized candidate; request rows alone are not full "
+                "ProofEngineer capacity"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalizationEvaluator",
                 target_behavior=(
                     "Drive a live Lean proof-state/prover tool call from the "
-                    "ProofEngineer feedback request rather than stopping at a "
-                    "queued request row."
+                    "ProofEngineer feedback request for the exact source "
+                    "materialization rather than stopping at a queued request row."
                 ),
                 success_metric=(
-                    "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0 "
+                    "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls>0 "
                     "from the integrated runtime Formalizer/ProofEngineer loop"
                 ),
             ),

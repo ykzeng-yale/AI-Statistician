@@ -861,13 +861,25 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_formalizer_lean_candidate_proof_state_feedback_rows",
     )
+    formalizer_bound_proof_state_feedback_rows = _runtime_manifest_int(
+        payload,
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+    )
     formalizer_local_lean_tool_calls = _runtime_manifest_int(
         payload,
         "n_formalizer_lean_candidate_local_lean_tool_calls",
     )
+    formalizer_bound_local_lean_tool_calls = _runtime_manifest_int(
+        payload,
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+    )
     formalizer_lean_lsp_mcp_live_calls = _runtime_manifest_int(
         payload,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+    )
+    formalizer_bound_lean_lsp_mcp_live_calls = _runtime_manifest_int(
+        payload,
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
     )
     formalizer_repair_sequences = _runtime_manifest_int(
         payload,
@@ -1120,47 +1132,54 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "formalizer_lean_candidate_proof_state_feedback_recorded",
-            "passed": formalizer_proof_state_feedback_rows > 0,
-            "count": formalizer_proof_state_feedback_rows,
+            "passed": formalizer_bound_proof_state_feedback_rows > 0,
+            "count": formalizer_bound_proof_state_feedback_rows,
             "evidence": (
                 "n_formalizer_lean_candidate_proof_state_feedback_rows="
-                f"{formalizer_proof_state_feedback_rows}"
+                f"{formalizer_proof_state_feedback_rows}; "
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows="
+                f"{formalizer_bound_proof_state_feedback_rows}"
             ),
             "blocker": (
                 ""
-                if formalizer_proof_state_feedback_rows > 0
+                if formalizer_bound_proof_state_feedback_rows > 0
                 else (
                     "failed generated Lean candidates did not produce structured "
-                    "ProofEngineer feedback carrying diagnostics/residual goals "
-                    "back to the LLM repair loop"
+                    "ProofEngineer feedback bound to the exact materialized Lean "
+                    "candidate and carrying diagnostics/residual goals back to "
+                    "the LLM repair loop"
                 )
             ),
         },
         {
             "capability_id": "formalizer_local_lean_tool_call_observed",
-            "passed": formalizer_local_lean_tool_calls > 0,
-            "count": formalizer_local_lean_tool_calls,
+            "passed": formalizer_bound_local_lean_tool_calls > 0,
+            "count": formalizer_bound_local_lean_tool_calls,
             "evidence": (
                 "n_formalizer_lean_candidate_local_lean_tool_calls="
-                f"{formalizer_local_lean_tool_calls}"
+                f"{formalizer_local_lean_tool_calls}; "
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls="
+                f"{formalizer_bound_local_lean_tool_calls}"
             ),
             "blocker": (
                 ""
-                if formalizer_local_lean_tool_calls > 0
+                if formalizer_bound_local_lean_tool_calls > 0
                 else (
                     "ProofEngineer feedback did not record an actual local Lean "
-                    "tool invocation; local candidate checks without tool-call "
-                    "trace are weaker diagnostics"
+                    "tool invocation bound to the materialized candidate; local "
+                    "candidate checks without bound tool-call trace are weaker diagnostics"
                 )
             ),
         },
         {
             "capability_id": "formalizer_live_prover_tool_call_observed",
-            "passed": formalizer_lean_lsp_mcp_live_calls > 0,
-            "count": formalizer_lean_lsp_mcp_live_calls,
+            "passed": formalizer_bound_lean_lsp_mcp_live_calls > 0,
+            "count": formalizer_bound_lean_lsp_mcp_live_calls,
             "evidence": (
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls="
                 f"{formalizer_lean_lsp_mcp_live_calls}; "
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls="
+                f"{formalizer_bound_lean_lsp_mcp_live_calls}; "
                 "attached_component_prover_tool_calibration="
                 f"{attached_formalizer_prover_tool_calibration}; "
                 "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
@@ -1168,11 +1187,12 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if formalizer_lean_lsp_mcp_live_calls > 0
+                if formalizer_bound_lean_lsp_mcp_live_calls > 0
                 else (
                     "LeanDojo/ReProver/Lean-LSP style tools are only requested "
                     "or calibrated by attached component probes; no integrated "
-                    "live Formalizer repair prover tool call was observed"
+                    "live Formalizer repair prover tool call was observed on the "
+                    "exact materialized Lean candidate"
                 )
             ),
         },
@@ -1469,9 +1489,9 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_proof_state_feedback_rows>0 with "
-                "diagnostics/residual_goals/requested_tools preserved in runtime "
-                "learning rows"
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows>0 "
+                "with diagnostics/residual_goals/requested_tools preserved in "
+                "runtime learning rows"
             )
         elif capability_id == "formalizer_local_lean_tool_call_observed":
             next_owner = "ProofEngineer"
@@ -1483,8 +1503,8 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_local_lean_tool_calls>0 in the "
-                "integrated AgentRuntime manifest with executed_tools/"
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls>0 "
+                "in the integrated AgentRuntime manifest with executed_tools/"
                 "tool_call_trace preserved in runtime learning rows"
             )
         elif capability_id == "formalizer_live_prover_tool_call_observed":
@@ -1497,8 +1517,8 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls>0 in "
-                "the integrated runtime; attached component calibration can "
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls>0 "
+                "in the integrated runtime; attached component calibration can "
                 "diagnose prover-tool capacity, but ready/request rows alone "
                 "do not satisfy this capability"
             )
@@ -16114,14 +16134,29 @@ def run_research_agent_runtime(
                 "n_formalizer_lean_candidate_proof_state_feedback_rows"
             ]
         ),
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+            ]
+        ),
         "n_formalizer_lean_candidate_local_lean_tool_calls": (
             evidence_summary["proof"][
                 "n_formalizer_lean_candidate_local_lean_tool_calls"
             ]
         ),
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+            ]
+        ),
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": (
             evidence_summary["proof"][
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"
+            ]
+        ),
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
             ]
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
@@ -57074,7 +57109,7 @@ def _formalizer_lean_candidate_repair_sequence_count(
             continue
         manifests.append(artifact)
 
-    saw_prior_failure_by_question: dict[str, bool] = {}
+    saw_prior_failure_by_scope: dict[str, bool] = {}
     closed_sequences = 0
     for manifest in sorted(
         manifests,
@@ -57083,12 +57118,7 @@ def _formalizer_lean_candidate_repair_sequence_count(
             str(row.get("manifest_id", "") or ""),
         ),
     ):
-        question = (
-            manifest.get("question", {})
-            if isinstance(manifest.get("question"), Mapping)
-            else {}
-        )
-        question_id = str(question.get("id", "") or "unknown")
+        scope_key = _formalizer_lean_candidate_repair_scope_key(manifest)
         task_id = str(manifest.get("task_id", "") or "")
         pass_from_integrated_repair = task_id.startswith(
             ("formalize-lean-repair:", "formalize-repair:")
@@ -57117,14 +57147,49 @@ def _formalizer_lean_candidate_repair_sequence_count(
         if (
             manifest_has_pass
             and pass_from_integrated_repair
-            and saw_prior_failure_by_question.get(question_id, False)
+            and saw_prior_failure_by_scope.get(scope_key, False)
         ):
             closed_sequences += 1
-            saw_prior_failure_by_question[question_id] = False
+            saw_prior_failure_by_scope[scope_key] = False
         if manifest_has_failure:
-            saw_prior_failure_by_question[question_id] = True
+            saw_prior_failure_by_scope[scope_key] = True
 
     return closed_sequences
+
+
+def _formalizer_lean_candidate_repair_scope_key(
+    manifest: Mapping[str, Any],
+) -> str:
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question"), Mapping)
+        else {}
+    )
+    for value in (
+        question.get("id", ""),
+        manifest.get("question_id", ""),
+        manifest.get("runtime_question_id", ""),
+    ):
+        normalized = str(value or "").strip()
+        if normalized:
+            return f"question:{normalized}"
+    manifest_id = str(manifest.get("manifest_id", "") or "").strip()
+    if manifest_id:
+        return f"manifest:{manifest_id}"
+    return "manifest:" + stable_hash(manifest)[:16]
+
+
+def _formalizer_proof_state_feedback_bound_to_materialization(
+    artifact: Mapping[str, Any],
+    materialization_manifest_ids: set[str],
+) -> bool:
+    source_materialization_id = str(
+        artifact.get("source_materialization_manifest_id", "") or ""
+    ).strip()
+    return bool(
+        source_materialization_id
+        and source_materialization_id in materialization_manifest_ids
+    )
 
 
 def _generated_python_repair_sequences(
@@ -57637,8 +57702,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 0,
         "n_formalizer_lean_candidate_proof_state_feedback_manifests": 0,
         "n_formalizer_lean_candidate_proof_state_feedback_rows": 0,
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_manifests": 0,
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 0,
         "n_formalizer_lean_candidate_local_lean_tool_calls": 0,
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 0,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 0,
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_manifests": 0,
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_results": 0,
@@ -57756,6 +57825,14 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        materialization_manifest_ids = {
+            str(artifact.get("manifest_id", "") or "")
+            for artifact in artifacts.values()
+            if isinstance(artifact, Mapping)
+            and str(artifact.get("artifact_kind", "") or "")
+            == "RuntimeFormalizerLeanCandidateMaterialization"
+            and str(artifact.get("manifest_id", "") or "")
+        }
         theory_packets_by_id = {
             str(artifact.get("packet_id", "") or ""): artifact
             for artifact in artifacts.values()
@@ -58273,6 +58350,31 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     if isinstance(artifact.get("counts", {}), Mapping)
                     else {}
                 )
+                materialization_bound = (
+                    _formalizer_proof_state_feedback_bound_to_materialization(
+                        artifact,
+                        materialization_manifest_ids,
+                    )
+                )
+                if materialization_bound:
+                    proof[
+                        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_manifests"
+                    ] = int(
+                        proof.get(
+                            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_manifests",
+                            0,
+                        )
+                        or 0
+                    ) + 1
+                    proof[
+                        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+                    ] = int(
+                        proof.get(
+                            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+                            0,
+                        )
+                        or 0
+                    ) + len(feedback_rows)
                 proof["n_formalizer_lean_candidate_local_lean_tool_calls"] = int(
                     proof.get(
                         "n_formalizer_lean_candidate_local_lean_tool_calls",
@@ -58280,6 +58382,16 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     )
                     or 0
                 ) + int(counts.get("local_lean_tool_calls", 0) or 0)
+                if materialization_bound:
+                    proof[
+                        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+                    ] = int(
+                        proof.get(
+                            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+                            0,
+                        )
+                        or 0
+                    ) + int(counts.get("local_lean_tool_calls", 0) or 0)
                 if bool(artifact.get("lean_lsp_mcp_live_called", False)):
                     proof[
                         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"
@@ -58290,6 +58402,16 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         )
                         or 0
                     ) + 1
+                    if materialization_bound:
+                        proof[
+                            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+                        ] = int(
+                            proof.get(
+                                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
+                                0,
+                            )
+                            or 0
+                        ) + 1
             elif kind == "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest":
                 _add_exact_semantic_definition_lean_repair_counts_to_proof_summary(
                     proof,

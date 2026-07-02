@@ -2574,6 +2574,17 @@ def _scorecard_theory_trace_consumption_payload() -> dict[str, object]:
     }
 
 
+def _bound_formalizer_proof_state_feedback_payload() -> dict[str, object]:
+    return {
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 1,
+    }
+
+
 def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
     clean_payload = _scorecard_theory_trace_consumption_payload()
     clean_scorecard = _runtime_capability_scorecard(clean_payload)
@@ -23026,6 +23037,9 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
                 "formalizer_lean_candidate_proof_state_feedback_manifest:repair"
             ),
             "task_id": "formalize-lean-repair:conformal_prediction_coverage:repair",
+            "source_materialization_manifest_id": (
+                "formalizer_lean_candidate_materialization:fail"
+            ),
             "provider_name": "lean_lsp_mcp",
             "lean_lsp_mcp_live_called": True,
             "counts": {
@@ -23069,12 +23083,27 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
         "n_formalizer_lean_candidate_proof_state_feedback_rows": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_proof_state_feedback_rows"],
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+            ]
+        ),
         "n_formalizer_lean_candidate_local_lean_tool_calls": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_local_lean_tool_calls"],
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+            ]
+        ),
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"],
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": (
+            evidence_summary["proof"][
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+            ]
+        ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
             evidence_summary["proof"][
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences"
@@ -23214,7 +23243,161 @@ def test_formalizer_lean_candidate_repair_sequence_ignores_unrelated_pass() -> N
     ] == 0
 
 
-def test_exact_semantic_definition_lean_repair_tool_calls_feed_formalizer_capability() -> None:
+def test_formalizer_lean_candidate_repair_sequence_requires_question_scope() -> None:
+    artifacts = {
+        "formalizer_lean_candidate_materialization:missing_question_fail": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:01:00+00:00",
+            "manifest_id": "formalizer_lean_candidate_materialization:missing_question_fail",
+            "task_id": "formalize:unknown:initial",
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "candidate_rows": [
+                {
+                    "candidate_id": "bad_candidate",
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                }
+            ],
+        },
+        "formalizer_lean_candidate_materialization:missing_question_pass": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:02:00+00:00",
+            "manifest_id": "formalizer_lean_candidate_materialization:missing_question_pass",
+            "task_id": "formalize-lean-repair:unknown:repair",
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 1,
+            "candidate_rows": [
+                {
+                    "candidate_id": "repaired_candidate",
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": True,
+                }
+            ],
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert evidence_summary["proof"][
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences"
+    ] == 0
+
+
+def test_formalizer_proof_state_feedback_must_bind_materialization() -> None:
+    artifacts = {
+        "formalizer_lean_candidate_materialization:fail": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:01:00+00:00",
+            "manifest_id": "formalizer_lean_candidate_materialization:fail",
+            "task_id": "formalize:conformal_prediction_coverage:initial",
+            "question": {"id": "conformal_prediction_coverage"},
+            "n_candidate_sources": 1,
+            "n_candidate_artifacts_written": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "n_live_proof_state_requests": 1,
+            "n_lean_lsp_mcp_ready_requests": 1,
+            "candidate_rows": [
+                {
+                    "candidate_id": "bad_candidate",
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                }
+            ],
+        },
+        "formalizer_lean_candidate_proof_state_feedback_manifest:unbound": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
+            "manifest_id": (
+                "formalizer_lean_candidate_proof_state_feedback_manifest:unbound"
+            ),
+            "source_materialization_manifest_id": (
+                "formalizer_lean_candidate_materialization:other"
+            ),
+            "provider_name": "lean_lsp_mcp",
+            "lean_lsp_mcp_live_called": True,
+            "counts": {
+                "executed_tool_calls": 1,
+                "local_lean_tool_calls": 1,
+            },
+            "rows": [
+                {
+                    "feedback_id": "proof_state_feedback:unbound",
+                    "executed_tools": ["local.lake_env_lean", "lean_lsp_mcp.goal"],
+                    "residual_goals": ["wrong source"],
+                }
+            ],
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    proof_summary = evidence_summary["proof"]
+    payload = {
+        "n_live_generator_agents_enabled": 6,
+        "n_generated_code_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_local_lean_checked": proof_summary[
+            "n_formalizer_lean_candidate_local_lean_checked"
+        ],
+        "n_formalizer_lean_candidate_live_proof_state_requests": proof_summary[
+            "n_formalizer_lean_candidate_live_proof_state_requests"
+        ],
+        "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": proof_summary[
+            "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests"
+        ],
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": proof_summary[
+            "n_formalizer_lean_candidate_proof_state_feedback_rows"
+        ],
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": (
+            proof_summary[
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+            ]
+        ),
+        "n_formalizer_lean_candidate_local_lean_tool_calls": proof_summary[
+            "n_formalizer_lean_candidate_local_lean_tool_calls"
+        ],
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": (
+            proof_summary[
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+            ]
+        ),
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": proof_summary[
+            "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"
+        ],
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": (
+            proof_summary[
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+            ]
+        ),
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+    }
+
+    assert proof_summary["n_formalizer_lean_candidate_proof_state_feedback_rows"] == 1
+    assert (
+        proof_summary[
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+        ]
+        == 0
+    )
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+
+    assert rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["passed"] is False
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert table["coding_agent_capability_ready"] is False
+
+
+def test_exact_semantic_definition_lean_repair_tool_calls_do_not_satisfy_bound_formalizer_capability() -> None:
     artifacts = {
         "exact_semantic_definition_lean_repair_executor:covered": {
             "artifact_kind": (
@@ -23246,6 +23429,12 @@ def test_exact_semantic_definition_lean_repair_tool_calls_feed_formalizer_capabi
     )
     assert proof["n_formalizer_lean_candidate_local_lean_checked"] == 1
     assert proof["n_formalizer_lean_candidate_local_lean_tool_calls"] == 1
+    assert (
+        proof[
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+        ]
+        == 0
+    )
     table = _runtime_coding_agent_capability_table(
         {
             "n_live_generator_agents_enabled": 6,
@@ -23261,7 +23450,7 @@ def test_exact_semantic_definition_lean_repair_tool_calls_feed_formalizer_capabi
     rows = {row["capability_id"]: row for row in table["rows"]}
 
     assert rows["formalizer_lean_candidate_checked_locally"]["passed"] is True
-    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
     assert proof["n_kernel_verified_subclaims"] == 0
     assert proof["n_full_frontier_theorem_proved"] == 0
 
@@ -50555,8 +50744,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
@@ -50641,8 +50829,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_real_kernel_verified_subclaims": 0,
@@ -50686,8 +50873,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -50741,8 +50927,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -50796,8 +50981,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -50851,8 +51035,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "n_unsafe_generated_code_rejected": 0,
@@ -51078,6 +51261,10 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert "structured ProofEngineer feedback" in proof_state_feedback_learning_row[
         "target_behavior"
     ]
+    assert (
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows>0"
+        in proof_state_feedback_learning_row["success_metric"]
+    )
     local_lean_tool_learning_row = learning_rows_by_id[
         "formalizer_local_lean_tool_call_observed"
     ]
@@ -51089,7 +51276,10 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "formalizer_live_prover_tool_call_observed"
     ]
     assert prover_tool_learning_row["next_owner_subsystem"] == "ProofEngineer"
-    assert "ready/request rows alone" in prover_tool_learning_row["success_metric"]
+    assert (
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls>0"
+        in prover_tool_learning_row["success_metric"]
+    )
     assert algorithm_learning_row["proof_evidence_status"] == (
         "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
     )
@@ -51126,6 +51316,18 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     table = _runtime_coding_agent_capability_table(payload)
     assert table["coding_agent_capability_ready"] is False
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] = 1
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["passed"] is False
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert "bound_proof_state_feedback_rows=0" in rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["evidence"]
+    assert table["coding_agent_capability_ready"] is False
+    payload.update(_bound_formalizer_proof_state_feedback_payload())
     table = _runtime_coding_agent_capability_table(payload)
     assert table["coding_agent_capability_ready"] is True
     assert (
@@ -51266,9 +51468,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
-        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
@@ -52564,9 +52764,7 @@ def test_runtime_capability_scorecard_names_resume_architect_context_boundary() 
         "n_formalizer_lean_candidate_local_lean_checked": 1,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
-        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
-        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
-        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
