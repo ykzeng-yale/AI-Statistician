@@ -115,7 +115,9 @@ from .model_backend import (
     StaticJSONGeneratorBackend,
     claude_tier_routing_contract,
     claude_model_tier_mismatch,
+    is_live_generator_backend,
     llm_subsystem_expected_model_tier,
+    normalize_generator_provider_name,
     resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
@@ -463,6 +465,123 @@ def _runtime_manifest_first_nonempty(
         if value:
             return value
     return ""
+
+
+def _runtime_component_gate_backend_provider_names(
+    source: Mapping[str, Any],
+) -> list[str]:
+    raw_values = source.get("component_backend_provider_names", [])
+    if isinstance(raw_values, str):
+        raw_values = [value for value in raw_values.split(",") if value.strip()]
+    elif isinstance(raw_values, Mapping):
+        raw_values = raw_values.values()
+    else:
+        try:
+            raw_values = list(raw_values or [])
+        except TypeError:
+            raw_values = [raw_values]
+    names = [
+        normalize_generator_provider_name(value)
+        for value in raw_values
+        if normalize_generator_provider_name(value)
+    ]
+    scalar = normalize_generator_provider_name(
+        source.get("backend_provider_name", "")
+        or source.get("backend_provider", "")
+    )
+    if scalar:
+        for value in scalar.split(","):
+            value = normalize_generator_provider_name(value)
+            if value:
+                names.append(value)
+    return list(dict.fromkeys(names))
+
+
+def _runtime_component_gate_summary(source: Mapping[str, Any]) -> dict[str, Any]:
+    provider_name = normalize_generator_provider_name(source.get("provider_name", ""))
+    backend_provider_names = _runtime_component_gate_backend_provider_names(source)
+    backend_provider_name = (
+        backend_provider_names[0]
+        if len(backend_provider_names) == 1
+        else ",".join(backend_provider_names)
+    )
+    backend_live = bool(provider_name and backend_provider_names) and all(
+        is_live_generator_backend(provider_name, name)
+        for name in backend_provider_names
+    )
+    live_generator = bool(source.get("live_generator", False) and backend_live)
+    static_or_fixture_only = bool(
+        source.get("static_or_fixture_only", False) or not live_generator
+    )
+    capability_evidence_ok = bool(
+        source.get("capability_evidence_ok", False)
+        and live_generator
+        and not static_or_fixture_only
+    )
+    return {
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "component_backend_provider_names": backend_provider_names,
+        "live_generator": live_generator,
+        "static_or_fixture_only": static_or_fixture_only,
+        "capability_evidence_ok": capability_evidence_ok,
+    }
+
+
+def _runtime_attached_component_gate_source(
+    payload: Mapping[str, Any],
+    nested_key: str,
+) -> dict[str, Any]:
+    source: dict[str, Any] = {}
+    nested = payload.get(nested_key, {})
+    if isinstance(nested, Mapping):
+        source.update(nested)
+    for field in (
+        "provider_name",
+        "backend_provider_name",
+        "component_backend_provider_names",
+        "model",
+        "live_generator",
+        "static_or_fixture_only",
+        "capability_evidence_ok",
+    ):
+        flat_key = f"{nested_key}_{field}"
+        if flat_key in payload:
+            source[field] = payload[flat_key]
+    return source
+
+
+def _runtime_learning_component_gate_source(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    source = {
+        "provider_name": row.get(
+            "provider_name",
+            input_summary.get("provider_name", ""),
+        ),
+        "backend_provider_name": row.get(
+            "backend_provider_name",
+            input_summary.get("backend_provider_name", ""),
+        ),
+        "component_backend_provider_names": row.get(
+            "component_backend_provider_names",
+            input_summary.get("component_backend_provider_names", []),
+        ),
+        "live_generator": bool(
+            row.get("live_generator", False)
+            or input_summary.get("live_generator", False)
+        ),
+        "static_or_fixture_only": bool(
+            row.get("static_or_fixture_only", False)
+            or input_summary.get("static_or_fixture_only", False)
+        ),
+        "capability_evidence_ok": bool(
+            row.get("capability_evidence_ok", False)
+            or input_summary.get("capability_evidence_ok", False)
+        ),
+    }
+    return source
 
 
 def _runtime_manifest_first_nonempty_list(
@@ -1362,25 +1481,14 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_deterministic_formalizer_work_order_seed_proposals",
     )
-    attached_coding_live_gate = (
-        bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok",
-                False,
-            )
+    attached_coding_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_coding_agent_generated_code_repair_eval",
         )
-        and bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+    )
+    attached_coding_live_gate = bool(
+        attached_coding_summary["capability_evidence_ok"]
     )
     attached_algorithm_repair_sequences = _runtime_manifest_int(
         payload,
@@ -1390,25 +1498,14 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
     )
-    attached_formalizer_live_gate = (
-        bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
-                False,
-            )
+    attached_formalizer_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_formalizer_lean_candidate_repair_eval",
         )
-        and bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+    )
+    attached_formalizer_live_gate = bool(
+        attached_formalizer_summary["capability_evidence_ok"]
     )
     attached_formalizer_checked = _runtime_manifest_int(
         payload,
@@ -1754,6 +1851,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "evidence": (
                     "attached_live_coding_repair_gate="
                     f"{attached_coding_live_gate}; "
+                    "attached_provider="
+                    f"{attached_coding_summary['provider_name']}; "
+                    "attached_backend_provider="
+                    f"{attached_coding_summary['backend_provider_name']}; "
                     "attached_algorithm_repair_sequences="
                     f"{attached_algorithm_repair_sequences}; "
                     "attached_simulation_repair_sequences="
@@ -1778,6 +1879,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "evidence": (
                     "attached_live_formalizer_repair_gate="
                     f"{attached_formalizer_live_gate}; "
+                    "attached_provider="
+                    f"{attached_formalizer_summary['provider_name']}; "
+                    "attached_backend_provider="
+                    f"{attached_formalizer_summary['backend_provider_name']}; "
                     "attached_repair_sequences="
                     f"{attached_formalizer_repair_sequences}; "
                     "attached_local_lean_checked="
@@ -1802,6 +1907,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "evidence": (
                     "attached_live_formalizer_repair_gate="
                     f"{attached_formalizer_live_gate}; "
+                    "attached_provider="
+                    f"{attached_formalizer_summary['provider_name']}; "
+                    "attached_backend_provider="
+                    f"{attached_formalizer_summary['backend_provider_name']}; "
                     "attached_prior_feedback_lean_lsp_mcp_tool_calls="
                     f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
                 ),
@@ -2169,9 +2278,12 @@ def _runtime_formalizer_component_gate_learning_rows(
         if str(value).strip()
     ]
     question_id = question_ids[0] if question_ids else ""
-    capability_ok = bool(attached.get("capability_evidence_ok", False))
-    live_generator = bool(attached.get("live_generator", False))
-    static_or_fixture_only = bool(attached.get("static_or_fixture_only", False))
+    gate_summary = _runtime_component_gate_summary(attached)
+    provider_name = str(gate_summary["provider_name"])
+    backend_provider_name = str(gate_summary["backend_provider_name"])
+    capability_ok = bool(gate_summary["capability_evidence_ok"])
+    live_generator = bool(gate_summary["live_generator"])
+    static_or_fixture_only = bool(gate_summary["static_or_fixture_only"])
     repair_sequences = int(attached.get("repair_sequences", 0) or 0)
     local_lean_checked = int(attached.get("local_lean_checked", 0) or 0)
     local_lean_compiled = int(attached.get("local_lean_compiled", 0) or 0)
@@ -2228,7 +2340,8 @@ def _runtime_formalizer_component_gate_learning_rows(
             "source_manifest_path": manifest_path,
             "component_eval_manifest_path": manifest_path,
             "component_eval": "Formalizer/ProofEngineer Lean-candidate repair",
-            "provider_name": str(attached.get("provider_name", "") or ""),
+            "provider_name": provider_name,
+            "backend_provider_name": backend_provider_name,
             "model": str(attached.get("model", "") or ""),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
@@ -2271,6 +2384,8 @@ def _runtime_formalizer_component_gate_learning_rows(
             "input_summary": {
                 "trigger": "FORMALIZER_LEAN_CANDIDATE_COMPONENT_GATE_ATTACHED",
                 "component_eval_manifest_path": manifest_path,
+                "provider_name": provider_name,
+                "backend_provider_name": backend_provider_name,
                 "capability_evidence_ok": capability_ok,
                 "live_generator": live_generator,
                 "static_or_fixture_only": static_or_fixture_only,
@@ -2332,9 +2447,15 @@ def _runtime_coding_agent_component_gate_learning_rows(
         if str(value).strip()
     ]
     question_id = question_ids[0] if question_ids else ""
-    capability_ok = bool(attached.get("capability_evidence_ok", False))
-    live_generator = bool(attached.get("live_generator", False))
-    static_or_fixture_only = bool(attached.get("static_or_fixture_only", False))
+    gate_summary = _runtime_component_gate_summary(attached)
+    provider_name = str(gate_summary["provider_name"])
+    backend_provider_name = str(gate_summary["backend_provider_name"])
+    component_backend_provider_names = list(
+        gate_summary["component_backend_provider_names"]
+    )
+    capability_ok = bool(gate_summary["capability_evidence_ok"])
+    live_generator = bool(gate_summary["live_generator"])
+    static_or_fixture_only = bool(gate_summary["static_or_fixture_only"])
     algorithm_ok = bool(attached.get("algorithm_capability_evidence_ok", False))
     simulation_ok = bool(attached.get("simulation_capability_evidence_ok", False))
     algorithm_repairs = int(attached.get("algorithm_repair_sequences", 0) or 0)
@@ -2365,7 +2486,9 @@ def _runtime_coding_agent_component_gate_learning_rows(
             "component_eval": (
                 "AlgorithmEngineer + SimulationEngineer generated-code repair"
             ),
-            "provider_name": str(attached.get("provider_name", "") or ""),
+            "provider_name": provider_name,
+            "backend_provider_name": backend_provider_name,
+            "component_backend_provider_names": component_backend_provider_names,
             "model": str(attached.get("model", "") or ""),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
@@ -2404,6 +2527,9 @@ def _runtime_coding_agent_component_gate_learning_rows(
             "input_summary": {
                 "trigger": "CODING_AGENT_GENERATED_CODE_COMPONENT_GATE_ATTACHED",
                 "component_eval_manifest_path": manifest_path,
+                "provider_name": provider_name,
+                "backend_provider_name": backend_provider_name,
+                "component_backend_provider_names": component_backend_provider_names,
                 "capability_evidence_ok": capability_ok,
                 "live_generator": live_generator,
                 "static_or_fixture_only": static_or_fixture_only,
@@ -34300,6 +34426,34 @@ def _runtime_coding_agent_component_gate_feedback_from_learning_memory(
     )
     if not feedback:
         return {}
+    input_summary = (
+        feedback.get("input_summary", {})
+        if isinstance(feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    gate_summary = _runtime_component_gate_summary(
+        _runtime_learning_component_gate_source(feedback, input_summary)
+    )
+    feedback["provider_name"] = gate_summary["provider_name"]
+    feedback["backend_provider_name"] = gate_summary["backend_provider_name"]
+    feedback["component_backend_provider_names"] = gate_summary[
+        "component_backend_provider_names"
+    ]
+    feedback["live_generator"] = gate_summary["live_generator"]
+    feedback["static_or_fixture_only"] = gate_summary["static_or_fixture_only"]
+    feedback["capability_evidence_ok"] = gate_summary["capability_evidence_ok"]
+    if isinstance(feedback.get("input_summary", {}), Mapping):
+        feedback["input_summary"] = {
+            **dict(feedback["input_summary"]),
+            "provider_name": gate_summary["provider_name"],
+            "backend_provider_name": gate_summary["backend_provider_name"],
+            "component_backend_provider_names": gate_summary[
+                "component_backend_provider_names"
+            ],
+            "live_generator": gate_summary["live_generator"],
+            "static_or_fixture_only": gate_summary["static_or_fixture_only"],
+            "capability_evidence_ok": gate_summary["capability_evidence_ok"],
+        }
     target = str(target_component or "").strip()
     feedback["target_component"] = target
     feedback["feedback_type"] = "coding_agent_generated_code_component_gate_feedback"
@@ -39938,24 +40092,23 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
         if key in seen:
             continue
         seen.add(key)
+        gate_summary = _runtime_component_gate_summary(
+            _runtime_learning_component_gate_source(row, input_summary)
+        )
         feedback_rows.append(
             {
                 "learning_task": "formalizer_lean_candidate_component_gate_feedback",
                 "component_eval": str(row.get("component_eval", "") or ""),
                 "component_eval_manifest_path": manifest_path,
-                "provider_name": str(row.get("provider_name", "") or ""),
+                "provider_name": str(gate_summary["provider_name"]),
+                "backend_provider_name": str(gate_summary["backend_provider_name"]),
                 "model": str(row.get("model", "") or ""),
-                "live_generator": bool(
-                    row.get("live_generator", False)
-                    or input_summary.get("live_generator", False)
-                ),
+                "live_generator": bool(gate_summary["live_generator"]),
                 "static_or_fixture_only": bool(
-                    row.get("static_or_fixture_only", False)
-                    or input_summary.get("static_or_fixture_only", False)
+                    gate_summary["static_or_fixture_only"]
                 ),
                 "capability_evidence_ok": bool(
-                    row.get("capability_evidence_ok", False)
-                    or input_summary.get("capability_evidence_ok", False)
+                    gate_summary["capability_evidence_ok"]
                 ),
                 "repair_sequences": _int_like(
                     row.get("repair_sequences", input_summary.get("repair_sequences", 0))

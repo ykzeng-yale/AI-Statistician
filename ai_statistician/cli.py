@@ -431,6 +431,7 @@ from .research_agent_runtime import (
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
+    _runtime_component_gate_summary,
     _runtime_formalizer_component_gate_learning_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
@@ -2025,6 +2026,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "success_metric",
         "component_eval",
         "component_eval_manifest_path",
+        "provider_name",
+        "backend_provider_name",
         "model",
         "live_generator",
         "static_or_fixture_only",
@@ -2126,6 +2129,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
+        "component_backend_provider_names",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -2314,6 +2318,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_execution_result_id",
         "source_lean_repair_task_id",
         "provider_name",
+        "backend_provider_name",
         "n_feedback_rows",
         "attempt_status",
         "lean_lsp_mcp_live_called",
@@ -2424,6 +2429,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "component_eval_manifest_path",
         "component_eval",
         "model",
+        "backend_provider_name",
         "live_generator",
         "static_or_fixture_only",
         "capability_evidence_ok",
@@ -2520,6 +2526,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
+        "component_backend_provider_names",
         "missing_contracts",
         "required_runtime_configuration",
         "required_formalizer_behavior",
@@ -9979,19 +9986,20 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
             getattr(args, "coding_agent_repair_eval_max_repair_attempts", 4)
         ),
     )
+    gate_summary = _runtime_component_gate_summary(eval_manifest)
     attached = {
         "artifact_kind": "RuntimeAttachedCodingAgentGeneratedCodeRepairEval",
         "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
-        "provider_name": str(eval_manifest.get("provider_name", "")),
+        "provider_name": str(gate_summary["provider_name"]),
+        "backend_provider_name": str(gate_summary["backend_provider_name"]),
+        "component_backend_provider_names": list(
+            gate_summary["component_backend_provider_names"]
+        ),
         "model": str(eval_manifest.get("model", "")),
-        "live_generator": bool(eval_manifest.get("live_generator", False)),
-        "static_or_fixture_only": bool(
-            eval_manifest.get("static_or_fixture_only", False)
-        ),
+        "live_generator": bool(gate_summary["live_generator"]),
+        "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
         "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
-        "capability_evidence_ok": bool(
-            eval_manifest.get("capability_evidence_ok", False)
-        ),
+        "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
         "algorithm_capability_evidence_ok": bool(
             eval_manifest.get("algorithm_capability_evidence_ok", False)
         ),
@@ -10036,6 +10044,18 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
         ),
     }
     manifest["internal_coding_agent_generated_code_repair_eval"] = attached
+    manifest["internal_coding_agent_generated_code_repair_eval_provider_name"] = str(
+        attached["provider_name"]
+    )
+    manifest["internal_coding_agent_generated_code_repair_eval_backend_provider_name"] = str(
+        attached["backend_provider_name"]
+    )
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
+    ] = list(attached["component_backend_provider_names"])
+    manifest["internal_coding_agent_generated_code_repair_eval_live_generator"] = bool(
+        attached["live_generator"]
+    )
     manifest["internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"] = bool(
         attached["capability_evidence_ok"]
     )
@@ -10111,21 +10131,19 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
         ),
     )
+    gate_summary = _runtime_component_gate_summary(eval_manifest)
     prior_feedback_counts = dict(
         eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
     )
     attached = {
         "artifact_kind": "RuntimeAttachedFormalizerLeanCandidateRepairEval",
         "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
-        "provider_name": str(eval_manifest.get("provider_name", "")),
+        "provider_name": str(gate_summary["provider_name"]),
+        "backend_provider_name": str(gate_summary["backend_provider_name"]),
         "model": str(eval_manifest.get("model", "")),
-        "live_generator": bool(eval_manifest.get("live_generator", False)),
-        "static_or_fixture_only": bool(
-            eval_manifest.get("static_or_fixture_only", False)
-        ),
-        "capability_evidence_ok": bool(
-            eval_manifest.get("capability_evidence_ok", False)
-        ),
+        "live_generator": bool(gate_summary["live_generator"]),
+        "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
+        "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
         "candidate_kernel_verified": bool(
             eval_manifest.get("candidate_kernel_verified", False)
         ),
@@ -10185,6 +10203,15 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         ),
     }
     manifest["internal_formalizer_lean_candidate_repair_eval"] = attached
+    manifest["internal_formalizer_lean_candidate_repair_eval_provider_name"] = str(
+        attached["provider_name"]
+    )
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
+    ] = str(attached["backend_provider_name"])
+    manifest["internal_formalizer_lean_candidate_repair_eval_live_generator"] = bool(
+        attached["live_generator"]
+    )
     manifest["internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"] = bool(
         attached["capability_evidence_ok"]
     )

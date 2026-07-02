@@ -16542,6 +16542,7 @@ def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_p
                     "formalizer_lean_candidate_repair_eval_manifest.json"
                 ),
                 "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
                 "model": "claude-sonnet-test",
                 "live_generator": True,
                 "static_or_fixture_only": False,
@@ -16571,6 +16572,8 @@ def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_p
                         "runs/formalizer_component_gate/"
                         "formalizer_lean_candidate_repair_eval_manifest.json"
                     ),
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
                     "capability_evidence_ok": True,
                     "repair_sequences": 1,
                     "local_lean_checked": 1,
@@ -16605,6 +16608,33 @@ def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_p
     assert component_memory[0]["capability_evidence_ok"] is True
     assert component_memory[0]["source_theorem_kernel_verified"] is False
     assert component_memory[0]["prior_feedback_proof_state_rows"] == 1
+
+    static_backend_memory = {
+        **memory,
+        "rows": [
+            {
+                **memory["rows"][0],
+                "backend_provider_name": "static",
+                "input_summary": {
+                    **memory["rows"][0]["input_summary"],
+                    "backend_provider_name": "static",
+                },
+            }
+        ],
+    }
+    static_backend_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": static_backend_memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    static_component_memory = static_backend_summary[
+        "formalizer_lean_candidate_component_gate_feedback_memory"
+    ]
+    assert static_component_memory[0]["live_generator"] is False
+    assert static_component_memory[0]["capability_evidence_ok"] is False
+    assert static_component_memory[0]["static_or_fixture_only"] is True
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -23650,6 +23680,8 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
         "internal_formalizer_lean_candidate_repair_eval": {
             "artifact_kind": "RuntimeAttachedFormalizerLeanCandidateRepairEval",
             "manifest_path": "runs/component/formalizer_lean_candidate_repair_eval_manifest.json",
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
             "live_generator": True,
             "static_or_fixture_only": False,
             "capability_evidence_ok": True,
@@ -23683,6 +23715,31 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
     assert rows[
         "formalizer_live_prover_tool_component_calibration"
     ]["passed"] is True
+
+    manifest["internal_formalizer_lean_candidate_repair_eval"][
+        "backend_provider_name"
+    ] = "static"
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    static_backend_audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_static_backend",
+    )
+    static_backend_rows = {
+        row["requirement_id"]: row
+        for row in static_backend_audit["capability_scorecard"]["rows"]
+    }
+    assert (
+        static_backend_audit[
+            "n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls"
+        ]
+        == 0
+    )
+    assert static_backend_rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is False
     assert rows["live_lean_lsp_mcp_called"]["passed"] is False
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
@@ -52246,11 +52303,18 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 0,
+        "internal_coding_agent_generated_code_repair_eval_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": [
+            "anthropic"
+        ],
         "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
         "internal_coding_agent_generated_code_repair_eval_live_generator": True,
         "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
+        "internal_formalizer_lean_candidate_repair_eval_provider_name": "anthropic",
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
         "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
@@ -52277,6 +52341,29 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert table["component_calibration"][
         "attached_formalizer_repair_calibration"
     ] is True
+
+    static_component_payload = dict(payload)
+    static_component_payload[
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name"
+    ] = "static"
+    static_component_payload[
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
+    ] = ["static"]
+    static_component_payload[
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
+    ] = "static"
+    static_component_table = _runtime_coding_agent_capability_table(
+        static_component_payload
+    )
+    static_component_rows = {
+        row["capability_id"]: row for row in static_component_table["rows"]
+    }
+    assert static_component_rows[
+        "coding_agent_generated_code_repair_component_calibration"
+    ]["passed"] is False
+    assert static_component_rows[
+        "formalizer_lean_candidate_repair_component_calibration"
+    ]["passed"] is False
 
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] = 0
     payload[
@@ -52466,11 +52553,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "internal_coding_agent_generated_code_repair_eval_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": [
+            "anthropic"
+        ],
         "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
         "internal_coding_agent_generated_code_repair_eval_live_generator": True,
         "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
+        "internal_formalizer_lean_candidate_repair_eval_provider_name": "anthropic",
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
         "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
@@ -52526,6 +52620,25 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+
+    static_component_payload = dict(payload)
+    static_component_payload[
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name"
+    ] = "static"
+    static_component_payload[
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
+    ] = ["static"]
+    static_component_payload[
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
+    ] = "static"
+    scorecard = _runtime_capability_scorecard(static_component_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["passed"] is False
+    assert rows[
+        "formalizer_lean_candidate_repair_component_gate"
+    ]["passed"] is False
 
     payload["structured_theory_derivation_trace_observed"] = False
     scorecard = _runtime_capability_scorecard(payload)
@@ -53969,6 +54082,8 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 0,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 0,
         "n_lean_lsp_mcp_live_calls": 3,
+        "internal_formalizer_lean_candidate_repair_eval_provider_name": "anthropic",
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
         "internal_formalizer_lean_candidate_repair_eval_live_generator": True,
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
@@ -53996,6 +54111,21 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
     assert "n_integrated_lean_lsp_mcp_live_calls=0" in rows[
         "live_lean_lsp_mcp_called"
     ]["evidence"]
+    static_backend_payload = dict(payload)
+    static_backend_payload[
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
+    ] = "static"
+    static_backend_scorecard = _runtime_capability_scorecard(static_backend_payload)
+    static_backend_rows = {
+        row["requirement_id"]: row
+        for row in static_backend_scorecard["rows"]
+    }
+    assert static_backend_rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is False
+    assert static_backend_scorecard["component_calibration"][
+        "attached_formalizer_prover_tool_called"
+    ] is False
     assert (
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False

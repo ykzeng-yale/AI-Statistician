@@ -35,6 +35,8 @@ from .research_agent_runtime import (
     _generated_sandbox_repair_sequence_counts,
     _runtime_architect_recommended_formal_verification_policy,
     _runtime_architect_recommended_research_path,
+    _runtime_attached_component_gate_source,
+    _runtime_component_gate_summary,
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_exact_semantic_definition_authoring_provenance,
@@ -749,6 +751,12 @@ def audit_research_agent_runtime(
         )
         else {}
     )
+    attached_coding_agent_repair_summary = _runtime_component_gate_summary(
+        attached_coding_agent_repair_eval
+    )
+    attached_formalizer_repair_summary = _runtime_component_gate_summary(
+        attached_formalizer_repair_eval
+    )
     attached_formalizer_proof_state_counts = (
         attached_formalizer_repair_eval.get("prior_feedback_proof_state_counts", {})
         if isinstance(
@@ -783,10 +791,8 @@ def audit_research_agent_runtime(
     )
     attached_formalizer_prior_feedback_live_lsp_calls = (
         attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls
-        if bool(attached_formalizer_repair_eval.get("live_generator", False))
-        and not bool(
-            attached_formalizer_repair_eval.get("static_or_fixture_only", False)
-        )
+        if bool(attached_formalizer_repair_summary["live_generator"])
+        and not bool(attached_formalizer_repair_summary["static_or_fixture_only"])
         else 0
     )
     payload: dict[str, Any] = {
@@ -1770,14 +1776,23 @@ def audit_research_agent_runtime(
         "internal_coding_agent_generated_code_repair_eval_manifest_path": str(
             attached_coding_agent_repair_eval.get("manifest_path", "") or ""
         ),
+        "internal_coding_agent_generated_code_repair_eval_provider_name": str(
+            attached_coding_agent_repair_summary["provider_name"]
+        ),
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": str(
+            attached_coding_agent_repair_summary["backend_provider_name"]
+        ),
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": list(
+            attached_coding_agent_repair_summary["component_backend_provider_names"]
+        ),
         "internal_coding_agent_generated_code_repair_eval_live_generator": bool(
-            attached_coding_agent_repair_eval.get("live_generator", False)
+            attached_coding_agent_repair_summary["live_generator"]
         ),
         "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": bool(
-            attached_coding_agent_repair_eval.get("static_or_fixture_only", False)
+            attached_coding_agent_repair_summary["static_or_fixture_only"]
         ),
         "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": bool(
-            attached_coding_agent_repair_eval.get("capability_evidence_ok", False)
+            attached_coding_agent_repair_summary["capability_evidence_ok"]
         ),
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": int(
             attached_coding_agent_repair_eval.get("algorithm_repair_sequences", 0)
@@ -1793,14 +1808,20 @@ def audit_research_agent_runtime(
         "internal_formalizer_lean_candidate_repair_eval_manifest_path": str(
             attached_formalizer_repair_eval.get("manifest_path", "") or ""
         ),
+        "internal_formalizer_lean_candidate_repair_eval_provider_name": str(
+            attached_formalizer_repair_summary["provider_name"]
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": str(
+            attached_formalizer_repair_summary["backend_provider_name"]
+        ),
         "internal_formalizer_lean_candidate_repair_eval_live_generator": bool(
-            attached_formalizer_repair_eval.get("live_generator", False)
+            attached_formalizer_repair_summary["live_generator"]
         ),
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": bool(
-            attached_formalizer_repair_eval.get("static_or_fixture_only", False)
+            attached_formalizer_repair_summary["static_or_fixture_only"]
         ),
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": bool(
-            attached_formalizer_repair_eval.get("capability_evidence_ok", False)
+            attached_formalizer_repair_summary["capability_evidence_ok"]
         ),
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": int(
             attached_formalizer_repair_eval.get("repair_sequences", 0) or 0
@@ -6155,25 +6176,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
     )
+    attached_coding_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_coding_agent_generated_code_repair_eval",
+        )
+    )
     attached_coding_repair_ready = (
-        bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok",
-                False,
-            )
-        )
-        and bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+        bool(attached_coding_summary["capability_evidence_ok"])
         and int(
             payload.get(
                 "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
@@ -6252,25 +6262,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_llm_formalizer_proposals = int(
         payload.get("n_live_llm_formalizer_proof_engineer_proposals", 0) or 0
     )
+    attached_formalizer_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_formalizer_lean_candidate_repair_eval",
+        )
+    )
     attached_formalizer_repair_ready = (
-        bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
-                False,
-            )
-        )
-        and bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+        bool(attached_formalizer_summary["capability_evidence_ok"])
         and int(
             payload.get(
                 "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
@@ -6749,25 +6748,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_coding_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_coding_agent_generated_code_repair_eval",
+        )
+    )
     attached_live_component_repair_gate_passed = (
-        bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok",
-                False,
-            )
-        )
-        and bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+        bool(attached_coding_summary["capability_evidence_ok"])
         and attached_repair_eval_algorithm_sequences > 0
         and attached_repair_eval_simulation_sequences > 0
     )
@@ -6855,25 +6843,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_formalizer_summary = _runtime_component_gate_summary(
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_formalizer_lean_candidate_repair_eval",
+        )
+    )
     attached_formalizer_live_gate_passed = (
-        bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok",
-                False,
-            )
-        )
-        and bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_live_generator",
-                False,
-            )
-        )
-        and not bool(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only",
-                False,
-            )
-        )
+        bool(attached_formalizer_summary["capability_evidence_ok"])
         and attached_formalizer_repair_sequences > 0
         and attached_formalizer_local_lean_checked > 0
     )
@@ -7958,11 +7935,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
                 "attached_component_capability="
-                f"{payload.get('internal_coding_agent_generated_code_repair_eval_capability_evidence_ok')} "
+                f"{attached_coding_summary['capability_evidence_ok']} "
                 "attached_live_generator="
-                f"{payload.get('internal_coding_agent_generated_code_repair_eval_live_generator')} "
+                f"{attached_coding_summary['live_generator']} "
                 "attached_static_or_fixture_only="
-                f"{payload.get('internal_coding_agent_generated_code_repair_eval_static_or_fixture_only')} "
+                f"{attached_coding_summary['static_or_fixture_only']} "
+                "attached_provider="
+                f"{attached_coding_summary['provider_name']} "
+                "attached_backend_provider="
+                f"{attached_coding_summary['backend_provider_name']} "
                 "attached_algorithm_repair_sequences="
                 f"{attached_repair_eval_algorithm_sequences} "
                 "attached_simulation_repair_sequences="
@@ -8221,11 +8202,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "integrated_generic_llm_formalizer_proposals="
                 f"{integrated_generic_llm_formalizer_proposals} "
                 "attached_component_capability="
-                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok')} "
+                f"{attached_formalizer_summary['capability_evidence_ok']} "
                 "attached_live_generator="
-                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_live_generator')} "
+                f"{attached_formalizer_summary['live_generator']} "
                 "attached_static_or_fixture_only="
-                f"{payload.get('internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only')} "
+                f"{attached_formalizer_summary['static_or_fixture_only']} "
+                "attached_provider="
+                f"{attached_formalizer_summary['provider_name']} "
+                "attached_backend_provider="
+                f"{attached_formalizer_summary['backend_provider_name']} "
                 "attached_repair_sequences="
                 f"{attached_formalizer_repair_sequences} "
                 "attached_local_lean_checked="
@@ -8246,7 +8231,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
                 f"{attached_formalizer_lean_lsp_mcp_tool_calls} "
                 "attached_formalizer_live_gate="
-                f"{attached_formalizer_live_gate_passed}"
+                f"{attached_formalizer_live_gate_passed} "
+                "attached_provider="
+                f"{attached_formalizer_summary['provider_name']} "
+                "attached_backend_provider="
+                f"{attached_formalizer_summary['backend_provider_name']}"
             ),
             (
                 "attached live Formalizer repair calibration did not record a "
