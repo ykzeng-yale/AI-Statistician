@@ -38236,7 +38236,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        input_summary = row.get("input_summary", {})
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        learning_task = _runtime_learning_row_task(row, input_summary)
         trigger = _runtime_learning_row_trigger(row, input_summary)
         row_runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
         if not row_runtime_queue_status and isinstance(input_summary, Mapping):
@@ -38259,33 +38264,32 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         is_exact_semantic_definition_source_lookup = (
             str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionSourceLookupRow"
-            or str(row.get("learning_task", "") or "")
-            == "source_theorem_exact_semantic_definition_source_lookup"
+            or learning_task == "source_theorem_exact_semantic_definition_source_lookup"
         )
         is_exact_semantic_definition_closure_work_order = (
             str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionClosureWorkOrder"
             or str(row.get("action_type", "") or "")
             == "close_reviewed_exact_semantic_definition"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_closure_work_order"
         )
         is_exact_semantic_definition_closure_review_packet = (
             str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_closure_review_packet"
         )
         is_exact_semantic_definition_closure_review_result = (
             str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewResult"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_closure_review_result"
         )
         is_exact_semantic_definition_candidate_synthesis = (
             str(row.get("artifact_kind", "") or "")
             == "RuntimeSourceTheoremExactSemanticDefinitionCandidateSynthesisResult"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_candidate_synthesis"
         )
         is_exact_semantic_definition_repair_queue = (
@@ -38293,7 +38297,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow"
             or str(row.get("action_type", "") or "")
             == "repair_reviewed_exact_semantic_definition"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_repair_queue"
         )
         is_exact_semantic_definition_typechecked_review_verifier_gate = (
@@ -38301,7 +38305,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
             or str(row.get("action_type", "") or "")
             == "verify_typechecked_exact_semantic_definition_candidate"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
         )
         is_exact_semantic_definition_lean_environment_repair = (
@@ -38309,15 +38313,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairTask"
             or str(row.get("artifact_kind", "") or "")
             == "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairResult"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_lean_environment_repair"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_lean_environment_repair_execution"
         )
         is_exact_semantic_definition_lean_repair_execution = (
             str(row.get("artifact_kind", "") or "")
             == "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
-            or str(row.get("learning_task", "") or "")
+            or learning_task
             == "source_theorem_exact_semantic_definition_lean_repair_execution"
         )
         is_exact_semantic_definition_authoring_retry = (
@@ -38326,7 +38330,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 == "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
                 or str(row.get("artifact_kind", "") or "")
                 == "SourceTheoremExactSemanticDefinitionAuthoringTask"
-                or str(row.get("learning_task", "") or "")
+                or learning_task
                 == "source_theorem_exact_semantic_definition_authoring_worker"
             )
             and (
@@ -38337,21 +38341,17 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
         )
         is_exact_source_proof_body_execution_feedback = (
-            str(row.get("learning_task", "") or "")
-            == "exact_source_theorem_proof_body_execution_feedback"
+            learning_task == "exact_source_theorem_proof_body_execution_feedback"
         )
         is_source_theorem_proof_body_adapter_feedback = (
-            str(row.get("learning_task", "") or "")
-            == "source_theorem_proof_body_adapter_feedback"
+            learning_task == "source_theorem_proof_body_adapter_feedback"
         )
         is_source_theorem_truth_table_feedback = (
-            str(row.get("learning_task", "") or "")
-            == "source_theorem_truth_table_feedback"
+            learning_task == "source_theorem_truth_table_feedback"
             or trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
         )
         is_source_theorem_formal_environment_feedback = (
-            str(row.get("learning_task", "") or "")
-            == "source_theorem_formal_environment_repair_feedback"
+            learning_task == "source_theorem_formal_environment_repair_feedback"
         )
         candidate_materialization_required = bool(
             row.get("candidate_materialization_required", False)
@@ -38445,14 +38445,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 or input_summary.get("proof_body_attempt_blocked_before_goal", False)
             )
         is_source_to_bridge_premise_derivation_feedback = (
-            str(row.get("learning_task", "") or "")
-            == "source_to_bridge_premise_derivation_feedback"
-            or str(row.get("learning_task", "") or "")
+            learning_task == "source_to_bridge_premise_derivation_feedback"
+            or learning_task
             == "source_to_bridge_grouped_premise_derivation_candidate_request"
             or str(row.get("artifact_kind", "") or "")
             == "SourceToBridgeGroupedPremiseDerivationCandidateRequest"
-            or str(row.get("learning_task", "") or "")
-            == "source_to_bridge_premise_semantic_repair_feedback"
+            or learning_task == "source_to_bridge_premise_semantic_repair_feedback"
             or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
             or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
             or (
@@ -38528,8 +38526,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         if is_source_to_bridge_premise_derivation_feedback and not trigger:
             trigger = (
                 "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
-                if str(row.get("learning_task", "") or "")
-                == "source_to_bridge_premise_semantic_repair_feedback"
+                if learning_task == "source_to_bridge_premise_semantic_repair_feedback"
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK"
             )
         if is_source_theorem_formal_environment_feedback and not trigger:
@@ -38581,8 +38578,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and not is_source_to_bridge_premise_derivation_feedback
             and not is_source_theorem_truth_table_feedback
             and not is_source_theorem_formal_environment_feedback
-            and str(row.get("learning_task", "") or "")
-            != "source_theorem_exact_candidate_lean_feedback"
+            and learning_task != "source_theorem_exact_candidate_lean_feedback"
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
         ):
             continue
@@ -39144,8 +39140,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     for value in candidate_materialization_statuses[:3]
                 )
             generated_next_action_routing = (
-                str(row.get("learning_task", "") or "")
-                == "generated_next_action_routing"
+                learning_task == "generated_next_action_routing"
             )
             generated_agenda_id = str(input_summary.get("agenda_id", "") or "")
             generated_runtime_queue_status = str(
@@ -39198,8 +39193,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 )
             elif (
                 not failure_classification
-                and str(row.get("learning_task", "") or "")
-                == "generated_next_action_routing"
+                and learning_task == "generated_next_action_routing"
                 and str(input_summary.get("placeholder_symbol", "") or "").strip()
             ):
                 failure_classification = "formal_environment_placeholder_primitives"

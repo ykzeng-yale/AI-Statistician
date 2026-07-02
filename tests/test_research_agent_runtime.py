@@ -31796,6 +31796,176 @@ def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() 
     assert "placeholder_definition_status" in prompt
 
 
+def test_source_theorem_repair_memory_accepts_compact_learning_task_rows() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "exact_source_theorem_proof_body_execution_feedback"
+                    ),
+                    "target_theorem_name": "compact_exact_source_theorem",
+                    "target_ids": ["compact_exact_source_theorem"],
+                    "target_theorem_goal_ids": ["compact_exact_source_theorem"],
+                    "candidate_artifact_path": (
+                        "runs/proof_body/compact_exact_source.lean"
+                    ),
+                    "source_theorem_kernel_verified": False,
+                    "failure_classification": "proof_body_dependency_context_missing",
+                    "proof_body_status": (
+                        "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+                    ),
+                    "proof_body_attempted": True,
+                    "proof_body_attempt_count": 1,
+                    "proof_body_goal_excerpt": [
+                        "⊢ compact exact source theorem goal"
+                    ],
+                    "proof_body_attempt_summaries": [
+                        "rw [compact_missing_adapter] failed"
+                    ],
+                    "diagnostics": [
+                        "unknown theorem compact_missing_adapter"
+                    ],
+                    "proof_evidence_status": (
+                        "EXACT_SOURCE_PROOF_BODY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": "source_theorem_proof_body_adapter_feedback",
+                    "target_theorem_name": "compact_adapter_source_theorem",
+                    "target_ids": ["compact_adapter_source_theorem"],
+                    "target_lean_declaration": "compact_adapter_source_theorem",
+                    "adapter_kernel_verified": False,
+                    "adapter_candidate_requires_unproven_bridge_premises": True,
+                    "unproven_bridge_premise_names": ["hCompactBridge"],
+                    "adapter_candidate_artifact_path": (
+                        "runs/adapters/compact_adapter.lean"
+                    ),
+                    "adapter_declaration_name": (
+                        "compact_adapter_source_theorem_source_to_bridge_adapter"
+                    ),
+                    "failure_classification": (
+                        "adapter_candidate_requires_unproven_bridge_premises"
+                    ),
+                    "proof_evidence_status": (
+                        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "source_to_bridge_premise_derivation_feedback"
+                    ),
+                    "target_theorem_name": "compact_premise_source_theorem",
+                    "target_ids": ["compact_premise_source_theorem"],
+                    "target_lean_declaration": "compact_premise_source_theorem",
+                    "premise_name": "hCompactRank",
+                    "premise_derivation_kernel_verified": False,
+                    "premise_candidate_artifact_path": (
+                        "runs/premises/hCompactRank.lean"
+                    ),
+                    "premise_candidate_declaration_name": (
+                        "compact_premise_source_theorem_hCompactRank_derivation"
+                    ),
+                    "premise_derivation_gap_kind": (
+                        "missing_exact_source_rank_uniformity"
+                    ),
+                    "proof_evidence_status": (
+                        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+        ],
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+    triggers = {row["trigger"] for row in repairs}
+    assert {
+        "EXACT_SOURCE_PROOF_BODY_DEPENDENCY_CONTEXT_MISSING",
+        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
+    } <= triggers
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_requires_repair"] is True
+    assert "EXACT_SOURCE_PROOF_BODY_DEPENDENCY_CONTEXT_MISSING" in summary[
+        "source_theorem_exact_candidate_repair_triggers"
+    ]
+    assert "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK" in summary[
+        "source_theorem_exact_candidate_repair_triggers"
+    ]
+    assert "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK" in summary[
+        "source_theorem_exact_candidate_repair_triggers"
+    ]
+    assert summary["source_theorem_proof_body_adapter_feedback_available"] is True
+    assert summary[
+        "source_theorem_proof_body_adapter_unproven_bridge_premise_names"
+    ] == ["hCompactBridge"]
+    assert summary["source_to_bridge_premise_derivation_required"] is True
+    assert summary["source_to_bridge_premise_derivation_pending_premise_names"] == [
+        "hCompactRank"
+    ]
+    diagnostics = summary["source_theorem_exact_candidate_repair_diagnostics"]
+    assert any(
+        row["target_theorem_name"] == "compact_exact_source_theorem"
+        and row["candidate_artifact_path"]
+        == "runs/proof_body/compact_exact_source.lean"
+        for row in diagnostics
+    )
+    assert any(
+        row["target_theorem_name"] == "compact_adapter_source_theorem"
+        and "adapter_declaration_name=compact_adapter_source_theorem_source_to_bridge_adapter"
+        in row["diagnostics"]
+        for row in diagnostics
+    )
+    assert summary["source_theorem_proof_body_adapter_diagnostics"][0][
+        "adapter_declaration_name"
+    ] == "compact_adapter_source_theorem_source_to_bridge_adapter"
+    assert any(
+        row["target_theorem_name"] == "compact_premise_source_theorem"
+        and "premise_name=hCompactRank" in row["diagnostics"]
+        for row in diagnostics
+    )
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "EXACT_SOURCE_PROOF_BODY_DEPENDENCY_CONTEXT_MISSING" in prompt
+    assert "compact_missing_adapter" in prompt
+    assert "source_theorem_proof_body_adapter_required" in prompt
+    assert "hCompactBridge" in prompt
+    assert "source_to_bridge_premise_derivation_required" in prompt
+    assert "hCompactRank" in prompt
+
+
 def test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders(
     tmp_path: Path,
 ) -> None:
