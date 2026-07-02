@@ -428,6 +428,9 @@ from .proof_state_feedback import (
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
+    RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS,
+    RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS,
+    RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS,
     RUNTIME_SCHEMA_VERSION,
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
@@ -1180,19 +1183,10 @@ def _load_runtime_capability_gap_routing(
     }
 
 
-_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = frozenset(
-    {
-        "formal_gap:proof_bank_expansion",
-        "formal_gap:gap_planner_handoff",
-    }
-)
-_FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
-    {
-        "FORMAL_GAP",
-        "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
-        "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR",
-        "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION",
-    }
+_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+_FORMAL_GAP_NEXT_ACTION_TRIGGERS = RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = (
+    RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
 )
 
 
@@ -1214,13 +1208,7 @@ def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
     learning_task = str(
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
-    route_feedback_tasks = {
-        "next_action_routing",
-        "generated_next_action_routing",
-        "formalization_gap_planner_live_route_planner_contract_feedback",
-        "formalization_gap_planner_target_prover_replay_feedback",
-    }
-    if learning_task not in route_feedback_tasks:
+    if learning_task not in _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS:
         return False
     if learning_task in {
         "formalization_gap_planner_live_route_planner_contract_feedback",

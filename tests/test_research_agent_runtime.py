@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_statistician.cli as cli_module
 import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.cli import (
     _load_runtime_capability_gap_routing,
@@ -6880,6 +6881,75 @@ def test_runtime_learning_memory_pins_bare_target_prover_route_revision_overlay(
     assert summary["formal_gap_next_action_diagnostics"][0][
         "route_revision_overlay_manifests"
     ] == [str(overlay_manifest)]
+
+
+def test_cli_and_runtime_formal_gap_route_memory_classifiers_stay_aligned() -> None:
+    assert cli_module._FORMAL_GAP_NEXT_ACTION_ROUTE_IDS == (
+        runtime_module.RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
+    )
+    assert cli_module._FORMAL_GAP_NEXT_ACTION_TRIGGERS == (
+        runtime_module.RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
+    )
+    assert cli_module._FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS == (
+        runtime_module.RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS
+    )
+    rows = [
+        {
+            "learning_task": (
+                "formalization_gap_planner_live_route_planner_contract_feedback"
+            ),
+            "route_planner_contract_feedback_id": "route-feedback:bare",
+            "failure_classification": (
+                "formalization_gap_planner_live_route_planner_response_contract_failed"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+        },
+        {
+            "learning_task": (
+                "formalization_gap_planner_target_prover_replay_feedback"
+            ),
+            "route_revision_proposal_id": "route-revision:bare",
+            "route_revision_overlay_manifest": (
+                "runs/overlay/"
+                "formalization_gap_planner_route_revision_overlay_manifest.json"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+        },
+        {
+            "learning_task": "next_action_routing",
+            "input_summary": {
+                "trigger": "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+                "agenda_id": "formal_gap:gap_planner_handoff",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            },
+        },
+        {
+            "learning_task": "generic_runtime_note",
+            "input_summary": {"trigger": "LOW_PRIORITY_NOTE"},
+        },
+    ]
+
+    for row in rows:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), dict)
+            else {}
+        )
+        cli_is_route = cli_module._runtime_learning_memory_row_is_formal_gap_next_action_routing(
+            row
+        )
+        runtime_is_route = runtime_module._runtime_learning_memory_row_is_formal_gap_next_action_routing(
+            row,
+            input_summary,
+        )
+        assert cli_is_route is runtime_is_route
+        if cli_is_route:
+            assert cli_module._runtime_learning_memory_formal_gap_next_action_stage(
+                row
+            ) == runtime_module._runtime_learning_memory_formal_gap_next_action_stage(
+                row,
+                input_summary,
+            )
 
 
 def test_runtime_handoff_materializes_route_contract_feedback_jsonl(
