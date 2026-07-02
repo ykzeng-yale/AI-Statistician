@@ -93,6 +93,9 @@ from .formalization_gap_planner_local_proof_state_adapter import (
 from .formalization_gap_planner_refinement_evidence import (
     export_formalization_gap_planner_refinement_evidence,
 )
+from .formalization_gap_planner_route_revision_overlay import (
+    export_formalization_gap_planner_route_revision_overlay,
+)
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
@@ -14708,6 +14711,45 @@ class FormalizationGapPlannerRuntimeSubsystem:
             )
             if isinstance(proposal, Mapping)
         ]
+        route_revision_overlay_dir = replay_root / "route_revision_overlay"
+        route_revision_overlay_payload: dict[str, Any] = {
+            "all_ok": False,
+            "n_overlay_rows": 0,
+            "n_routes_with_revision": 0,
+            "n_orphan_route_revision_proposals": 0,
+            "attempted": False,
+        }
+        if route_revision_proposals:
+            try:
+                route_revision_overlay_payload = dict(
+                    export_formalization_gap_planner_route_revision_overlay(
+                        standalone_plan_dir,
+                        refinement_evidence_dir,
+                        route_revision_overlay_dir,
+                    )
+                )
+                route_revision_overlay_payload["attempted"] = True
+            except Exception as exc:  # pragma: no cover - defensive live path.
+                route_revision_overlay_payload = {
+                    "all_ok": False,
+                    "attempted": True,
+                    "n_overlay_rows": 0,
+                    "n_routes_with_revision": 0,
+                    "n_orphan_route_revision_proposals": 0,
+                    "errors": [str(exc)],
+                }
+                errors.append(
+                    "route_revision_overlay_replay_failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+        all_ok = (
+            all_ok
+            and (
+                not route_revision_proposals
+                or bool(route_revision_overlay_payload.get("all_ok", False))
+            )
+            and not errors
+        )
         output_paths = [
             standalone_plan_dir
             / "goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -14720,6 +14762,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             refinement_evidence_dir
             / "formalization_gap_planner_route_revision_proposals.jsonl",
         ]
+        if route_revision_proposals:
+            output_paths.append(
+                route_revision_overlay_dir
+                / "formalization_gap_planner_route_revision_overlay_manifest.json"
+            )
         return {
             "replay_root": str(replay_root),
             "standalone_seed_path": str(seed_path),
@@ -14776,6 +14823,31 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 / "formalization_gap_planner_route_revision_proposals.jsonl"
             ),
             "route_revision_proposals": route_revision_proposals[:12],
+            "route_revision_overlay_dir": str(route_revision_overlay_dir)
+            if route_revision_proposals
+            else "",
+            "route_revision_overlay_manifest": str(
+                route_revision_overlay_dir
+                / "formalization_gap_planner_route_revision_overlay_manifest.json"
+            )
+            if route_revision_proposals
+            else "",
+            "route_revision_overlay_all_ok": bool(
+                route_revision_overlay_payload.get("all_ok", False)
+            ),
+            "n_route_revision_overlay_rows": int(
+                route_revision_overlay_payload.get("n_overlay_rows", 0) or 0
+            ),
+            "n_route_revision_overlay_routes_with_revision": int(
+                route_revision_overlay_payload.get("n_routes_with_revision", 0) or 0
+            ),
+            "n_route_revision_overlay_orphan_rows": int(
+                route_revision_overlay_payload.get(
+                    "n_orphan_route_revision_proposals",
+                    0,
+                )
+                or 0
+            ),
             "errors": errors[:10],
             "proof_evidence_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
@@ -15135,6 +15207,38 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             target_prover_replay.get("n_route_revision_proposals", 0)
                             or 0
                         ),
+                        "route_revision_overlay_dir": str(
+                            target_prover_replay.get("route_revision_overlay_dir", "")
+                            or ""
+                        ),
+                        "route_revision_overlay_manifest": str(
+                            target_prover_replay.get(
+                                "route_revision_overlay_manifest",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "n_target_prover_replay_route_revision_overlay_rows": int(
+                            target_prover_replay.get(
+                                "n_route_revision_overlay_rows",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_route_revision_overlay_routes_with_revision": int(
+                            target_prover_replay.get(
+                                "n_route_revision_overlay_routes_with_revision",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_route_revision_overlay_orphan_rows": int(
+                            target_prover_replay.get(
+                                "n_route_revision_overlay_orphan_rows",
+                                0,
+                            )
+                            or 0
+                        ),
                         "n_target_prover_replay_local_lean_failed": int(
                             target_prover_replay.get("n_local_lean_failed", 0) or 0
                         ),
@@ -15268,6 +15372,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_target_prover_replay_refinement_evidence_contract_ok": 0,
                         "n_target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
                         "n_target_prover_replay_route_revision_proposals": 0,
+                        "route_revision_overlay_dir": "",
+                        "route_revision_overlay_manifest": "",
+                        "n_target_prover_replay_route_revision_overlay_rows": 0,
+                        "n_target_prover_replay_route_revision_overlay_routes_with_revision": 0,
+                        "n_target_prover_replay_route_revision_overlay_orphan_rows": 0,
                         "n_target_prover_replay_local_lean_failed": 0,
                         "n_target_prover_replay_local_lean_unavailable": 0,
                         "n_target_prover_replay_kernel_scaffold_accepted": 0,
@@ -15509,6 +15618,36 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 int(
                     row.get(
                         "n_target_prover_replay_route_revision_proposals",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_route_revision_overlay_rows": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_route_revision_overlay_rows",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_route_revision_overlay_routes_with_revision": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_route_revision_overlay_routes_with_revision",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_route_revision_overlay_orphan_rows": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_route_revision_overlay_orphan_rows",
                         0,
                     )
                     or 0
@@ -30054,6 +30193,11 @@ _FORMALIZATION_GAP_PLANNER_EXECUTION_CONTEXT_FIELDS = (
     "component_resource_registry_cli",
     "route_contract_feedback_jsonl",
     "n_route_contract_feedback_rows",
+    "route_revision_overlay_dir",
+    "route_revision_overlay_manifest",
+    "n_target_prover_replay_route_revision_overlay_rows",
+    "n_target_prover_replay_route_revision_overlay_routes_with_revision",
+    "n_target_prover_replay_route_revision_overlay_orphan_rows",
     "standalone_plan_dir",
     "standalone_plan_cli",
     "llm_route_planner_prompt_cli",
@@ -41311,6 +41455,11 @@ def _runtime_formal_gap_next_action_agenda_memory_row(
         "revised_delta_primitives",
         "route_revision_reasons",
         "route_revision_summary",
+        "route_revision_overlay_dir",
+        "route_revision_overlay_manifest",
+        "n_route_revision_overlay_rows",
+        "n_route_revision_overlay_routes_with_revision",
+        "n_route_revision_overlay_orphan_rows",
         "prover_attempt_status",
         "prover_attempt_class",
         "prover_diagnostic_signature",
@@ -41538,6 +41687,38 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                     row.get("route_revision_summary", "")
                     or input_summary.get("route_revision_summary", "")
                     or ""
+                ),
+                "route_revision_overlay_dirs": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_revision_overlay_dir",
+                    )
+                ),
+                "route_revision_overlay_manifests": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_revision_overlay_manifest",
+                    )
+                ),
+                "n_route_revision_overlay_rows": int(
+                    row.get("n_route_revision_overlay_rows", 0)
+                    or input_summary.get("n_route_revision_overlay_rows", 0)
+                    or 0
+                ),
+                "n_route_revision_overlay_routes_with_revision": int(
+                    row.get("n_route_revision_overlay_routes_with_revision", 0)
+                    or input_summary.get(
+                        "n_route_revision_overlay_routes_with_revision",
+                        0,
+                    )
+                    or 0
+                ),
+                "n_route_revision_overlay_orphan_rows": int(
+                    row.get("n_route_revision_overlay_orphan_rows", 0)
+                    or input_summary.get("n_route_revision_overlay_orphan_rows", 0)
+                    or 0
                 ),
                 "contract_counts": (
                     dict(row.get("contract_counts", {}))
@@ -42671,6 +42852,34 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(value).strip()
         )
     )
+    formal_gap_route_revision_overlay_dirs = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("route_revision_overlay_dirs", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_route_revision_overlay_manifests = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("route_revision_overlay_manifests", []) or []
+            if str(value).strip()
+        )
+    )
+    n_formal_gap_route_revision_overlay_rows = sum(
+        int(row.get("n_route_revision_overlay_rows", 0) or 0)
+        for row in formal_gap_next_action_routing_rows
+    )
+    n_formal_gap_route_revision_overlay_routes_with_revision = sum(
+        int(row.get("n_route_revision_overlay_routes_with_revision", 0) or 0)
+        for row in formal_gap_next_action_routing_rows
+    )
+    n_formal_gap_route_revision_overlay_orphan_rows = sum(
+        int(row.get("n_route_revision_overlay_orphan_rows", 0) or 0)
+        for row in formal_gap_next_action_routing_rows
+    )
     formal_gap_route_planner_contract_feedback_ids = tuple(
         dict.fromkeys(
             str(value).strip()
@@ -42743,6 +42952,21 @@ def _formalizer_proof_bank_runtime_memory_summary(
             ),
             "route_revision_target_primitives": list(
                 formal_gap_route_revision_target_primitives
+            ),
+            "route_revision_overlay_dirs": list(
+                formal_gap_route_revision_overlay_dirs
+            ),
+            "route_revision_overlay_manifests": list(
+                formal_gap_route_revision_overlay_manifests
+            ),
+            "n_route_revision_overlay_rows": int(
+                n_formal_gap_route_revision_overlay_rows
+            ),
+            "n_route_revision_overlay_routes_with_revision": int(
+                n_formal_gap_route_revision_overlay_routes_with_revision
+            ),
+            "n_route_revision_overlay_orphan_rows": int(
+                n_formal_gap_route_revision_overlay_orphan_rows
             ),
             "route_planner_contract_feedback_ids": list(
                 formal_gap_route_planner_contract_feedback_ids
@@ -43327,6 +43551,21 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formal_gap_route_revision_target_primitives": list(
             formal_gap_route_revision_target_primitives
         ),
+        "formal_gap_route_revision_overlay_dirs": list(
+            formal_gap_route_revision_overlay_dirs
+        ),
+        "formal_gap_route_revision_overlay_manifests": list(
+            formal_gap_route_revision_overlay_manifests
+        ),
+        "n_formal_gap_route_revision_overlay_rows": int(
+            n_formal_gap_route_revision_overlay_rows
+        ),
+        "n_formal_gap_route_revision_overlay_routes_with_revision": int(
+            n_formal_gap_route_revision_overlay_routes_with_revision
+        ),
+        "n_formal_gap_route_revision_overlay_orphan_rows": int(
+            n_formal_gap_route_revision_overlay_orphan_rows
+        ),
         "formal_gap_live_route_planner_contract_repair_required": bool(
             formal_gap_route_planner_contract_feedback_ids
             or formal_gap_route_planner_staged_assembly_error_preview
@@ -43383,6 +43622,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "route_revision_summary": str(
                     row.get("route_revision_summary", "") or ""
+                ),
+                "route_revision_overlay_dirs": list(
+                    row.get("route_revision_overlay_dirs", []) or []
+                ),
+                "route_revision_overlay_manifests": list(
+                    row.get("route_revision_overlay_manifests", []) or []
+                ),
+                "n_route_revision_overlay_rows": int(
+                    row.get("n_route_revision_overlay_rows", 0) or 0
+                ),
+                "n_route_revision_overlay_routes_with_revision": int(
+                    row.get("n_route_revision_overlay_routes_with_revision", 0)
+                    or 0
+                ),
+                "n_route_revision_overlay_orphan_rows": int(
+                    row.get("n_route_revision_overlay_orphan_rows", 0) or 0
                 ),
                 "route_planner_contract_feedback_ids": list(
                     row.get("route_planner_contract_feedback_ids", []) or []
@@ -49414,6 +49669,21 @@ def _runtime_generated_next_action_learning_rows(
             "route_revision_summary": str(
                 row.get("route_revision_summary", "") or ""
             ),
+            "route_revision_overlay_dir": str(
+                row.get("route_revision_overlay_dir", "") or ""
+            ),
+            "route_revision_overlay_manifest": str(
+                row.get("route_revision_overlay_manifest", "") or ""
+            ),
+            "n_route_revision_overlay_rows": int(
+                row.get("n_route_revision_overlay_rows", 0) or 0
+            ),
+            "n_route_revision_overlay_routes_with_revision": int(
+                row.get("n_route_revision_overlay_routes_with_revision", 0) or 0
+            ),
+            "n_route_revision_overlay_orphan_rows": int(
+                row.get("n_route_revision_overlay_orphan_rows", 0) or 0
+            ),
             "prover_attempt_status": str(
                 row.get("prover_attempt_status", "") or ""
             ),
@@ -50163,6 +50433,12 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
             "route_revision_proposals_path": str(
                 target_prover_replay.get("route_revision_proposals_path", "") or ""
             ),
+            "route_revision_overlay_dir": str(
+                target_prover_replay.get("route_revision_overlay_dir", "") or ""
+            ),
+            "route_revision_overlay_manifest": str(
+                target_prover_replay.get("route_revision_overlay_manifest", "") or ""
+            ),
             "n_refinement_items": int(
                 target_prover_replay.get("n_refinement_items", 0) or 0
             ),
@@ -50174,6 +50450,20 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
             ),
             "n_route_revision_proposals": int(
                 target_prover_replay.get("n_route_revision_proposals", 0) or 0
+            ),
+            "n_route_revision_overlay_rows": int(
+                target_prover_replay.get("n_route_revision_overlay_rows", 0) or 0
+            ),
+            "n_route_revision_overlay_routes_with_revision": int(
+                target_prover_replay.get(
+                    "n_route_revision_overlay_routes_with_revision",
+                    0,
+                )
+                or 0
+            ),
+            "n_route_revision_overlay_orphan_rows": int(
+                target_prover_replay.get("n_route_revision_overlay_orphan_rows", 0)
+                or 0
             ),
             "n_local_lean_failed": int(
                 target_prover_replay.get("n_local_lean_failed", 0) or 0
@@ -50265,6 +50555,21 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
                 "route_revision_summary": str(
                     proposal.get("route_revision_summary", "") or ""
                 ),
+                "route_revision_overlay_dir": replay_summary[
+                    "route_revision_overlay_dir"
+                ],
+                "route_revision_overlay_manifest": replay_summary[
+                    "route_revision_overlay_manifest"
+                ],
+                "n_route_revision_overlay_rows": replay_summary[
+                    "n_route_revision_overlay_rows"
+                ],
+                "n_route_revision_overlay_routes_with_revision": replay_summary[
+                    "n_route_revision_overlay_routes_with_revision"
+                ],
+                "n_route_revision_overlay_orphan_rows": replay_summary[
+                    "n_route_revision_overlay_orphan_rows"
+                ],
                 "residual_goals": list(
                     _runtime_row_string_values(proposal, "residual_goals")
                 ),
@@ -50331,6 +50636,21 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
                     ],
                     "route_revision_summary": row_input_summary[
                         "route_revision_summary"
+                    ],
+                    "route_revision_overlay_dir": row_input_summary[
+                        "route_revision_overlay_dir"
+                    ],
+                    "route_revision_overlay_manifest": row_input_summary[
+                        "route_revision_overlay_manifest"
+                    ],
+                    "n_route_revision_overlay_rows": row_input_summary[
+                        "n_route_revision_overlay_rows"
+                    ],
+                    "n_route_revision_overlay_routes_with_revision": row_input_summary[
+                        "n_route_revision_overlay_routes_with_revision"
+                    ],
+                    "n_route_revision_overlay_orphan_rows": row_input_summary[
+                        "n_route_revision_overlay_orphan_rows"
                     ],
                     "prover_attempt_status": row_input_summary[
                         "prover_attempt_status"
@@ -50524,6 +50844,34 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
             ),
             "route_revision_reasons": route_revision_reasons,
             "route_revision_summary": route_revision_summary,
+            "route_revision_overlay_dir": str(
+                row.get("route_revision_overlay_dir", "")
+                or input_summary.get("route_revision_overlay_dir", "")
+                or ""
+            ),
+            "route_revision_overlay_manifest": str(
+                row.get("route_revision_overlay_manifest", "")
+                or input_summary.get("route_revision_overlay_manifest", "")
+                or ""
+            ),
+            "n_route_revision_overlay_rows": int(
+                row.get("n_route_revision_overlay_rows", 0)
+                or input_summary.get("n_route_revision_overlay_rows", 0)
+                or 0
+            ),
+            "n_route_revision_overlay_routes_with_revision": int(
+                row.get("n_route_revision_overlay_routes_with_revision", 0)
+                or input_summary.get(
+                    "n_route_revision_overlay_routes_with_revision",
+                    0,
+                )
+                or 0
+            ),
+            "n_route_revision_overlay_orphan_rows": int(
+                row.get("n_route_revision_overlay_orphan_rows", 0)
+                or input_summary.get("n_route_revision_overlay_orphan_rows", 0)
+                or 0
+            ),
             "prover_attempt_status": str(
                 row.get("prover_attempt_status", "")
                 or input_summary.get("prover_attempt_status", "")
@@ -58290,6 +58638,9 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "target_prover_replay_refinement_evidence_contract_ok",
         "target_prover_replay_refinement_evidence_awaiting_tool_response",
         "target_prover_replay_route_revision_proposals",
+        "target_prover_replay_route_revision_overlay_rows",
+        "target_prover_replay_route_revision_overlay_routes_with_revision",
+        "target_prover_replay_route_revision_overlay_orphan_rows",
         "target_prover_replay_local_lean_failed",
         "target_prover_replay_local_lean_unavailable",
         "target_prover_replay_kernel_scaffold_accepted",
@@ -58471,6 +58822,19 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": int(
             aggregate_counts["target_prover_replay_route_revision_proposals"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows": int(
+            aggregate_counts["target_prover_replay_route_revision_overlay_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision": int(
+            aggregate_counts[
+                "target_prover_replay_route_revision_overlay_routes_with_revision"
+            ]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_orphan_rows": int(
+            aggregate_counts[
+                "target_prover_replay_route_revision_overlay_orphan_rows"
+            ]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_lean_failed": int(
             aggregate_counts["target_prover_replay_local_lean_failed"]

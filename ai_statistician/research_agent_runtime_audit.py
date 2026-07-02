@@ -3833,6 +3833,36 @@ def audit_research_agent_runtime(
                 "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id"
             ]
         ),
+        "n_runtime_target_prover_replay_route_revision_overlay_dirs": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_overlay_dirs"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_manifests": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_overlay_manifests"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_rows_with_overlay_manifest": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_rows_with_overlay_manifest"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_rows_seen": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_overlay_rows_seen"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_routes_with_revision_seen": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_overlay_routes_with_revision_seen"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_orphan_rows_seen": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_overlay_orphan_rows_seen"
+            ]
+        ),
         "runtime_target_prover_replay_route_revision_proposal_ids": list(
             runtime_target_prover_replay_route_revision_summary[
                 "runtime_target_prover_replay_route_revision_proposal_ids"
@@ -3861,6 +3891,16 @@ def audit_research_agent_runtime(
         "runtime_target_prover_replay_route_revision_rows_missing_proposal_id": list(
             runtime_target_prover_replay_route_revision_summary[
                 "runtime_target_prover_replay_route_revision_rows_missing_proposal_id"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_overlay_dirs": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_overlay_dirs"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_overlay_manifests": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_overlay_manifests"
             ]
         ),
         "runtime_target_prover_replay_route_revision_channels": list(
@@ -8709,9 +8749,15 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
     learning_proposal_ids: set[str] = set()
     agenda_proposal_ids: set[str] = set()
     generated_routing_proposal_ids: set[str] = set()
+    overlay_dirs: set[str] = set()
+    overlay_manifests: set[str] = set()
+    overlay_row_counts: list[int] = []
+    overlay_routes_with_revision_counts: list[int] = []
+    overlay_orphan_row_counts: list[int] = []
     channels: set[str] = set()
     channel_counts: Counter[str] = Counter()
     missing_proposal_id_rows: list[dict[str, str]] = []
+    rows_with_overlay_manifest = 0
 
     learning_sources: list[tuple[str, list[Any]]] = [
         ("runtime_learning_rows", learning_rows or []),
@@ -8737,6 +8783,18 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
                             row,
                         )
                     )
+                row_overlay = (
+                    _runtime_target_prover_replay_route_revision_overlay_refs(row)
+                )
+                overlay_dirs.update(row_overlay["dirs"])
+                overlay_manifests.update(row_overlay["manifests"])
+                overlay_row_counts.append(row_overlay["n_overlay_rows"])
+                overlay_routes_with_revision_counts.append(
+                    row_overlay["n_routes_with_revision"]
+                )
+                overlay_orphan_row_counts.append(row_overlay["n_orphan_rows"])
+                if row_overlay["manifests"]:
+                    rows_with_overlay_manifest += 1
             if _runtime_target_prover_replay_route_revision_generated_routing_row(row):
                 generated_channel = f"{channel}:generated_routing"
                 channels.add(generated_channel)
@@ -8754,6 +8812,18 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
                             row,
                         )
                     )
+                row_overlay = (
+                    _runtime_target_prover_replay_route_revision_overlay_refs(row)
+                )
+                overlay_dirs.update(row_overlay["dirs"])
+                overlay_manifests.update(row_overlay["manifests"])
+                overlay_row_counts.append(row_overlay["n_overlay_rows"])
+                overlay_routes_with_revision_counts.append(
+                    row_overlay["n_routes_with_revision"]
+                )
+                overlay_orphan_row_counts.append(row_overlay["n_orphan_rows"])
+                if row_overlay["manifests"]:
+                    rows_with_overlay_manifest += 1
 
     for index, row in enumerate(agenda_rows):
         if not _runtime_target_prover_replay_route_revision_agenda_row(row):
@@ -8772,6 +8842,16 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
                     row,
                 )
             )
+        row_overlay = _runtime_target_prover_replay_route_revision_overlay_refs(row)
+        overlay_dirs.update(row_overlay["dirs"])
+        overlay_manifests.update(row_overlay["manifests"])
+        overlay_row_counts.append(row_overlay["n_overlay_rows"])
+        overlay_routes_with_revision_counts.append(
+            row_overlay["n_routes_with_revision"]
+        )
+        overlay_orphan_row_counts.append(row_overlay["n_orphan_rows"])
+        if row_overlay["manifests"]:
+            rows_with_overlay_manifest += 1
 
     proposal_ids = (
         learning_proposal_ids
@@ -8811,6 +8891,24 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
         "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id": (
             len(missing_proposal_id_rows)
         ),
+        "n_runtime_target_prover_replay_route_revision_overlay_dirs": len(
+            overlay_dirs
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_manifests": len(
+            overlay_manifests
+        ),
+        "n_runtime_target_prover_replay_route_revision_rows_with_overlay_manifest": (
+            rows_with_overlay_manifest
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_rows_seen": max(
+            overlay_row_counts or [0]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_routes_with_revision_seen": max(
+            overlay_routes_with_revision_counts or [0]
+        ),
+        "n_runtime_target_prover_replay_route_revision_overlay_orphan_rows_seen": max(
+            overlay_orphan_row_counts or [0]
+        ),
         "runtime_target_prover_replay_route_revision_proposal_ids": sorted(
             proposal_ids
         ),
@@ -8828,6 +8926,12 @@ def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
         ),
         "runtime_target_prover_replay_route_revision_rows_missing_proposal_id": (
             missing_proposal_id_rows[:25]
+        ),
+        "runtime_target_prover_replay_route_revision_overlay_dirs": sorted(
+            overlay_dirs
+        ),
+        "runtime_target_prover_replay_route_revision_overlay_manifests": sorted(
+            overlay_manifests
         ),
         "runtime_target_prover_replay_route_revision_channels": sorted(channels),
         "runtime_target_prover_replay_route_revision_channel_counts": dict(
@@ -8916,6 +9020,86 @@ def _runtime_target_prover_replay_route_revision_proposal_ids(row: Any) -> set[s
                     if value:
                         proposal_ids.add(value)
     return proposal_ids
+
+
+def _runtime_target_prover_replay_route_revision_overlay_refs(
+    row: Any,
+) -> dict[str, Any]:
+    dirs: set[str] = set()
+    manifests: set[str] = set()
+    n_overlay_rows = 0
+    n_routes_with_revision = 0
+    n_orphan_rows = 0
+    if not isinstance(row, Mapping):
+        return {
+            "dirs": dirs,
+            "manifests": manifests,
+            "n_overlay_rows": n_overlay_rows,
+            "n_routes_with_revision": n_routes_with_revision,
+            "n_orphan_rows": n_orphan_rows,
+        }
+    input_summary = _runtime_row_input_summary(row)
+    for source in (row, input_summary):
+        directory = str(source.get("route_revision_overlay_dir", "") or "").strip()
+        if directory:
+            dirs.add(directory)
+        manifest = str(source.get("route_revision_overlay_manifest", "") or "").strip()
+        if manifest:
+            manifests.add(manifest)
+        n_overlay_rows = max(
+            n_overlay_rows,
+            int(
+                source.get("n_route_revision_overlay_rows", 0)
+                or source.get("n_target_prover_replay_route_revision_overlay_rows", 0)
+                or 0
+            ),
+        )
+        n_routes_with_revision = max(
+            n_routes_with_revision,
+            int(
+                source.get("n_route_revision_overlay_routes_with_revision", 0)
+                or source.get(
+                    "n_target_prover_replay_route_revision_overlay_routes_with_revision",
+                    0,
+                )
+                or 0
+            ),
+        )
+        n_orphan_rows = max(
+            n_orphan_rows,
+            int(
+                source.get("n_route_revision_overlay_orphan_rows", 0)
+                or source.get(
+                    "n_target_prover_replay_route_revision_overlay_orphan_rows",
+                    0,
+                )
+                or 0
+            ),
+        )
+        target_prover_replay = source.get("target_prover_replay")
+        if (
+            isinstance(target_prover_replay, Mapping)
+            and target_prover_replay
+            and target_prover_replay is not source
+        ):
+            nested = _runtime_target_prover_replay_route_revision_overlay_refs(
+                target_prover_replay
+            )
+            dirs.update(nested["dirs"])
+            manifests.update(nested["manifests"])
+            n_overlay_rows = max(n_overlay_rows, nested["n_overlay_rows"])
+            n_routes_with_revision = max(
+                n_routes_with_revision,
+                nested["n_routes_with_revision"],
+            )
+            n_orphan_rows = max(n_orphan_rows, nested["n_orphan_rows"])
+    return {
+        "dirs": dirs,
+        "manifests": manifests,
+        "n_overlay_rows": n_overlay_rows,
+        "n_routes_with_revision": n_routes_with_revision,
+        "n_orphan_rows": n_orphan_rows,
+    }
 
 
 def _runtime_target_prover_replay_route_revision_missing_id_entry(
@@ -10646,6 +10830,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_gap_planner_live_target_replay_route_revision_overlay_rows = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows",
+            payload.get(
+                "n_runtime_target_prover_replay_route_revision_overlay_rows_seen",
+                0,
+            ),
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_route_revision_overlay_routes = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision",
+            payload.get(
+                "n_runtime_target_prover_replay_route_revision_overlay_routes_with_revision_seen",
+                0,
+            ),
+        )
+        or 0
+    )
     runtime_target_prover_replay_route_revision_learning_rows = int(
         payload.get(
             "n_runtime_target_prover_replay_route_revision_learning_rows",
@@ -10688,6 +10892,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_target_prover_replay_route_revision_overlay_manifests = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_overlay_manifests",
+            0,
+        )
+        or 0
+    )
     runtime_gap_planner_live_target_replay_route_revision_feedback_complete = (
         runtime_gap_planner_live_target_replay_route_revision_proposals <= 0
         or (
@@ -10702,6 +10913,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_target_prover_replay_route_revision_complete_ids
             >= runtime_gap_planner_live_target_replay_route_revision_proposals
             and runtime_target_prover_replay_route_revision_missing_ids <= 0
+            and runtime_gap_planner_live_target_replay_route_revision_overlay_rows
+            > 0
+            and runtime_gap_planner_live_target_replay_route_revision_overlay_routes
+            > 0
+            and runtime_target_prover_replay_route_revision_overlay_manifests > 0
         )
     )
     runtime_gap_planner_live_followthrough_complete = (
@@ -11330,6 +11546,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids')} "
                 "target_replay_route_revision_missing_proposal_id_rows="
                 f"{runtime_target_prover_replay_route_revision_missing_ids} "
+                "target_replay_route_revision_overlay_rows="
+                f"{runtime_gap_planner_live_target_replay_route_revision_overlay_rows} "
+                "target_replay_route_revision_overlay_routes="
+                f"{runtime_gap_planner_live_target_replay_route_revision_overlay_routes} "
+                "target_replay_route_revision_overlay_manifests="
+                f"{runtime_target_prover_replay_route_revision_overlay_manifests} "
+                "target_replay_route_revision_overlay_manifest_refs="
+                f"{payload.get('runtime_target_prover_replay_route_revision_overlay_manifests')} "
                 "paths="
                 f"{payload.get('runtime_formalization_gap_planner_live_route_planner_manifest_paths')}"
             ),
@@ -11339,7 +11563,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "contract-valid responses plus target-prover replay through the "
                 "refinement queue, local proof-state adapter, and refinement "
                 "evidence, including route-revision feedback rows that re-enter "
-                "learning memory, agenda, and generated next-action routing; "
+                "learning memory, agenda, and generated next-action routing, plus "
+                "planner-consumable route-revision overlay artifacts; "
                 "prompt packets or raw LLM responses alone are not end-to-end "
                 "FormalizationGapPlanner capacity"
             ),

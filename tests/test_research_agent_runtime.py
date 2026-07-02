@@ -2082,6 +2082,32 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         "formalization_gap_planner_route_revision:"
     )
     assert Path(target_prover_replay["route_revision_proposals_path"]).exists()
+    assert target_prover_replay["route_revision_overlay_manifest"]
+    assert Path(target_prover_replay["route_revision_overlay_manifest"]).exists()
+    assert target_prover_replay["n_route_revision_overlay_rows"] >= 1
+    assert target_prover_replay[
+        "n_route_revision_overlay_routes_with_revision"
+    ] >= 1
+    assert (
+        live_manifest["rows"][0]["route_revision_overlay_manifest"]
+        == target_prover_replay["route_revision_overlay_manifest"]
+    )
+    assert (
+        live_manifest["rows"][0][
+            "n_target_prover_replay_route_revision_overlay_rows"
+        ]
+        == target_prover_replay["n_route_revision_overlay_rows"]
+    )
+    assert (
+        live_manifest["counts"]["target_prover_replay_route_revision_overlay_rows"]
+        >= 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "target_prover_replay_route_revision_overlay_rows"
+        ]
+        >= 1
+    )
     learning_rows = _runtime_learning_rows(
         [{"blackboard": {"artifacts": result.produced_artifacts}}]
     )
@@ -2100,6 +2126,13 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert replay_learning_rows
     replay_learning_row = replay_learning_rows[0]
     assert replay_learning_row["route_revision_proposal_id"] == proposal["proposal_id"]
+    assert replay_learning_row["route_revision_overlay_manifest"] == (
+        target_prover_replay["route_revision_overlay_manifest"]
+    )
+    assert replay_learning_row["input_summary"][
+        "route_revision_overlay_manifest"
+    ] == target_prover_replay["route_revision_overlay_manifest"]
+    assert replay_learning_row["n_route_revision_overlay_rows"] >= 1
     assert replay_learning_row["next_owner_subsystem"] == (
         "FormalizationGapPlanner/Formalizer/ProofEngineer"
     )
@@ -2129,6 +2162,10 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         "FormalizationGapPlanner/Formalizer/ProofEngineer"
     )
     assert replay_agenda_row["route_revision_proposal_id"] == proposal["proposal_id"]
+    assert replay_agenda_row["route_revision_overlay_manifest"] == (
+        target_prover_replay["route_revision_overlay_manifest"]
+    )
+    assert replay_agenda_row["n_route_revision_overlay_rows"] >= 1
     generated_replay_learning_rows = _runtime_generated_next_action_learning_rows(
         replay_agenda_rows
     )
@@ -2141,6 +2178,12 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert generated_replay_learning_row["learning_task"] == (
         "generated_next_action_routing"
     )
+    assert generated_replay_learning_row["input_summary"][
+        "route_revision_overlay_manifest"
+    ] == target_prover_replay["route_revision_overlay_manifest"]
+    assert generated_replay_learning_row["input_summary"][
+        "n_route_revision_overlay_rows"
+    ] >= 1
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
@@ -2159,8 +2202,22 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert proposal["proposal_id"] in memory_summary[
         "formal_gap_route_revision_proposal_ids"
     ]
+    assert target_prover_replay["route_revision_overlay_manifest"] in memory_summary[
+        "formal_gap_route_revision_overlay_manifests"
+    ]
+    assert memory_summary["n_formal_gap_route_revision_overlay_rows"] >= 1
+    assert target_prover_replay["route_revision_overlay_manifest"] in (
+        memory_summary["formal_gap_next_action_contract"][
+            "route_revision_overlay_manifests"
+        ]
+    )
     assert any(
         proposal["proposal_id"] in diagnostic["route_revision_proposal_ids"]
+        for diagnostic in memory_summary["formal_gap_next_action_diagnostics"]
+    )
+    assert any(
+        target_prover_replay["route_revision_overlay_manifest"]
+        in diagnostic["route_revision_overlay_manifests"]
         for diagnostic in memory_summary["formal_gap_next_action_diagnostics"]
     )
     assert Path(live_manifest["manifest_path"]).exists()
@@ -2505,6 +2562,9 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "target_prover_replay_refinement_evidence_contract_ok": 3,
                                 "target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
                                 "target_prover_replay_route_revision_proposals": 2,
+                                "target_prover_replay_route_revision_overlay_rows": 1,
+                                "target_prover_replay_route_revision_overlay_routes_with_revision": 1,
+                                "target_prover_replay_route_revision_overlay_orphan_rows": 0,
                                 "target_prover_replay_local_lean_failed": 1,
                                 "target_prover_replay_local_lean_unavailable": 1,
                                 "target_prover_replay_kernel_scaffold_accepted": 0,
@@ -2715,6 +2775,24 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals"
         ]
         == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_orphan_rows"
+        ]
+        == 0
     )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"
@@ -4351,6 +4429,30 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
 
     assert rows[
         "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is False
+    assert "target_replay_route_revision_overlay_rows=0" in rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["evidence"]
+    assert "planner-consumable route-revision overlay artifacts" in rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["blocker"]
+
+    payload.update(
+        {
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision": 1,
+            "n_runtime_target_prover_replay_route_revision_overlay_manifests": 1,
+            "runtime_target_prover_replay_route_revision_overlay_manifests": [
+                "runtime_formalization_gap_planner_live_route_planner/target_prover_replay/route_revision_overlay/formalization_gap_planner_route_revision_overlay_manifest.json"
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
     ]["passed"] is True
 
 
@@ -4366,6 +4468,12 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
 
     proposal_ids = ["proposal:a", "proposal:b"]
     target_ids = ["lean_target:a"]
+    overlay_dir = runtime_dir / "route_revision_overlay"
+    overlay_dir.mkdir()
+    overlay_manifest = (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    overlay_manifest.write_text(json.dumps({"all_ok": True}), encoding="utf-8")
     learning_rows = []
     agenda_rows = []
     for proposal_id in proposal_ids:
@@ -4376,6 +4484,11 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
                 ),
                 "runtime_learning_row_id": f"feedback:{proposal_id}",
                 "route_revision_proposal_id": proposal_id,
+                "route_revision_overlay_dir": str(overlay_dir),
+                "route_revision_overlay_manifest": str(overlay_manifest),
+                "n_route_revision_overlay_rows": 1,
+                "n_route_revision_overlay_routes_with_revision": 1,
+                "n_route_revision_overlay_orphan_rows": 0,
                 "target_ids": target_ids,
                 "input_summary": {
                     "trigger": (
@@ -4384,6 +4497,11 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
                     "route_revision_proposal": {
                         "proposal_id": proposal_id,
                     },
+                    "route_revision_overlay_dir": str(overlay_dir),
+                    "route_revision_overlay_manifest": str(overlay_manifest),
+                    "n_route_revision_overlay_rows": 1,
+                    "n_route_revision_overlay_routes_with_revision": 1,
+                    "n_route_revision_overlay_orphan_rows": 0,
                     "target_ids": target_ids,
                 },
             }
@@ -4393,12 +4511,22 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
                 "learning_task": "generated_next_action_routing",
                 "runtime_learning_row_id": f"generated:{proposal_id}",
                 "route_revision_proposal_id": proposal_id,
+                "route_revision_overlay_dir": str(overlay_dir),
+                "route_revision_overlay_manifest": str(overlay_manifest),
+                "n_route_revision_overlay_rows": 1,
+                "n_route_revision_overlay_routes_with_revision": 1,
+                "n_route_revision_overlay_orphan_rows": 0,
                 "target_ids": target_ids,
                 "input_summary": {
                     "trigger": (
                         runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
                     ),
                     "route_revision_proposal_id": proposal_id,
+                    "route_revision_overlay_dir": str(overlay_dir),
+                    "route_revision_overlay_manifest": str(overlay_manifest),
+                    "n_route_revision_overlay_rows": 1,
+                    "n_route_revision_overlay_routes_with_revision": 1,
+                    "n_route_revision_overlay_orphan_rows": 0,
                     "target_ids": target_ids,
                 },
             }
@@ -4413,6 +4541,11 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
                     runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
                 ),
                 "route_revision_proposal_id": proposal_id,
+                "route_revision_overlay_dir": str(overlay_dir),
+                "route_revision_overlay_manifest": str(overlay_manifest),
+                "n_route_revision_overlay_rows": 1,
+                "n_route_revision_overlay_routes_with_revision": 1,
+                "n_route_revision_overlay_orphan_rows": 0,
                 "target_ids": target_ids,
             }
         )
@@ -4453,6 +4586,9 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": len(
             proposal_ids
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_orphan_rows": 0,
         "artifacts": {
             "per_question_results": [],
             "runtime_traces_jsonl": str(traces),
@@ -4482,6 +4618,12 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
     assert audit[
         "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids"
     ] == proposal_ids
+    assert audit[
+        "n_runtime_target_prover_replay_route_revision_overlay_manifests"
+    ] == 1
+    assert audit[
+        "runtime_target_prover_replay_route_revision_overlay_manifests"
+    ] == [str(overlay_manifest)]
     assert scorecard_rows[
         "formal_gap_planner_live_route_planner_followthrough"
     ]["passed"] is True
