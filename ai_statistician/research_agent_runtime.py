@@ -30271,6 +30271,21 @@ def _runtime_learning_row_task(
     ).strip()
 
 
+def _runtime_learning_row_value(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    key: str,
+    default: Any = "",
+) -> Any:
+    row_value = row.get(key, default)
+    if row_value not in (None, "", [], {}):
+        return row_value
+    input_value = input_summary.get(key, default)
+    if input_value not in (None, "", [], {}):
+        return input_value
+    return row_value
+
+
 def _runtime_learning_row_mapping_value(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
@@ -40852,83 +40867,226 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
             "formalizer_lean_candidate_kernel_feedback"
         ):
             continue
-        candidate_id = str(row.get("candidate_id", "") or "").strip()
-        source_manifest_path = str(row.get("source_manifest_path", "") or "").strip()
-        artifact_path = str(row.get("artifact_path", "") or "").strip()
+        candidate_id = str(
+            _runtime_learning_row_value(row, input_summary, "candidate_id")
+        ).strip()
+        source_manifest_path = str(
+            _runtime_learning_row_value(row, input_summary, "source_manifest_path")
+        ).strip()
+        artifact_path = str(
+            _runtime_learning_row_value(row, input_summary, "artifact_path")
+        ).strip()
         key = (candidate_id, source_manifest_path, artifact_path)
         if key in seen:
             continue
         seen.add(key)
-        local_lean_attempted = bool(row.get("local_lean_attempted", False))
-        local_lean_compiled = bool(row.get("local_lean_compiled", False))
+        local_lean_attempted = bool(
+            _runtime_learning_row_value(
+                row,
+                input_summary,
+                "local_lean_attempted",
+                False,
+            )
+        )
+        local_lean_compiled = bool(
+            _runtime_learning_row_value(
+                row,
+                input_summary,
+                "local_lean_compiled",
+                False,
+            )
+        )
+        target_row = dict(input_summary)
+        target_row.update(dict(row))
+        target_row["input_summary"] = input_summary
         target_ids = _source_theorem_target_ids_from_row(
-            row,
+            target_row,
             fallback_target_theorem_name=str(
-                row.get("target_theorem_name", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "target_theorem_name",
+                )
+                or ""
             ),
             fallback_source_formal_target_id=str(
-                row.get("target_lean_declaration", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "target_lean_declaration",
+                )
+                or ""
             ),
         )
         target_theorem_goal_ids = list(
-            _runtime_row_string_values(row, "target_theorem_goal_ids")
+            _runtime_row_string_values(target_row, "target_theorem_goal_ids")
         ) or list(target_ids)
-        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        source_target_provenance = _source_theorem_target_provenance_from_row(
+            target_row
+        )
         diagnostics = {
             "candidate_id": candidate_id,
-            "candidate_kind": str(row.get("candidate_kind", "") or ""),
-            "source_field": str(row.get("source_field", "") or ""),
-            "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
+            "candidate_kind": str(
+                _runtime_learning_row_value(row, input_summary, "candidate_kind")
+                or ""
+            ),
+            "source_field": str(
+                _runtime_learning_row_value(row, input_summary, "source_field") or ""
+            ),
+            "source_manifest_id": str(
+                _runtime_learning_row_value(row, input_summary, "source_manifest_id")
+                or ""
+            ),
             "source_manifest_path": source_manifest_path,
             "artifact_path": artifact_path,
             "kernel_check_artifact_path": str(
-                row.get("kernel_check_artifact_path", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "kernel_check_artifact_path",
+                )
+                or ""
             ),
             "proof_state_artifact_path": str(
-                row.get("proof_state_artifact_path", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "proof_state_artifact_path",
+                )
+                or ""
             ),
-            "target_lean_file": str(row.get("target_lean_file", "") or ""),
-            "target_lean_line": int(row.get("target_lean_line", 0) or 0),
-            "target_lean_column": int(row.get("target_lean_column", 0) or 0),
+            "target_lean_file": str(
+                _runtime_learning_row_value(row, input_summary, "target_lean_file")
+                or ""
+            ),
+            "target_lean_line": int(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "target_lean_line",
+                    0,
+                )
+                or 0
+            ),
+            "target_lean_column": int(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "target_lean_column",
+                    0,
+                )
+                or 0
+            ),
             "target_lean_declaration": str(
-                row.get("target_lean_declaration", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "target_lean_declaration",
+                )
+                or ""
             ),
             "target_ids": list(target_ids),
             "target_theorem_goal_ids": list(target_theorem_goal_ids),
-            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+            "target_theorem_name": str(
+                _runtime_learning_row_value(row, input_summary, "target_theorem_name")
+                or ""
+            ),
             "source_theorem_target_provenance": source_target_provenance,
-            "precheck_status": str(row.get("precheck_status", "") or ""),
-            "precheck_errors": list(row.get("precheck_errors", []) or []),
+            "precheck_status": str(
+                _runtime_learning_row_value(row, input_summary, "precheck_status")
+                or ""
+            ),
+            "precheck_errors": _runtime_learning_row_list_value(
+                row,
+                input_summary,
+                "precheck_errors",
+            ),
             "local_lean_attempted": local_lean_attempted,
             "local_lean_compiled": local_lean_compiled,
-            "local_lean_exit_status": str(row.get("local_lean_exit_status", "") or ""),
-            "local_lean_project": str(row.get("local_lean_project", "") or ""),
+            "local_lean_exit_status": str(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_exit_status",
+                )
+                or ""
+            ),
+            "local_lean_project": str(
+                _runtime_learning_row_value(row, input_summary, "local_lean_project")
+                or ""
+            ),
             "local_lean_skipped_reason": str(
-                row.get("local_lean_skipped_reason", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_skipped_reason",
+                )
+                or ""
             ),
             "local_lean_stdout_excerpt": str(
-                row.get("local_lean_stdout_excerpt", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_stdout_excerpt",
+                )
+                or ""
             )[:500],
             "local_lean_stderr_excerpt": str(
-                row.get("local_lean_stderr_excerpt", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_stderr_excerpt",
+                )
+                or ""
             )[:500],
-            "source_theorem_target_known": row.get(
+            "source_theorem_target_known": _runtime_learning_row_value(
+                row,
+                input_summary,
                 "source_theorem_target_known",
                 None,
             ),
             "diagnostic_helper_not_source_theorem": bool(
-                row.get("diagnostic_helper_not_source_theorem", False)
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "diagnostic_helper_not_source_theorem",
+                    False,
+                )
             ),
-            "lean_source_excerpt": str(row.get("lean_source_excerpt", "") or "")[:500],
-            "memory_status": str(row.get("memory_status", "") or ""),
-            "next_action": str(row.get("next_action", "") or ""),
-            "proof_evidence_status": str(row.get("proof_evidence_status", "") or ""),
+            "lean_source_excerpt": str(
+                _runtime_learning_row_value(row, input_summary, "lean_source_excerpt")
+                or ""
+            )[:500],
+            "memory_status": str(
+                _runtime_learning_row_value(row, input_summary, "memory_status") or ""
+            ),
+            "next_action": str(
+                _runtime_learning_row_value(row, input_summary, "next_action") or ""
+            ),
+            "proof_evidence_status": str(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "proof_evidence_status",
+                )
+                or ""
+            ),
             "proof_evidence_boundary": str(
-                row.get("proof_evidence_boundary", "") or ""
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "proof_evidence_boundary",
+                )
+                or ""
             )[:500],
         }
         repair_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
@@ -40964,15 +41122,15 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "formalizer_lean_candidate_proof_state_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_lean_candidate_proof_state_feedback"
+        ):
+            continue
         source_manifest_id = str(
             row.get("source_manifest_id", "")
             or input_summary.get("source_manifest_id", "")
@@ -41055,13 +41213,37 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
                 "lean_lsp_mcp_live_called": bool(
                     input_summary.get("lean_lsp_mcp_live_called", False)
                 ),
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "target_behavior": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "target_behavior",
+                    )
+                    or ""
+                ),
+                "acceptance_gate": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "acceptance_gate",
+                    )
+                    or ""
+                ),
                 "proof_evidence_status": str(
-                    row.get("proof_evidence_status", "") or ""
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "proof_evidence_status",
+                    )
+                    or ""
                 ),
                 "proof_evidence_boundary": str(
-                    row.get("proof_evidence_boundary", "") or ""
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "proof_evidence_boundary",
+                    )
+                    or ""
                 )[:500],
             }
         )
@@ -41089,15 +41271,15 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "formalizer_lean_candidate_component_gate_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_lean_candidate_component_gate_feedback"
+        ):
+            continue
         manifest_path = str(
             row.get("component_eval_manifest_path", "")
             or row.get("source_manifest_path", "")
@@ -41114,11 +41296,16 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
         feedback_rows.append(
             {
                 "learning_task": "formalizer_lean_candidate_component_gate_feedback",
-                "component_eval": str(row.get("component_eval", "") or ""),
+                "component_eval": str(
+                    _runtime_learning_row_value(row, input_summary, "component_eval")
+                    or ""
+                ),
                 "component_eval_manifest_path": manifest_path,
                 "provider_name": str(gate_summary["provider_name"]),
                 "backend_provider_name": str(gate_summary["backend_provider_name"]),
-                "model": str(row.get("model", "") or ""),
+                "model": str(
+                    _runtime_learning_row_value(row, input_summary, "model") or ""
+                ),
                 "live_generator": bool(gate_summary["live_generator"]),
                 "static_or_fixture_only": bool(
                     gate_summary["static_or_fixture_only"]
@@ -41183,8 +41370,22 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
                     row.get("source_theorem_kernel_verified", False)
                     or input_summary.get("source_theorem_kernel_verified", False)
                 ),
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "target_behavior": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "target_behavior",
+                    )
+                    or ""
+                ),
+                "acceptance_gate": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "acceptance_gate",
+                    )
+                    or ""
+                ),
                 "proof_evidence_status": str(
                     row.get("proof_evidence_status", "")
                     or input_summary.get("proof_evidence_status", "")
@@ -41193,6 +41394,8 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
                 "boundary": str(
                     row.get("boundary", "")
                     or row.get("proof_evidence_boundary", "")
+                    or input_summary.get("boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
                     or ""
                 )[:500],
             }
@@ -41230,15 +41433,15 @@ def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "coding_agent_generated_code_capability_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "coding_agent_generated_code_capability_feedback"
+        ):
+            continue
         capability_id = str(
             row.get("capability_id", "")
             or input_summary.get("capability_id", "")
@@ -41264,17 +41467,43 @@ def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
                 "question_id": question_id,
                 "capability_id": capability_id,
                 "next_owner_subsystem": next_owner,
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "recommended_capability_eval_command": str(
-                    row.get("recommended_capability_eval_command", "") or ""
+                "target_behavior": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "target_behavior",
+                    )
+                    or ""
                 ),
-                "success_metric": str(row.get("success_metric", "") or ""),
+                "recommended_capability_eval_command": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "recommended_capability_eval_command",
+                    )
+                    or ""
+                ),
+                "success_metric": str(
+                    _runtime_learning_row_value(row, input_summary, "success_metric")
+                    or ""
+                ),
                 "blocker": str(input_summary.get("blocker", "") or ""),
                 "evidence": str(input_summary.get("evidence", "") or ""),
                 "proof_evidence_status": str(
-                    row.get("proof_evidence_status", "") or ""
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "proof_evidence_status",
+                    )
+                    or ""
                 ),
-                "boundary": str(row.get("boundary", "") or ""),
+                "boundary": str(
+                    row.get("boundary", "")
+                    or input_summary.get("boundary", "")
+                    or row.get("proof_evidence_boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
+                    or ""
+                ),
             }
         )
     return tuple(feedback_rows)
@@ -41301,15 +41530,15 @@ def _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if str(row.get("learning_task", "") or "") != (
-            "formalizer_runtime_capability_contract_feedback"
-        ):
-            continue
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_runtime_capability_contract_feedback"
+        ):
+            continue
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
         ).strip()
@@ -41396,8 +41625,22 @@ def _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
                     input_summary.get("candidate_proof_state_manifest_id", "")
                     or ""
                 ),
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "target_behavior": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "target_behavior",
+                    )
+                    or ""
+                ),
+                "acceptance_gate": str(
+                    _runtime_learning_row_value(
+                        row,
+                        input_summary,
+                        "acceptance_gate",
+                    )
+                    or ""
+                ),
                 "proof_evidence_status": str(
                     row.get("proof_evidence_status", "")
                     or input_summary.get("proof_evidence_status", "")
@@ -41406,6 +41649,8 @@ def _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
                 "boundary": str(
                     row.get("boundary", "")
                     or row.get("proof_evidence_boundary", "")
+                    or input_summary.get("boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
                     or ""
                 )[:500],
             }

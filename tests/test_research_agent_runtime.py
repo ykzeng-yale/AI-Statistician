@@ -20084,6 +20084,322 @@ def test_runtime_learning_memory_replays_formalizer_capability_feedback_to_promp
     assert "formalizer_lean_candidate_proof_state_request_routed" in prompt
 
 
+def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    memory = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                    "question_id": question.id,
+                    "candidate_id": "compact_kernel_candidate",
+                    "candidate_kind": "source_theorem_candidate",
+                    "source_field": "formal_targets[0].lean_statement_sketch",
+                    "source_manifest_id": "formalizer_manifest:compact",
+                    "source_manifest_path": "runs/formalizer/compact_manifest.json",
+                    "artifact_path": "runs/formalizer/CompactCandidate.lean",
+                    "kernel_check_artifact_path": (
+                        "runs/formalizer/compact_kernel_check.json"
+                    ),
+                    "target_lean_declaration": "compact_source_theorem",
+                    "target_theorem_name": "compact_source_theorem",
+                    "target_theorem_goal_ids": ["compact_source_theorem"],
+                    "source_theorem_target_provenance": {
+                        "source_formal_target_id": "target:compact_source_theorem",
+                        "source_theorem_target_known": True,
+                    },
+                    "precheck_status": "LOCAL_LEAN_FAILED",
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "local_lean_exit_status": "failed",
+                    "local_lean_project": "lean_project:compact",
+                    "local_lean_stderr_excerpt": (
+                        "unknown identifier compactMissingLemma"
+                    ),
+                    "next_action": "repair compact Lean candidate",
+                    "proof_evidence_status": (
+                        "FORMALIZER_LEAN_CANDIDATE_KERNEL_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": (
+                        "Compact kernel feedback is repair memory, not proof."
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "formalizer_lean_candidate_proof_state_feedback"
+                    ),
+                    "question_id": question.id,
+                    "source_manifest_id": "proof_state_feedback:compact",
+                    "source_materialization_manifest_id": (
+                        "formalizer_materialization:compact"
+                    ),
+                    "target_ids": ["compact_source_theorem"],
+                    "target_theorem_goal_ids": ["compact_source_theorem"],
+                    "target_theorem_name": "compact_source_theorem",
+                    "provider_name": "local_lean_proof_state_feedback",
+                    "n_feedback_rows": 1,
+                    "attempt_status": "LOCAL_LEAN_FAILED",
+                    "residual_goals": ["⊢ compact residual goal"],
+                    "diagnostics": ["compact proof-state failed"],
+                    "requested_tools": ["lean_goal", "lean_state_search"],
+                    "executed_tools": ["local.lake_env_lean"],
+                    "tool_call_trace": [
+                        {
+                            "tool": "local.lake_env_lean",
+                            "status": "local_lean_failed",
+                        }
+                    ],
+                    "lean_lsp_mcp_live_called": False,
+                    "target_behavior": "repair compact proof-state failure",
+                    "acceptance_gate": "rerun compact candidate through local Lean",
+                    "proof_evidence_status": (
+                        "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": (
+                        "Compact proof-state feedback is not proof evidence."
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "formalizer_lean_candidate_component_gate_feedback"
+                    ),
+                    "question_id": question.id,
+                    "component_eval": (
+                        "Compact Formalizer/ProofEngineer component gate"
+                    ),
+                    "component_eval_manifest_path": (
+                        "runs/formalizer_component_gate/compact_manifest.json"
+                    ),
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet-compact",
+                    "live_generator": True,
+                    "static_or_fixture_only": False,
+                    "capability_evidence_ok": True,
+                    "repair_sequences": 1,
+                    "local_lean_checked": 1,
+                    "local_lean_compiled": 1,
+                    "proofengineer_repair_task_observed": True,
+                    "prior_feedback_proof_state_rows": 1,
+                    "candidate_kernel_verified": True,
+                    "source_theorem_kernel_verified": False,
+                    "target_behavior": "reuse compact prover feedback loop shape",
+                    "acceptance_gate": (
+                        "current theorem reruns through its own local Lean check"
+                    ),
+                    "proof_evidence_status": (
+                        "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": (
+                        "Compact component gate is calibration, not theorem proof."
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "coding_agent_generated_code_capability_feedback"
+                    ),
+                    "question_id": question.id,
+                    "capability_id": (
+                        "formalizer_lean_candidate_proof_state_feedback_recorded"
+                    ),
+                    "next_owner_subsystem": "ProofEngineer",
+                    "target_behavior": (
+                        "record compact ProofEngineer proof-state feedback"
+                    ),
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --capability-eval "
+                        "--formalizer-candidate-proof-state-feedback"
+                    ),
+                    "success_metric": (
+                        "n_formalizer_lean_candidate_proof_state_feedback_rows>0"
+                    ),
+                    "blocker": "compact row saw no proof-state feedback",
+                    "evidence": (
+                        "n_formalizer_lean_candidate_proof_state_feedback_rows=0"
+                    ),
+                    "proof_evidence_status": (
+                        "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "boundary": (
+                        "Compact Formalizer capability feedback is prompt memory."
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
+                        "formalizer_runtime_capability_contract_feedback"
+                    ),
+                    "question_id": question.id,
+                    "source_failure_id": (
+                        "formalizer_runtime_capability_contract_failure:compact"
+                    ),
+                    "source_materialization_manifest_id": (
+                        "formalizer_materialization:compact"
+                    ),
+                    "next_owner_subsystem": "ArchitectCoordinator",
+                    "failure_classification": (
+                        "formalizer_capability_contract_missing_local_lean_configuration"
+                    ),
+                    "missing_contracts": [
+                        {
+                            "flag": (
+                                "capability_eval_requires_formalizer_local_lean_check"
+                            ),
+                            "required_configuration": [
+                                "--formalizer-candidate-local-lean"
+                            ],
+                            "required_behavior": [
+                                "emit a compact Lean candidate for local checking"
+                            ],
+                        }
+                    ],
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_formalizer_lean_candidate": True,
+                        "capability_eval_requires_formalizer_local_lean_check": True,
+                    },
+                    "formalizer_candidate_local_lean": False,
+                    "n_candidate_sources": 1,
+                    "n_local_lean_checked": 0,
+                    "target_behavior": (
+                        "rerun compact Formalizer path with local Lean enabled"
+                    ),
+                    "acceptance_gate": (
+                        "compact local Lean diagnostics are recorded"
+                    ),
+                    "proof_evidence_status": (
+                        "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": (
+                        "Compact runtime contract feedback is not proof."
+                    ),
+                },
+            },
+        ],
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_lean_candidate_repair_required"] is True
+    repair_memory = summary["formalizer_lean_candidate_repair_memory"]
+    assert repair_memory[0]["candidate_id"] == "compact_kernel_candidate"
+    assert repair_memory[0]["target_ids"] == ["compact_source_theorem"]
+    assert repair_memory[0]["local_lean_compiled"] is False
+    assert "compactMissingLemma" in repair_memory[0]["local_lean_stderr_excerpt"]
+    assert (
+        summary["formalizer_lean_candidate_proof_state_feedback_available"]
+        is True
+    )
+    proof_state_memory = summary[
+        "formalizer_lean_candidate_proof_state_feedback_memory"
+    ]
+    assert proof_state_memory[0]["source_materialization_manifest_id"] == (
+        "formalizer_materialization:compact"
+    )
+    assert proof_state_memory[0]["requested_tools"] == [
+        "lean_goal",
+        "lean_state_search",
+    ]
+    assert (
+        summary["formalizer_lean_candidate_component_gate_feedback_available"]
+        is True
+    )
+    component_memory = summary[
+        "formalizer_lean_candidate_component_gate_feedback_memory"
+    ]
+    assert component_memory[0]["component_eval"] == (
+        "Compact Formalizer/ProofEngineer component gate"
+    )
+    assert component_memory[0]["capability_evidence_ok"] is True
+    assert (
+        summary["formalizer_lean_candidate_capability_feedback_available"]
+        is True
+    )
+    capability_memory = summary[
+        "formalizer_lean_candidate_capability_feedback_memory"
+    ]
+    assert capability_memory[0]["capability_id"] == (
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    )
+    assert "compact ProofEngineer" in capability_memory[0]["target_behavior"]
+    assert (
+        summary["formalizer_runtime_capability_contract_feedback_available"]
+        is True
+    )
+    contract_memory = summary[
+        "formalizer_runtime_capability_contract_feedback_memory"
+    ]
+    assert contract_memory[0]["required_runtime_configuration"] == [
+        "--formalizer-candidate-local-lean"
+    ]
+    assert contract_memory[0]["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_local_lean_check"
+    ] is True
+
+    runtime_contract = runtime_module._runtime_formalizer_capability_memory_contract(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_proof_state_request"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_proof_state_feedback"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_local_lean_check"
+    ] is True
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Prior Formalizer Lean-candidate repair memory is active" in prompt
+    assert "compactMissingLemma" in prompt
+    assert "Prior Formalizer Lean-candidate proof-state feedback is active" in prompt
+    assert "lean_state_search" in prompt
+    assert "Formalizer component-gate feedback is active" in prompt
+    assert "claude-sonnet-compact" in prompt
+    assert "Integrated Formalizer/ProofEngineer capability feedback is active" in prompt
+    assert "formalizer_lean_candidate_proof_state_feedback_recorded" in prompt
+    assert "Prior Formalizer runtime capability-contract feedback is active" in prompt
+    assert "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE" in prompt
+
+
 def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     tmp_path: Path,
 ) -> None:
