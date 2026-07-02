@@ -33,6 +33,10 @@ from .research_agent_runtime import (
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary,
+    _runtime_llm_topology_enabled_agent_rows,
+    _runtime_llm_topology_live_generator_count,
+    _runtime_llm_topology_model_tier_counts_from_agent_rows,
+    _runtime_llm_topology_provider_counts_from_agent_rows,
     _runtime_manifest_int_sum,
     _runtime_research_path_execution_summary,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
@@ -3849,6 +3853,66 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
     unsupported = int(counts.get("unsupported_generator_backends_enabled", 0) or 0)
     if unsupported:
         errors.append(f"unsupported generator backends enabled: {unsupported}")
+    agent_rows_available = isinstance(topology.get("llm_agents"), list)
+    if agent_rows_available:
+        enabled_rows = _runtime_llm_topology_enabled_agent_rows(topology)
+        if "llm_agents_enabled" in counts:
+            counted_enabled = int(counts.get("llm_agents_enabled", 0) or 0)
+            if counted_enabled != len(enabled_rows):
+                errors.append(
+                    "llm_runtime_topology counts.llm_agents_enabled does not "
+                    "match enabled agent rows: "
+                    f"counts={counted_enabled} rows={len(enabled_rows)}"
+                )
+        by_provider = (
+            counts.get("enabled_by_provider", {})
+            if isinstance(counts.get("enabled_by_provider"), Mapping)
+            else {}
+        )
+        counted_provider_counts = {
+            str(provider): int(count)
+            for provider, count in dict(by_provider).items()
+        }
+        row_provider_counts = _runtime_llm_topology_provider_counts_from_agent_rows(
+            topology
+        )
+        if counted_provider_counts and counted_provider_counts != row_provider_counts:
+            errors.append(
+                "llm_runtime_topology counts.enabled_by_provider does not match "
+                "enabled agent rows: "
+                f"counts={dict(sorted(counted_provider_counts.items()))} "
+                f"rows={row_provider_counts}"
+            )
+        by_model_tier = (
+            counts.get("enabled_by_model_tier", {})
+            if isinstance(counts.get("enabled_by_model_tier"), Mapping)
+            else {}
+        )
+        counted_tier_counts = {
+            str(tier): int(count)
+            for tier, count in dict(by_model_tier).items()
+        }
+        row_tier_counts = _runtime_llm_topology_model_tier_counts_from_agent_rows(
+            topology
+        )
+        if counted_tier_counts and counted_tier_counts != row_tier_counts:
+            errors.append(
+                "llm_runtime_topology counts.enabled_by_model_tier does not match "
+                "enabled agent rows: "
+                f"counts={dict(sorted(counted_tier_counts.items()))} "
+                f"rows={row_tier_counts}"
+            )
+        counted_live = sum(
+            int(counted_provider_counts.get(provider, 0) or 0)
+            for provider in ("anthropic", "openai")
+        )
+        row_live = _runtime_llm_topology_live_generator_count(topology)
+        if counted_live != row_live:
+            errors.append(
+                "llm_runtime_topology live generator count does not match "
+                "enabled live backend agent rows: "
+                f"counts={counted_live} rows={row_live}"
+            )
     subsystem_tier_mismatches = int(
         counts.get("subsystem_model_tier_policy_mismatches", 0) or 0
     )
@@ -4066,6 +4130,8 @@ def _topology_live_generator_count(manifest: Mapping[str, Any]) -> int:
     topology = manifest.get("llm_runtime_topology", {})
     if not isinstance(topology, Mapping):
         return 0
+    if isinstance(topology.get("llm_agents"), list):
+        return _runtime_llm_topology_live_generator_count(topology)
     counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
     by_provider = counts.get("enabled_by_provider", {})
     if not isinstance(by_provider, Mapping):

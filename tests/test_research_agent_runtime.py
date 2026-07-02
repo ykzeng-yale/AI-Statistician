@@ -223,6 +223,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
     _runtime_target_identity_audit_summary,
+    _topology_live_generator_count,
     _resolve_manifest_paths,
     audit_research_agent_runtime,
 )
@@ -54129,6 +54130,79 @@ def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() 
         for error in errors
     )
     assert any("collapsed to one resolved model" in error for error in errors)
+
+
+def test_runtime_topology_summary_requires_live_backend_identity() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "llm_agents_enabled": 1,
+            "enabled_by_provider": {"anthropic": 1},
+            "enabled_by_model_tier": {"sonnet": 1},
+            "unsupported_generator_backends_enabled": 0,
+        },
+        "llm_agents": [
+            {
+                "subsystem": "TheoryDeveloper",
+                "enabled": True,
+                "provider_name": "anthropic",
+                "backend_provider_name": "static",
+                "model_tier": "sonnet",
+                "generator_only": True,
+                "acts_in_environment": False,
+            }
+        ],
+    }
+
+    summary = runtime_module._runtime_llm_topology_summary(topology)
+
+    assert summary["enabled_provider_counts"] == {"anthropic": 1}
+    assert summary["n_live_generator_agents_enabled"] == 0
+    assert summary["live_generator_subsystems"] == []
+
+
+def test_runtime_topology_audit_rejects_live_count_without_live_backend_identity() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "llm_agents_enabled": 1,
+            "enabled_by_provider": {"anthropic": 1},
+            "enabled_by_model_tier": {"sonnet": 1},
+            "unsupported_generator_backends_enabled": 0,
+            "subsystem_model_tier_policy_mismatches": 0,
+        },
+        "policy": {
+            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "resolved_claude_models_by_tier": {
+                "haiku": "claude-haiku-4-5-20251001",
+                "sonnet": "claude-sonnet-4-6",
+                "opus": "claude-opus-4-8",
+            },
+            "resolved_claude_model_tier_policy_status": "OK",
+            "resolved_claude_model_tier_policy_violations": [],
+        },
+        "llm_agents": [
+            {
+                "subsystem": "TheoryDeveloper",
+                "enabled": True,
+                "provider_name": "anthropic",
+                "backend_provider_name": "static",
+                "model_tier": "sonnet",
+                "expected_model_tier": "sonnet",
+                "generator_only": True,
+                "acts_in_environment": False,
+            }
+        ],
+    }
+
+    errors = _audit_topology({"llm_runtime_topology": topology})
+
+    assert _topology_live_generator_count({"llm_runtime_topology": topology}) == 0
+    assert any(
+        "live generator count does not match enabled live backend agent rows"
+        in error
+        for error in errors
+    )
 
 
 def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:

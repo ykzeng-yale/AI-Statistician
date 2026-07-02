@@ -201,6 +201,7 @@ from .verifier import ProofVerifier
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
+RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS = {"anthropic", "openai"}
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -30049,6 +30050,70 @@ def _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candi
     )
 
 
+def _runtime_llm_topology_enabled_agent_rows(
+    topology: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    agents = topology.get("llm_agents", [])
+    if not isinstance(agents, list):
+        return []
+    return [
+        row
+        for row in agents
+        if isinstance(row, Mapping) and bool(row.get("enabled", False))
+    ]
+
+
+def _runtime_llm_topology_provider_counts_from_agent_rows(
+    topology: Mapping[str, Any],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in _runtime_llm_topology_enabled_agent_rows(topology):
+        provider = str(row.get("provider_name", "") or "").strip().lower()
+        if provider:
+            counts[provider] = counts.get(provider, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _runtime_llm_topology_model_tier_counts_from_agent_rows(
+    topology: Mapping[str, Any],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in _runtime_llm_topology_enabled_agent_rows(topology):
+        tier = str(row.get("model_tier", "") or "").strip().lower()
+        if tier:
+            counts[tier] = counts.get(tier, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _runtime_llm_topology_row_is_live_generator(row: Mapping[str, Any]) -> bool:
+    if not bool(row.get("enabled", False)):
+        return False
+    provider = str(row.get("provider_name", "") or "").strip().lower()
+    backend_provider = str(
+        row.get("backend_provider_name", "") or provider
+    ).strip().lower()
+    return (
+        provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+        and backend_provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+    )
+
+
+def _runtime_llm_topology_live_generator_rows(
+    topology: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    return [
+        row
+        for row in _runtime_llm_topology_enabled_agent_rows(topology)
+        if _runtime_llm_topology_row_is_live_generator(row)
+    ]
+
+
+def _runtime_llm_topology_live_generator_count(
+    topology: Mapping[str, Any],
+) -> int:
+    return len(_runtime_llm_topology_live_generator_rows(topology))
+
+
 def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]:
     """Compact manifest-level LLM provenance summary.
 
@@ -30059,20 +30124,42 @@ def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]
     counts = topology.get("counts", {})
     if not isinstance(counts, Mapping):
         counts = {}
-    enabled_provider_counts = {
+    counts_provider_counts = {
         str(provider): int(count)
         for provider, count in dict(counts.get("enabled_by_provider", {}) or {}).items()
     }
-    enabled_model_tier_counts = {
+    counts_model_tier_counts = {
         str(tier): int(count)
         for tier, count in dict(counts.get("enabled_by_model_tier", {}) or {}).items()
     }
-    n_enabled = int(counts.get("llm_agents_enabled", 0) or 0)
+    agent_rows_available = isinstance(topology.get("llm_agents"), list)
+    row_provider_counts = _runtime_llm_topology_provider_counts_from_agent_rows(
+        topology
+    )
+    row_model_tier_counts = _runtime_llm_topology_model_tier_counts_from_agent_rows(
+        topology
+    )
+    enabled_provider_counts = (
+        row_provider_counts if agent_rows_available else counts_provider_counts
+    )
+    enabled_model_tier_counts = (
+        row_model_tier_counts if agent_rows_available else counts_model_tier_counts
+    )
+    n_enabled = (
+        len(_runtime_llm_topology_enabled_agent_rows(topology))
+        if agent_rows_available
+        else int(counts.get("llm_agents_enabled", 0) or 0)
+    )
     n_static = int(enabled_provider_counts.get("static", 0) or 0)
-    n_live = sum(
-        count
-        for provider, count in enabled_provider_counts.items()
-        if provider in {"anthropic", "openai"}
+    live_rows = _runtime_llm_topology_live_generator_rows(topology)
+    n_live = (
+        len(live_rows)
+        if agent_rows_available
+        else sum(
+            count
+            for provider, count in enabled_provider_counts.items()
+            if provider in RUNTIME_LIVE_GENERATOR_BACKEND_PROVIDERS
+        )
     )
     return {
         "artifact_kind": "RuntimeLLMTopologySummary",
@@ -30083,6 +30170,11 @@ def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]
         "enabled_model_tier_counts": dict(sorted(enabled_model_tier_counts.items())),
         "n_llm_agents_enabled": n_enabled,
         "n_live_generator_agents_enabled": n_live,
+        "live_generator_subsystems": sorted(
+            str(row.get("subsystem", "") or "")
+            for row in live_rows
+            if str(row.get("subsystem", "") or "").strip()
+        ),
         "n_static_generator_agents_enabled": n_static,
         "all_enabled_llm_agents_static": bool(n_enabled > 0 and n_enabled == n_static),
         "unsupported_generator_backends_enabled": int(
