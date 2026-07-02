@@ -239,6 +239,21 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY = (
     "not theorem proof evidence unless a separate target-prover kernel verifier "
     "accepts the intended theorem or bridge lemma."
 )
+RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS = (
+    "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER = (
+    "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS = (
+    "PENDING_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY = (
+    "Runtime live route-planner contract-repair rows are orchestration feedback "
+    "for rerunning a failed LLM route-planning response with a compact staged "
+    "schema-validation gate. They are not theorem proof evidence and cannot "
+    "close a formal gap without later target-prover replay and kernel evidence."
+)
 FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
 FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT = 12
@@ -17779,6 +17794,18 @@ def run_research_agent_runtime(
     gap_planner_live_route_planner_summary = (
         _runtime_formalization_gap_planner_live_route_planner_summary(results)
     )
+    gap_planner_live_route_planner_contract_next_action_rows = (
+        _append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows(
+            agenda_rows,
+            learning_rows,
+        )
+    )
+    if gap_planner_live_route_planner_contract_next_action_rows:
+        learning_rows.extend(
+            _runtime_generated_next_action_learning_rows(
+                gap_planner_live_route_planner_contract_next_action_rows
+            )
+        )
     gap_planner_target_prover_replay_next_action_rows = (
         _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
             agenda_rows,
@@ -29851,6 +29878,7 @@ _FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
     {
         "FORMAL_GAP",
         "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+        RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER,
         RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
     }
 )
@@ -48150,8 +48178,10 @@ def _runtime_next_action_agenda_specificity_rank(row: Mapping[str, Any]) -> int:
         return 4
     if "source_theorem_semantic_primitives" in combined:
         return 5
-    if "target_prover_replay_route_revision" in combined:
+    if "live_route_planner_contract_repair" in combined:
         return 6
+    if "target_prover_replay_route_revision" in combined:
+        return 7
     if row_id == "simulation:theory_revision":
         return 10
     if row_id == "proof_feedback:kernel_rerun":
@@ -49047,6 +49077,25 @@ def _runtime_generated_next_action_learning_rows(
             "route_revision_proposals_path": str(
                 row.get("route_revision_proposals_path", "") or ""
             ),
+            "route_planner_contract_feedback_id": str(
+                row.get("route_planner_contract_feedback_id", "") or ""
+            ),
+            "failure_classification": str(
+                row.get("failure_classification", "") or ""
+            ),
+            "contract_counts": (
+                dict(row.get("contract_counts", {}))
+                if isinstance(row.get("contract_counts", {}), Mapping)
+                else {}
+            ),
+            "provider_token_counts": (
+                dict(row.get("provider_token_counts", {}))
+                if isinstance(row.get("provider_token_counts", {}), Mapping)
+                else {}
+            ),
+            "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
+            "source_manifest_path": str(row.get("source_manifest_path", "") or ""),
+            "source_rows_path": str(row.get("source_rows_path", "") or ""),
         }
         route_revision_metadata = {
             key: value
@@ -49268,6 +49317,315 @@ def _formalization_gap_planner_target_prover_replay_route_revision_proposals(
         ][:12]
     except Exception:
         return []
+
+
+def _formalization_gap_planner_live_route_planner_row_target_ids(
+    live_row: Mapping[str, Any],
+) -> list[str]:
+    target_ids = list(
+        _runtime_row_string_values(
+            live_row,
+            "target_ids",
+            "target_id",
+            "target_primitives",
+            "route_id",
+            "goal_plan_id",
+            "omitted_route_ids_by_max_route_requests",
+        )
+    )
+    for nested_key in (
+        "staged_followup_rows",
+        "staged_followup_stage_attempt_rows",
+        "staged_followup_assembly_rows",
+        "staged_followup_target_prover_replay_rows",
+        "staged_followup_assembled_seed_rows",
+    ):
+        for nested in live_row.get(nested_key, []) or []:
+            if not isinstance(nested, Mapping):
+                continue
+            target_ids.extend(
+                _runtime_row_string_values(
+                    nested,
+                    "target_ids",
+                    "target_id",
+                    "target_primitives",
+                    "route_id",
+                    "source_route_id",
+                    "target_route_id",
+                    "request_route_id",
+                    "selected_route_id",
+                    "goal_plan_id",
+                )
+            )
+    return list(dict.fromkeys(value for value in target_ids if str(value).strip()))
+
+
+def _formalization_gap_planner_live_route_planner_contract_failure_classification(
+    artifact: Mapping[str, Any],
+    live_row: Mapping[str, Any],
+) -> str:
+    max_tokens = _runtime_manifest_int(artifact, "max_tokens")
+    provider_output_tokens = _runtime_manifest_int(
+        live_row,
+        "total_provider_output_tokens",
+    )
+    if (
+        _runtime_manifest_int(live_row, "n_staged_followups_due_to_max_tokens") > 0
+        or (max_tokens > 0 and provider_output_tokens >= max_tokens)
+    ):
+        return (
+            "formalization_gap_planner_live_route_planner_response_truncated_or_invalid"
+        )
+    if (
+        _runtime_manifest_int(
+            live_row,
+            "n_staged_followup_stage_calls_blocked_by_budget",
+        )
+        > 0
+        or _runtime_manifest_int(live_row, "n_staged_followup_assembly_incomplete")
+        > 0
+    ):
+        return (
+            "formalization_gap_planner_live_route_planner_staged_followup_incomplete"
+        )
+    return "formalization_gap_planner_live_route_planner_response_contract_failed"
+
+
+def _formalization_gap_planner_live_route_planner_contract_feedback_learning_rows(
+    artifact: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    question = (
+        artifact.get("question", {})
+        if isinstance(artifact.get("question", {}), Mapping)
+        else {}
+    )
+    manifest_id = str(artifact.get("manifest_id", "") or "")
+    manifest_path = str(artifact.get("manifest_path", "") or "")
+    rows_path = str(artifact.get("rows_path", "") or "")
+    max_tokens = _runtime_manifest_int(artifact, "max_tokens")
+    max_route_requests_per_handoff = _runtime_manifest_int(
+        artifact,
+        "max_route_requests_per_handoff",
+    )
+    for live_row in artifact.get("rows", []) or []:
+        if not isinstance(live_row, Mapping):
+            continue
+        response_present = _runtime_manifest_int(live_row, "n_response_present")
+        response_contract_ok = _runtime_manifest_int(
+            live_row,
+            "n_response_contract_ok",
+        )
+        staged_assembled_contract_ok = _runtime_manifest_int(
+            live_row,
+            "n_staged_followup_assembled_response_contract_ok",
+        )
+        route_adoption_ready = _runtime_manifest_int(
+            live_row,
+            "n_route_adoption_ready",
+        )
+        awaiting_llm_response = _runtime_manifest_int(
+            live_row,
+            "n_awaiting_llm_response",
+        )
+        provider_failures = _runtime_manifest_int(live_row, "n_provider_failures")
+        unrepaired_contract_failure = (
+            response_present > response_contract_ok
+            and staged_assembled_contract_ok <= 0
+            and route_adoption_ready <= 0
+            and awaiting_llm_response <= 0
+            and provider_failures <= 0
+        )
+        if not unrepaired_contract_failure:
+            continue
+        target_ids = _formalization_gap_planner_live_route_planner_row_target_ids(
+            live_row
+        )
+        bridge_id = str(live_row.get("bridge_id", "") or "")
+        handoff_id = str(live_row.get("handoff_id", "") or "")
+        standalone_seed_path = str(live_row.get("standalone_seed_path", "") or "")
+        failure_classification = (
+            _formalization_gap_planner_live_route_planner_contract_failure_classification(
+                artifact,
+                live_row,
+            )
+        )
+        provider_token_counts = {
+            "provider_input_tokens": _runtime_manifest_int(
+                live_row,
+                "total_provider_input_tokens",
+            ),
+            "provider_output_tokens": _runtime_manifest_int(
+                live_row,
+                "total_provider_output_tokens",
+            ),
+            "provider_total_tokens": _runtime_manifest_int(
+                live_row,
+                "total_provider_total_tokens",
+            ),
+            "provider_total_tokens_including_staged_followups": _runtime_manifest_int(
+                live_row,
+                "total_provider_total_tokens_including_staged_followups",
+            ),
+        }
+        contract_counts = {
+            "request_packets": _runtime_manifest_int(
+                live_row,
+                "n_request_packets",
+            ),
+            "response_present": response_present,
+            "response_contract_ok": response_contract_ok,
+            "provider_failures": provider_failures,
+            "awaiting_llm_response": awaiting_llm_response,
+            "staged_followups_required": _runtime_manifest_int(
+                live_row,
+                "n_staged_followups_required",
+            ),
+            "staged_followups_due_to_max_tokens": _runtime_manifest_int(
+                live_row,
+                "n_staged_followups_due_to_max_tokens",
+            ),
+            "staged_followup_stage_attempt_rows": _runtime_manifest_int(
+                live_row,
+                "n_staged_followup_stage_attempt_rows",
+            ),
+            "staged_followup_stage_response_contract_ok": _runtime_manifest_int(
+                live_row,
+                "n_staged_followup_stage_response_contract_ok",
+            ),
+            "staged_followup_stage_calls_blocked_by_budget": _runtime_manifest_int(
+                live_row,
+                "n_staged_followup_stage_calls_blocked_by_budget",
+            ),
+            "staged_followup_assembled_response_contract_ok": (
+                staged_assembled_contract_ok
+            ),
+            "staged_followup_assembly_incomplete": _runtime_manifest_int(
+                live_row,
+                "n_staged_followup_assembly_incomplete",
+            ),
+            "route_adoption_ready": route_adoption_ready,
+            "route_adoption_pending_refinement": _runtime_manifest_int(
+                live_row,
+                "n_route_adoption_pending_refinement",
+            ),
+            "route_adoption_awaiting_llm_response": _runtime_manifest_int(
+                live_row,
+                "n_route_adoption_awaiting_llm_response",
+            ),
+        }
+        feedback_id = (
+            "formalization_gap_planner_live_route_planner_contract_feedback:"
+            + stable_hash(
+                [
+                    manifest_id,
+                    handoff_id,
+                    bridge_id,
+                    target_ids,
+                    failure_classification,
+                    contract_counts,
+                ]
+            )[:16]
+        )
+        row_input_summary = {
+            "trigger": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
+            ),
+            "source_manifest_id": manifest_id,
+            "source_manifest_path": manifest_path,
+            "source_rows_path": rows_path,
+            "formalization_gap_planner_bridge_id": bridge_id,
+            "formalization_gap_planner_handoff_id": handoff_id,
+            "standalone_seed_path": standalone_seed_path,
+            "failure_classification": failure_classification,
+            "contract_counts": contract_counts,
+            "provider_token_counts": provider_token_counts,
+            "max_tokens": max_tokens,
+            "max_route_requests_per_handoff": max_route_requests_per_handoff,
+            "route_request_cap_applied": bool(
+                live_row.get("route_request_cap_applied", False)
+            ),
+            "n_input_routes": _runtime_manifest_int(live_row, "n_input_routes"),
+            "n_routes_omitted_by_max_route_requests": _runtime_manifest_int(
+                live_row,
+                "n_routes_omitted_by_max_route_requests",
+            ),
+            "omitted_route_ids_by_max_route_requests": list(
+                _runtime_row_string_values(
+                    live_row,
+                    "omitted_route_ids_by_max_route_requests",
+                )
+            ),
+            "target_ids": target_ids,
+            "errors": [
+                str(error)
+                for error in live_row.get("errors", []) or []
+                if str(error).strip()
+            ][:12],
+            "runtime_queue_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
+            ),
+        }
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeLearningRow",
+                "runtime_learning_row_id": "runtime_" + feedback_id,
+                "route_planner_contract_feedback_id": feedback_id,
+                "question_id": str(question.get("id", "") or ""),
+                "question_title": str(question.get("title", "") or ""),
+                "source_manifest_id": manifest_id,
+                "source_manifest_path": manifest_path,
+                "source_rows_path": rows_path,
+                "learning_task": (
+                    "formalization_gap_planner_live_route_planner_contract_feedback"
+                ),
+                "next_owner_subsystem": (
+                    "FormalizationGapPlanner/ArchitectCoordinator"
+                ),
+                "formalization_gap_planner_bridge_id": bridge_id,
+                "formalization_gap_planner_handoff_id": handoff_id,
+                "standalone_seed_path": standalone_seed_path,
+                "failure_classification": failure_classification,
+                "runtime_queue_status": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
+                ),
+                "target_ids": target_ids,
+                "contract_counts": contract_counts,
+                "provider_token_counts": provider_token_counts,
+                "input_summary": row_input_summary,
+                "target_behavior": (
+                    "Rerun the live route planner for this handoff as a compact "
+                    "contract-repair task: preserve the standalone seed, target "
+                    "intake, component registry, prior validation errors, and "
+                    "token counts; request one route-focused schema-valid packet "
+                    "before any target-prover replay or proof promotion."
+                ),
+                "acceptance_gate": (
+                    "A later RuntimeFormalizationGapPlannerLiveRoutePlannerManifest "
+                    "for the same handoff records provider_failures=0, "
+                    "awaiting_llm_response=0, and either response_contract_ok "
+                    "covering a schema-valid request packet or a staged assembled "
+                    "schema-valid response with contract_ok=true; target-prover "
+                    "replay must still record separate proof-state/refinement "
+                    "evidence before any formal claim is treated as proved."
+                ),
+                "proof_evidence_status": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+                ),
+                "proof_evidence_boundary": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+                ),
+                "proof_boundary": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+                ),
+                "boundary": (
+                    "This learning row is a live route-planner contract-repair "
+                    "memory item. It is not theorem proof evidence."
+                ),
+            }
+        )
+    return rows
 
 
 def _formalization_gap_planner_target_prover_replay_learning_rows(
@@ -49748,6 +50106,150 @@ def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
     return appended
 
 
+def _append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows(
+    agenda_rows: list[dict[str, Any]],
+    learning_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    existing_by_id = {
+        str(row.get("id", "") or ""): row
+        for row in agenda_rows
+        if isinstance(row, Mapping) and str(row.get("id", "") or "")
+    }
+    appended: list[dict[str, Any]] = []
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("learning_task", "") or "")
+            != "formalization_gap_planner_live_route_planner_contract_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        feedback_id = str(
+            row.get("route_planner_contract_feedback_id", "")
+            or input_summary.get("route_planner_contract_feedback_id", "")
+            or row.get("runtime_learning_row_id", "")
+            or ""
+        ).strip()
+        if not feedback_id:
+            continue
+        agenda_id = (
+            "formal_gap:live_route_planner_contract_repair:"
+            + stable_hash(feedback_id)[:12]
+        )
+        target_ids = list(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "target_ids",
+                "target_id",
+                "target_primitives",
+                "omitted_route_ids_by_max_route_requests",
+            )
+        )
+        failure_classification = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or "formalization_gap_planner_live_route_planner_response_contract_failed"
+        )
+        agenda_item = {
+            "id": agenda_id,
+            "question_id": str(
+                row.get("question_id", "")
+                or input_summary.get("question_id", "")
+                or ""
+            ),
+            "owner_subsystem": "FormalizationGapPlanner/ArchitectCoordinator",
+            "trigger": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER
+            ),
+            "action": (
+                "rerun the live formalization-gap route planner as a compact "
+                "contract-repair request before target-prover replay: "
+                f"{failure_classification}"
+            ),
+            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "target_ids": target_ids,
+            "formalization_gap_planner_bridge_id": str(
+                row.get("formalization_gap_planner_bridge_id", "")
+                or input_summary.get("formalization_gap_planner_bridge_id", "")
+                or ""
+            ),
+            "formalization_gap_planner_handoff_id": str(
+                row.get("formalization_gap_planner_handoff_id", "")
+                or input_summary.get("formalization_gap_planner_handoff_id", "")
+                or ""
+            ),
+            "standalone_seed_path": str(
+                row.get("standalone_seed_path", "")
+                or input_summary.get("standalone_seed_path", "")
+                or ""
+            ),
+            "source_manifest_id": str(
+                row.get("source_manifest_id", "")
+                or input_summary.get("source_manifest_id", "")
+                or ""
+            ),
+            "source_manifest_path": str(
+                row.get("source_manifest_path", "")
+                or input_summary.get("source_manifest_path", "")
+                or ""
+            ),
+            "source_rows_path": str(
+                row.get("source_rows_path", "")
+                or input_summary.get("source_rows_path", "")
+                or ""
+            ),
+            "route_planner_contract_feedback_id": feedback_id,
+            "failure_classification": failure_classification,
+            "contract_counts": (
+                dict(row.get("contract_counts", {}))
+                if isinstance(row.get("contract_counts", {}), Mapping)
+                else dict(input_summary.get("contract_counts", {}))
+                if isinstance(input_summary.get("contract_counts", {}), Mapping)
+                else {}
+            ),
+            "provider_token_counts": (
+                dict(row.get("provider_token_counts", {}))
+                if isinstance(row.get("provider_token_counts", {}), Mapping)
+                else dict(input_summary.get("provider_token_counts", {}))
+                if isinstance(input_summary.get("provider_token_counts", {}), Mapping)
+                else {}
+            ),
+            "runtime_queue_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS
+            ),
+            "recommended_next_action": str(row.get("target_behavior", "") or ""),
+            "priority": "high",
+            "proof_evidence_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+            ),
+            "proof_boundary": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+            ),
+            "boundary": (
+                "This agenda row routes live LLM route-planner contract feedback "
+                "back into compact planning. It is not theorem proof evidence."
+            ),
+        }
+        existing_row = existing_by_id.get(agenda_id)
+        if existing_row is not None:
+            before = dict(existing_row)
+            _merge_runtime_next_action_agenda_row(existing_row, agenda_item)
+            _strengthen_runtime_next_action_agenda_row(existing_row, agenda_item)
+            if existing_row != before:
+                appended.append(dict(existing_row))
+            continue
+        agenda_rows.append(agenda_item)
+        existing_by_id[agenda_id] = agenda_item
+        appended.append(agenda_item)
+    return appended
+
+
 def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
     learning_task = str(normalized.get("learning_task", "") or "")
@@ -49886,6 +50388,12 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
             }:
                 continue
             if artifact_kind == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest":
+                rows.extend(
+                    _runtime_learning_row_with_surface_targets(item)
+                    for item in _formalization_gap_planner_live_route_planner_contract_feedback_learning_rows(
+                        artifact
+                    )
+                )
                 rows.extend(
                     _runtime_learning_row_with_surface_targets(item)
                     for item in _formalization_gap_planner_target_prover_replay_learning_rows(

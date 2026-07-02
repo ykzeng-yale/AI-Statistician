@@ -1949,6 +1949,12 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         if row.get("learning_task")
         == "formalization_gap_planner_target_prover_replay_feedback"
     ]
+    assert not [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+    ]
     assert replay_learning_rows
     replay_learning_row = replay_learning_rows[0]
     assert replay_learning_row["route_revision_proposal_id"] == proposal["proposal_id"]
@@ -2025,6 +2031,118 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         row.evidence_type == "formalization_gap_planner_runtime_execution"
         and row.status == "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
         for row in result.evidence_entries
+    )
+
+
+def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda() -> None:
+    live_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+        "manifest_id": "runtime_formalization_gap_planner_live_route_planner_manifest:test",
+        "manifest_path": "runs/current/live_route_planner_manifest.json",
+        "rows_path": "runs/current/live_route_planner_rows.jsonl",
+        "question": {"id": "q-route", "title": "Route planner contract failure"},
+        "provider_name": "anthropic",
+        "model": "claude-opus",
+        "model_tier": "auto",
+        "max_tokens": 9000,
+        "max_route_requests_per_handoff": 1,
+        "rows": [
+            {
+                "handoff_id": "handoff:gap-live",
+                "bridge_id": "bridge:gap-live",
+                "standalone_seed_path": "runs/current/seed.json",
+                "manifest_path": "runs/current/handoff/live_manifest.json",
+                "n_input_routes": 3,
+                "max_route_requests": 1,
+                "route_request_cap_applied": True,
+                "n_routes_omitted_by_max_route_requests": 2,
+                "omitted_route_ids_by_max_route_requests": ["route:b", "route:c"],
+                "n_request_packets": 1,
+                "n_response_present": 1,
+                "n_response_contract_ok": 0,
+                "n_provider_failures": 0,
+                "n_awaiting_llm_response": 0,
+                "n_staged_followups_required": 1,
+                "n_staged_followups_due_to_max_tokens": 1,
+                "n_staged_followup_stage_attempt_rows": 1,
+                "n_staged_followup_stage_response_contract_ok": 0,
+                "n_staged_followup_stage_calls_blocked_by_budget": 2,
+                "n_staged_followup_assembled_response_contract_ok": 0,
+                "n_staged_followup_assembly_incomplete": 1,
+                "n_route_adoption_ready": 0,
+                "n_route_adoption_pending_refinement": 0,
+                "n_route_adoption_awaiting_llm_response": 0,
+                "staged_followup_rows": [
+                    {
+                        "staged_followup_id": "followup:route-a",
+                        "route_id": "route:a",
+                        "followup_reason": "max_tokens",
+                    }
+                ],
+                "total_provider_input_tokens": 209727,
+                "total_provider_output_tokens": 9000,
+                "total_provider_total_tokens": 218727,
+                "total_provider_total_tokens_including_staged_followups": 218727,
+                "errors": ["json extraction failed after provider max_tokens"],
+            }
+        ],
+    }
+
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {"live": live_manifest}}}]
+    )
+    repair_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalization_gap_planner_live_route_planner_contract_feedback"
+    ]
+
+    assert len(repair_rows) == 1
+    repair_row = repair_rows[0]
+    assert repair_row["failure_classification"] == (
+        "formalization_gap_planner_live_route_planner_response_truncated_or_invalid"
+    )
+    assert repair_row["next_owner_subsystem"] == (
+        "FormalizationGapPlanner/ArchitectCoordinator"
+    )
+    assert repair_row["runtime_queue_status"] == (
+        "PENDING_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+    )
+    assert repair_row["provider_token_counts"]["provider_output_tokens"] == 9000
+    assert repair_row["contract_counts"]["response_contract_ok"] == 0
+    assert repair_row["contract_counts"]["staged_followup_assembly_incomplete"] == 1
+    assert "route:a" in repair_row["target_ids"]
+    assert "route:b" in repair_row["target_ids"]
+    assert repair_row["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+    agenda_rows: list[dict[str, object]] = []
+    append_contract_repair_agenda_rows = (
+        runtime_module._append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows
+    )
+    appended = append_contract_repair_agenda_rows(agenda_rows, repair_rows)
+    assert len(appended) == 1
+    agenda_row = appended[0]
+    assert agenda_row["trigger"] == (
+        "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+    )
+    assert agenda_row["owner_subsystem"] == (
+        "FormalizationGapPlanner/ArchitectCoordinator"
+    )
+    assert agenda_row["runtime_queue_status"] == (
+        "PENDING_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
+    )
+    assert "route:a" in agenda_row["target_ids"]
+    assert "schema-valid" in agenda_row["acceptance_gate"]
+
+    generated_rows = _runtime_generated_next_action_learning_rows(appended)
+    generated_row = generated_rows[0]
+    assert generated_row["learning_task"] == "generated_next_action_routing"
+    assert generated_row["input_summary"]["route_planner_contract_feedback_id"] == (
+        repair_row["route_planner_contract_feedback_id"]
     )
 
 
