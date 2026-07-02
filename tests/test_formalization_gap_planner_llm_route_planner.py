@@ -7557,6 +7557,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert llm_route_planner_manifest_json_schema()["$id"] == (
         LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     )
+    assert "backend_provider_name" in manifest_schema["required"]
+    assert "live_generator_backend" in manifest_schema["required"]
     assert "legacy_context_field_aliases" in manifest_schema["required"]
     assert "n_requests_with_legacy_context_field_aliases" in manifest_schema["required"]
     assert "n_requests_with_route_planning_brief" in manifest_schema["required"]
@@ -12447,6 +12449,8 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
 
     assert payload["all_ok"]
     assert payload["provider_name"] == "anthropic"
+    assert payload["backend_provider_name"] == "anthropic"
+    assert payload["live_generator_backend"] is True
     assert payload["model_tier_selection_mode"] == "auto"
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_requests_with_model_tier_decision_evidence"] == 1
@@ -12579,6 +12583,58 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         out_dir
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     ).exists()
+
+
+def test_llm_route_planner_live_backend_provenance_rejects_static_mislabel() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_static_backend_mislabel"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    class FakeStaticBackend:
+        provider_name = "static"
+
+        def generate(self, request):
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="static",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_usage": {
+                        "input_tokens": 11,
+                        "output_tokens": 7,
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FakeStaticBackend(),
+    )
+
+    assert payload["provider_name"] == "anthropic"
+    assert payload["backend_provider_name"] == "static"
+    assert payload["live_generator_backend"] is False
+    assert validate_llm_route_planner_manifest(payload) == []
+    row = payload["rows"][0]
+    assert row["provider_name"] == "static"
+    assert row["response_present"] is True
+    assert row["generator_metadata"]["provider_usage"]["input_tokens"] == 11
+    drifted_payload = dict(payload)
+    drifted_payload["live_generator_backend"] = True
+    assert (
+        "live_generator_backend must require invoke_provider and live "
+        "configured/backend provider identity"
+    ) in validate_llm_route_planner_manifest(drifted_payload)
 
 
 def test_llm_route_planner_records_provider_failure_as_rejected_row() -> None:

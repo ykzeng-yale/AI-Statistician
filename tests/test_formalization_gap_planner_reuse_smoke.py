@@ -6,6 +6,8 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_reuse_smoke import (
     FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT,
+    _llm_live_provider_call_count,
+    _llm_provider_execution_mode,
     run_formalization_gap_planner_reuse_smoke,
 )
 from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
@@ -438,6 +440,82 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
         },
         "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def test_reuse_smoke_live_provider_call_count_requires_backend_identity() -> None:
+    payload = {
+        "n_request_packets": 3,
+        "n_generation_preflight_blocked": 1,
+    }
+
+    assert (
+        _llm_provider_execution_mode(
+            "anthropic",
+            backend_provider_name="anthropic",
+            invoke_provider=True,
+        )
+        == "live_provider_invoked"
+    )
+    assert (
+        _llm_live_provider_call_count(
+            payload,
+            provider_name="anthropic",
+            backend_provider_name="anthropic",
+            invoke_provider=True,
+        )
+        == 2
+    )
+    assert (
+        _llm_provider_execution_mode(
+            "anthropic",
+            backend_provider_name="",
+            invoke_provider=True,
+        )
+        == "configured_live_provider_non_live_backend"
+    )
+    assert (
+        _llm_live_provider_call_count(
+            payload,
+            provider_name="anthropic",
+            backend_provider_name="",
+            invoke_provider=True,
+        )
+        == 0
+    )
+    assert (
+        _llm_provider_execution_mode(
+            "anthropic",
+            backend_provider_name="static",
+            invoke_provider=True,
+        )
+        == "configured_live_provider_non_live_backend"
+    )
+    assert (
+        _llm_live_provider_call_count(
+            payload,
+            provider_name="anthropic",
+            backend_provider_name="static",
+            invoke_provider=True,
+        )
+        == 0
+    )
+    assert (
+        _llm_provider_execution_mode(
+            "anthropic",
+            backend_provider_name="",
+            invoke_provider=False,
+        )
+        == "staged_live_provider_prompt_no_api_call"
+    )
+    assert (
+        _llm_live_provider_call_count(
+            payload,
+            provider_name="anthropic",
+            backend_provider_name="anthropic",
+            invoke_provider=False,
+        )
+        == 0
+    )
 
 
 def test_reuse_smoke_runs_public_publication_path() -> None:

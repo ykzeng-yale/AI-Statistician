@@ -99,6 +99,11 @@ from .formalization_gap_planner_refinement_evidence import (
 from .formalization_gap_planner_refinement_queue import (
     export_formalization_gap_planner_refinement_queue,
 )
+from .model_backend import (
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    is_live_generator_backend,
+    normalize_generator_provider_name,
+)
 from .formalization_gap_planner_route_revision_overlay import (
     export_formalization_gap_planner_route_revision_overlay,
 )
@@ -1053,6 +1058,9 @@ def run_formalization_gap_planner_reuse_smoke(
             component_resource_registry_dir
         ),
     )
+    llm_route_planner_backend_provider = str(
+        llm_route_planner_payload.get("backend_provider_name", "") or ""
+    )
     llm_route_planner_seed_path = (
         llm_route_planner_dir
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
@@ -1303,6 +1311,9 @@ def run_formalization_gap_planner_reuse_smoke(
                 component_resource_registry_dir
             ),
         )
+    )
+    feedback_llm_route_planner_backend_provider = str(
+        feedback_llm_route_planner_payload.get("backend_provider_name", "") or ""
     )
     llm_response_payload_validation_payload = (
         _maybe_validate_llm_route_planner_response_payloads(
@@ -1919,11 +1930,13 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "max_routes": max_routes,
         "llm_route_planner_provider": llm_route_planner_provider,
+        "llm_route_planner_backend_provider": llm_route_planner_backend_provider,
         "llm_route_planner_model": str(llm_route_planner_payload.get("model", "")),
         "llm_route_planner_invoke_provider": llm_route_planner_invoke_provider,
         "llm_route_planner_provider_execution_mode": (
             _llm_provider_execution_mode(
                 llm_route_planner_provider,
+                backend_provider_name=llm_route_planner_backend_provider,
                 invoke_provider=llm_route_planner_invoke_provider,
             )
         ),
@@ -1931,6 +1944,7 @@ def run_formalization_gap_planner_reuse_smoke(
             _llm_live_provider_call_count(
                 llm_route_planner_payload,
                 provider_name=llm_route_planner_provider,
+                backend_provider_name=llm_route_planner_backend_provider,
                 invoke_provider=llm_route_planner_invoke_provider,
             )
         ),
@@ -1992,6 +2006,9 @@ def run_formalization_gap_planner_reuse_smoke(
             or 0
         ),
         "feedback_llm_route_planner_provider": feedback_llm_route_planner_provider,
+        "feedback_llm_route_planner_backend_provider": (
+            feedback_llm_route_planner_backend_provider
+        ),
         "feedback_llm_route_planner_model": str(
             feedback_llm_route_planner_payload.get("model", "")
         ),
@@ -2001,6 +2018,7 @@ def run_formalization_gap_planner_reuse_smoke(
         "feedback_llm_route_planner_provider_execution_mode": (
             _llm_provider_execution_mode(
                 feedback_llm_route_planner_provider,
+                backend_provider_name=feedback_llm_route_planner_backend_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
         ),
@@ -2008,6 +2026,7 @@ def run_formalization_gap_planner_reuse_smoke(
             _llm_live_provider_call_count(
                 feedback_llm_route_planner_payload,
                 provider_name=feedback_llm_route_planner_provider,
+                backend_provider_name=feedback_llm_route_planner_backend_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
         ),
@@ -2266,11 +2285,13 @@ def run_formalization_gap_planner_reuse_smoke(
             _llm_live_provider_call_count(
                 llm_route_planner_payload,
                 provider_name=llm_route_planner_provider,
+                backend_provider_name=llm_route_planner_backend_provider,
                 invoke_provider=llm_route_planner_invoke_provider,
             )
             + _llm_live_provider_call_count(
                 feedback_llm_route_planner_payload,
                 provider_name=feedback_llm_route_planner_provider,
+                backend_provider_name=feedback_llm_route_planner_backend_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
         ),
@@ -8081,12 +8102,19 @@ def _summary(stage_name: str, payload: dict[str, Any]) -> dict[str, object]:
     }
 
 
-def _llm_provider_execution_mode(provider_name: str, *, invoke_provider: bool) -> str:
-    provider = str(provider_name or "").strip().lower()
-    if provider in {"anthropic", "openai"}:
-        if invoke_provider:
+def _llm_provider_execution_mode(
+    provider_name: str,
+    *,
+    backend_provider_name: str,
+    invoke_provider: bool,
+) -> str:
+    provider = normalize_generator_provider_name(provider_name)
+    if provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
+        if not invoke_provider:
+            return "staged_live_provider_prompt_no_api_call"
+        if is_live_generator_backend(provider, backend_provider_name):
             return "live_provider_invoked"
-        return "staged_live_provider_prompt_no_api_call"
+        return "configured_live_provider_non_live_backend"
     if provider == "static":
         return "static_replay_no_live_provider"
     if provider == "prompt_only":
@@ -8098,9 +8126,10 @@ def _llm_live_provider_call_count(
     payload: dict[str, Any],
     *,
     provider_name: str,
+    backend_provider_name: str,
     invoke_provider: bool,
 ) -> int:
-    if str(provider_name or "").strip().lower() not in {"anthropic", "openai"}:
+    if not is_live_generator_backend(provider_name, backend_provider_name):
         return 0
     if not invoke_provider:
         return 0

@@ -38,6 +38,9 @@ from .model_backend import (
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     claude_model_tier_mismatch,
     default_generator_model,
+    generator_backend_provider_name,
+    is_live_generator_backend,
+    normalize_generator_provider_name,
 )
 
 
@@ -1306,6 +1309,15 @@ def export_formalization_gap_planner_llm_route_planner(
             raw_responses.extend(_read_response_json(static_response_json, errors))
     if invoke_provider and generator_backend is None:
         generator_backend = _provider_backend(provider)
+    backend_provider_name = (
+        generator_backend_provider_name(generator_backend, "")
+        if generator_backend is not None
+        else ""
+    )
+    live_generator_backend = bool(
+        invoke_provider
+        and is_live_generator_backend(provider, backend_provider_name)
+    )
     generation_preflight_errors = _generation_preflight_errors(
         request_packets,
         request_contract_errors,
@@ -1419,6 +1431,8 @@ def export_formalization_gap_planner_llm_route_planner(
             "urn:ai-statistician:schemas:formalization-gap-planner-standalone-input:1"
         ),
         "provider_name": provider,
+        "backend_provider_name": backend_provider_name,
+        "live_generator_backend": live_generator_backend,
         "model": model,
         "model_tier_selection_mode": normalized_model_tier,
         "llm_route_planner_model_tier_policy": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY,
@@ -4005,6 +4019,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "component_name",
             "standalone_input_path",
             "provider_name",
+            "backend_provider_name",
+            "live_generator_backend",
             "model_tier_selection_mode",
             "llm_route_planner_model_tier_policy",
             "legacy_response_field_aliases",
@@ -4213,6 +4229,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "component_name": {"type": "string", "const": LLM_ROUTE_PLANNER_COMPONENT},
             "standalone_input_path": {"type": "string", "minLength": 1},
             "provider_name": {"type": "string", "minLength": 1},
+            "backend_provider_name": {"type": "string"},
+            "live_generator_backend": {"type": "boolean"},
             "model": {"type": "string"},
             "model_tier_selection_mode": {"type": "string", "minLength": 1},
             "llm_route_planner_model_tier_policy": {"type": "object"},
@@ -5174,6 +5192,21 @@ def validate_llm_route_planner_manifest(
     )
     manifest_rows = _dict_tuple(manifest.get("rows", []))
     request_packets = _dict_tuple(manifest.get("request_packets", []))
+    provider_name = normalize_generator_provider_name(manifest.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        manifest.get("backend_provider_name", "")
+    )
+    expected_live_generator_backend = bool(
+        manifest.get("invoke_provider") is True
+        and is_live_generator_backend(provider_name, backend_provider_name)
+    )
+    if bool(manifest.get("live_generator_backend", False)) != (
+        expected_live_generator_backend
+    ):
+        errors.append(
+            "live_generator_backend must require invoke_provider and live "
+            "configured/backend provider identity"
+        )
     if int(manifest.get("n_request_packets", 0) or 0) != len(
         request_packets
     ):
