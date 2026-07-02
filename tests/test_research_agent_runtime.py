@@ -2083,7 +2083,6 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
                 "total_provider_input_tokens": 209727,
                 "total_provider_output_tokens": 9000,
                 "total_provider_total_tokens": 218727,
-                "total_provider_total_tokens_including_staged_followups": 218727,
                 "errors": ["json extraction failed after provider max_tokens"],
             }
         ],
@@ -2111,6 +2110,12 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
         "PENDING_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
     )
     assert repair_row["provider_token_counts"]["provider_output_tokens"] == 9000
+    assert (
+        repair_row["provider_token_counts"][
+            "provider_total_tokens_including_staged_followups"
+        ]
+        == 218727
+    )
     assert repair_row["contract_counts"]["response_contract_ok"] == 0
     assert repair_row["contract_counts"]["staged_followup_assembly_incomplete"] == 1
     assert "route:a" in repair_row["target_ids"]

@@ -49466,6 +49466,10 @@ def _formalization_gap_planner_live_route_planner_contract_feedback_learning_row
             "provider_total_tokens_including_staged_followups": _runtime_manifest_int(
                 live_row,
                 "total_provider_total_tokens_including_staged_followups",
+            )
+            or _runtime_manifest_int(
+                live_row,
+                "total_provider_total_tokens",
             ),
         }
         contract_counts = {
