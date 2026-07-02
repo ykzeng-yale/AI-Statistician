@@ -10,7 +10,14 @@ from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .model_backend import (
+    GeneratorBackend,
+    GeneratorRequest,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    is_live_generator_backend,
+    normalize_generator_provider_name,
+    resolve_generator_model,
+)
 from .research_architect import KERNEL_PROOF_BOUNDARY
 from .source_theorem_exact_semantic_definition_lean_repair_executor import (
     AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
@@ -89,8 +96,6 @@ FORBIDDEN_SOURCE_FRAGMENTS = (
     "by exact",
     "by aesop",
 )
-LIVE_AUTHORING_BACKEND_PROVIDERS = {"anthropic", "openai"}
-
 
 @dataclass(frozen=True)
 class AuthoringWorkerConfig:
@@ -2509,18 +2514,17 @@ def _extract_payload(text: str) -> dict[str, Any]:
 
 
 def _is_external_llm_provider(provider_name: str) -> bool:
-    return str(provider_name or "").strip().lower() in {"anthropic", "openai"}
+    return (
+        normalize_generator_provider_name(provider_name)
+        in SUPPORTED_LIVE_GENERATOR_PROVIDERS
+    )
 
 
 def _is_live_external_llm_provider_pair(
     provider_name: str,
     backend_provider_name: str,
 ) -> bool:
-    return (
-        str(provider_name or "").strip().lower() in LIVE_AUTHORING_BACKEND_PROVIDERS
-        and str(backend_provider_name or "").strip().lower()
-        in LIVE_AUTHORING_BACKEND_PROVIDERS
-    )
+    return is_live_generator_backend(provider_name, backend_provider_name)
 
 
 def _load_external_export_approvals(path: Path | None) -> dict[str, Any]:
@@ -2597,12 +2601,14 @@ def _external_export_packet_approved(
 ) -> bool:
     if not approvals.get("loaded"):
         return False
-    provider = str(provider_name or "").strip().lower()
+    provider = normalize_generator_provider_name(provider_name)
     mode = _normalized_external_export_mode(export_mode)
     for row in approvals.get("approved_rows", []) or []:
         if not isinstance(row, Mapping):
             continue
-        row_provider = str(row.get("provider_name", "") or "").strip().lower()
+        row_provider = normalize_generator_provider_name(
+            row.get("provider_name", "")
+        )
         if row_provider and row_provider != provider:
             continue
         row_mode = str(row.get("external_export_mode", "") or "").strip().lower()

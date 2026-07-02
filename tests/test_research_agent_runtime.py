@@ -55,6 +55,8 @@ from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_execut
 )
 from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker import (
     AuthoringWorkerConfig,
+    _is_external_llm_provider,
+    _is_live_external_llm_provider_pair,
     run_source_theorem_exact_semantic_definition_authoring_worker,
 )
 from ai_statistician.architect_coordinator_llm import (
@@ -30322,6 +30324,18 @@ def test_exact_semantic_authoring_live_attempt_requires_backend_provenance(
     assert candidate["provider"] == "anthropic"
     assert candidate["backend_provider"] == "static"
     assert candidate["live_llm_generator"] is False
+
+
+def test_exact_semantic_authoring_live_provider_helpers_require_backend_identity() -> None:
+    assert _is_external_llm_provider("Anthropic") is True
+    assert _is_external_llm_provider("openai") is True
+    assert _is_external_llm_provider("static") is False
+
+    assert _is_live_external_llm_provider_pair("anthropic", "") is False
+    assert _is_live_external_llm_provider_pair("anthropic", "static") is False
+    assert _is_live_external_llm_provider_pair("static", "anthropic") is False
+    assert _is_live_external_llm_provider_pair("anthropic", "anthropic") is True
+    assert _is_live_external_llm_provider_pair("openai", "openai") is True
 
 
 def test_runtime_exact_semantic_authoring_live_provider_config_keeps_export_gate() -> None:
