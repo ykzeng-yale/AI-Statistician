@@ -7743,6 +7743,90 @@ def test_cli_and_runtime_formal_gap_route_memory_classifiers_stay_aligned() -> N
     )
 
 
+def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
+    assert cli_module._RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS == (
+        runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS
+    )
+    assert cli_module._RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS == (
+        runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS
+    )
+    route_critical_rows = [
+        {
+            "input_summary": {
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "failure_classification": "proof_body_dependency_context_missing",
+                "candidate_artifact_path": "runs/proof_body/exact.lean",
+            }
+        },
+        {
+            "learning_task": "source_theorem_formal_environment_repair_feedback",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": ["Exchangeable"],
+        },
+        {
+            "learning_task": "formalizer_runtime_capability_contract_feedback",
+            "question_id": "conformal_prediction_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "input_summary": {
+                "missing_contracts": [{"flag": "local_lean_required"}],
+            },
+        },
+        {
+            "learning_task": "formalizer_lean_candidate_kernel_feedback",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "candidate_id": "coverage_bridge_helper",
+            "artifact_path": "runs/formalizer/coverage_bridge_helper.lean",
+        },
+        {
+            "learning_task": "formalizer_lean_candidate_proof_state_feedback",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "source_manifest_id": "formalization_manifest:coverage",
+            "source_materialization_manifest_id": "materialization:coverage",
+        },
+        {
+            "learning_task": "theory_trace_downstream_alignment_feedback",
+            "question_id": "conformal_prediction_coverage",
+            "work_order_id": "theory-trace:coverage",
+            "target_consumer_subsystem": "FormalizerProofEngineer",
+            "failure_classifications": ["missing_formalization_handoff_anchor"],
+        },
+        {
+            "input_summary": {
+                "learning_task": "architect_orchestration_feedback",
+                "question_id": "conformal_prediction_coverage",
+                "work_order_id": "architect:coverage",
+                "pending_task_id": "formalize:coverage:pending",
+                "architect_control_status": "repair_needed",
+            }
+        },
+        {
+            "learning_task": "runtime_handoff_artifact_missing_feedback",
+            "question_id": "conformal_prediction_coverage",
+            "work_order_id": "handoff:coverage",
+            "missing_artifact_id": "formalizer_packet:missing",
+            "repair_owner_agent": "FormalizerProofEngineer",
+        },
+    ]
+
+    for row in route_critical_rows:
+        assert cli_module._runtime_learning_memory_should_pin_row(row)
+        assert runtime_module._runtime_learning_memory_should_pin_context_row(row)
+        assert cli_module._runtime_learning_memory_pin_priority(row) == (
+            runtime_module._runtime_learning_memory_context_pin_priority(row)
+        )
+        assert cli_module._runtime_learning_memory_pin_key(row) == (
+            runtime_module._runtime_learning_memory_context_pin_key(row)
+        )
+        assert cli_module._runtime_learning_memory_pin_key(row)
+
+    for trigger in runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS:
+        row = {"input_summary": {"trigger": trigger}}
+        assert cli_module._runtime_learning_memory_should_pin_row(row)
+        assert runtime_module._runtime_learning_memory_should_pin_context_row(row)
+
+
 def test_runtime_handoff_materializes_route_contract_feedback_jsonl(
     tmp_path: Path,
 ) -> None:

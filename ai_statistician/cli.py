@@ -436,6 +436,8 @@ from .research_agent_runtime import (
     RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS,
     RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS,
     RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS,
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS,
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS,
     RUNTIME_SCHEMA_VERSION,
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
@@ -1202,6 +1204,12 @@ _FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = (
 _FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS = (
     RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS
 )
+_RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = (
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS
+)
+_RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = (
+    RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS
+)
 
 
 def _runtime_learning_memory_row_trigger(row: Mapping[str, object]) -> str:
@@ -1438,6 +1446,11 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     if learning_task == "coding_agent_generated_code_capability_feedback":
         return 89
     if learning_task == "runtime_handoff_artifact_missing_feedback":
+        return 89
+    if learning_task in {
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
+    }:
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
@@ -1741,6 +1754,33 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + failure_scope
         )
+    if learning_task == "theory_trace_downstream_alignment_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        consumer = str(
+            row.get("target_consumer_subsystem", "")
+            or input_summary.get("target_consumer_subsystem", "")
+            or ""
+        ).strip()
+        failure_scope = ",".join(
+            _runtime_learning_memory_string_values(row, "failure_classifications")
+        )
+        return (
+            "theory_trace_downstream_alignment_feedback:"
+            + question_id
+            + ":"
+            + consumer
+            + ":"
+            + work_order_id
+            + ":"
+            + failure_scope
+        )
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
         question_id = str(
             row.get("question_id", "") or input_summary.get("question_id", "") or ""
@@ -1833,7 +1873,7 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         ).strip()
         return (
             "formalizer_runtime_capability_contract_feedback:"
-            + (question_id or "global")
+            + (target_scope or question_id or "global")
             + ":"
             + (missing_flags or failure_classification or source_failure_id)
         )
@@ -1874,6 +1914,65 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + (capability_id or "unknown_capability")
             + ":"
             + (next_owner or "unknown_owner")
+        )
+    if learning_task == "architect_orchestration_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        pending_task_id = str(
+            row.get("pending_task_id", "")
+            or input_summary.get("pending_task_id", "")
+            or ""
+        ).strip()
+        architect_status = str(
+            row.get("architect_control_status", "")
+            or input_summary.get("architect_control_status", "")
+            or ""
+        ).strip()
+        return (
+            "architect_orchestration_feedback:"
+            + question_id
+            + ":"
+            + work_order_id
+            + ":"
+            + pending_task_id
+            + ":"
+            + architect_status
+        )
+    if learning_task == "runtime_handoff_artifact_missing_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        missing_artifact_id = str(
+            row.get("missing_artifact_id", "")
+            or input_summary.get("missing_artifact_id", "")
+            or ""
+        ).strip()
+        repair_owner = str(
+            row.get("next_owner_subsystem", "")
+            or row.get("repair_owner_agent", "")
+            or input_summary.get("repair_owner_agent", "")
+            or ""
+        ).strip()
+        return (
+            "runtime_handoff_artifact_missing_feedback:"
+            + question_id
+            + ":"
+            + missing_artifact_id
+            + ":"
+            + repair_owner
+            + ":"
+            + work_order_id
         )
     return ""
 
@@ -1920,34 +2019,9 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
     )
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(row):
         return True
-    if learning_task in {
-        "source_theorem_proof_body_adapter_feedback",
-        "source_to_bridge_premise_derivation_feedback",
-        "source_theorem_formal_environment_repair_feedback",
-        "exact_source_theorem_proof_body_execution_feedback",
-        "formalizer_lean_candidate_kernel_feedback",
-        "formalizer_lean_candidate_proof_state_feedback",
-        "formalizer_lean_candidate_component_gate_feedback",
-        "formalizer_runtime_capability_contract_feedback",
-        "coding_agent_generated_code_component_gate_feedback",
-        "coding_agent_generated_code_capability_feedback",
-        "theory_derivation_trace_feedback",
-        "theory_trace_downstream_alignment_feedback",
-        "architect_orchestration_feedback",
-        "runtime_handoff_artifact_missing_feedback",
-    }:
+    if learning_task in _RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS:
         return True
-    if trigger in {
-        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
-        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
-        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
-        "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
-        "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
-        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
-        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
-        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
-        "RUNTIME_HANDOFF_ARTIFACT_MISSING",
-    }:
+    if trigger in _RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS:
         return True
     if (
         learning_task == "source_theorem_proof_body_adapter_feedback"

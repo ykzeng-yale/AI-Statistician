@@ -30234,6 +30234,37 @@ RUNTIME_FORMAL_GAP_ROUTE_FEEDBACK_LEARNING_TASKS = frozenset(
     RUNTIME_FORMAL_GAP_GENERATED_ROUTING_LEARNING_TASKS
     | RUNTIME_FORMAL_GAP_DIRECT_FEEDBACK_LEARNING_TASKS
 )
+RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
+    {
+        "source_theorem_proof_body_adapter_feedback",
+        "source_to_bridge_premise_derivation_feedback",
+        "source_theorem_formal_environment_repair_feedback",
+        "exact_source_theorem_proof_body_execution_feedback",
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
+        "formalizer_lean_candidate_component_gate_feedback",
+        "formalizer_runtime_capability_contract_feedback",
+        "coding_agent_generated_code_component_gate_feedback",
+        "coding_agent_generated_code_capability_feedback",
+        "theory_derivation_trace_feedback",
+        "theory_trace_downstream_alignment_feedback",
+        "architect_orchestration_feedback",
+        "runtime_handoff_artifact_missing_feedback",
+    }
+)
+RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = frozenset(
+    {
+        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
+        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
+        "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
+        "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
+        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
+        "RUNTIME_HANDOFF_ARTIFACT_MISSING",
+    }
+)
 
 _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
 _FORMAL_GAP_NEXT_ACTION_TRIGGERS = RUNTIME_FORMAL_GAP_NEXT_ACTION_TRIGGERS
@@ -31033,9 +31064,16 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         }:
             return 90
         return 89
+    if learning_task == "formalizer_runtime_capability_contract_feedback":
+        return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
+        return 89
+    if learning_task in {
+        "formalizer_lean_candidate_kernel_feedback",
+        "formalizer_lean_candidate_proof_state_feedback",
+    }:
         return 89
     if learning_task == "coding_agent_generated_code_capability_feedback":
         return 89
@@ -31377,6 +31415,9 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + (component_manifest or provider_name or "attached")
         )
     if learning_task == "formalizer_runtime_capability_contract_feedback":
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
         failure_classification = str(
             row.get("failure_classification", "")
             or input_summary.get("failure_classification", "")
@@ -31396,7 +31437,7 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         ).strip()
         return (
             "formalizer_runtime_capability_contract_feedback:"
-            + target_scope
+            + (target_scope or question_id or "global")
             + ":"
             + (missing_flags or failure_classification or source_failure_id)
         )
@@ -31614,41 +31655,14 @@ def _runtime_learning_memory_should_pin_context_row(row: Mapping[str, Any]) -> b
         row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
     )
     trigger = _runtime_learning_row_trigger(row, input_summary)
-    route_critical_learning_tasks = {
-        "source_theorem_proof_body_adapter_feedback",
-        "source_to_bridge_premise_derivation_feedback",
-        "source_theorem_formal_environment_repair_feedback",
-        "exact_source_theorem_proof_body_execution_feedback",
-        "formalizer_lean_candidate_kernel_feedback",
-        "formalizer_lean_candidate_proof_state_feedback",
-        "formalizer_lean_candidate_component_gate_feedback",
-        "formalizer_runtime_capability_contract_feedback",
-        "coding_agent_generated_code_component_gate_feedback",
-        "coding_agent_generated_code_capability_feedback",
-        "theory_derivation_trace_feedback",
-        "theory_trace_downstream_alignment_feedback",
-        "architect_orchestration_feedback",
-        "runtime_handoff_artifact_missing_feedback",
-    }
-    route_critical_triggers = {
-        "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
-        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
-        "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
-        "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
-        "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
-        "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
-        "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
-        "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
-        "RUNTIME_HANDOFF_ARTIFACT_MISSING",
-    }
     if _runtime_learning_memory_row_is_formal_gap_next_action_routing(
         row,
         input_summary,
     ):
         return True
-    if learning_task in route_critical_learning_tasks:
+    if learning_task in RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS:
         return True
-    if trigger in route_critical_triggers:
+    if trigger in RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS:
         return True
     if _runtime_learning_memory_row_has_typechecked_exact_semantic_definition_candidate(
         row,
