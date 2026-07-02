@@ -6090,6 +6090,39 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_authoring_required = (
+        bool(
+            payload.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_required",
+                False,
+            )
+        )
+        or int(
+            payload.get(
+                "n_source_theorem_exact_semantic_definition_authoring_tasks",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    exact_semantic_authoring_live_attempts = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_authoring_generic_attempts = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_authoring_live_ready = (
+        not exact_semantic_authoring_required
+    ) or exact_semantic_authoring_live_attempts > 0
     integrated_generic_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
     )
@@ -6152,6 +6185,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     formalizer_local_check_ready = (
         integrated_llm_formalizer_proposals > 0
+        and exact_semantic_authoring_live_ready
         and (
             integrated_formalizer_candidate_checked > 0
             or integrated_formalizer_repair_sequences > 0
@@ -6159,6 +6193,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proofengineer_feedback_repair_ready = (
         integrated_formalizer_agentic_repair_ready
+        and exact_semantic_authoring_live_ready
         and (
             integrated_formalizer_bound_proof_state_feedback_rows > 0
             or integrated_formalizer_bound_local_lean_tool_calls > 0
@@ -6290,12 +6325,24 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_candidate_checked} "
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
+                "exact_semantic_authoring_required="
+                f"{exact_semantic_authoring_required} "
+                "exact_semantic_authoring_live_llm_attempted="
+                f"{exact_semantic_authoring_live_attempts} "
+                "exact_semantic_authoring_llm_attempted="
+                f"{exact_semantic_authoring_generic_attempts} "
+                "exact_semantic_authoring_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                "exact_semantic_authoring_backend_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
             (
                 "no live Formalizer/ProofEngineer Lean candidate was "
-                "materialized and checked by local Lean"
+                "materialized and checked by local Lean, or exact semantic-"
+                "definition authoring required by the repair loop was not "
+                "attempted with a live Claude/OpenAI backend"
             ),
         ),
         _ladder_level(
@@ -6317,12 +6364,24 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_lean_lsp_mcp_live_calls} "
                 "bound_lean_lsp_mcp_live_calls="
                 f"{integrated_formalizer_bound_lean_lsp_mcp_live_calls} "
+                "exact_semantic_authoring_required="
+                f"{exact_semantic_authoring_required} "
+                "exact_semantic_authoring_live_llm_attempted="
+                f"{exact_semantic_authoring_live_attempts} "
+                "exact_semantic_authoring_llm_attempted="
+                f"{exact_semantic_authoring_generic_attempts} "
+                "exact_semantic_authoring_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name')} "
+                "exact_semantic_authoring_backend_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name')} "
                 "attached_formalizer_repair_ready="
                 f"{attached_formalizer_repair_ready}"
             ),
             (
                 "no ProofEngineer repair loop consumed verifier/proof-state "
-                "tool traces and produced a repaired Lean candidate"
+                "tool traces and produced a repaired Lean candidate, or exact "
+                "semantic-definition authoring required by the repair loop was "
+                "not attempted with a live Claude/OpenAI backend"
             ),
         ),
         _ladder_level(
