@@ -11782,6 +11782,149 @@ def test_research_path_execution_summary_fails_uncontrolled_current_artifacts() 
     assert "without runtime_architect_control" in summary["boundary"]
 
 
+def test_runtime_blackboard_normalizer_propagates_architect_control_seed() -> None:
+    contract = {
+        "formal_verification_policy": "optional",
+        "recommended_research_path": "dual_track",
+        "formal_required_for_final": False,
+    }
+    artifacts = {
+        "architect_coordinator_proposal:test": {
+            "artifact_kind": "ArchitectCoordinatorProposalPacket",
+            "packet_id": "architect_coordinator_proposal:test",
+            "evidence_contract": contract,
+            "evidence_boundary": "Architect proposal is control metadata.",
+        },
+        "formalizer_proposal:test": {
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "packet_id": "formalizer_proposal:test",
+            "proof_evidence_status": "FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        },
+        "runtime_formalization_gap_planner_bridge:test": {
+            "artifact_kind": "RuntimeFormalizationGapPlannerBridge",
+            "bridge_id": "runtime_formalization_gap_planner_bridge:test",
+            "standalone_seed_artifact_id": (
+                "runtime_formalization_gap_planner_standalone_seed:test"
+            ),
+            "standalone_seed": {
+                "component_name": "formalization_gap_planner_standalone_input",
+                "standalone_seed_artifact_id": (
+                    "runtime_formalization_gap_planner_standalone_seed:test"
+                ),
+                "proof_evidence_status": (
+                    "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            "proof_evidence_status": (
+                "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "runtime_formalization_gap_planner_standalone_seed:test": {
+            "component_name": "formalization_gap_planner_standalone_input",
+            "proof_evidence_status": (
+                "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    }
+
+    normalized = runtime_module._normalize_runtime_blackboard_artifacts(artifacts)
+
+    for artifact_id, artifact in normalized.items():
+        control = artifact["runtime_architect_control"]
+        assert control["architect_coordinator_proposal_id"] == (
+            "architect_coordinator_proposal:test"
+        )
+        assert control["evidence_contract"] == contract
+        assert control["formal_verification_policy"] == "optional"
+        assert control["recommended_research_path"] == "dual_track"
+        if artifact_id.startswith("runtime_formalization_gap_planner_"):
+            assert control["subsystem"] == "FormalizationGapPlanner"
+
+    bridge = normalized["runtime_formalization_gap_planner_bridge:test"]
+    assert bridge["standalone_seed"]["runtime_architect_control"]["subsystem"] == (
+        "FormalizationGapPlanner"
+    )
+    assert normalized["formalizer_proposal:test"]["proof_evidence_status"] == (
+        "FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+    )
+
+    summary = _runtime_research_path_execution_summary(
+        [
+            {
+                "blackboard": {"artifacts": normalized},
+                "traces": [
+                    {
+                        "subsystem": "FormalizationGapPlanner",
+                        "produced_artifact_ids": list(normalized),
+                    }
+                ],
+            }
+        ],
+        effective_formal_verification_policy="optional",
+        effective_recommended_research_path="dual_track",
+    )
+
+    assert summary["path_control_propagated"] is True
+    assert summary["n_current_artifacts_missing_architect_control"] == 0
+    assert "FormalizationGapPlanner" in summary["controlled_subsystems"]
+    assert "ProofEngineer" in summary["controlled_subsystems"]
+
+
+def test_gap_planner_handoff_rows_inherit_architect_control_from_bridge(
+    tmp_path: Path,
+) -> None:
+    contract = {
+        "formal_verification_policy": "required",
+        "recommended_research_path": "proof_first",
+        "formal_required_for_final": True,
+    }
+    bridge = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationGapPlannerBridge",
+        "bridge_id": "runtime_formalization_gap_planner_bridge:controlled",
+        "question": {"id": "controlled_question"},
+        "target_theorem_name": "controlled_theorem",
+        "target_ids": ["controlled_theorem"],
+        "standalone_seed_artifact_id": (
+            "runtime_formalization_gap_planner_standalone_seed:controlled"
+        ),
+        "standalone_seed_path": str(tmp_path / "seed.json"),
+        "target_intake_path": str(tmp_path / "target_intake.json"),
+        "target_prover_family": "lean4",
+        "standalone_seed": {
+            "target_prover_family": "lean4",
+            "library_snapshot_ref": "snapshot",
+        },
+        "runtime_architect_control": {
+            "architect_coordinator_proposal_id": (
+                "architect_coordinator_proposal:controlled"
+            ),
+            "subsystem": "ProofEngineer",
+            "formal_verification_policy": "required",
+            "recommended_research_path": "proof_first",
+            "formal_required_for_final": True,
+            "evidence_contract": contract,
+        },
+    }
+
+    rows = runtime_module._runtime_formalization_gap_planner_handoff_rows(
+        [bridge],
+        runtime_out_dir=tmp_path,
+    )
+
+    assert len(rows) == 1
+    control = rows[0]["runtime_architect_control"]
+    assert control["architect_coordinator_proposal_id"] == (
+        "architect_coordinator_proposal:controlled"
+    )
+    assert control["subsystem"] == "FormalizationGapPlanner"
+    assert control["evidence_contract"] == contract
+    assert control["formal_verification_policy"] == "required"
+    assert rows[0]["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_research_path_execution_summary_scopes_to_current_trace_artifacts() -> None:
     results = [
         {

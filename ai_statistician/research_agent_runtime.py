@@ -7250,6 +7250,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
             subsystem=subsystem_name,
         )
         formalization_control = _architect_control_payload(context, subsystem_name)
+        formalization_control_seed = _runtime_architect_control_seed_from_control(
+            formalization_control,
+            control_source="formalization_architect_control",
+        )
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
         trace_repair_result = _runtime_theory_trace_repair_result_if_needed(
@@ -7451,6 +7455,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
             candidate_proof_state_manifest["n_learning_rows"] = len(
                 candidate_proof_state_manifest["learning_rows"]
             )
+            candidate_proof_state_manifest = _runtime_artifact_with_architect_control(
+                candidate_proof_state_manifest_id,
+                candidate_proof_state_manifest,
+                formalization_control_seed,
+                subsystem_override=subsystem_name,
+            )
             produced_artifacts[candidate_proof_state_manifest_id] = (
                 candidate_proof_state_manifest
             )
@@ -7558,6 +7568,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 row for row in llm_requested_proof_obligation_ids if row in memory_kernel_verified_set
             )
             proposal_id = str(proposal_packet["packet_id"])
+            proposal_packet = _runtime_artifact_with_architect_control(
+                proposal_id,
+                proposal_packet,
+                formalization_control_seed,
+                subsystem_override=subsystem_name,
+            )
             theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
                 proposal_packet
             )
@@ -7583,6 +7599,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     lean_project=self.lean_candidate_lean_project,
                     lean_timeout=self.lean_candidate_lean_timeout,
                 )
+            )
+            lean_candidate_materialization = _runtime_artifact_with_architect_control(
+                str(lean_candidate_materialization.get("manifest_id", "")),
+                lean_candidate_materialization,
+                formalization_control_seed,
+                subsystem_override=subsystem_name,
             )
             if (
                 _runtime_context_requires_formalizer_lean_candidate(context)
@@ -8116,6 +8138,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
             formalization_manifest_id=manifest_id,
             proof_state_feedback_manifest_id=proof_state_manifest_id,
         )
+        gap_planner_bridge = _runtime_artifact_with_architect_control(
+            str(gap_planner_bridge.get("bridge_id", "")),
+            gap_planner_bridge,
+            formalization_control_seed,
+            subsystem_override="FormalizationGapPlanner",
+        )
         theorem_reduction_closure_work_orders = _formalizer_theorem_reduction_closure_work_orders(
             proposal_packet=proposal_packet if isinstance(proposal_packet, Mapping) else {},
             proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
@@ -8348,6 +8376,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
             ),
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
+        manifest = _runtime_artifact_with_architect_control(
+            manifest_id,
+            manifest,
+            formalization_control_seed,
+            subsystem_override=subsystem_name,
+        )
         proof_state_manifest = None
         if proof_state_rows:
             proof_state_manifest = {
@@ -8372,6 +8406,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "proof_evidence_status": "PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
             }
+            proof_state_manifest = _runtime_artifact_with_architect_control(
+                proof_state_manifest_id,
+                proof_state_manifest,
+                formalization_control_seed,
+                subsystem_override=subsystem_name,
+            )
             produced_artifacts[proof_state_manifest_id] = proof_state_manifest
         produced_artifacts[str(gap_planner_bridge["standalone_seed_artifact_id"])] = (
             gap_planner_bridge["standalone_seed"]
@@ -11121,7 +11161,290 @@ def _normalize_runtime_blackboard_artifacts(
             )
         else:
             normalized[str(artifact_id)] = artifact
-    return normalized
+    control_seed = _runtime_architect_control_seed_from_artifacts(normalized)
+    if not control_seed:
+        return normalized
+    return {
+        artifact_id: _runtime_artifact_with_architect_control(
+            artifact_id,
+            artifact,
+            control_seed,
+        )
+        for artifact_id, artifact in normalized.items()
+    }
+
+
+def _runtime_architect_control_seed_from_control(
+    control: Any,
+    *,
+    control_source: str,
+    require_architect_proposal_id: bool = False,
+) -> dict[str, Any]:
+    if not isinstance(control, Mapping):
+        return {}
+    contract = control.get("evidence_contract", {})
+    if not isinstance(contract, Mapping) or not contract:
+        return {}
+    proposal_id = str(control.get("architect_coordinator_proposal_id", "") or "")
+    if require_architect_proposal_id and not proposal_id:
+        return {}
+    return {
+        "architect_coordinator_proposal_id": proposal_id,
+        "evidence_contract": dict(contract),
+        "formal_verification_policy": str(
+            control.get("formal_verification_policy", "")
+            or contract.get("formal_verification_policy", "")
+            or ""
+        ),
+        "recommended_research_path": str(
+            control.get("recommended_research_path", "")
+            or contract.get("recommended_research_path", "")
+            or ""
+        ),
+        "formal_required_for_final": bool(
+            control.get(
+                "formal_required_for_final",
+                contract.get("formal_required_for_final", False),
+            )
+        ),
+        "control_source": control_source,
+        "boundary": str(
+            control.get("boundary", "")
+            or "Architect control is orchestration metadata only; it does not "
+            "prove a theorem, validate generated code, or close a formal gap."
+        ),
+    }
+
+
+def _runtime_architect_control_seed_from_architect_proposal(
+    artifact_id: str,
+    artifact: Mapping[str, Any],
+) -> dict[str, Any]:
+    artifact_kind = str(artifact.get("artifact_kind", "") or "")
+    if artifact_kind != "ArchitectCoordinatorProposalPacket" and not str(
+        artifact_id
+    ).startswith("architect_coordinator_proposal:"):
+        return {}
+    contract = artifact.get("evidence_contract", {})
+    if not isinstance(contract, Mapping) or not contract:
+        return {}
+    proposal_id = str(
+        artifact.get("packet_id", "")
+        or artifact.get("proposal_id", "")
+        or artifact_id
+    )
+    return {
+        "architect_coordinator_proposal_id": proposal_id,
+        "evidence_contract": dict(contract),
+        "formal_verification_policy": str(
+            contract.get("formal_verification_policy", "") or ""
+        ),
+        "recommended_research_path": str(
+            contract.get("recommended_research_path", "") or ""
+        ),
+        "formal_required_for_final": bool(
+            contract.get("formal_required_for_final", False)
+        ),
+        "control_source": "architect_coordinator_proposal",
+        "boundary": str(
+            artifact.get("evidence_boundary", "")
+            or artifact.get("boundary", "")
+            or ARCHITECT_COORDINATOR_BOUNDARY
+        ),
+    }
+
+
+def _runtime_architect_control_seed_from_artifacts(
+    artifacts: Mapping[str, Any],
+) -> dict[str, Any]:
+    controlled_seed: dict[str, Any] = {}
+    for artifact_id, artifact in artifacts.items():
+        if not isinstance(artifact, Mapping):
+            continue
+        proposal_seed = _runtime_architect_control_seed_from_architect_proposal(
+            str(artifact_id),
+            artifact,
+        )
+        if proposal_seed:
+            return proposal_seed
+        if not controlled_seed:
+            controlled_seed = _runtime_architect_control_seed_from_control(
+                artifact.get("runtime_architect_control", {}),
+                control_source="existing_runtime_architect_control",
+                require_architect_proposal_id=True,
+            )
+    return controlled_seed
+
+
+def _runtime_architect_control_seed_from_context(
+    context: Any,
+    *,
+    subsystem: str,
+) -> dict[str, Any]:
+    if not isinstance(context, Mapping):
+        return {}
+    return _runtime_architect_control_seed_from_control(
+        _architect_control_payload(context, subsystem),
+        control_source="architect_context",
+    )
+
+
+def _runtime_architect_control_subsystem_for_artifact(
+    artifact_id: str,
+    artifact: Mapping[str, Any],
+) -> str:
+    for key in (
+        "owner_subsystem",
+        "subsystem",
+        "source_subsystem",
+        "producer_subsystem",
+    ):
+        value = str(artifact.get(key, "") or "").strip()
+        if value:
+            return value
+    artifact_kind = str(artifact.get("artifact_kind", "") or "")
+    kind_map = {
+        "ArchitectCoordinatorProposalPacket": "ArchitectCoordinator",
+        "RuntimeQuestionMetadata": "ArchitectCoordinator",
+        "RuntimeRetrievalMemoryManifest": "RetrievalMemory",
+        "TheoryDerivationPacket": "TheoryDeveloper",
+        "RuntimeTheoryDerivationPacket": "TheoryDeveloper",
+        "SimulationEngineerProposalPacket": "SimulationEvaluator",
+        "RuntimeSimulationManifest": "SimulationEvaluator",
+        "AlgorithmEngineerProposalPacket": "AlgorithmEngineer",
+        "RuntimeAlgorithmSandboxManifest": "AlgorithmEngineer",
+        "FormalizerProofEngineerProposalPacket": "ProofEngineer",
+        "RuntimeFormalizationManifest": "ProofEngineer",
+        "RuntimeProofStateFeedbackManifest": "ProofEngineer",
+        "RuntimeFormalizerLeanCandidateMaterialization": "ProofEngineer",
+        "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest": (
+            "ProofEngineer"
+        ),
+        "RuntimeFormalizationGapPlannerBridge": "FormalizationGapPlanner",
+        "RuntimeFormalizationGapPlannerHandoff": "FormalizationGapPlanner",
+        "RuntimeFormalizationGapPlannerExecutionManifest": (
+            "FormalizationGapPlanner"
+        ),
+        "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest": (
+            "FormalizationGapPlanner"
+        ),
+        "RuntimeCriticEvaluatorManifest": "CriticEvaluator",
+    }
+    if artifact_kind in kind_map:
+        return kind_map[artifact_kind]
+    artifact_id_text = str(artifact_id)
+    prefix_map = (
+        ("architect_coordinator_proposal:", "ArchitectCoordinator"),
+        ("runtime_question_metadata:", "ArchitectCoordinator"),
+        ("retrieval_memory_manifest:", "RetrievalMemory"),
+        ("theory_derivation:", "TheoryDeveloper"),
+        ("simulation_manifest:", "SimulationEvaluator"),
+        ("algorithm_sandbox_manifest:", "AlgorithmEngineer"),
+        ("formalizer_proposal:", "ProofEngineer"),
+        ("formalization_manifest:", "ProofEngineer"),
+        ("proof_state_feedback_manifest:", "ProofEngineer"),
+        ("formalizer_lean_candidate_materialization:", "ProofEngineer"),
+        (
+            "formalizer_lean_candidate_proof_state_feedback_manifest:",
+            "ProofEngineer",
+        ),
+        ("runtime_formalization_gap_planner_", "FormalizationGapPlanner"),
+        ("critic_evaluator_manifest:", "CriticEvaluator"),
+    )
+    for prefix, subsystem in prefix_map:
+        if artifact_id_text.startswith(prefix):
+            return subsystem
+    source_agent = str(artifact.get("source_agent", "") or "")
+    if "Formalizer" in source_agent or "ProofEngineer" in source_agent:
+        return "ProofEngineer"
+    if "Simulation" in source_agent:
+        return "SimulationEvaluator"
+    if "Algorithm" in source_agent:
+        return "AlgorithmEngineer"
+    if "Theory" in source_agent:
+        return "TheoryDeveloper"
+    if "Critic" in source_agent:
+        return "CriticEvaluator"
+    if "Architect" in source_agent:
+        return "ArchitectCoordinator"
+    return artifact_kind or "unknown"
+
+
+def _runtime_artifact_with_architect_control(
+    artifact_id: str,
+    artifact: Any,
+    control_seed: Mapping[str, Any],
+    *,
+    subsystem_override: str = "",
+) -> Any:
+    if not isinstance(artifact, Mapping):
+        return artifact
+    contract = control_seed.get("evidence_contract", {})
+    if not isinstance(contract, Mapping) or not contract:
+        return dict(artifact)
+    payload = dict(artifact)
+    existing_control = payload.get("runtime_architect_control", {})
+    control = dict(existing_control) if isinstance(existing_control, Mapping) else {}
+    control_contract = control.get("evidence_contract", {})
+    if not isinstance(control_contract, Mapping) or not control_contract:
+        control["evidence_contract"] = dict(contract)
+        control_contract = contract
+    subsystem = str(subsystem_override or control.get("subsystem", "") or "").strip()
+    if not subsystem:
+        subsystem = _runtime_architect_control_subsystem_for_artifact(
+            artifact_id,
+            payload,
+        )
+    if not str(control.get("architect_coordinator_proposal_id", "") or "").strip():
+        control["architect_coordinator_proposal_id"] = str(
+            control_seed.get("architect_coordinator_proposal_id", "") or ""
+        )
+    control["subsystem"] = subsystem
+    if not str(control.get("formal_verification_policy", "") or "").strip():
+        control["formal_verification_policy"] = str(
+            control_seed.get("formal_verification_policy", "")
+            or control_contract.get("formal_verification_policy", "")
+            or ""
+        )
+    if not str(control.get("recommended_research_path", "") or "").strip():
+        control["recommended_research_path"] = str(
+            control_seed.get("recommended_research_path", "")
+            or control_contract.get("recommended_research_path", "")
+            or ""
+        )
+    if "formal_required_for_final" not in control:
+        control["formal_required_for_final"] = bool(
+            control_seed.get(
+                "formal_required_for_final",
+                control_contract.get("formal_required_for_final", False),
+            )
+        )
+    if not str(control.get("control_source", "") or "").strip():
+        control["control_source"] = str(
+            control_seed.get("control_source", "") or "runtime_architect_control"
+        )
+    control.setdefault("architect_control_propagated", True)
+    if not str(control.get("boundary", "") or "").strip():
+        control["boundary"] = str(
+            control_seed.get("boundary", "")
+            or "Architect control is orchestration metadata only; it does not "
+            "prove a theorem, validate generated code, or close a formal gap."
+    )
+    payload["runtime_architect_control"] = control
+    standalone_seed = payload.get("standalone_seed", {})
+    if isinstance(standalone_seed, Mapping) and standalone_seed:
+        standalone_seed_id = str(
+            payload.get("standalone_seed_artifact_id", "")
+            or standalone_seed.get("standalone_seed_artifact_id", "")
+            or f"{artifact_id}:standalone_seed"
+        )
+        payload["standalone_seed"] = _runtime_artifact_with_architect_control(
+            standalone_seed_id,
+            standalone_seed,
+            control_seed,
+            subsystem_override="FormalizationGapPlanner",
+        )
+    return payload
 
 
 def _formalizer_lean_candidate_target_context(
@@ -15131,6 +15454,22 @@ class FormalizationGapPlannerRuntimeSubsystem:
             handoff_rows,
             max_handoffs=max_handoffs,
         )
+        architect_control_seed = _runtime_architect_control_seed_from_context(
+            task.inputs.get("architect_context", {}),
+            subsystem="FormalizationGapPlanner",
+        )
+        if not architect_control_seed:
+            for handoff in selected:
+                architect_control_seed = (
+                    _runtime_architect_control_seed_from_control(
+                        handoff.get("runtime_architect_control", {}),
+                        control_source=(
+                            "runtime_formalization_gap_planner_handoff_control"
+                        ),
+                    )
+                )
+                if architect_control_seed:
+                    break
         live_root = self.out_dir / "runtime_formalization_gap_planner_live_route_planner"
         live_root.mkdir(parents=True, exist_ok=True)
         provider = self._live_route_planner_provider(task)
@@ -15660,6 +15999,18 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     / "formalization_gap_planner_llm_route_planner_manifest.json"
                 )
             )
+        if architect_control_seed:
+            rows = [
+                _runtime_artifact_with_architect_control(
+                    "runtime_formalization_gap_planner_live_route_planner_row:"
+                    + stable_hash([index, row.get("handoff_id", ""), row]),
+                    row,
+                    architect_control_seed,
+                    subsystem_override="FormalizationGapPlanner",
+                )
+                for index, row in enumerate(rows)
+                if isinstance(row, Mapping)
+            ]
         counts = {
             "selected_handoffs": len(selected),
             "requested_max_handoffs": max_handoffs,
@@ -16085,6 +16436,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "and target-prover replay."
             ),
         }
+        manifest = _runtime_artifact_with_architect_control(
+            manifest_id,
+            manifest,
+            architect_control_seed,
+            subsystem_override="FormalizationGapPlanner",
+        )
         manifest_path.write_text(
             json.dumps(manifest, indent=2, default=str),
             encoding="utf-8",
@@ -16138,6 +16495,29 @@ class FormalizationGapPlannerRuntimeSubsystem:
             blackboard,
             question_id=question.id,
         )
+        architect_control_seed = _runtime_architect_control_seed_from_context(
+            task.inputs.get("architect_context", {}),
+            subsystem="FormalizationGapPlanner",
+        )
+        if not architect_control_seed:
+            architect_control_seed = _runtime_architect_control_seed_from_artifacts(
+                {
+                    str(row.get("bridge_id", "") or index): row
+                    for index, row in enumerate(bridge_rows)
+                    if isinstance(row, Mapping)
+                }
+            )
+        if architect_control_seed:
+            bridge_rows = [
+                _runtime_artifact_with_architect_control(
+                    str(row.get("bridge_id", "") or index),
+                    row,
+                    architect_control_seed,
+                    subsystem_override="FormalizationGapPlanner",
+                )
+                for index, row in enumerate(bridge_rows)
+                if isinstance(row, Mapping)
+            ]
         planner_root = self.out_dir
         planner_root.mkdir(parents=True, exist_ok=True)
         seed_dir = planner_root / "runtime_formalization_gap_planner_seeds"
@@ -16166,6 +16546,17 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 runtime_out_dir=planner_root,
                 runtime_learning_rows=runtime_learning_rows,
             )
+            if architect_control_seed:
+                handoff_rows = [
+                    _runtime_artifact_with_architect_control(
+                        str(row.get("handoff_id", "") or index),
+                        row,
+                        architect_control_seed,
+                        subsystem_override="FormalizationGapPlanner",
+                    )
+                    for index, row in enumerate(handoff_rows)
+                    if isinstance(row, Mapping)
+                ]
             _write_jsonl(handoffs_path, handoff_rows)
             audit_payload = dict(
                 audit_formalization_gap_planner_runtime_handoffs(
@@ -16537,6 +16928,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "evidence, and it does not close any formal gap."
             ),
         }
+        manifest = _runtime_artifact_with_architect_control(
+            manifest_id,
+            manifest,
+            architect_control_seed,
+            subsystem_override="FormalizationGapPlanner",
+        )
         produced_artifacts[manifest_id] = manifest
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, manifest_id])[:20],
@@ -60736,6 +61133,16 @@ def _runtime_formalization_gap_planner_handoff_rows(
             ),
             "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
         }
+        bridge_control_seed = _runtime_architect_control_seed_from_control(
+            bridge.get("runtime_architect_control", {}),
+            control_source="runtime_formalization_gap_planner_bridge_control",
+        )
+        row = _runtime_artifact_with_architect_control(
+            str(row["handoff_id"]),
+            row,
+            bridge_control_seed,
+            subsystem_override="FormalizationGapPlanner",
+        )
         bridge["handoff_id"] = row["handoff_id"]
         bridge["target_theorem_name"] = bridge_target_theorem_name
         bridge["target_ids"] = bridge_target_ids
@@ -63380,6 +63787,7 @@ def _runtime_research_path_execution_summary(
         )
         if not isinstance(artifacts, Mapping):
             continue
+        artifacts = _normalize_runtime_blackboard_artifacts(artifacts)
         produced_artifact_ids = set(_runtime_trace_produced_artifact_ids(result))
         artifact_scope = (
             produced_artifact_ids if produced_artifact_ids else set(artifacts)
