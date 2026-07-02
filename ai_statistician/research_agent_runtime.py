@@ -219,6 +219,15 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY = (
 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS = (
     "RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_NOT_PROOF_EVIDENCE"
 )
+RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS = (
+    "RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_NOT_PROOF_EVIDENCE"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER = (
+    "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS = (
+    "PENDING_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+)
 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY = (
     "Runtime live route-planner target-prover replay records standalone-plan, "
     "refinement-queue, local proof-state adapter, and refinement-evidence "
@@ -13489,6 +13498,14 @@ class FormalizationGapPlannerRuntimeSubsystem:
             and bool(refinement_evidence_payload.get("all_ok", False))
             and not errors
         )
+        route_revision_proposals = [
+            dict(proposal)
+            for proposal in (
+                refinement_evidence_payload.get("route_revision_proposals", [])
+                or []
+            )
+            if isinstance(proposal, Mapping)
+        ]
         output_paths = [
             standalone_plan_dir
             / "goal_conditioned_minimal_formalization_plan_manifest.json",
@@ -13498,6 +13515,8 @@ class FormalizationGapPlannerRuntimeSubsystem:
             / "formalization_gap_planner_local_proof_state_adapter_manifest.json",
             refinement_evidence_dir
             / "formalization_gap_planner_refinement_evidence_manifest.json",
+            refinement_evidence_dir
+            / "formalization_gap_planner_route_revision_proposals.jsonl",
         ]
         return {
             "replay_root": str(replay_root),
@@ -13550,6 +13569,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 refinement_evidence_payload.get("n_route_revision_proposals", 0)
                 or 0
             ),
+            "route_revision_proposals_path": str(
+                refinement_evidence_dir
+                / "formalization_gap_planner_route_revision_proposals.jsonl"
+            ),
+            "route_revision_proposals": route_revision_proposals[:12],
             "errors": errors[:10],
             "proof_evidence_status": (
                 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
@@ -14376,6 +14400,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "manifest_id": manifest_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "task_id": task.task_id,
+            "question": (
+                dict(task.inputs.get("question", {}))
+                if isinstance(task.inputs.get("question", {}), Mapping)
+                else {}
+            ),
             "provider_name": provider,
             "model": model,
             "model_tier": model_tier,
@@ -16381,6 +16410,18 @@ def run_research_agent_runtime(
     gap_planner_live_route_planner_summary = (
         _runtime_formalization_gap_planner_live_route_planner_summary(results)
     )
+    gap_planner_target_prover_replay_next_action_rows = (
+        _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
+            agenda_rows,
+            learning_rows,
+        )
+    )
+    if gap_planner_target_prover_replay_next_action_rows:
+        learning_rows.extend(
+            _runtime_generated_next_action_learning_rows(
+                gap_planner_target_prover_replay_next_action_rows
+            )
+        )
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
     theorem_reduction_closure_work_orders_path = (
@@ -28313,6 +28354,7 @@ _FORMAL_GAP_NEXT_ACTION_TRIGGERS = frozenset(
     {
         "FORMAL_GAP",
         "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
+        RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
     }
 )
 
@@ -39349,6 +39391,22 @@ def _runtime_formal_gap_next_action_agenda_memory_row(
         "recommended_llm_provider",
         "recommended_model_tier",
         "target_prover_family",
+        "source_target_prover_family",
+        "route_revision_proposal_id",
+        "refinement_evidence_id",
+        "refinement_item_id",
+        "goal_plan_id",
+        "route_id",
+        "target_primitives",
+        "revised_selected_primitives",
+        "revised_delta_primitives",
+        "route_revision_reasons",
+        "route_revision_summary",
+        "prover_attempt_status",
+        "prover_attempt_class",
+        "prover_diagnostic_signature",
+        "refinement_evidence_dir",
+        "route_revision_proposals_path",
         "failure_classifications",
         "proof_boundary",
         "boundary",
@@ -39516,6 +39574,63 @@ def _runtime_learning_memory_formal_gap_next_action_routing_rows(
                         input_summary,
                         "failure_classifications",
                     )
+                ),
+                "route_revision_proposal_ids": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_revision_proposal_id",
+                    )
+                ),
+                "route_ids": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_id",
+                    )
+                ),
+                "target_primitives": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "target_primitives",
+                    )
+                ),
+                "revised_selected_primitives": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "revised_selected_primitives",
+                    )
+                ),
+                "revised_delta_primitives": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "revised_delta_primitives",
+                    )
+                ),
+                "route_revision_reasons": list(
+                    _runtime_learning_row_string_values(
+                        row,
+                        input_summary,
+                        "route_revision_reasons",
+                    )
+                ),
+                "route_revision_summary": str(
+                    row.get("route_revision_summary", "")
+                    or input_summary.get("route_revision_summary", "")
+                    or ""
+                ),
+                "prover_attempt_status": str(
+                    row.get("prover_attempt_status", "")
+                    or input_summary.get("prover_attempt_status", "")
+                    or ""
+                ),
+                "prover_attempt_class": str(
+                    row.get("prover_attempt_class", "")
+                    or input_summary.get("prover_attempt_class", "")
+                    or ""
                 ),
                 "target_behavior": str(row.get("target_behavior", "") or ""),
                 "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
@@ -40552,6 +40667,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(row.get("acceptance_gate", "") or "").strip()
         )
     )
+    formal_gap_route_revision_proposal_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("route_revision_proposal_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    formal_gap_route_revision_target_primitives = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in formal_gap_next_action_routing_rows
+            for value in row.get("target_primitives", []) or []
+            if str(value).strip()
+        )
+    )
     formal_gap_next_action_contract = (
         {
             "contract_kind": "formal_gap_next_action_routing",
@@ -40577,6 +40708,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 formalization_gap_planner_execution_contexts
             )[:4],
             "acceptance_gates": list(formal_gap_next_action_acceptance_gates),
+            "route_revision_proposal_ids": list(
+                formal_gap_route_revision_proposal_ids
+            ),
+            "route_revision_target_primitives": list(
+                formal_gap_route_revision_target_primitives
+            ),
             "required_execution_order": [
                 "reuse retrieved formal-source/prover context",
                 "stage LLM route-planner prompt packets from the runtime seed",
@@ -41138,6 +41275,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formal_gap_next_action_acceptance_gates": list(
             formal_gap_next_action_acceptance_gates
         ),
+        "formal_gap_route_revision_proposal_ids": list(
+            formal_gap_route_revision_proposal_ids
+        ),
+        "formal_gap_route_revision_target_primitives": list(
+            formal_gap_route_revision_target_primitives
+        ),
         "formal_gap_next_action_contract": formal_gap_next_action_contract,
         "formal_gap_next_action_diagnostics": [
             {
@@ -41165,6 +41308,29 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "formalization_gap_planner_execution_contexts": list(
                     row.get("formalization_gap_planner_execution_contexts", []) or []
                 )[:2],
+                "route_revision_proposal_ids": list(
+                    row.get("route_revision_proposal_ids", []) or []
+                ),
+                "route_ids": list(row.get("route_ids", []) or []),
+                "target_primitives": list(row.get("target_primitives", []) or []),
+                "revised_selected_primitives": list(
+                    row.get("revised_selected_primitives", []) or []
+                ),
+                "revised_delta_primitives": list(
+                    row.get("revised_delta_primitives", []) or []
+                ),
+                "route_revision_reasons": list(
+                    row.get("route_revision_reasons", []) or []
+                ),
+                "route_revision_summary": str(
+                    row.get("route_revision_summary", "") or ""
+                ),
+                "prover_attempt_status": str(
+                    row.get("prover_attempt_status", "") or ""
+                ),
+                "prover_attempt_class": str(
+                    row.get("prover_attempt_class", "") or ""
+                ),
                 "target_behavior": str(row.get("target_behavior", "") or ""),
                 "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
                 "proof_boundary": str(row.get("proof_boundary", "") or ""),
@@ -45860,6 +46026,22 @@ def _critic_learning_rows(
             "recommended_llm_provider",
             "recommended_model_tier",
             "target_prover_family",
+            "source_target_prover_family",
+            "route_revision_proposal_id",
+            "refinement_evidence_id",
+            "refinement_item_id",
+            "goal_plan_id",
+            "route_id",
+            "target_primitives",
+            "revised_selected_primitives",
+            "revised_delta_primitives",
+            "route_revision_reasons",
+            "route_revision_summary",
+            "prover_attempt_status",
+            "prover_attempt_class",
+            "prover_diagnostic_signature",
+            "refinement_evidence_dir",
+            "route_revision_proposals_path",
             "failure_classifications",
             "proof_boundary",
             "boundary",
@@ -46190,6 +46372,8 @@ def _runtime_next_action_agenda_specificity_rank(row: Mapping[str, Any]) -> int:
         return 4
     if "source_theorem_semantic_primitives" in combined:
         return 5
+    if "target_prover_replay_route_revision" in combined:
+        return 6
     if row_id == "simulation:theory_revision":
         return 10
     if row_id == "proof_feedback:kernel_rerun":
@@ -46316,6 +46500,10 @@ def _merge_runtime_next_action_agenda_row(
         "kernel_verified_source_to_bridge_premise_derivation_ids",
         "recommended_commands",
         "formalization_gap_planner_execution_plan_stage_ids",
+        "target_primitives",
+        "revised_selected_primitives",
+        "revised_delta_primitives",
+        "route_revision_reasons",
     ):
         merged = _agenda_string_values(existing.get(key, []))
         merged.extend(_agenda_string_values(incoming.get(key, [])))
@@ -47039,6 +47227,54 @@ def _runtime_generated_next_action_learning_rows(
                 if str(stage_id).strip()
             )
         )
+        route_revision_metadata = {
+            "route_revision_proposal_id": str(
+                row.get("route_revision_proposal_id", "") or ""
+            ),
+            "refinement_evidence_id": str(
+                row.get("refinement_evidence_id", "") or ""
+            ),
+            "refinement_item_id": str(row.get("refinement_item_id", "") or ""),
+            "goal_plan_id": str(row.get("goal_plan_id", "") or ""),
+            "route_id": str(row.get("route_id", "") or ""),
+            "target_primitives": list(
+                _runtime_row_string_values(row, "target_primitives")
+            ),
+            "revised_selected_primitives": list(
+                _runtime_row_string_values(row, "revised_selected_primitives")
+            ),
+            "revised_delta_primitives": list(
+                _runtime_row_string_values(row, "revised_delta_primitives")
+            ),
+            "route_revision_reasons": list(
+                _runtime_row_string_values(row, "route_revision_reasons")
+            ),
+            "route_revision_summary": str(
+                row.get("route_revision_summary", "") or ""
+            ),
+            "prover_attempt_status": str(
+                row.get("prover_attempt_status", "") or ""
+            ),
+            "prover_attempt_class": str(row.get("prover_attempt_class", "") or ""),
+            "prover_diagnostic_signature": str(
+                row.get("prover_diagnostic_signature", "") or ""
+            ),
+            "target_prover_family": str(row.get("target_prover_family", "") or ""),
+            "source_target_prover_family": str(
+                row.get("source_target_prover_family", "") or ""
+            ),
+            "refinement_evidence_dir": str(
+                row.get("refinement_evidence_dir", "") or ""
+            ),
+            "route_revision_proposals_path": str(
+                row.get("route_revision_proposals_path", "") or ""
+            ),
+        }
+        route_revision_metadata = {
+            key: value
+            for key, value in route_revision_metadata.items()
+            if value not in ("", [], {})
+        }
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -47046,6 +47282,7 @@ def _runtime_generated_next_action_learning_rows(
                 "question_title": "",
                 "target_theorem_name": target_theorem_name,
                 "target_ids": target_ids,
+                **route_revision_metadata,
                 **(
                     {
                         "supporting_formalization_gap_planner_bridge_ids": (
@@ -47207,6 +47444,7 @@ def _runtime_generated_next_action_learning_rows(
                         if str(value).strip()
                     ],
                     "target_ids": target_ids,
+                    **route_revision_metadata,
                 },
                 "target_behavior": str(row.get("action", "") or ""),
                 "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
@@ -47215,6 +47453,521 @@ def _runtime_generated_next_action_learning_rows(
             }
         )
     return rows
+
+
+def _formalization_gap_planner_target_prover_replay_route_revision_proposals(
+    target_prover_replay: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    proposals = [
+        dict(proposal)
+        for proposal in target_prover_replay.get("route_revision_proposals", []) or []
+        if isinstance(proposal, Mapping)
+    ]
+    if proposals:
+        return proposals[:12]
+    proposal_path = str(
+        target_prover_replay.get("route_revision_proposals_path", "") or ""
+    ).strip()
+    if not proposal_path:
+        evidence_dir = str(
+            target_prover_replay.get("refinement_evidence_dir", "") or ""
+        ).strip()
+        if evidence_dir:
+            proposal_path = str(
+                Path(evidence_dir)
+                / "formalization_gap_planner_route_revision_proposals.jsonl"
+            )
+    if not proposal_path:
+        return []
+    path = Path(proposal_path)
+    if not path.exists():
+        return []
+    try:
+        return [
+            dict(proposal)
+            for proposal in _read_jsonl(path)
+            if isinstance(proposal, Mapping)
+        ][:12]
+    except Exception:
+        return []
+
+
+def _formalization_gap_planner_target_prover_replay_learning_rows(
+    artifact: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    question = (
+        artifact.get("question", {})
+        if isinstance(artifact.get("question", {}), Mapping)
+        else {}
+    )
+    manifest_id = str(artifact.get("manifest_id", "") or "")
+    manifest_path = str(artifact.get("manifest_path", "") or "")
+    for live_row in artifact.get("rows", []) or []:
+        if not isinstance(live_row, Mapping):
+            continue
+        target_prover_replay = (
+            live_row.get("target_prover_replay", {})
+            if isinstance(live_row.get("target_prover_replay", {}), Mapping)
+            else {}
+        )
+        if not target_prover_replay:
+            continue
+        proposals = (
+            _formalization_gap_planner_target_prover_replay_route_revision_proposals(
+                target_prover_replay
+            )
+        )
+        if not proposals:
+            continue
+        replay_summary = {
+            "attempted": bool(target_prover_replay.get("attempted", False)),
+            "all_ok": bool(target_prover_replay.get("all_ok", False)),
+            "standalone_plan_dir": str(
+                target_prover_replay.get("standalone_plan_dir", "") or ""
+            ),
+            "refinement_queue_dir": str(
+                target_prover_replay.get("refinement_queue_dir", "") or ""
+            ),
+            "local_proof_state_adapter_dir": str(
+                target_prover_replay.get("local_proof_state_adapter_dir", "") or ""
+            ),
+            "refinement_evidence_dir": str(
+                target_prover_replay.get("refinement_evidence_dir", "") or ""
+            ),
+            "route_revision_proposals_path": str(
+                target_prover_replay.get("route_revision_proposals_path", "") or ""
+            ),
+            "n_refinement_items": int(
+                target_prover_replay.get("n_refinement_items", 0) or 0
+            ),
+            "n_proof_state_feedback_items": int(
+                target_prover_replay.get("n_proof_state_feedback_items", 0) or 0
+            ),
+            "n_local_proof_state_responses": int(
+                target_prover_replay.get("n_local_proof_state_responses", 0) or 0
+            ),
+            "n_route_revision_proposals": int(
+                target_prover_replay.get("n_route_revision_proposals", 0) or 0
+            ),
+            "n_local_lean_failed": int(
+                target_prover_replay.get("n_local_lean_failed", 0) or 0
+            ),
+            "n_local_lean_unavailable": int(
+                target_prover_replay.get("n_local_lean_unavailable", 0) or 0
+            ),
+            "proof_evidence_status": str(
+                target_prover_replay.get("proof_evidence_status", "")
+                or RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
+            ),
+            "proof_evidence_boundary": str(
+                target_prover_replay.get("proof_evidence_boundary", "")
+                or RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+            ),
+        }
+        execution_context = _runtime_formalization_gap_planner_execution_context(
+            live_row
+        )
+        bridge_id = str(live_row.get("bridge_id", "") or "")
+        handoff_id = str(live_row.get("handoff_id", "") or "")
+        standalone_seed_path = str(live_row.get("standalone_seed_path", "") or "")
+        for proposal in proposals:
+            proposal_id = str(proposal.get("proposal_id", "") or "").strip()
+            if not proposal_id:
+                proposal_id = (
+                    "formalization_gap_planner_route_revision:"
+                    + stable_hash([manifest_id, live_row, proposal])[:16]
+                )
+            target_primitives = list(
+                _runtime_row_string_values(
+                    proposal,
+                    "target_primitives",
+                    "revised_selected_primitives",
+                    "revised_delta_primitives",
+                )
+            )
+            route_id = str(proposal.get("route_id", "") or "")
+            goal_plan_id = str(proposal.get("goal_plan_id", "") or "")
+            target_ids = list(
+                dict.fromkeys(
+                    [
+                        *target_primitives,
+                        *[
+                            value
+                            for value in (route_id, goal_plan_id)
+                            if str(value).strip()
+                        ],
+                    ]
+                )
+            )
+            learning_row_id = (
+                "runtime_formalization_gap_planner_target_prover_replay_feedback:"
+                + stable_hash([manifest_id, handoff_id, proposal_id])[:16]
+            )
+            row_input_summary = {
+                "trigger": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+                ),
+                "source_manifest_id": manifest_id,
+                "source_manifest_path": manifest_path,
+                "formalization_gap_planner_bridge_id": bridge_id,
+                "formalization_gap_planner_handoff_id": handoff_id,
+                "standalone_seed_path": standalone_seed_path,
+                "target_prover_replay": replay_summary,
+                "route_revision_proposal": proposal,
+                "route_revision_proposal_id": proposal_id,
+                "refinement_evidence_id": str(
+                    proposal.get("refinement_evidence_id", "") or ""
+                ),
+                "refinement_item_id": str(
+                    proposal.get("refinement_item_id", "") or ""
+                ),
+                "goal_plan_id": goal_plan_id,
+                "route_id": route_id,
+                "target_primitives": target_primitives,
+                "revised_selected_primitives": list(
+                    _runtime_row_string_values(
+                        proposal,
+                        "revised_selected_primitives",
+                    )
+                ),
+                "revised_delta_primitives": list(
+                    _runtime_row_string_values(proposal, "revised_delta_primitives")
+                ),
+                "route_revision_reasons": list(
+                    _runtime_row_string_values(proposal, "route_revision_reasons")
+                ),
+                "route_revision_summary": str(
+                    proposal.get("route_revision_summary", "") or ""
+                ),
+                "residual_goals": list(
+                    _runtime_row_string_values(proposal, "residual_goals")
+                ),
+                "prover_attempt_status": str(
+                    proposal.get("prover_attempt_status", "") or ""
+                ),
+                "prover_attempt_class": str(
+                    proposal.get("prover_attempt_class", "") or ""
+                ),
+                "prover_diagnostic_signature": str(
+                    proposal.get("prover_diagnostic_signature", "") or ""
+                ),
+                "target_prover_family": str(
+                    proposal.get("target_prover_family", "") or ""
+                ),
+                "source_target_prover_family": str(
+                    proposal.get("source_target_prover_family", "") or ""
+                ),
+                "target_ids": target_ids,
+                "runtime_queue_status": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+                ),
+            }
+            rows.append(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "RuntimeLearningRow",
+                    "runtime_learning_row_id": learning_row_id,
+                    "question_id": str(question.get("id", "") or ""),
+                    "question_title": str(question.get("title", "") or ""),
+                    "source_manifest_id": manifest_id,
+                    "source_manifest_path": manifest_path,
+                    "learning_task": (
+                        "formalization_gap_planner_target_prover_replay_feedback"
+                    ),
+                    "next_owner_subsystem": (
+                        "FormalizationGapPlanner/Formalizer/ProofEngineer"
+                    ),
+                    "formalization_gap_planner_bridge_id": bridge_id,
+                    "formalization_gap_planner_handoff_id": handoff_id,
+                    "standalone_seed_path": standalone_seed_path,
+                    "formalization_gap_planner_execution_contexts": (
+                        [execution_context] if execution_context else []
+                    ),
+                    "route_revision_proposal_id": proposal_id,
+                    "refinement_evidence_id": str(
+                        proposal.get("refinement_evidence_id", "") or ""
+                    ),
+                    "refinement_item_id": str(
+                        proposal.get("refinement_item_id", "") or ""
+                    ),
+                    "goal_plan_id": goal_plan_id,
+                    "route_id": route_id,
+                    "target_ids": target_ids,
+                    "target_primitives": target_primitives,
+                    "revised_selected_primitives": row_input_summary[
+                        "revised_selected_primitives"
+                    ],
+                    "revised_delta_primitives": row_input_summary[
+                        "revised_delta_primitives"
+                    ],
+                    "route_revision_reasons": row_input_summary[
+                        "route_revision_reasons"
+                    ],
+                    "route_revision_summary": row_input_summary[
+                        "route_revision_summary"
+                    ],
+                    "prover_attempt_status": row_input_summary[
+                        "prover_attempt_status"
+                    ],
+                    "prover_attempt_class": row_input_summary[
+                        "prover_attempt_class"
+                    ],
+                    "prover_diagnostic_signature": row_input_summary[
+                        "prover_diagnostic_signature"
+                    ],
+                    "target_prover_family": row_input_summary[
+                        "target_prover_family"
+                    ],
+                    "source_target_prover_family": row_input_summary[
+                        "source_target_prover_family"
+                    ],
+                    "runtime_queue_status": (
+                        RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+                    ),
+                    "input_summary": row_input_summary,
+                    "target_behavior": (
+                        "Revise the formalization-gap route using target-prover "
+                        "replay diagnostics, then rerun standalone planning, "
+                        "refinement queue export, local proof-state replay, and "
+                        "refinement-evidence validation before promoting any "
+                        "target as proof-relevant."
+                    ),
+                    "acceptance_gate": (
+                        "A later FormalizationGapPlanner/Formalizer pass consumes "
+                        "the revised selected or delta primitives, reruns target-prover "
+                        "replay, and records separate AXLE/local Lean kernel evidence "
+                        "before any theorem or bridge lemma is treated as proved."
+                    ),
+                    "proof_evidence_status": (
+                        RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
+                    ),
+                    "proof_evidence_boundary": (
+                        RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+                    ),
+                    "proof_boundary": (
+                        RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+                    ),
+                    "boundary": (
+                        "This learning row is target-prover feedback for route "
+                        "repair only. It is not theorem proof evidence."
+                    ),
+                }
+            )
+    return rows
+
+
+def _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
+    agenda_rows: list[dict[str, Any]],
+    learning_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    existing_by_id = {
+        str(row.get("id", "") or ""): row
+        for row in agenda_rows
+        if isinstance(row, Mapping) and str(row.get("id", "") or "")
+    }
+    appended: list[dict[str, Any]] = []
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("learning_task", "") or "")
+            != "formalization_gap_planner_target_prover_replay_feedback"
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        proposal_id = str(
+            row.get("route_revision_proposal_id", "")
+            or input_summary.get("route_revision_proposal_id", "")
+            or row.get("refinement_evidence_id", "")
+            or input_summary.get("refinement_evidence_id", "")
+            or ""
+        ).strip()
+        if not proposal_id:
+            continue
+        agenda_id = (
+            "formal_gap:target_prover_replay_route_revision:"
+            + stable_hash(proposal_id)[:12]
+        )
+        target_ids = list(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "target_ids",
+                "target_id",
+                "target_theorem_goal_ids",
+                "target_theorem_name",
+                "target_primitives",
+            )
+        )
+        route_revision_summary = str(
+            row.get("route_revision_summary", "")
+            or input_summary.get("route_revision_summary", "")
+            or ""
+        ).strip()
+        route_revision_reasons = list(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "route_revision_reasons",
+            )
+        )
+        action_tail = (
+            route_revision_summary
+            or "; ".join(route_revision_reasons[:3])
+            or "target-prover replay requested a route revision"
+        )
+        agenda_item = {
+            "id": agenda_id,
+            "question_id": str(
+                row.get("question_id", "")
+                or input_summary.get("question_id", "")
+                or ""
+            ),
+            "owner_subsystem": "FormalizationGapPlanner/Formalizer/ProofEngineer",
+            "trigger": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+            ),
+            "action": (
+                "consume target-prover replay route-revision feedback, revise the "
+                f"formalization-gap route, and rerun replay before proof promotion: "
+                f"{action_tail}"
+            ),
+            "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+            "target_ids": target_ids,
+            "formalization_gap_planner_bridge_id": str(
+                row.get("formalization_gap_planner_bridge_id", "")
+                or input_summary.get("formalization_gap_planner_bridge_id", "")
+                or ""
+            ),
+            "formalization_gap_planner_handoff_id": str(
+                row.get("formalization_gap_planner_handoff_id", "")
+                or input_summary.get("formalization_gap_planner_handoff_id", "")
+                or ""
+            ),
+            "standalone_seed_path": str(
+                row.get("standalone_seed_path", "")
+                or input_summary.get("standalone_seed_path", "")
+                or ""
+            ),
+            "formalization_gap_planner_execution_contexts": list(
+                row.get("formalization_gap_planner_execution_contexts", []) or []
+            ),
+            "route_revision_proposal_id": proposal_id,
+            "refinement_evidence_id": str(
+                row.get("refinement_evidence_id", "")
+                or input_summary.get("refinement_evidence_id", "")
+                or ""
+            ),
+            "refinement_item_id": str(
+                row.get("refinement_item_id", "")
+                or input_summary.get("refinement_item_id", "")
+                or ""
+            ),
+            "goal_plan_id": str(
+                row.get("goal_plan_id", "")
+                or input_summary.get("goal_plan_id", "")
+                or ""
+            ),
+            "route_id": str(
+                row.get("route_id", "") or input_summary.get("route_id", "") or ""
+            ),
+            "target_primitives": list(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "target_primitives",
+                )
+            ),
+            "revised_selected_primitives": list(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "revised_selected_primitives",
+                )
+            ),
+            "revised_delta_primitives": list(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "revised_delta_primitives",
+                )
+            ),
+            "route_revision_reasons": route_revision_reasons,
+            "route_revision_summary": route_revision_summary,
+            "prover_attempt_status": str(
+                row.get("prover_attempt_status", "")
+                or input_summary.get("prover_attempt_status", "")
+                or ""
+            ),
+            "prover_attempt_class": str(
+                row.get("prover_attempt_class", "")
+                or input_summary.get("prover_attempt_class", "")
+                or ""
+            ),
+            "prover_diagnostic_signature": str(
+                row.get("prover_diagnostic_signature", "")
+                or input_summary.get("prover_diagnostic_signature", "")
+                or ""
+            ),
+            "target_prover_family": str(
+                row.get("target_prover_family", "")
+                or input_summary.get("target_prover_family", "")
+                or ""
+            ),
+            "source_target_prover_family": str(
+                row.get("source_target_prover_family", "")
+                or input_summary.get("source_target_prover_family", "")
+                or ""
+            ),
+            "refinement_evidence_dir": str(
+                (input_summary.get("target_prover_replay", {}) or {}).get(
+                    "refinement_evidence_dir",
+                    "",
+                )
+                if isinstance(input_summary.get("target_prover_replay", {}), Mapping)
+                else ""
+            ),
+            "route_revision_proposals_path": str(
+                (input_summary.get("target_prover_replay", {}) or {}).get(
+                    "route_revision_proposals_path",
+                    "",
+                )
+                if isinstance(input_summary.get("target_prover_replay", {}), Mapping)
+                else ""
+            ),
+            "runtime_queue_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+            ),
+            "recommended_next_action": str(row.get("target_behavior", "") or ""),
+            "priority": "high",
+            "proof_evidence_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
+            ),
+            "proof_boundary": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+            ),
+            "boundary": (
+                "This agenda row routes target-prover replay diagnostics back "
+                "into planning. It is not theorem proof evidence."
+            ),
+        }
+        existing_row = existing_by_id.get(agenda_id)
+        if existing_row is not None:
+            before = dict(existing_row)
+            _merge_runtime_next_action_agenda_row(existing_row, agenda_item)
+            _strengthen_runtime_next_action_agenda_row(existing_row, agenda_item)
+            if existing_row != before:
+                appended.append(dict(existing_row))
+            continue
+        agenda_rows.append(agenda_item)
+        existing_by_id[agenda_id] = agenda_item
+        appended.append(agenda_item)
+    return appended
 
 
 def _runtime_learning_row_with_surface_targets(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -47290,9 +48043,18 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 "RuntimeFormalizerCapabilityContractFailure",
                 "RuntimeFormalizerLeanCandidateMaterialization",
                 "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
+                "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
                 "RuntimeAlgorithmSandboxManifest",
                 "RuntimeSimulationManifest",
             }:
+                continue
+            if artifact_kind == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest":
+                rows.extend(
+                    _runtime_learning_row_with_surface_targets(item)
+                    for item in _formalization_gap_planner_target_prover_replay_learning_rows(
+                        artifact
+                    )
+                )
                 continue
             if artifact_kind == "RuntimeAlgorithmSandboxManifest":
                 rows.extend(_algorithm_sandbox_feedback_learning_rows(artifact))

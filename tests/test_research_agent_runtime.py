@@ -137,6 +137,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows,
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_post_executor_formal_environment_learning_rows,
     _append_runtime_generated_next_action_rows,
+    _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows,
     _runtime_generated_next_action_learning_rows,
     _prune_stale_source_to_bridge_premise_gap_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
@@ -1907,6 +1908,88 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert (
         live_manifest["counts"]["provider_total_tokens_including_staged_followups"]
         == 238
+    )
+    target_prover_replay = live_manifest["rows"][0]["target_prover_replay"]
+    assert target_prover_replay["route_revision_proposals"]
+    proposal = target_prover_replay["route_revision_proposals"][0]
+    assert proposal["proposal_id"].startswith(
+        "formalization_gap_planner_route_revision:"
+    )
+    assert Path(target_prover_replay["route_revision_proposals_path"]).exists()
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    replay_learning_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalization_gap_planner_target_prover_replay_feedback"
+    ]
+    assert replay_learning_rows
+    replay_learning_row = replay_learning_rows[0]
+    assert replay_learning_row["route_revision_proposal_id"] == proposal["proposal_id"]
+    assert replay_learning_row["next_owner_subsystem"] == (
+        "FormalizationGapPlanner/Formalizer/ProofEngineer"
+    )
+    assert replay_learning_row["runtime_queue_status"] == (
+        "PENDING_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+    )
+    assert replay_learning_row["proof_evidence_status"] == (
+        "RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_NOT_PROOF_EVIDENCE"
+    )
+    agenda_rows: list[dict[str, object]] = []
+    replay_agenda_rows = (
+        _append_runtime_formalization_gap_planner_target_prover_replay_agenda_rows(
+            agenda_rows,
+            replay_learning_rows,
+        )
+    )
+    assert len(replay_agenda_rows) == len(replay_learning_rows)
+    replay_agenda_row = next(
+        row
+        for row in replay_agenda_rows
+        if row["route_revision_proposal_id"] == proposal["proposal_id"]
+    )
+    assert replay_agenda_row["trigger"] == (
+        "FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
+    )
+    assert replay_agenda_row["owner_subsystem"] == (
+        "FormalizationGapPlanner/Formalizer/ProofEngineer"
+    )
+    assert replay_agenda_row["route_revision_proposal_id"] == proposal["proposal_id"]
+    generated_replay_learning_rows = _runtime_generated_next_action_learning_rows(
+        replay_agenda_rows
+    )
+    generated_replay_learning_row = next(
+        row
+        for row in generated_replay_learning_rows
+        if row["input_summary"]["route_revision_proposal_id"]
+        == proposal["proposal_id"]
+    )
+    assert generated_replay_learning_row["learning_task"] == (
+        "generated_next_action_routing"
+    )
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [*replay_learning_rows, *generated_replay_learning_rows],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert proposal["proposal_id"] in memory_summary[
+        "formal_gap_route_revision_proposal_ids"
+    ]
+    assert any(
+        proposal["proposal_id"] in diagnostic["route_revision_proposal_ids"]
+        for diagnostic in memory_summary["formal_gap_next_action_diagnostics"]
     )
     assert Path(live_manifest["manifest_path"]).exists()
     assert any(
