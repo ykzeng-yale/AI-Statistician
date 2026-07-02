@@ -2746,6 +2746,32 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "pending task did not preserve the source" in lineage_row["blocker"]
     assert lineage_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
 
+    prior_ledger_payload = dict(clean_payload)
+    prior_ledger_payload.update(
+        {
+            "runtime_resume_prior_ledger_continuity_required": True,
+            "runtime_resume_prior_ledger_continuity_complete": False,
+            "n_runtime_resume_prior_evidence_ledger_artifacts": 1,
+            "n_runtime_resume_prior_handoff_ledger_artifacts": 0,
+            "n_runtime_resume_prior_evidence_ledger_rows": 3,
+            "n_runtime_resume_prior_handoff_ledger_rows": 0,
+            "runtime_resume_prior_ledger_continuity_issues": [],
+        }
+    )
+    prior_ledger_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(prior_ledger_payload)["rows"]
+    }
+    prior_ledger_row = prior_ledger_rows[
+        "runtime_resume_prior_ledger_continuity_complete"
+    ]
+    assert prior_ledger_row["passed"] is False
+    assert "prior_handoff_artifacts=0" in prior_ledger_row["evidence"]
+    assert "did not rehydrate prior evidence and handoff" in prior_ledger_row[
+        "blocker"
+    ]
+    assert prior_ledger_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
 
 def test_runtime_capability_gaps_separate_component_calibration() -> None:
     scorecard = {
@@ -57702,6 +57728,56 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         key.startswith("theory_derivation:")
         for key in second_blackboard_artifacts
     )
+    prior_evidence_artifacts = [
+        artifact
+        for key, artifact in second_blackboard_artifacts.items()
+        if key.startswith("runtime_resume_prior_evidence_ledger:")
+    ]
+    prior_handoff_artifacts = [
+        artifact
+        for key, artifact in second_blackboard_artifacts.items()
+        if key.startswith("runtime_resume_prior_handoff_ledger:")
+    ]
+    assert len(prior_evidence_artifacts) == 1
+    assert len(prior_handoff_artifacts) == 1
+    assert prior_evidence_artifacts[0]["artifact_kind"] == (
+        "RuntimeResumePriorEvidenceLedger"
+    )
+    assert prior_handoff_artifacts[0]["artifact_kind"] == (
+        "RuntimeResumePriorHandoffLedger"
+    )
+    assert prior_evidence_artifacts[0]["proof_evidence_status"] == (
+        "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE"
+    )
+    assert prior_handoff_artifacts[0]["proof_evidence_status"] == (
+        "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE"
+    )
+    assert prior_evidence_artifacts[0]["n_prior_evidence_rows"] > 0
+    assert prior_handoff_artifacts[0]["n_prior_handoff_rows"] > 0
+    assert "not as current evidence_ledger or handoff_ledger" in (
+        prior_evidence_artifacts[0]["boundary"]
+    )
+    assert all(
+        row["evidence_type"] != "runtime_resume_prior_evidence_ledger"
+        for row in second_result["blackboard"]["evidence_ledger"]
+    )
+    second_audit = audit_research_agent_runtime(
+        second_out_dir,
+        second_out_dir / "runtime_audit",
+    )
+    assert second_audit["runtime_resume_prior_ledger_continuity_required"] is True
+    assert second_audit["runtime_resume_prior_ledger_continuity_complete"] is True
+    assert second_audit["n_runtime_resume_prior_evidence_ledger_artifacts"] == 1
+    assert second_audit["n_runtime_resume_prior_handoff_ledger_artifacts"] == 1
+    assert second_audit["n_runtime_resume_prior_evidence_ledger_rows"] > 0
+    assert second_audit["n_runtime_resume_prior_handoff_ledger_rows"] > 0
+    second_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in second_audit["capability_scorecard"]["rows"]
+    }
+    assert second_scorecard_rows[
+        "runtime_resume_prior_ledger_continuity_complete"
+    ]["passed"] is True
 
     third_out_dir = root / "out_from_pending_artifact_auto_memory"
     code = main(

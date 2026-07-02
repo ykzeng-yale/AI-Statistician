@@ -836,6 +836,111 @@ def _runtime_pending_task_handoff_lineage_summary(
     }
 
 
+def _runtime_resume_prior_ledger_continuity_summary(
+    *,
+    manifest: Mapping[str, Any],
+    result_paths: list[Path],
+    runtime_resume_manifest_has_pending_task: bool,
+    errors: list[str],
+) -> dict[str, Any]:
+    resume_context = (
+        manifest.get("runtime_resume_context", {})
+        if isinstance(manifest.get("runtime_resume_context", {}), Mapping)
+        else {}
+    )
+    resumed_from_pending = bool(
+        manifest.get("runtime_resumed_from_pending_task") is True
+        or int(resume_context.get("n_initial_task_overrides", 0) or 0) > 0
+    )
+    required = bool(resumed_from_pending and runtime_resume_manifest_has_pending_task)
+    issues: list[dict[str, Any]] = []
+    n_evidence_artifacts = 0
+    n_handoff_artifacts = 0
+    n_evidence_rows = 0
+    n_handoff_rows = 0
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact_id, artifact in artifacts.items():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind not in {
+                "RuntimeResumePriorEvidenceLedger",
+                "RuntimeResumePriorHandoffLedger",
+            }:
+                continue
+            rows = artifact.get("rows", [])
+            if not isinstance(rows, list):
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="runtime_resume_prior_ledger_rows_not_list",
+                    detail=f"{artifact_id} rows must be a list",
+                )
+                rows = []
+            if (
+                str(artifact.get("proof_evidence_status", "") or "")
+                != "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE"
+            ):
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="runtime_resume_prior_ledger_missing_boundary_status",
+                    detail=f"{artifact_id} missing prior-ledger non-evidence status",
+                )
+            if "not as current evidence_ledger or handoff_ledger" not in str(
+                artifact.get("boundary", "") or ""
+            ):
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="runtime_resume_prior_ledger_missing_boundary",
+                    detail=f"{artifact_id} missing explicit current-evidence boundary",
+                )
+            if kind == "RuntimeResumePriorEvidenceLedger":
+                n_evidence_artifacts += 1
+                n_evidence_rows += len(rows)
+            else:
+                n_handoff_artifacts += 1
+                n_handoff_rows += len(rows)
+    complete = (
+        not required
+        or (
+            n_evidence_artifacts > 0
+            and n_handoff_artifacts > 0
+            and n_evidence_rows > 0
+            and n_handoff_rows > 0
+            and not issues
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeResumePriorLedgerContinuityAudit",
+        "runtime_resume_prior_ledger_continuity_required": required,
+        "runtime_resume_prior_ledger_continuity_complete": complete,
+        "n_runtime_resume_prior_evidence_ledger_artifacts": n_evidence_artifacts,
+        "n_runtime_resume_prior_handoff_ledger_artifacts": n_handoff_artifacts,
+        "n_runtime_resume_prior_evidence_ledger_rows": n_evidence_rows,
+        "n_runtime_resume_prior_handoff_ledger_rows": n_handoff_rows,
+        "runtime_resume_prior_ledger_continuity_issues": issues,
+        "boundary": (
+            "Prior ledger continuity artifacts are resume memory only. Audit "
+            "requires them for pending-task continuity, while preserving that "
+            "current evidence_ledger and handoff_ledger rows are produced by the "
+            "current AgentRuntime execution."
+        ),
+    }
+
+
 def _runtime_task_handoff_export_mismatches(
     *,
     export_row: Mapping[str, Any],
@@ -1219,6 +1324,16 @@ def audit_research_agent_runtime(
                 else {}
             ),
             result_paths=result_paths,
+            errors=errors,
+        )
+    )
+    runtime_resume_prior_ledger_continuity_summary = (
+        _runtime_resume_prior_ledger_continuity_summary(
+            manifest=manifest,
+            result_paths=result_paths,
+            runtime_resume_manifest_has_pending_task=(
+                runtime_resume_manifest_has_pending_task
+            ),
             errors=errors,
         )
     )
@@ -1743,6 +1858,44 @@ def audit_research_agent_runtime(
         "runtime_pending_task_handoff_lineage_issues": list(
             runtime_pending_task_handoff_lineage_summary[
                 "runtime_pending_task_handoff_lineage_issues"
+            ]
+        ),
+        "runtime_resume_prior_ledger_continuity_audit_summary": (
+            runtime_resume_prior_ledger_continuity_summary
+        ),
+        "runtime_resume_prior_ledger_continuity_required": bool(
+            runtime_resume_prior_ledger_continuity_summary[
+                "runtime_resume_prior_ledger_continuity_required"
+            ]
+        ),
+        "runtime_resume_prior_ledger_continuity_complete": bool(
+            runtime_resume_prior_ledger_continuity_summary[
+                "runtime_resume_prior_ledger_continuity_complete"
+            ]
+        ),
+        "n_runtime_resume_prior_evidence_ledger_artifacts": int(
+            runtime_resume_prior_ledger_continuity_summary[
+                "n_runtime_resume_prior_evidence_ledger_artifacts"
+            ]
+        ),
+        "n_runtime_resume_prior_handoff_ledger_artifacts": int(
+            runtime_resume_prior_ledger_continuity_summary[
+                "n_runtime_resume_prior_handoff_ledger_artifacts"
+            ]
+        ),
+        "n_runtime_resume_prior_evidence_ledger_rows": int(
+            runtime_resume_prior_ledger_continuity_summary[
+                "n_runtime_resume_prior_evidence_ledger_rows"
+            ]
+        ),
+        "n_runtime_resume_prior_handoff_ledger_rows": int(
+            runtime_resume_prior_ledger_continuity_summary[
+                "n_runtime_resume_prior_handoff_ledger_rows"
+            ]
+        ),
+        "runtime_resume_prior_ledger_continuity_issues": list(
+            runtime_resume_prior_ledger_continuity_summary[
+                "runtime_resume_prior_ledger_continuity_issues"
             ]
         ),
         "n_runtime_next_action_items": len(agenda_rows),
@@ -7622,6 +7775,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and not runtime_pending_task_handoff_lineage_required
         else raw_pending_task_handoff_lineage_complete is True
     )
+    runtime_resume_prior_ledger_continuity_required = (
+        payload.get("runtime_resume_prior_ledger_continuity_required") is True
+    )
+    raw_resume_prior_ledger_continuity_complete = payload.get(
+        "runtime_resume_prior_ledger_continuity_complete"
+    )
+    runtime_resume_prior_ledger_continuity_complete = (
+        True
+        if raw_resume_prior_ledger_continuity_complete is None
+        and not runtime_resume_prior_ledger_continuity_required
+        else raw_resume_prior_ledger_continuity_complete is True
+    )
     runtime_route_missing_target_ids_count = int(
         payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
     )
@@ -9110,6 +9275,45 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "runtime_resume_prior_ledger_continuity_complete",
+            runtime_resume_prior_ledger_continuity_complete,
+            (
+                "required="
+                f"{payload.get('runtime_resume_prior_ledger_continuity_required')} "
+                "prior_evidence_artifacts="
+                f"{payload.get('n_runtime_resume_prior_evidence_ledger_artifacts')} "
+                "prior_handoff_artifacts="
+                f"{payload.get('n_runtime_resume_prior_handoff_ledger_artifacts')} "
+                "prior_evidence_rows="
+                f"{payload.get('n_runtime_resume_prior_evidence_ledger_rows')} "
+                "prior_handoff_rows="
+                f"{payload.get('n_runtime_resume_prior_handoff_ledger_rows')} "
+                "issues="
+                f"{payload.get('runtime_resume_prior_ledger_continuity_issues')}"
+            ),
+            (
+                "Resumed runtime did not rehydrate prior evidence and handoff "
+                "ledgers as explicit non-evidence blackboard artifacts; the "
+                "current run can lose continuity or accidentally rediscover "
+                "prior state through ad hoc artifacts"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Resume with the current CLI/runtime so the source run's "
+                    "evidence_ledger and handoff_ledger are preserved as "
+                    "RuntimeResumePrior*Ledger artifacts, not as current proof "
+                    "or execution evidence."
+                ),
+                success_metric=(
+                    "runtime_resume_prior_ledger_continuity_complete=true with "
+                    "prior evidence and handoff ledger artifacts carrying explicit "
+                    "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE boundaries"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
             (
@@ -10443,6 +10647,10 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('runtime_pending_task_handoff_lineage_complete')} / "
         f"{payload.get('pending_task_source_handoff_id')} / "
         f"{payload.get('pending_task_context_source_handoff_id')}",
+        "- resume prior ledger continuity complete / evidence artifacts / handoff artifacts: "
+        f"{payload.get('runtime_resume_prior_ledger_continuity_complete')} / "
+        f"{payload.get('n_runtime_resume_prior_evidence_ledger_artifacts')} / "
+        f"{payload.get('n_runtime_resume_prior_handoff_ledger_artifacts')}",
         "- route-critical target identity rows / missing target_ids: "
         f"{payload.get('n_runtime_route_critical_target_identity_rows')} / "
         f"{payload.get('n_runtime_route_critical_rows_missing_target_ids')}",

@@ -428,6 +428,7 @@ from .proof_state_feedback import (
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from .research_agent_runtime import (
     ResearchAgentRuntimeConfig,
+    RUNTIME_SCHEMA_VERSION,
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
@@ -708,8 +709,74 @@ def _runtime_resume_blackboard_artifacts(
         blackboard_artifacts = blackboard.get("artifacts", {})
         if not isinstance(blackboard_artifacts, Mapping):
             return {}
-        return _normalize_runtime_blackboard_artifacts(blackboard_artifacts)
+        normalized_artifacts = _normalize_runtime_blackboard_artifacts(
+            blackboard_artifacts
+        )
+        normalized_artifacts.update(
+            _runtime_resume_prior_ledger_artifacts(
+                result_payload,
+                question_id=question_id,
+                source_manifest_path=str(
+                    source_manifest.get("_manifest_path", "") or resume_path
+                ),
+                source_result_path=str(result_path),
+            )
+        )
+        return normalized_artifacts
     return {}
+
+
+def _runtime_resume_prior_ledger_artifacts(
+    result_payload: Mapping[str, Any],
+    *,
+    question_id: str,
+    source_manifest_path: str,
+    source_result_path: str,
+) -> dict[str, Any]:
+    blackboard = (
+        result_payload.get("blackboard", {})
+        if isinstance(result_payload.get("blackboard", {}), Mapping)
+        else {}
+    )
+    prior_evidence = [
+        dict(row)
+        for row in blackboard.get("evidence_ledger", []) or []
+        if isinstance(row, Mapping)
+    ]
+    prior_handoffs = [
+        dict(row)
+        for row in blackboard.get("handoff_ledger", []) or []
+        if isinstance(row, Mapping)
+    ]
+    artifacts: dict[str, Any] = {}
+    common = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "question_id": str(question_id or ""),
+        "source_manifest_path": str(source_manifest_path or ""),
+        "source_result_path": str(source_result_path or ""),
+        "proof_evidence_status": "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE",
+        "boundary": (
+            "Prior runtime ledger rows are resume continuity memory only. "
+            "They are rehydrated as blackboard artifacts, not as current "
+            "evidence_ledger or handoff_ledger entries, and do not prove any "
+            "new statistical, simulation, generated-code, or theorem claim."
+        ),
+    }
+    if prior_evidence:
+        artifacts[f"runtime_resume_prior_evidence_ledger:{question_id}"] = {
+            **common,
+            "artifact_kind": "RuntimeResumePriorEvidenceLedger",
+            "n_prior_evidence_rows": len(prior_evidence),
+            "rows": prior_evidence,
+        }
+    if prior_handoffs:
+        artifacts[f"runtime_resume_prior_handoff_ledger:{question_id}"] = {
+            **common,
+            "artifact_kind": "RuntimeResumePriorHandoffLedger",
+            "n_prior_handoff_rows": len(prior_handoffs),
+            "rows": prior_handoffs,
+        }
+    return artifacts
 
 
 def _resolve_runtime_resume_source_manifest(
