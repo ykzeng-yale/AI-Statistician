@@ -14,6 +14,9 @@ from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS,
+    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
@@ -523,6 +526,17 @@ def audit_research_agent_runtime(
             agenda_rows=agenda_rows,
         )
     )
+    runtime_target_prover_replay_route_revision_summary = (
+        _runtime_target_prover_replay_route_revision_feedback_audit_summary(
+            pending_memory_rows=(
+                runtime_pending_task_memory_rows
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
+        )
+    )
     result_errors = [
         {
             "question_id": row.question_id,
@@ -1002,6 +1016,81 @@ def audit_research_agent_runtime(
         "runtime_formal_gap_planner_handoff_context_boundary": str(
             runtime_formal_gap_planner_handoff_context_summary[
                 "runtime_formal_gap_planner_handoff_context_boundary"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_learning_rows": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_learning_rows"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_agenda_rows": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_agenda_rows"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_generated_routing_rows": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_generated_routing_rows"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_proposal_ids": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_proposal_ids"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids"
+            ]
+        ),
+        "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id": int(
+            runtime_target_prover_replay_route_revision_summary[
+                "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_proposal_ids": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_proposal_ids"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_learning_proposal_ids": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_learning_proposal_ids"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_agenda_proposal_ids": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_agenda_proposal_ids"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_generated_routing_proposal_ids": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_generated_routing_proposal_ids"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_rows_missing_proposal_id": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_rows_missing_proposal_id"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_channels": list(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_channels"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_channel_counts": dict(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_channel_counts"
+            ]
+        ),
+        "runtime_target_prover_replay_route_revision_boundary": str(
+            runtime_target_prover_replay_route_revision_summary[
+                "runtime_target_prover_replay_route_revision_boundary"
             ]
         ),
         "n_runtime_formalization_gap_planner_bridges": int(
@@ -4359,6 +4448,238 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
     }
 
 
+def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
+    *,
+    agenda_rows: list[Any],
+    learning_rows: list[Any] | None = None,
+    pending_memory_rows: list[Any] | None = None,
+) -> dict[str, Any]:
+    learning_proposal_ids: set[str] = set()
+    agenda_proposal_ids: set[str] = set()
+    generated_routing_proposal_ids: set[str] = set()
+    channels: set[str] = set()
+    channel_counts: Counter[str] = Counter()
+    missing_proposal_id_rows: list[dict[str, str]] = []
+
+    learning_sources: list[tuple[str, list[Any]]] = [
+        ("runtime_learning_rows", learning_rows or []),
+    ]
+    if pending_memory_rows is not None:
+        learning_sources.append(("runtime_pending_task_memory", pending_memory_rows))
+
+    for channel, rows in learning_sources:
+        for index, row in enumerate(rows):
+            if _runtime_target_prover_replay_route_revision_learning_row(row):
+                channels.add(channel)
+                channel_counts[channel] += 1
+                proposal_ids = (
+                    _runtime_target_prover_replay_route_revision_proposal_ids(row)
+                )
+                if proposal_ids:
+                    learning_proposal_ids.update(proposal_ids)
+                else:
+                    missing_proposal_id_rows.append(
+                        _runtime_target_prover_replay_route_revision_missing_id_entry(
+                            channel,
+                            index,
+                            row,
+                        )
+                    )
+            if _runtime_target_prover_replay_route_revision_generated_routing_row(row):
+                generated_channel = f"{channel}:generated_routing"
+                channels.add(generated_channel)
+                channel_counts[generated_channel] += 1
+                proposal_ids = (
+                    _runtime_target_prover_replay_route_revision_proposal_ids(row)
+                )
+                if proposal_ids:
+                    generated_routing_proposal_ids.update(proposal_ids)
+                else:
+                    missing_proposal_id_rows.append(
+                        _runtime_target_prover_replay_route_revision_missing_id_entry(
+                            generated_channel,
+                            index,
+                            row,
+                        )
+                    )
+
+    for index, row in enumerate(agenda_rows):
+        if not _runtime_target_prover_replay_route_revision_agenda_row(row):
+            continue
+        channel = "runtime_next_action_agenda"
+        channels.add(channel)
+        channel_counts[channel] += 1
+        proposal_ids = _runtime_target_prover_replay_route_revision_proposal_ids(row)
+        if proposal_ids:
+            agenda_proposal_ids.update(proposal_ids)
+        else:
+            missing_proposal_id_rows.append(
+                _runtime_target_prover_replay_route_revision_missing_id_entry(
+                    channel,
+                    index,
+                    row,
+                )
+            )
+
+    proposal_ids = (
+        learning_proposal_ids
+        | agenda_proposal_ids
+        | generated_routing_proposal_ids
+    )
+    complete_feedback_proposal_ids = (
+        learning_proposal_ids
+        & agenda_proposal_ids
+        & generated_routing_proposal_ids
+    )
+    learning_row_count = sum(
+        channel_counts[channel]
+        for channel in ("runtime_learning_rows", "runtime_pending_task_memory")
+    )
+    generated_row_count = sum(
+        count
+        for channel, count in channel_counts.items()
+        if channel.endswith(":generated_routing")
+    )
+    return {
+        "n_runtime_target_prover_replay_route_revision_learning_rows": (
+            learning_row_count
+        ),
+        "n_runtime_target_prover_replay_route_revision_agenda_rows": channel_counts[
+            "runtime_next_action_agenda"
+        ],
+        "n_runtime_target_prover_replay_route_revision_generated_routing_rows": (
+            generated_row_count
+        ),
+        "n_runtime_target_prover_replay_route_revision_proposal_ids": len(
+            proposal_ids
+        ),
+        "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": (
+            len(complete_feedback_proposal_ids)
+        ),
+        "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id": (
+            len(missing_proposal_id_rows)
+        ),
+        "runtime_target_prover_replay_route_revision_proposal_ids": sorted(
+            proposal_ids
+        ),
+        "runtime_target_prover_replay_route_revision_learning_proposal_ids": sorted(
+            learning_proposal_ids
+        ),
+        "runtime_target_prover_replay_route_revision_agenda_proposal_ids": sorted(
+            agenda_proposal_ids
+        ),
+        "runtime_target_prover_replay_route_revision_generated_routing_proposal_ids": (
+            sorted(generated_routing_proposal_ids)
+        ),
+        "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": (
+            sorted(complete_feedback_proposal_ids)
+        ),
+        "runtime_target_prover_replay_route_revision_rows_missing_proposal_id": (
+            missing_proposal_id_rows[:25]
+        ),
+        "runtime_target_prover_replay_route_revision_channels": sorted(channels),
+        "runtime_target_prover_replay_route_revision_channel_counts": dict(
+            sorted(channel_counts.items())
+        ),
+        "runtime_target_prover_replay_route_revision_boundary": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+        ),
+    }
+
+
+def _runtime_target_prover_replay_route_revision_learning_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    input_summary = _runtime_row_input_summary(row)
+    return (
+        str(
+            row.get("learning_task", "")
+            or input_summary.get("learning_task", "")
+            or ""
+        ).strip()
+        == "formalization_gap_planner_target_prover_replay_feedback"
+    )
+
+
+def _runtime_target_prover_replay_route_revision_generated_routing_row(
+    row: Any,
+) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    input_summary = _runtime_row_input_summary(row)
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    ).strip()
+    return learning_task in {"generated_next_action_routing", "next_action_routing"} and (
+        _runtime_route_row_trigger_value(row)
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+    )
+
+
+def _runtime_target_prover_replay_route_revision_agenda_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    agenda_id = _runtime_route_row_identifier(row)
+    trigger = _runtime_route_row_trigger_value(row)
+    queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+    return (
+        trigger
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+        or agenda_id.startswith("formal_gap:target_prover_replay_route_revision:")
+        or queue_status
+        == RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+    )
+
+
+def _runtime_row_input_summary(row: Any) -> Mapping[str, Any]:
+    if not isinstance(row, Mapping):
+        return {}
+    input_summary = row.get("input_summary", {})
+    return input_summary if isinstance(input_summary, Mapping) else {}
+
+
+def _runtime_target_prover_replay_route_revision_proposal_ids(row: Any) -> set[str]:
+    if not isinstance(row, Mapping):
+        return set()
+    input_summary = _runtime_row_input_summary(row)
+    proposal_ids: set[str] = set()
+    for source in (row, input_summary):
+        for key in ("route_revision_proposal_id", "proposal_id"):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                proposal_ids.add(value)
+        proposal = source.get("route_revision_proposal", {})
+        if isinstance(proposal, Mapping):
+            value = str(proposal.get("proposal_id", "") or "").strip()
+            if value:
+                proposal_ids.add(value)
+        target_prover_replay = source.get("target_prover_replay", {})
+        if isinstance(target_prover_replay, Mapping):
+            proposals = target_prover_replay.get("route_revision_proposals", [])
+            if isinstance(proposals, list):
+                for proposal in proposals:
+                    if not isinstance(proposal, Mapping):
+                        continue
+                    value = str(proposal.get("proposal_id", "") or "").strip()
+                    if value:
+                        proposal_ids.add(value)
+    return proposal_ids
+
+
+def _runtime_target_prover_replay_route_revision_missing_id_entry(
+    channel: str,
+    index: int,
+    row: Any,
+) -> dict[str, str]:
+    return {
+        "channel": channel,
+        "index": str(index),
+        "row_id": _runtime_route_row_identifier(row),
+        "learning_task": _runtime_route_row_field(row, "learning_task"),
+        "trigger": _runtime_route_row_trigger_value(row),
+    }
+
+
 def _runtime_pending_task_formal_gap_planner_handoff_row_sources(
     payload: Mapping[str, Any],
 ) -> list[tuple[str, list[Any]]]:
@@ -5749,6 +6070,71 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_gap_planner_live_target_replay_route_revision_proposals = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_learning_rows = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_learning_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_agenda_rows = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_agenda_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_generated_rows = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_generated_routing_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_proposal_ids = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_proposal_ids",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_complete_ids = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids",
+            0,
+        )
+        or 0
+    )
+    runtime_target_prover_replay_route_revision_missing_ids = int(
+        payload.get(
+            "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_route_revision_feedback_complete = (
+        runtime_gap_planner_live_target_replay_route_revision_proposals <= 0
+        or (
+            runtime_target_prover_replay_route_revision_learning_rows
+            >= runtime_gap_planner_live_target_replay_route_revision_proposals
+            and runtime_target_prover_replay_route_revision_agenda_rows
+            >= runtime_gap_planner_live_target_replay_route_revision_proposals
+            and runtime_target_prover_replay_route_revision_generated_rows
+            >= runtime_gap_planner_live_target_replay_route_revision_proposals
+            and runtime_target_prover_replay_route_revision_proposal_ids
+            >= runtime_gap_planner_live_target_replay_route_revision_proposals
+            and runtime_target_prover_replay_route_revision_complete_ids
+            >= runtime_gap_planner_live_target_replay_route_revision_proposals
+            and runtime_target_prover_replay_route_revision_missing_ids <= 0
+        )
+    )
     runtime_gap_planner_live_followthrough_complete = (
         runtime_formal_gap_planner_handoff_count <= 0
         or (
@@ -5768,6 +6154,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_gap_planner_live_target_replay_proof_responses > 0
             and runtime_gap_planner_live_target_replay_contract_ok
             >= runtime_gap_planner_live_target_replay_proof_items
+            and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
         )
     )
     primary_typechecked_review_required = bool(
@@ -6253,6 +6640,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_gap_planner_live_target_replay_contract_ok} "
                 "target_replay_awaiting="
                 f"{runtime_gap_planner_live_target_replay_awaiting} "
+                "target_replay_route_revision_proposals="
+                f"{runtime_gap_planner_live_target_replay_route_revision_proposals} "
+                "target_replay_route_revision_learning_rows="
+                f"{runtime_target_prover_replay_route_revision_learning_rows} "
+                "target_replay_route_revision_agenda_rows="
+                f"{runtime_target_prover_replay_route_revision_agenda_rows} "
+                "target_replay_route_revision_generated_rows="
+                f"{runtime_target_prover_replay_route_revision_generated_rows} "
+                "target_replay_route_revision_proposal_ids="
+                f"{runtime_target_prover_replay_route_revision_proposal_ids} "
+                "target_replay_route_revision_complete_ids="
+                f"{runtime_target_prover_replay_route_revision_complete_ids} "
+                "target_replay_route_revision_complete_proposal_ids="
+                f"{payload.get('runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids')} "
+                "target_replay_route_revision_missing_proposal_id_rows="
+                f"{runtime_target_prover_replay_route_revision_missing_ids} "
                 "paths="
                 f"{payload.get('runtime_formalization_gap_planner_live_route_planner_manifest_paths')}"
             ),
@@ -6261,8 +6664,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "live LLM route-planner feedback path did not record "
                 "contract-valid responses plus target-prover replay through the "
                 "refinement queue, local proof-state adapter, and refinement "
-                "evidence; prompt packets or raw LLM responses alone are not "
-                "end-to-end FormalizationGapPlanner capacity"
+                "evidence, including route-revision feedback rows that re-enter "
+                "learning memory, agenda, and generated next-action routing; "
+                "prompt packets or raw LLM responses alone are not end-to-end "
+                "FormalizationGapPlanner capacity"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6281,7 +6686,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "provider_failures=0, awaiting_llm_response=0, "
                     "target_prover_replay_all_ok covers invocations, "
                     "proof_state_feedback_items>0, local_proof_state_responses>0, "
-                    "and refinement_evidence_contract_ok covers proof-state items"
+                    "refinement_evidence_contract_ok covers proof-state items, "
+                    "and every target-prover replay route-revision proposal has "
+                    "matching learning, agenda, and generated routing rows"
                 ),
             ),
         ),

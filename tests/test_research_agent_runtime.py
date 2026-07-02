@@ -3030,6 +3030,184 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
         "formal_gap_planner_live_route_planner_followthrough"
     ]["passed"] is True
 
+    payload.update(
+        {
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": 2,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    route_revision_followthrough = rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]
+
+    assert route_revision_followthrough["passed"] is False
+    assert "target_replay_route_revision_proposals=2" in (
+        route_revision_followthrough["evidence"]
+    )
+    assert "learning memory, agenda, and generated next-action routing" in (
+        route_revision_followthrough["blocker"]
+    )
+
+    payload.update(
+        {
+            "n_runtime_target_prover_replay_route_revision_learning_rows": 2,
+            "n_runtime_target_prover_replay_route_revision_agenda_rows": 2,
+            "n_runtime_target_prover_replay_route_revision_generated_routing_rows": 2,
+            "n_runtime_target_prover_replay_route_revision_proposal_ids": 2,
+            "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": 2,
+            "runtime_target_prover_replay_route_revision_proposal_ids": [
+                "proposal:a",
+                "proposal:b",
+            ],
+            "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": [
+                "proposal:a",
+                "proposal:b",
+            ],
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is True
+
+
+def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+
+    proposal_ids = ["proposal:a", "proposal:b"]
+    target_ids = ["lean_target:a"]
+    learning_rows = []
+    agenda_rows = []
+    for proposal_id in proposal_ids:
+        learning_rows.append(
+            {
+                "learning_task": (
+                    "formalization_gap_planner_target_prover_replay_feedback"
+                ),
+                "runtime_learning_row_id": f"feedback:{proposal_id}",
+                "route_revision_proposal_id": proposal_id,
+                "target_ids": target_ids,
+                "input_summary": {
+                    "trigger": (
+                        runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+                    ),
+                    "route_revision_proposal": {
+                        "proposal_id": proposal_id,
+                    },
+                    "target_ids": target_ids,
+                },
+            }
+        )
+        learning_rows.append(
+            {
+                "learning_task": "generated_next_action_routing",
+                "runtime_learning_row_id": f"generated:{proposal_id}",
+                "route_revision_proposal_id": proposal_id,
+                "target_ids": target_ids,
+                "input_summary": {
+                    "trigger": (
+                        runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+                    ),
+                    "route_revision_proposal_id": proposal_id,
+                    "target_ids": target_ids,
+                },
+            }
+        )
+        agenda_rows.append(
+            {
+                "id": f"formal_gap:target_prover_replay_route_revision:{proposal_id}",
+                "trigger": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION_TRIGGER
+                ),
+                "runtime_queue_status": (
+                    runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
+                ),
+                "route_revision_proposal_id": proposal_id,
+                "target_ids": target_ids,
+            }
+        )
+
+    learning.write_text(
+        "".join(json.dumps(row) + "\n" for row in learning_rows),
+        encoding="utf-8",
+    )
+    agenda.write_text(
+        "".join(json.dumps(row) + "\n" for row in agenda_rows),
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "n_runtime_next_action_items": len(agenda_rows),
+        "n_runtime_learning_rows": len(learning_rows),
+        "n_runtime_formalization_gap_planner_handoffs": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_requested": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": 2,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses": 2,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok": 2,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": len(
+            proposal_ids
+        ),
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir)
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert audit["n_runtime_target_prover_replay_route_revision_learning_rows"] == 2
+    assert audit["n_runtime_target_prover_replay_route_revision_agenda_rows"] == 2
+    assert (
+        audit["n_runtime_target_prover_replay_route_revision_generated_routing_rows"]
+        == 2
+    )
+    assert audit[
+        "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids"
+    ] == 2
+    assert audit[
+        "runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids"
+    ] == proposal_ids
+    assert scorecard_rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is True
+
 
 def test_runtime_audit_markdown_reports_current_handoff_identity(
     tmp_path: Path,
