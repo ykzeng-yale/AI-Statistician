@@ -10408,9 +10408,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         or 0
     )
     runtime_architect_transition_policy_visible = (
-        not architect_orchestration_executed
-        or runtime_task_handoff_trace_rows <= 0
-        or runtime_handoff_transitions_aligned_with_architect_plan > 0
+        _runtime_architect_transition_policy_scorecard_passed(
+            payload,
+            architect_orchestration_executed=architect_orchestration_executed,
+            runtime_task_handoff_trace_rows=runtime_task_handoff_trace_rows,
+            runtime_handoff_transitions_aligned_with_architect_plan=(
+                runtime_handoff_transitions_aligned_with_architect_plan
+            ),
+            runtime_handoff_transition_summary_audited=(
+                runtime_handoff_transition_summary_audited
+            ),
+            runtime_handoff_transition_summary_payload=(
+                runtime_handoff_transition_summary_payload
+            ),
+        )
     )
     runtime_architect_context_default_route_transitions = int(
         payload.get(
@@ -10420,8 +10431,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         or 0
     )
     runtime_architect_handoffs_avoid_default_only_routing = (
-        not architect_orchestration_executed
-        or runtime_architect_context_default_route_transitions == 0
+        _runtime_architect_handoff_default_only_scorecard_passed(
+            payload,
+            architect_orchestration_executed=architect_orchestration_executed,
+            runtime_task_handoff_trace_rows=runtime_task_handoff_trace_rows,
+            runtime_architect_context_default_route_transitions=(
+                runtime_architect_context_default_route_transitions
+            ),
+            runtime_handoff_transition_summary_audited=(
+                runtime_handoff_transition_summary_audited
+            ),
+            runtime_handoff_transition_summary_payload=(
+                runtime_handoff_transition_summary_payload
+            ),
+        )
     )
     runtime_pending_task_handoff_lineage_required = (
         payload.get("runtime_pending_task_handoff_lineage_required") is True
@@ -12232,8 +12255,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_handoff_transition_rows')} "
                 "architect_plan_aligned="
                 f"{payload.get('n_runtime_handoff_transitions_aligned_with_architect_plan')} "
+                "summary_architect_plan_aligned="
+                f"{runtime_handoff_transition_summary_payload.get('n_transitions_aligned_with_architect_execution_plan')} "
                 "route_sources="
-                f"{payload.get('runtime_handoff_transition_route_sources')}"
+                f"{payload.get('runtime_handoff_transition_route_sources')} "
+                "summary_route_sources="
+                f"{runtime_handoff_transition_summary_payload.get('route_decision_sources')}"
             ),
             (
                 "ArchitectCoordinator executed, but no runtime handoff transition "
@@ -12262,10 +12289,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{architect_orchestration_executed} "
                 "architect_context_default_only="
                 f"{payload.get('n_runtime_architect_context_handoff_transitions_with_only_default_route_source')} "
+                "summary_architect_context_default_only="
+                f"{runtime_handoff_transition_summary_payload.get('n_architect_context_transitions_with_only_default_route_source')} "
                 "all_default_only="
                 f"{payload.get('n_runtime_handoff_transitions_with_only_default_route_source')} "
+                "summary_all_default_only="
+                f"{runtime_handoff_transition_summary_payload.get('n_transitions_with_only_default_route_source')} "
                 "handoff_ids="
                 f"{payload.get('runtime_architect_context_default_route_handoff_ids')} "
+                "summary_handoff_ids="
+                f"{runtime_handoff_transition_summary_payload.get('architect_context_default_route_handoff_ids')} "
                 "route_sources="
                 f"{payload.get('runtime_handoff_transition_route_sources')}"
             ),
@@ -13252,6 +13285,91 @@ def _runtime_handoff_transition_summary_scorecard_passed(
         and not runtime_handoff_transition_summary_payload.get(
             "ledger_handoff_ids_missing_from_traces"
         )
+    )
+
+
+def _runtime_architect_transition_policy_scorecard_passed(
+    payload: Mapping[str, Any],
+    *,
+    architect_orchestration_executed: bool,
+    runtime_task_handoff_trace_rows: int,
+    runtime_handoff_transitions_aligned_with_architect_plan: int,
+    runtime_handoff_transition_summary_audited: bool,
+    runtime_handoff_transition_summary_payload: Mapping[str, Any],
+) -> bool:
+    if not architect_orchestration_executed or runtime_task_handoff_trace_rows <= 0:
+        return True
+    if not runtime_handoff_transition_summary_audited:
+        return False
+    if (
+        "n_transitions_aligned_with_architect_execution_plan"
+        not in runtime_handoff_transition_summary_payload
+    ):
+        return False
+    summary_aligned = _safe_int(
+        runtime_handoff_transition_summary_payload.get(
+            "n_transitions_aligned_with_architect_execution_plan"
+        )
+    )
+    summary_sources = runtime_handoff_transition_summary_payload.get(
+        "route_decision_sources", {}
+    )
+    if not isinstance(summary_sources, Mapping):
+        summary_sources = {}
+    top_sources = payload.get("runtime_handoff_transition_route_sources", {})
+    if not isinstance(top_sources, Mapping):
+        top_sources = {}
+    return bool(
+        runtime_handoff_transitions_aligned_with_architect_plan == summary_aligned
+        and summary_aligned > 0
+        and _safe_int(summary_sources.get("architect_execution_plan")) > 0
+        and _safe_int(top_sources.get("architect_execution_plan"))
+        == _safe_int(summary_sources.get("architect_execution_plan"))
+    )
+
+
+def _runtime_architect_handoff_default_only_scorecard_passed(
+    payload: Mapping[str, Any],
+    *,
+    architect_orchestration_executed: bool,
+    runtime_task_handoff_trace_rows: int,
+    runtime_architect_context_default_route_transitions: int,
+    runtime_handoff_transition_summary_audited: bool,
+    runtime_handoff_transition_summary_payload: Mapping[str, Any],
+) -> bool:
+    if not architect_orchestration_executed or runtime_task_handoff_trace_rows <= 0:
+        return True
+    if not runtime_handoff_transition_summary_audited:
+        return False
+    required_keys = (
+        "n_transitions_with_only_default_route_source",
+        "n_architect_context_transitions_with_only_default_route_source",
+        "architect_context_default_route_handoff_ids",
+    )
+    if any(key not in runtime_handoff_transition_summary_payload for key in required_keys):
+        return False
+    summary_all_default = _safe_int(
+        runtime_handoff_transition_summary_payload.get(
+            "n_transitions_with_only_default_route_source"
+        )
+    )
+    summary_architect_context_default = _safe_int(
+        runtime_handoff_transition_summary_payload.get(
+            "n_architect_context_transitions_with_only_default_route_source"
+        )
+    )
+    summary_ids = runtime_handoff_transition_summary_payload.get(
+        "architect_context_default_route_handoff_ids", []
+    )
+    top_ids = payload.get("runtime_architect_context_default_route_handoff_ids", [])
+    return bool(
+        _safe_int(payload.get("n_runtime_handoff_transitions_with_only_default_route_source"))
+        == summary_all_default
+        and runtime_architect_context_default_route_transitions
+        == summary_architect_context_default
+        and summary_architect_context_default == 0
+        and not summary_ids
+        and not top_ids
     )
 
 

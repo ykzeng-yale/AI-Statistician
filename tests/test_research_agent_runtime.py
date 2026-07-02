@@ -2986,6 +2986,13 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "n_trace_handoff_ids_missing_from_ledger": 0,
             "n_ledger_handoff_ids_missing_from_traces": 0,
             "handoff_trace_alignment_ok": True,
+            "n_transitions_aligned_with_architect_execution_plan": 0,
+            "n_transitions_with_only_default_route_source": 2,
+            "n_architect_context_transitions_with_only_default_route_source": 0,
+            "architect_context_default_route_handoff_ids": [],
+            "route_decision_sources": {
+                "subsystem_explicit_next_task": 2,
+            },
             "trace_handoff_ids_missing_from_ledger": [],
             "ledger_handoff_ids_missing_from_traces": [],
         },
@@ -3119,6 +3126,86 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "architect_context_default_only=2" in architect_default_row["evidence"]
     assert "subsystem_explicit_next_task" in architect_default_row["blocker"]
     assert architect_default_row["next_owner_subsystem"] == "ArchitectCoordinator"
+
+    stale_architect_aligned_payload = dict(clean_payload)
+    stale_architect_aligned_payload.update(
+        {
+            "runtime_architect_coordinator_executed": True,
+            "n_runtime_architect_coordinator_traces": 1,
+            "n_runtime_handoff_transitions_aligned_with_architect_plan": 1,
+            "runtime_handoff_transition_route_sources": {
+                "architect_execution_plan": 1,
+            },
+        }
+    )
+    stale_architect_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            stale_architect_aligned_payload
+        )["rows"]
+    }
+    stale_architect_row = stale_architect_rows[
+        "runtime_architect_transition_policy_visible"
+    ]
+    assert stale_architect_row["passed"] is False
+    assert "architect_plan_aligned=1" in stale_architect_row["evidence"]
+    assert "summary_architect_plan_aligned=0" in stale_architect_row["evidence"]
+
+    positive_architect_payload = dict(stale_architect_aligned_payload)
+    positive_architect_payload.update(
+        {
+            "n_runtime_handoff_transitions_with_only_default_route_source": 1,
+            "runtime_architect_context_default_route_handoff_ids": [],
+            "runtime_handoff_transition_route_sources": {
+                "architect_execution_plan": 1,
+                "subsystem_explicit_next_task": 1,
+            },
+            "runtime_handoff_transition_summary": {
+                **clean_payload["runtime_handoff_transition_summary"],
+                "n_transitions_aligned_with_architect_execution_plan": 1,
+                "n_transitions_with_only_default_route_source": 1,
+                "route_decision_sources": {
+                    "architect_execution_plan": 1,
+                    "subsystem_explicit_next_task": 1,
+                },
+            },
+        }
+    )
+    positive_architect_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(positive_architect_payload)[
+            "rows"
+        ]
+    }
+    assert positive_architect_rows[
+        "runtime_architect_transition_policy_visible"
+    ]["passed"] is True
+    assert positive_architect_rows[
+        "runtime_architect_handoffs_avoid_default_only_routing"
+    ]["passed"] is True
+
+    stale_default_summary_payload = dict(positive_architect_payload)
+    stale_default_summary_payload["runtime_handoff_transition_summary"] = {
+        **positive_architect_payload["runtime_handoff_transition_summary"],
+        "n_architect_context_transitions_with_only_default_route_source": 1,
+        "architect_context_default_route_handoff_ids": [
+            "handoff:architect-default-only"
+        ],
+    }
+    stale_default_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_default_summary_payload)[
+            "rows"
+        ]
+    }
+    stale_default_row = stale_default_rows[
+        "runtime_architect_handoffs_avoid_default_only_routing"
+    ]
+    assert stale_default_row["passed"] is False
+    assert "summary_architect_context_default_only=1" in stale_default_row[
+        "evidence"
+    ]
+    assert "handoff:architect-default-only" in stale_default_row["evidence"]
 
     lineage_payload = dict(clean_payload)
     lineage_payload.update(
