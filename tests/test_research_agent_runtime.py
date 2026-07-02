@@ -51744,6 +51744,56 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         == []
     )
 
+    payload.update(
+        {
+            "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+            "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+            "source_theorem_exact_semantic_definition_authoring_worker_provider_name": "anthropic",
+            "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": "static",
+            "source_theorem_exact_semantic_definition_authoring_worker_dry_run": False,
+            "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode": "live_call",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        }
+    )
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    authoring_row = rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]
+    assert authoring_row["passed"] is False
+    assert "backend_provider=static" in authoring_row["evidence"]
+    assert "n_llm_attempted=1" in authoring_row["evidence"]
+    assert "n_live_llm_attempted=0" in authoring_row["evidence"]
+    assert "static/replay backend" in authoring_row["blocker"]
+    assert table["coding_agent_capability_ready"] is False
+    learning_rows = _runtime_coding_agent_capability_learning_rows(
+        manifest=payload,
+        capability_table=table,
+    )
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["capability_id"] == (
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    )
+    assert learning_rows[0]["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert (
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted>0"
+        in learning_rows[0]["success_metric"]
+    )
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name"
+    ] = "anthropic"
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] = 1
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert table["coding_agent_capability_ready"] is True
+
     payload["n_live_generator_agents_enabled"] = 0
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}

@@ -1086,6 +1086,27 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
     )
+    exact_semantic_authoring_required = (
+        bool(
+            payload.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_required",
+                False,
+            )
+        )
+        or _runtime_manifest_int(
+            payload,
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+        )
+        > 0
+    )
+    exact_semantic_authoring_live_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+    )
+    exact_semantic_authoring_generic_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+    )
     llm_formalizer_proposals = _runtime_manifest_int(
         payload,
         "n_llm_formalizer_proof_engineer_proposals",
@@ -1433,6 +1454,41 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 )
             ),
         },
+        {
+            "capability_id": "exact_semantic_definition_authoring_worker_live_attempted",
+            "passed": (not exact_semantic_authoring_required)
+            or exact_semantic_authoring_live_attempts > 0,
+            "count": exact_semantic_authoring_live_attempts,
+            "evidence": (
+                "required="
+                f"{exact_semantic_authoring_required}; "
+                "authoring_tasks="
+                f"{_runtime_manifest_int(payload, 'n_source_theorem_exact_semantic_definition_authoring_tasks')}; "
+                "provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_provider_name', '')}; "
+                "backend_provider="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name', '')}; "
+                "dry_run="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_dry_run', '')}; "
+                "external_export_mode="
+                f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_external_export_mode', '')}; "
+                "n_llm_attempted="
+                f"{exact_semantic_authoring_generic_attempts}; "
+                "n_live_llm_attempted="
+                f"{exact_semantic_authoring_live_attempts}"
+            ),
+            "blocker": (
+                ""
+                if (not exact_semantic_authoring_required)
+                or exact_semantic_authoring_live_attempts > 0
+                else (
+                    "exact semantic-definition authoring tasks were staged, "
+                    "blocked, or handled by a static/replay backend; generic "
+                    "n_llm_attempted does not demonstrate a live Claude/OpenAI "
+                    "definition-authoring loop"
+                )
+            ),
+        },
     ]
     for row in rows:
         row.setdefault("scope", "integrated_runtime")
@@ -1554,11 +1610,12 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         "simulation_repair_loop_observed": simulation_repair_sequences > 0,
         "formalizer_lean_repair_loop_observed": formalizer_repair_sequences > 0,
         "boundary": (
-            "This table is capability evidence for the generated-code environment "
-            "loop only. It does not make simulations proof evidence and does not "
-            "prove any theorem. Static/replay providers and one-shot generated-code "
-            "execution are not sufficient; attached component calibration is "
-            "reported separately from integrated runtime readiness."
+            "This table is capability evidence for the generated-code and "
+            "formalization environment loops. It does not make simulations proof "
+            "evidence and does not prove any theorem. Static/replay providers and "
+            "one-shot generated-code execution are not sufficient; attached "
+            "component calibration is reported separately from integrated runtime "
+            "readiness."
         ),
     }
 
@@ -1568,7 +1625,7 @@ def _runtime_coding_agent_capability_learning_rows(
     manifest: Mapping[str, Any],
     capability_table: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    """Turn missing generated-code repair evidence into next-run memory."""
+    """Turn missing coding/formalization capability evidence into next-run memory."""
 
     rows = [
         row
@@ -1754,6 +1811,25 @@ def _runtime_coding_agent_capability_learning_rows(
                 "in the integrated runtime; standalone Formalizer repair evals "
                 "are component calibration until consumed by the AgentRuntime loop"
             )
+        elif (
+            capability_id
+            == "exact_semantic_definition_authoring_worker_live_attempted"
+        ):
+            next_owner = "FormalizationEvaluator"
+            target_behavior = (
+                "Run the exact semantic-definition authoring worker with a live "
+                "Claude/OpenAI backend for source-theorem semantic-definition "
+                "tasks emitted by the Lean repair executor, then route the "
+                "definition-only candidate through materialization and local "
+                "Lean/AXLE diagnostics."
+            )
+            recommended_eval = integrated_eval_command
+            success_metric = (
+                "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted>0 "
+                "in the integrated AgentRuntime manifest; generic "
+                "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted "
+                "or static/replay backend provenance does not satisfy this capability"
+            )
         else:
             next_owner = "ArchitectCoordinator"
             target_behavior = (
@@ -1792,9 +1868,10 @@ def _runtime_coding_agent_capability_learning_rows(
                     "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
                 ),
                 "boundary": (
-                    "This row is routing memory for generated-code environment-loop "
-                    "capability. It is not theorem proof evidence, not simulation "
-                    "proof, and not evidence that a static fixture can do research."
+                    "This row is routing memory for coding/formalization "
+                    "environment-loop capability. It is not theorem proof evidence, "
+                    "not simulation proof, and not evidence that a static fixture "
+                    "can do research."
                 ),
             }
         )
