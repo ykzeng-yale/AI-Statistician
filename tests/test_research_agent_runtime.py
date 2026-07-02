@@ -8108,6 +8108,125 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
     }
 
 
+def test_architect_runtime_routes_initial_task_from_next_action_owner() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    response = _architect_sample_response()
+    response["next_actions"] = [
+        {
+            "owner_agent": "TheoryDeveloper",
+            "action": "derive first because retrieval context is already supplied",
+            "acceptance_gate": "schema-valid theory packet with equation_chain",
+        }
+    ]
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(response),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(),
+    )
+    task = AgentTask(
+        task_id="architect:theory-first",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Let Architect choose the first feasible subsystem.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="theory-first-test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "architect_packet"
+    assert routing["requested_subsystem"] == "TheoryDeveloper"
+    assert routing["selected_subsystem"] == "TheoryDeveloper"
+    assert routing["requires_prerequisite_theory"] is False
+    assert routing["proof_evidence_status"] == (
+        "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    assert "not execute tools" in routing["boundary"]
+    assert {
+        entry.evidence_type for entry in result.evidence_entries
+    } == {"llm_architect_coordinator_proposal"}
+
+
+def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    architect_context = {
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "live_lean_lsp_mcp_called",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "drive Lean LSP proof-state feedback before promotion"
+                    ),
+                    "success_metric": "live_lean_lsp_mcp_called.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --proof-state-provider lean-lsp-mcp"
+                    ),
+                    "routing_boundary": "routing only; not verifier evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(),
+    )
+    task = AgentTask(
+        task_id="architect:formal-gap-prereq",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route downstream capability gap through prerequisite work.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="gap-prereq-test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapPrerequisiteFeedback"
+    assert feedback["requested_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert feedback["routed_prerequisite_subsystem"] == "TheoryDeveloper"
+    assert feedback["requirement_id"] == "live_lean_lsp_mcp_called"
+    assert feedback["success_metric"] == "live_lean_lsp_mcp_called.passed=true"
+    assert feedback["proof_evidence_status"] == (
+        "ARCHITECT_CAPABILITY_GAP_PREREQUISITE_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof" in feedback["boundary"]
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "FormalizationEvaluator"
+    assert routing["selected_subsystem"] == "TheoryDeveloper"
+    assert routing["requires_prerequisite_theory"] is True
+    assert routing["capability_gap_requirement_id"] == "live_lean_lsp_mcp_called"
+    assert "runtime_capability_gap_routing" not in {
+        entry.evidence_type for entry in result.evidence_entries
+    }
+
+
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     runtime_config = {

@@ -4260,23 +4260,15 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
             },
         )
-        next_task = AgentTask(
-            task_id=f"retrieve:{question.id}:{stable_hash(packet_id)[:8]}",
-            owner_subsystem="RetrievalMemory",
-            objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
-            inputs={
-                "question": _question_to_payload(question),
-                "architect_context": context,
-            },
-            allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
-            expected_artifacts=("retrieval_memory_manifest",),
-            acceptance_gate="retrieval context recorded with explicit non-proof boundary",
-            stop_condition="retrieval context routed to TheoryDeveloper",
+        routing_decision = _architect_initial_routing_decision(
+            question=question,
+            packet=packet,
+            architect_context=context,
+            packet_id=packet_id,
         )
-        rationale = (
-            "ArchitectCoordinator recorded a top-level execution plan and "
-            "is routing to RetrievalMemory for source and formal context."
-        )
+        context["architect_initial_routing"] = routing_decision["record"]
+        next_task = routing_decision["task"]
+        rationale = str(routing_decision["rationale"])
         if resume_pending_task_payload:
             theory_refresh_task = _architect_resume_theory_refresh_task_if_needed(
                 question=question,
@@ -4321,6 +4313,7 @@ class ArchitectCoordinatorRuntimeSubsystem:
                         "resume_pending_task_id": str(
                             resume_pending_task_payload.get("task_id", "") or ""
                         ),
+                        "initial_routing": routing_decision["record"],
                         "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
                     },
                 ),
@@ -4328,6 +4321,298 @@ class ArchitectCoordinatorRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _architect_initial_routing_decision(
+    *,
+    question: OpenResearchQuestion,
+    packet: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+    packet_id: str,
+) -> dict[str, Any]:
+    selected = _architect_select_initial_subsystem(
+        packet=packet,
+        architect_context=architect_context,
+    )
+    context = dict(architect_context)
+    record = {
+        "artifact_kind": "ArchitectInitialRoutingDecision",
+        "selected_subsystem": selected["selected_subsystem"],
+        "requested_subsystem": selected["requested_subsystem"],
+        "source": selected["source"],
+        "requires_prerequisite_theory": bool(
+            selected.get("requires_prerequisite_theory", False)
+        ),
+        "boundary": (
+            "Architect initial routing is orchestration control only. It does "
+            "not execute tools, validate generated code or simulations, or "
+            "prove a theorem."
+        ),
+        "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
+    }
+    if selected.get("gap_row"):
+        record["capability_gap_requirement_id"] = str(
+            selected["gap_row"].get("requirement_id", "")
+        )
+        record["capability_gap_success_metric"] = str(
+            selected["gap_row"].get("success_metric", "")
+        )
+    context["architect_initial_routing"] = record
+    if selected["selected_subsystem"] == "TheoryDeveloper":
+        feedback = selected.get("environment_feedback")
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "architect_context": context,
+        }
+        if isinstance(feedback, Mapping) and feedback:
+            inputs["environment_feedback"] = dict(feedback)
+            context["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=f"theory:{question.id}:{stable_hash([packet_id, record])[:8]}",
+                owner_subsystem="TheoryDeveloper",
+                objective=_architect_initial_objective(
+                    context,
+                    "TheoryDeveloper",
+                    "Derive a statistical theory proposal or prerequisite repair "
+                    "needed by the Architect plan.",
+                ),
+                inputs=inputs,
+                allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "TheoryDeveloper",
+                    ("theory_derivation_packet",),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "TheoryDeveloper",
+                    "validated theory packet with proof boundary",
+                ),
+                stop_condition=(
+                    "theory packet satisfies Architect routing prerequisite"
+                ),
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing to TheoryDeveloper as the earliest feasible next "
+                "subsystem for the selected obligation."
+            ),
+        }
+    return {
+        "task": AgentTask(
+            task_id=f"retrieve:{question.id}:{stable_hash(packet_id)[:8]}",
+            owner_subsystem="RetrievalMemory",
+            objective=_architect_initial_objective(
+                context,
+                "RetrievalMemory",
+                "Retrieve paper, statistical knowledge, and formal-source context "
+                "before theory derivation.",
+            ),
+            inputs={
+                "question": _question_to_payload(question),
+                "architect_context": context,
+            },
+            allowed_tools=(
+                "research_knowledge",
+                "paper_index",
+                "formal_source_retriever",
+            ),
+            expected_artifacts=_architect_expected_artifacts(
+                context,
+                "RetrievalMemory",
+                ("retrieval_memory_manifest",),
+            ),
+            acceptance_gate=_architect_acceptance_gate(
+                context,
+                "RetrievalMemory",
+                "retrieval context recorded with explicit non-proof boundary",
+            ),
+            stop_condition="retrieval context routed to TheoryDeveloper",
+        ),
+        "record": record,
+        "rationale": (
+            "ArchitectCoordinator recorded a top-level execution plan and "
+            "is routing to RetrievalMemory for source and formal context."
+        ),
+    }
+
+
+def _architect_select_initial_subsystem(
+    *,
+    packet: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
+    if gap_selection:
+        requested = str(gap_selection.get("requested_subsystem", "") or "")
+        selected = _architect_feasible_initial_subsystem(requested)
+        result = {
+            "requested_subsystem": requested,
+            "selected_subsystem": selected,
+            "source": "runtime_capability_gap_routing_agenda",
+            "gap_row": gap_selection.get("gap_row", {}),
+            "requires_prerequisite_theory": requested != selected,
+        }
+        if requested != selected:
+            result["environment_feedback"] = (
+                _architect_capability_gap_prerequisite_feedback(
+                    requested_subsystem=requested,
+                    gap_row=gap_selection.get("gap_row", {}),
+                )
+            )
+        return result
+    requested = _architect_packet_requested_subsystem(packet)
+    selected = _architect_feasible_initial_subsystem(requested)
+    return {
+        "requested_subsystem": requested,
+        "selected_subsystem": selected,
+        "source": "architect_packet",
+        "requires_prerequisite_theory": requested != selected,
+    }
+
+
+def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:
+    for action in packet.get("next_actions", []) or []:
+        if not isinstance(action, Mapping):
+            continue
+        owner = _canonical_architect_subsystem(
+            action.get("owner_subsystem")
+            or action.get("owner_agent")
+            or action.get("owner")
+        )
+        if owner and owner != "ArchitectCoordinator":
+            return owner
+    for row in packet.get("subsystem_execution_plan", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        subsystem = _canonical_architect_subsystem(row.get("subsystem"))
+        if subsystem and subsystem != "ArchitectCoordinator":
+            return subsystem
+    return "RetrievalMemory"
+
+
+def _architect_capability_gap_requested_subsystem(
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    plan = _architect_runtime_plan(architect_context)
+    agenda = plan.get("runtime_capability_gap_routing_agenda", {})
+    if not isinstance(agenda, Mapping):
+        return {}
+    for row in agenda.get("rows", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        owner = _canonical_architect_subsystem(row.get("next_owner_subsystem"))
+        if owner and owner != "ArchitectCoordinator":
+            return {
+                "requested_subsystem": owner,
+                "gap_row": dict(row),
+            }
+    return {}
+
+
+def _architect_feasible_initial_subsystem(requested: str) -> str:
+    if requested in {"RetrievalMemory", "TheoryDeveloper"}:
+        return requested
+    return "TheoryDeveloper" if requested else "RetrievalMemory"
+
+
+def _canonical_architect_subsystem(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    aliases = {
+        "retrievalmemory": "RetrievalMemory",
+        "retrieval": "RetrievalMemory",
+        "theorydeveloper": "TheoryDeveloper",
+        "theory": "TheoryDeveloper",
+        "simulationevaluator": "SimulationEvaluator",
+        "simulationengineer": "SimulationEvaluator",
+        "simulation": "SimulationEvaluator",
+        "algorithmengineer": "AlgorithmEngineer",
+        "algorithm": "AlgorithmEngineer",
+        "formalizationevaluator": "FormalizationEvaluator",
+        "formalizer": "FormalizationEvaluator",
+        "formalizerproofengineer": "FormalizationEvaluator",
+        "formalizer/leanprover": "FormalizationEvaluator",
+        "proofengineer": "ProofEngineer",
+        "leanprover": "ProofEngineer",
+        "critic": "CriticEvaluator",
+        "criticevaluator": "CriticEvaluator",
+        "architectcoordinator": "ArchitectCoordinator",
+    }
+    if lowered in aliases:
+        return aliases[lowered]
+    for separator in ("/", ":", ","):
+        if separator in lowered:
+            for part in lowered.split(separator):
+                canonical = aliases.get(part.strip())
+                if canonical:
+                    return canonical
+    if text in {
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "SimulationEvaluator",
+        "AlgorithmEngineer",
+        "FormalizationEvaluator",
+        "ProofEngineer",
+        "CriticEvaluator",
+        "ArchitectCoordinator",
+    }:
+        return text
+    return ""
+
+
+def _architect_capability_gap_prerequisite_feedback(
+    *,
+    requested_subsystem: str,
+    gap_row: Any,
+) -> dict[str, Any]:
+    row = dict(gap_row) if isinstance(gap_row, Mapping) else {}
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "ArchitectCapabilityGapPrerequisiteFeedback",
+        "feedback_source": "ArchitectCoordinator",
+        "trigger": "ARCHITECT_CAPABILITY_GAP_PREREQUISITE",
+        "requested_next_owner_subsystem": requested_subsystem,
+        "routed_prerequisite_subsystem": "TheoryDeveloper",
+        "requirement_id": str(row.get("requirement_id", "") or ""),
+        "target_behavior": str(row.get("target_behavior", "") or ""),
+        "success_metric": str(row.get("success_metric", "") or ""),
+        "recommended_capability_eval_command": str(
+            row.get("recommended_capability_eval_command", "") or ""
+        ),
+        "required_repair": (
+            "Produce the structured theory/prerequisite artifact needed before "
+            f"{requested_subsystem} can execute the capability-gap obligation."
+        ),
+        "acceptance_gate": (
+            "A structured TheoryDerivationPacket with equation_chain, "
+            "assumption_ledger, and formalization_handoff is available for "
+            f"{requested_subsystem}."
+        ),
+        "proof_evidence_status": (
+            "ARCHITECT_CAPABILITY_GAP_PREREQUISITE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is Architect prerequisite-routing feedback. It is not proof, "
+            "simulation, generated-code, or verifier evidence and does not "
+            "resolve the capability gap."
+        ),
+    }
+
+
+def _architect_initial_objective(
+    context: Mapping[str, Any],
+    subsystem: str,
+    default: str,
+) -> str:
+    row = _architect_subsystem_plan(context, subsystem)
+    objective = str(row.get("objective", "") or "").strip()
+    return objective or default
 
 
 def _latest_runtime_artifact_id_with_prefix(
