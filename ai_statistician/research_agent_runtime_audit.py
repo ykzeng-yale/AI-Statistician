@@ -2986,6 +2986,21 @@ def audit_research_agent_runtime(
                 "runtime_handoff_transition_summary"
             ]["n_transitions_aligned_with_architect_execution_plan"]
         ),
+        "n_runtime_handoff_transitions_with_only_default_route_source": int(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["n_transitions_with_only_default_route_source"]
+        ),
+        "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": int(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["n_architect_context_transitions_with_only_default_route_source"]
+        ),
+        "runtime_architect_context_default_route_handoff_ids": list(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["architect_context_default_route_handoff_ids"]
+        ),
         "n_results": len(rows),
         "question_ids": sorted(
             {row.question_id for row in rows if row.question_id}
@@ -6437,6 +6452,8 @@ def _runtime_handoff_transition_summary_from_results(
             "runtime_handoff_transition_pairs",
             "runtime_handoff_transition_route_sources",
             "n_runtime_handoff_transitions_aligned_with_architect_plan",
+            "n_runtime_handoff_transitions_with_only_default_route_source",
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source",
         )
         if key in manifest
     }
@@ -6451,6 +6468,12 @@ def _runtime_handoff_transition_summary_from_results(
         ),
         "n_runtime_handoff_transitions_aligned_with_architect_plan": summary.get(
             "n_transitions_aligned_with_architect_execution_plan"
+        ),
+        "n_runtime_handoff_transitions_with_only_default_route_source": summary.get(
+            "n_transitions_with_only_default_route_source"
+        ),
+        "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": summary.get(
+            "n_architect_context_transitions_with_only_default_route_source"
         ),
     }
     summary_stale = bool(manifest_summary) and manifest_summary != summary
@@ -10351,6 +10374,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         or runtime_task_handoff_trace_rows <= 0
         or runtime_handoff_transitions_aligned_with_architect_plan > 0
     )
+    runtime_architect_context_default_route_transitions = int(
+        payload.get(
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source",
+            0,
+        )
+        or 0
+    )
+    runtime_architect_handoffs_avoid_default_only_routing = (
+        not architect_orchestration_executed
+        or runtime_architect_context_default_route_transitions == 0
+    )
     runtime_pending_task_handoff_lineage_required = (
         payload.get("runtime_pending_task_handoff_lineage_required") is True
     )
@@ -12169,6 +12203,43 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "runtime_architect_handoffs_avoid_default_only_routing",
+            runtime_architect_handoffs_avoid_default_only_routing,
+            (
+                "architect_executed="
+                f"{architect_orchestration_executed} "
+                "architect_context_default_only="
+                f"{payload.get('n_runtime_architect_context_handoff_transitions_with_only_default_route_source')} "
+                "all_default_only="
+                f"{payload.get('n_runtime_handoff_transitions_with_only_default_route_source')} "
+                "handoff_ids="
+                f"{payload.get('runtime_architect_context_default_route_handoff_ids')} "
+                "route_sources="
+                f"{payload.get('runtime_handoff_transition_route_sources')}"
+            ),
+            (
+                "ArchitectCoordinator executed, but some handoffs carrying "
+                "Architect context still had only the generic "
+                "subsystem_explicit_next_task route source; routing policy is "
+                "not visible enough to distinguish agent-driven orchestration "
+                "from hardcoded subsystem defaults"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Ensure every Architect-context runtime handoff has a "
+                    "policy route source such as architect_execution_plan, "
+                    "architect_initial_routing, environment_feedback, critic "
+                    "reroute, or formalization_gap_planner_bridge."
+                ),
+                success_metric=(
+                    "n_runtime_architect_context_handoff_transitions_with_only_default_route_source=0 "
+                    "whenever ArchitectCoordinator executes"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "runtime_pending_task_handoff_lineage_complete",
             runtime_pending_task_handoff_lineage_complete,
             (
@@ -13771,6 +13842,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- Runtime handoff transition sources / Architect-plan aligned: "
         f"{payload.get('runtime_handoff_transition_route_sources')} / "
         f"{payload.get('n_runtime_handoff_transitions_aligned_with_architect_plan')}",
+        "- Runtime handoff default-only sources / Architect-context default-only: "
+        f"{payload.get('n_runtime_handoff_transitions_with_only_default_route_source')} / "
+        f"{payload.get('n_runtime_architect_context_handoff_transitions_with_only_default_route_source')}",
         f"- Architect control status: {payload.get('runtime_architect_control_status')}",
         f"- Architect orchestration evidence: {payload.get('runtime_architect_orchestration_evidence')}",
         f"- Architect orchestration blocker: {payload.get('runtime_architect_orchestration_blocker')}",

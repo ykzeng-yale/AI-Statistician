@@ -2968,6 +2968,9 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "subsystem_explicit_next_task": 2,
         },
         "n_runtime_handoff_transitions_aligned_with_architect_plan": 0,
+        "n_runtime_handoff_transitions_with_only_default_route_source": 2,
+        "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": 0,
+        "runtime_architect_context_default_route_handoff_ids": [],
         "runtime_handoff_transition_summary": {
             "trace_handoff_ids_missing_from_ledger": [],
             "ledger_handoff_ids_missing_from_traces": [],
@@ -2984,6 +2987,12 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     )
     assert (
         clean_rows["runtime_architect_transition_policy_visible"]["passed"]
+        is True
+    )
+    assert (
+        clean_rows[
+            "runtime_architect_handoffs_avoid_default_only_routing"
+        ]["passed"]
         is True
     )
 
@@ -3043,6 +3052,12 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "runtime_architect_coordinator_executed": True,
             "n_runtime_architect_coordinator_traces": 1,
             "n_runtime_handoff_transitions_aligned_with_architect_plan": 0,
+            "n_runtime_handoff_transitions_with_only_default_route_source": 2,
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": 2,
+            "runtime_architect_context_default_route_handoff_ids": [
+                "handoff:1:theory->simulation",
+                "handoff:2:simulation->algorithm",
+            ],
             "runtime_handoff_transition_route_sources": {
                 "subsystem_explicit_next_task": 2,
             },
@@ -3060,6 +3075,13 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "architect_plan_aligned=0" in architect_policy_row["evidence"]
     assert "visible Architect policy" in architect_policy_row["blocker"]
     assert architect_policy_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    architect_default_row = architect_policy_rows[
+        "runtime_architect_handoffs_avoid_default_only_routing"
+    ]
+    assert architect_default_row["passed"] is False
+    assert "architect_context_default_only=2" in architect_default_row["evidence"]
+    assert "subsystem_explicit_next_task" in architect_default_row["blocker"]
+    assert architect_default_row["next_owner_subsystem"] == "ArchitectCoordinator"
 
     lineage_payload = dict(clean_payload)
     lineage_payload.update(
@@ -8472,6 +8494,13 @@ def test_runtime_handoff_transition_summary_audits_explicit_next_task() -> None:
         "architect_initial_routing": 1,
         "environment_feedback": 1,
     }
+    assert summary["n_transitions_with_only_default_route_source"] == 0
+    assert (
+        summary[
+            "n_architect_context_transitions_with_only_default_route_source"
+        ]
+        == 0
+    )
     assert summary["all_transitions_have_acceptance_gate"] is True
     assert summary["all_transitions_have_expected_artifacts"] is True
     assert summary["rows"][0]["question_id"] == "handoff-case"
@@ -8479,6 +8508,7 @@ def test_runtime_handoff_transition_summary_audits_explicit_next_task() -> None:
         "architect_initial_routing",
         "environment_feedback",
     ]
+    assert summary["rows"][0]["only_default_route_source"] is False
     assert "not prove statistical claims" in summary["boundary"]
 
 
@@ -51833,6 +51863,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ]
         == transition_summary["n_transition_rows"]
     )
+    assert transition_summary["n_transitions_with_only_default_route_source"] == 0
+    assert (
+        transition_summary[
+            "n_architect_context_transitions_with_only_default_route_source"
+        ]
+        == 0
+    )
+    assert transition_summary["architect_context_default_route_handoff_ids"] == []
     assert all(
         row["architect_execution_plan_aligned"]
         for row in transition_summary["rows"]
@@ -51856,6 +51894,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ] == transition_summary[
         "n_transitions_aligned_with_architect_execution_plan"
     ]
+    assert (
+        manifest[
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source"
+        ]
+        == 0
+    )
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
@@ -51873,6 +51917,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ] == transition_summary[
         "n_transitions_aligned_with_architect_execution_plan"
     ]
+    assert (
+        audit[
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source"
+        ]
+        == 0
+    )
     assert audit["n_results_with_architect_initial_routing"] == 1
     assert audit["n_architect_initial_routing_decisions"] == 1
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
@@ -52089,6 +52139,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert (
         scorecard_rows[
             "runtime_architect_transition_policy_visible"
+        ]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_architect_handoffs_avoid_default_only_routing"
         ]["passed"]
         is True
     )
@@ -58652,6 +58708,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert transition_summary[
         "n_transitions_aligned_with_architect_execution_plan"
     ] == 0
+    assert transition_summary[
+        "n_transitions_with_only_default_route_source"
+    ] >= 1
     assert manifest[
         "n_runtime_handoff_transitions_aligned_with_architect_plan"
     ] == 0
@@ -58974,6 +59033,10 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         audit["n_runtime_handoff_transitions_aligned_with_architect_plan"]
         == 0
     )
+    assert (
+        audit["n_runtime_handoff_transitions_with_only_default_route_source"]
+        >= 1
+    )
     assert audit["n_results_with_architect_initial_routing"] == 0
     assert audit["n_architect_initial_routing_decisions"] == 0
     assert (
@@ -58985,6 +59048,12 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert (
         scorecard_rows[
             "runtime_architect_transition_policy_visible"
+        ]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_architect_handoffs_avoid_default_only_routing"
         ]["passed"]
         is True
     )

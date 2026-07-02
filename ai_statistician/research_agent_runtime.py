@@ -17278,6 +17278,16 @@ def run_research_agent_runtime(
                 "n_transitions_aligned_with_architect_execution_plan"
             ]
         ),
+        "n_runtime_handoff_transitions_with_only_default_route_source": (
+            handoff_transition_summary[
+                "n_transitions_with_only_default_route_source"
+            ]
+        ),
+        "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": (
+            handoff_transition_summary[
+                "n_architect_context_transitions_with_only_default_route_source"
+            ]
+        ),
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),
@@ -60938,6 +60948,9 @@ def _runtime_handoff_transition_summary(
     n_transitions_with_expected_artifacts = 0
     n_transitions_with_architect_context = 0
     n_transitions_with_environment_feedback = 0
+    n_transitions_with_only_default_route_source = 0
+    n_architect_context_transitions_with_only_default_route_source = 0
+    architect_context_default_route_handoff_ids: list[str] = []
     for result_index, result in enumerate(results):
         traces = result.get("traces", []) if isinstance(result, Mapping) else []
         trace_rows = (
@@ -61005,6 +61018,7 @@ def _runtime_handoff_transition_summary(
                 next_task=next_task,
                 architect_plan_alignment=architect_plan_alignment,
             )
+            only_default_route_source = sources == ["subsystem_explicit_next_task"]
             route_decision_sources.extend(sources)
             acceptance_gate = str(next_task.get("acceptance_gate", "") or "").strip()
             expected_artifacts = [
@@ -61020,6 +61034,12 @@ def _runtime_handoff_transition_summary(
                 n_transitions_with_architect_context += 1
             if environment_feedback:
                 n_transitions_with_environment_feedback += 1
+            if only_default_route_source:
+                n_transitions_with_only_default_route_source += 1
+            if architect_context and only_default_route_source:
+                n_architect_context_transitions_with_only_default_route_source += 1
+                if handoff_id:
+                    architect_context_default_route_handoff_ids.append(handoff_id)
             rows.append(
                 {
                     "result_index": result_index,
@@ -61033,6 +61053,7 @@ def _runtime_handoff_transition_summary(
                     "to_subsystem": to_subsystem,
                     "status": str(trace.get("status", "") or ""),
                     "route_decision_sources": sources,
+                    "only_default_route_source": only_default_route_source,
                     "architect_execution_plan_aligned": bool(
                         architect_plan_alignment["aligned"]
                     ),
@@ -61097,6 +61118,15 @@ def _runtime_handoff_transition_summary(
         "n_transitions_with_architect_context": n_transitions_with_architect_context,
         "n_transitions_with_environment_feedback": (
             n_transitions_with_environment_feedback
+        ),
+        "n_transitions_with_only_default_route_source": (
+            n_transitions_with_only_default_route_source
+        ),
+        "n_architect_context_transitions_with_only_default_route_source": (
+            n_architect_context_transitions_with_only_default_route_source
+        ),
+        "architect_context_default_route_handoff_ids": list(
+            dict.fromkeys(architect_context_default_route_handoff_ids)
         ),
         "n_transitions_aligned_with_architect_execution_plan": sum(
             1 for row in rows if row["architect_execution_plan_aligned"]
