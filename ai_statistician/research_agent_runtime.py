@@ -81,6 +81,17 @@ from .formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
     export_formalization_gap_planner_llm_route_planner,
 )
+from .formalization_gap_planner_refinement_queue import (
+    PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_BOUNDARY,
+    PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_STATUS,
+    export_formalization_gap_planner_refinement_queue,
+)
+from .formalization_gap_planner_local_proof_state_adapter import (
+    export_formalization_gap_planner_local_proof_state_adapter_responses,
+)
+from .formalization_gap_planner_refinement_evidence import (
+    export_formalization_gap_planner_refinement_evidence,
+)
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
@@ -204,6 +215,16 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY = (
     "proof-state feedback. They are not theorem proof evidence and do not "
     "claim that any route is minimal until the standalone planner, audits, and "
     "target-prover replay run."
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS = (
+    "RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_NOT_PROOF_EVIDENCE"
+)
+RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY = (
+    "Runtime live route-planner target-prover replay records standalone-plan, "
+    "refinement-queue, local proof-state adapter, and refinement-evidence "
+    "artifacts. These artifacts are feedback-loop diagnostics only; they are "
+    "not theorem proof evidence unless a separate target-prover kernel verifier "
+    "accepts the intended theorem or bridge lemma."
 )
 FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
@@ -13176,6 +13197,29 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 ),
             )
 
+    def _live_route_planner_replay_lean_project(self, task: AgentTask) -> Path | None:
+        for raw in (
+            task.inputs.get("lean_project", ""),
+            self.runtime_config.formalizer_candidate_lean_project,
+            self.runtime_config.source_to_bridge_premise_derivation_proofengineer_lean_project,
+            self.runtime_config.theorem_closure_proofengineer_lean_project,
+            self.runtime_config.source_semantic_proofengineer_lean_project,
+        ):
+            text = str(raw or "").strip()
+            if text:
+                return Path(text)
+        return None
+
+    def _live_route_planner_replay_lean_timeout(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "lean_timeout",
+            self.runtime_config.formalizer_candidate_lean_timeout,
+        )
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return max(1, int(self.runtime_config.formalizer_candidate_lean_timeout))
+
     def _live_route_planner_backend(
         self,
         *,
@@ -13323,6 +13367,204 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "all_ok": not errors,
         }
 
+    def _materialize_live_route_planner_target_prover_replay(
+        self,
+        *,
+        task: AgentTask,
+        handoff: Mapping[str, Any],
+        llm_out_dir: Path,
+    ) -> dict[str, Any]:
+        errors: list[str] = []
+        replay_root = llm_out_dir / "target_prover_replay"
+        replay_root.mkdir(parents=True, exist_ok=True)
+        llm_seed_path = (
+            llm_out_dir
+            / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        )
+        handoff_seed_text = str(handoff.get("standalone_seed_path", "") or "").strip()
+        handoff_seed_path = Path(handoff_seed_text) if handoff_seed_text else None
+        seed_path = llm_seed_path if llm_seed_path.exists() else handoff_seed_path
+        if seed_path is None or not seed_path.exists():
+            return {
+                "replay_root": str(replay_root),
+                "standalone_seed_path": str(seed_path or ""),
+                "used_llm_standalone_seed": False,
+                "attempted": False,
+                "all_ok": False,
+                "errors": ["missing replayable standalone seed for target-prover replay"],
+                "proof_evidence_status": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
+                ),
+                "proof_evidence_boundary": (
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+                ),
+            }
+
+        standalone_plan_dir = replay_root / "standalone_plan"
+        refinement_queue_dir = replay_root / "refinement_queue"
+        local_proof_state_adapter_dir = replay_root / "local_proof_state_adapter"
+        refinement_evidence_dir = replay_root / "refinement_evidence"
+        lean_project = self._live_route_planner_replay_lean_project(task)
+        lean_timeout = self._live_route_planner_replay_lean_timeout(task)
+        try:
+            standalone_payload = export_formalization_gap_planner_standalone_plan(
+                seed_path,
+                standalone_plan_dir,
+                max_routes=20,
+            )
+            errors.extend(
+                str(error)
+                for error in standalone_payload.get("errors", [])
+                if str(error).strip()
+            )
+        except Exception as exc:  # pragma: no cover - defensive live path.
+            standalone_payload = {"all_ok": False, "errors": [str(exc)]}
+            errors.append(
+                "standalone_plan_replay_failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        try:
+            refinement_queue_payload = export_formalization_gap_planner_refinement_queue(
+                standalone_plan_dir,
+                refinement_queue_dir,
+            )
+            errors.extend(
+                str(error)
+                for error in refinement_queue_payload.get("errors", [])
+                if str(error).strip()
+            )
+        except Exception as exc:  # pragma: no cover - defensive live path.
+            refinement_queue_payload = {"all_ok": False, "errors": [str(exc)]}
+            errors.append(
+                "refinement_queue_replay_failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        try:
+            proof_state_payload = (
+                export_formalization_gap_planner_local_proof_state_adapter_responses(
+                    refinement_queue_dir,
+                    local_proof_state_adapter_dir,
+                    lean_project=lean_project,
+                    lean_timeout=lean_timeout,
+                )
+            )
+            errors.extend(
+                str(error)
+                for error in proof_state_payload.get("errors", [])
+                if str(error).strip()
+            )
+        except Exception as exc:  # pragma: no cover - defensive live path.
+            proof_state_payload = {"all_ok": False, "errors": [str(exc)]}
+            errors.append(
+                "local_proof_state_replay_failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        response_jsonl = (
+            local_proof_state_adapter_dir
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        )
+        try:
+            refinement_evidence_payload = (
+                export_formalization_gap_planner_refinement_evidence(
+                    refinement_queue_dir,
+                    refinement_evidence_dir,
+                    response_jsonl=response_jsonl,
+                )
+            )
+            errors.extend(
+                str(error)
+                for error in refinement_evidence_payload.get("errors", [])
+                if str(error).strip()
+            )
+        except Exception as exc:  # pragma: no cover - defensive live path.
+            refinement_evidence_payload = {"all_ok": False, "errors": [str(exc)]}
+            errors.append(
+                "refinement_evidence_replay_failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        all_ok = (
+            bool(standalone_payload.get("all_ok", False))
+            and bool(refinement_queue_payload.get("all_ok", False))
+            and bool(proof_state_payload.get("all_ok", False))
+            and bool(refinement_evidence_payload.get("all_ok", False))
+            and not errors
+        )
+        output_paths = [
+            standalone_plan_dir
+            / "goal_conditioned_minimal_formalization_plan_manifest.json",
+            refinement_queue_dir
+            / "formalization_gap_planner_refinement_queue_manifest.json",
+            local_proof_state_adapter_dir
+            / "formalization_gap_planner_local_proof_state_adapter_manifest.json",
+            refinement_evidence_dir
+            / "formalization_gap_planner_refinement_evidence_manifest.json",
+        ]
+        return {
+            "replay_root": str(replay_root),
+            "standalone_seed_path": str(seed_path),
+            "used_llm_standalone_seed": seed_path == llm_seed_path,
+            "attempted": True,
+            "standalone_plan_dir": str(standalone_plan_dir),
+            "refinement_queue_dir": str(refinement_queue_dir),
+            "local_proof_state_adapter_dir": str(local_proof_state_adapter_dir),
+            "refinement_evidence_dir": str(refinement_evidence_dir),
+            "output_paths": [str(path) for path in output_paths],
+            "lean_project": str(lean_project or ""),
+            "lean_timeout": lean_timeout,
+            "all_ok": all_ok,
+            "n_plan_rows": int(standalone_payload.get("n_goal_plans", 0) or 0),
+            "n_refinement_items": int(
+                refinement_queue_payload.get("n_refinement_items", 0) or 0
+            ),
+            "n_proof_state_feedback_items": int(
+                refinement_queue_payload.get("n_proof_state_feedback_items", 0)
+                or 0
+            ),
+            "n_target_proof_state_feedback_rows": int(
+                proof_state_payload.get("n_target_proof_state_feedback_rows", 0)
+                or 0
+            ),
+            "n_local_proof_state_responses": int(
+                proof_state_payload.get("n_local_proof_state_responses", 0) or 0
+            ),
+            "n_local_lean_failed": int(
+                proof_state_payload.get("n_local_lean_failed", 0) or 0
+            ),
+            "n_local_lean_unavailable": int(
+                proof_state_payload.get("n_local_lean_unavailable", 0) or 0
+            ),
+            "n_kernel_scaffold_accepted": int(
+                proof_state_payload.get("n_kernel_scaffold_accepted", 0) or 0
+            ),
+            "n_refinement_evidence_rows": int(
+                refinement_evidence_payload.get("n_evidence_rows", 0) or 0
+            ),
+            "n_refinement_evidence_contract_ok": int(
+                refinement_evidence_payload.get("n_contract_ok", 0) or 0
+            ),
+            "n_refinement_evidence_awaiting_tool_response": int(
+                refinement_evidence_payload.get("n_awaiting_tool_response", 0)
+                or 0
+            ),
+            "n_route_revision_proposals": int(
+                refinement_evidence_payload.get("n_route_revision_proposals", 0)
+                or 0
+            ),
+            "errors": errors[:10],
+            "proof_evidence_status": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
+            ),
+            "proof_evidence_boundary": (
+                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+            ),
+            "refinement_queue_proof_evidence_status": (
+                FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_STATUS
+            ),
+            "refinement_queue_proof_evidence_boundary": (
+                FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_BOUNDARY
+            ),
+        }
+
     def _execute_live_route_planner(
         self,
         task: AgentTask,
@@ -13410,9 +13652,25 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         )
                     ),
                 )
+                target_prover_replay = (
+                    self._materialize_live_route_planner_target_prover_replay(
+                        task=task,
+                        handoff=handoff,
+                        llm_out_dir=out_dir,
+                    )
+                )
+                output_paths.extend(
+                    str(path)
+                    for path in target_prover_replay.get("output_paths", [])
+                    if str(path).strip()
+                )
                 row_errors = [
                     str(error)
-                    for error in [*context_errors, *payload.get("errors", [])]
+                    for error in [
+                        *context_errors,
+                        *payload.get("errors", []),
+                        *target_prover_replay.get("errors", []),
+                    ]
                     if str(error).strip()
                 ]
                 rows.append(
@@ -13421,6 +13679,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
                         "standalone_seed_path": str(standalone_seed_path),
                         "context_materialization": context_materialization,
+                        "target_prover_replay": target_prover_replay,
+                        "target_prover_replay_all_ok": bool(
+                            target_prover_replay.get("all_ok", False)
+                        ),
                         "out_dir": str(out_dir),
                         "manifest_path": str(
                             out_dir
@@ -13599,6 +13861,55 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             )
                             or 0
                         ),
+                        "n_target_prover_replay_refinement_items": int(
+                            target_prover_replay.get("n_refinement_items", 0) or 0
+                        ),
+                        "n_target_prover_replay_proof_state_feedback_items": int(
+                            target_prover_replay.get(
+                                "n_proof_state_feedback_items",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_local_proof_state_responses": int(
+                            target_prover_replay.get(
+                                "n_local_proof_state_responses",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_refinement_evidence_contract_ok": int(
+                            target_prover_replay.get(
+                                "n_refinement_evidence_contract_ok",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_refinement_evidence_awaiting_tool_response": int(
+                            target_prover_replay.get(
+                                "n_refinement_evidence_awaiting_tool_response",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_target_prover_replay_route_revision_proposals": int(
+                            target_prover_replay.get("n_route_revision_proposals", 0)
+                            or 0
+                        ),
+                        "n_target_prover_replay_local_lean_failed": int(
+                            target_prover_replay.get("n_local_lean_failed", 0) or 0
+                        ),
+                        "n_target_prover_replay_local_lean_unavailable": int(
+                            target_prover_replay.get("n_local_lean_unavailable", 0)
+                            or 0
+                        ),
+                        "n_target_prover_replay_kernel_scaffold_accepted": int(
+                            target_prover_replay.get(
+                                "n_kernel_scaffold_accepted",
+                                0,
+                            )
+                            or 0
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13660,6 +13971,21 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
                         "standalone_seed_path": str(standalone_seed_path),
                         "context_materialization": context_materialization,
+                        "target_prover_replay": {
+                            "attempted": False,
+                            "all_ok": False,
+                            "errors": [
+                                "target-prover replay skipped because live route "
+                                "planner export failed"
+                            ],
+                            "proof_evidence_status": (
+                                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS
+                            ),
+                            "proof_evidence_boundary": (
+                                RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
+                            ),
+                        },
+                        "target_prover_replay_all_ok": False,
                         "out_dir": str(out_dir),
                         "all_ok": False,
                         "max_route_requests": max_route_requests_per_handoff,
@@ -13696,6 +14022,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_standalone_seed_source_rows": 0,
                         "n_standalone_seed_direct_source_rows": 0,
                         "n_standalone_seed_staged_assembled_source_rows": 0,
+                        "n_target_prover_replay_refinement_items": 0,
+                        "n_target_prover_replay_proof_state_feedback_items": 0,
+                        "n_target_prover_replay_local_proof_state_responses": 0,
+                        "n_target_prover_replay_refinement_evidence_contract_ok": 0,
+                        "n_target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
+                        "n_target_prover_replay_route_revision_proposals": 0,
+                        "n_target_prover_replay_local_lean_failed": 0,
+                        "n_target_prover_replay_local_lean_unavailable": 0,
+                        "n_target_prover_replay_kernel_scaffold_accepted": 0,
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13867,6 +14202,93 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 )
                 for row in rows
             ),
+            "target_prover_replay_attempts": sum(
+                1
+                for row in rows
+                if isinstance(row.get("target_prover_replay"), Mapping)
+                and row.get("target_prover_replay", {}).get("attempted") is True
+            ),
+            "target_prover_replay_all_ok": sum(
+                1 for row in rows if row.get("target_prover_replay_all_ok") is True
+            ),
+            "target_prover_replay_refinement_items": sum(
+                int(row.get("n_target_prover_replay_refinement_items", 0) or 0)
+                for row in rows
+            ),
+            "target_prover_replay_proof_state_feedback_items": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_proof_state_feedback_items",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_local_proof_state_responses": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_local_proof_state_responses",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_refinement_evidence_contract_ok": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_refinement_evidence_contract_ok",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_refinement_evidence_awaiting_tool_response": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_refinement_evidence_awaiting_tool_response",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_route_revision_proposals": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_route_revision_proposals",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_local_lean_failed": sum(
+                int(row.get("n_target_prover_replay_local_lean_failed", 0) or 0)
+                for row in rows
+            ),
+            "target_prover_replay_local_lean_unavailable": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_local_lean_unavailable",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "target_prover_replay_kernel_scaffold_accepted": sum(
+                int(
+                    row.get(
+                        "n_target_prover_replay_kernel_scaffold_accepted",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
             "awaiting_llm_response": sum(
                 int(row.get("n_awaiting_llm_response", 0) or 0) for row in rows
             ),
@@ -13927,6 +14349,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
             and counts["awaiting_llm_response"] == 0
             and not errors
         )
+        target_prover_replay_complete = (
+            counts["selected_handoffs"] > 0
+            and counts["target_prover_replay_attempts"] == counts["selected_handoffs"]
+            and counts["target_prover_replay_all_ok"] == counts["selected_handoffs"]
+            and counts["target_prover_replay_proof_state_feedback_items"] > 0
+            and counts["target_prover_replay_local_proof_state_responses"] > 0
+            and counts["target_prover_replay_refinement_evidence_contract_ok"]
+            >= counts["target_prover_replay_proof_state_feedback_items"]
+        )
         manifest_id = (
             "runtime_formalization_gap_planner_live_route_planner_manifest:"
             + stable_hash([task.task_id, selected, rows, counts])[:20]
@@ -13959,6 +14390,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "live_llm_invoked": counts["selected_handoffs"] > 0,
             "all_live_route_planner_responses_recorded": all_responses_recorded,
+            "target_prover_replay_complete": target_prover_replay_complete,
             "counts": counts,
             "rows": rows,
             "errors": errors,
@@ -14004,7 +14436,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 f"requests={counts['request_packets']} "
                 f"responses={counts['response_present']} "
                 f"contract_ok={counts['response_contract_ok']} "
-                f"provider_failures={counts['provider_failures']}"
+                f"provider_failures={counts['provider_failures']} "
+                f"replay_ok={counts['target_prover_replay_all_ok']}/"
+                f"{counts['target_prover_replay_attempts']}"
             ),
             safety_boundary=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
         )
@@ -14151,6 +14585,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
         live_route_planner_all_responses_recorded = bool(
             live_route_planner_manifest.get(
                 "all_live_route_planner_responses_recorded",
+                False,
+            )
+        )
+        live_route_planner_target_prover_replay_complete = bool(
+            live_route_planner_manifest.get(
+                "target_prover_replay_complete",
                 False,
             )
         )
@@ -14356,6 +14796,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "live_route_planner_all_responses_recorded": (
                 live_route_planner_all_responses_recorded
             ),
+            "live_route_planner_target_prover_replay_complete": (
+                live_route_planner_target_prover_replay_complete
+            ),
             "live_llm_invoked": bool(
                 live_route_planner_manifest.get("live_llm_invoked", False)
             ),
@@ -14402,6 +14845,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_all_responses_recorded": (
                     live_route_planner_all_responses_recorded
                 ),
+                "live_route_planner_target_prover_replay_complete": (
+                    live_route_planner_target_prover_replay_complete
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -14417,7 +14863,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 f"audit_all_ok={all_ok} "
                 f"llm_prompt_packets={manifest['counts']['llm_prompt_packets']} "
                 f"live_followup_required={live_route_planner_followup_required} "
-                f"live_responses={live_counts.get('response_present', 0)}"
+                f"live_responses={live_counts.get('response_present', 0)} "
+                "target_prover_replay_ok="
+                f"{live_counts.get('target_prover_replay_all_ok', 0)}"
             ),
             payload={
                 **manifest["counts"],
@@ -14426,6 +14874,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     live_route_planner_followup_required
                 ),
                 "live_route_planner_counts": live_counts,
+                "live_route_planner_target_prover_replay_complete": (
+                    live_route_planner_target_prover_replay_complete
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -54077,6 +54528,17 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "standalone_seed_source_rows",
         "standalone_seed_direct_source_rows",
         "standalone_seed_staged_assembled_source_rows",
+        "target_prover_replay_attempts",
+        "target_prover_replay_all_ok",
+        "target_prover_replay_refinement_items",
+        "target_prover_replay_proof_state_feedback_items",
+        "target_prover_replay_local_proof_state_responses",
+        "target_prover_replay_refinement_evidence_contract_ok",
+        "target_prover_replay_refinement_evidence_awaiting_tool_response",
+        "target_prover_replay_route_revision_proposals",
+        "target_prover_replay_local_lean_failed",
+        "target_prover_replay_local_lean_unavailable",
+        "target_prover_replay_kernel_scaffold_accepted",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -54095,6 +54557,7 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
     followups_required = 0
     invocations = 0
     responses_recorded = 0
+    target_prover_replay_complete = 0
     for execution_manifest in execution_manifests:
         manifest_id = str(execution_manifest.get("manifest_id", "") or "").strip()
         if manifest_id:
@@ -54110,6 +54573,13 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             is True
         ):
             responses_recorded += 1
+        if (
+            execution_manifest.get(
+                "live_route_planner_target_prover_replay_complete"
+            )
+            is True
+        ):
+            target_prover_replay_complete += 1
         live_manifest_path = str(
             execution_manifest.get("live_route_planner_manifest_path", "") or ""
         ).strip()
@@ -54141,6 +54611,9 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": (
             responses_recorded
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": (
+            target_prover_replay_complete
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
             aggregate_counts["selected_handoffs"]
@@ -54213,6 +54686,43 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_staged_assembled_source_rows": int(
             aggregate_counts["standalone_seed_staged_assembled_source_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": int(
+            aggregate_counts["target_prover_replay_attempts"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": int(
+            aggregate_counts["target_prover_replay_all_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_items": int(
+            aggregate_counts["target_prover_replay_refinement_items"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": int(
+            aggregate_counts["target_prover_replay_proof_state_feedback_items"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses": int(
+            aggregate_counts["target_prover_replay_local_proof_state_responses"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok": int(
+            aggregate_counts[
+                "target_prover_replay_refinement_evidence_contract_ok"
+            ]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": int(
+            aggregate_counts[
+                "target_prover_replay_refinement_evidence_awaiting_tool_response"
+            ]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": int(
+            aggregate_counts["target_prover_replay_route_revision_proposals"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_lean_failed": int(
+            aggregate_counts["target_prover_replay_local_lean_failed"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_lean_unavailable": int(
+            aggregate_counts["target_prover_replay_local_lean_unavailable"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_kernel_scaffold_accepted": int(
+            aggregate_counts["target_prover_replay_kernel_scaffold_accepted"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]

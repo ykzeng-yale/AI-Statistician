@@ -1069,6 +1069,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete",
+                0,
+            )
+            or 0
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs": int(
             manifest.get(
                 "n_runtime_formalization_gap_planner_live_route_planner_selected_handoffs",
@@ -1121,6 +1128,62 @@ def audit_research_agent_runtime(
         "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests": int(
             manifest.get(
                 "n_runtime_formalization_gap_planner_live_route_planner_routes_omitted_by_max_route_requests",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_items": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_items",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals",
                 0,
             )
             or 0
@@ -5637,6 +5700,55 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_gap_planner_live_target_replay_complete = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_attempts = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_all_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_proof_items = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_proof_responses = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_contract_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_live_target_replay_awaiting = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response",
+            0,
+        )
+        or 0
+    )
     runtime_gap_planner_live_followthrough_complete = (
         runtime_formal_gap_planner_handoff_count <= 0
         or (
@@ -5647,6 +5759,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_gap_planner_live_provider_failures <= 0
             and runtime_gap_planner_live_awaiting_response <= 0
             and runtime_gap_planner_live_responses_recorded > 0
+            and runtime_gap_planner_live_target_replay_complete > 0
+            and runtime_gap_planner_live_target_replay_attempts
+            >= runtime_gap_planner_live_invocations
+            and runtime_gap_planner_live_target_replay_all_ok
+            >= runtime_gap_planner_live_invocations
+            and runtime_gap_planner_live_target_replay_proof_items > 0
+            and runtime_gap_planner_live_target_replay_proof_responses > 0
+            and runtime_gap_planner_live_target_replay_contract_ok
+            >= runtime_gap_planner_live_target_replay_proof_items
         )
     )
     primary_typechecked_review_required = bool(
@@ -6118,14 +6239,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_gap_planner_live_awaiting_response} "
                 "responses_recorded="
                 f"{runtime_gap_planner_live_responses_recorded} "
+                "target_replay_complete="
+                f"{runtime_gap_planner_live_target_replay_complete} "
+                "target_replay_attempts="
+                f"{runtime_gap_planner_live_target_replay_attempts} "
+                "target_replay_all_ok="
+                f"{runtime_gap_planner_live_target_replay_all_ok} "
+                "target_replay_proof_items="
+                f"{runtime_gap_planner_live_target_replay_proof_items} "
+                "target_replay_proof_responses="
+                f"{runtime_gap_planner_live_target_replay_proof_responses} "
+                "target_replay_contract_ok="
+                f"{runtime_gap_planner_live_target_replay_contract_ok} "
+                "target_replay_awaiting="
+                f"{runtime_gap_planner_live_target_replay_awaiting} "
                 "paths="
                 f"{payload.get('runtime_formalization_gap_planner_live_route_planner_manifest_paths')}"
             ),
             (
                 "formal-gap planner handoffs were staged, but the integrated "
                 "live LLM route-planner feedback path did not record "
-                "contract-valid responses; prompt packets or pending follow-up "
-                "tasks alone are not end-to-end FormalizationGapPlanner capacity"
+                "contract-valid responses plus target-prover replay through the "
+                "refinement queue, local proof-state adapter, and refinement "
+                "evidence; prompt packets or raw LLM responses alone are not "
+                "end-to-end FormalizationGapPlanner capacity"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -6134,13 +6271,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "Resume the pending gap-planner live-route task or rerun "
                     "full-live capability eval with "
                     "--formalization-gap-planner-live-route-planner so bounded "
-                    "LLM route-planner responses are recorded after each staged "
+                    "LLM route-planner responses are recorded and replayed "
+                    "through refinement/proof-state evidence after each staged "
                     "runtime handoff."
                 ),
                 success_metric=(
                     "n_runtime_formalization_gap_planner_live_route_planner_invocations>0, "
                     "request_packets>0, response_contract_ok equals request_packets, "
-                    "provider_failures=0, and awaiting_llm_response=0"
+                    "provider_failures=0, awaiting_llm_response=0, "
+                    "target_prover_replay_all_ok covers invocations, "
+                    "proof_state_feedback_items>0, local_proof_state_responses>0, "
+                    "and refinement_evidence_contract_ok covers proof-state items"
                 ),
             ),
         ),

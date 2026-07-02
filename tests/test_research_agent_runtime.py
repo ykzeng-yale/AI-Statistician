@@ -1807,6 +1807,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     )
     assert manifest["live_llm_invoked"] is True
     assert manifest["live_route_planner_all_responses_recorded"] is True
+    assert manifest["live_route_planner_target_prover_replay_complete"] is True
     assert manifest["live_route_planner_counts"]["response_present"] == 1
     assert manifest["live_route_planner_counts"]["response_contract_ok"] == 0
     assert (
@@ -1854,6 +1855,45 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         ]
         == 1
     )
+    assert (
+        manifest["live_route_planner_counts"]["target_prover_replay_attempts"]
+        == 1
+    )
+    assert (
+        manifest["live_route_planner_counts"]["target_prover_replay_all_ok"]
+        == 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "target_prover_replay_proof_state_feedback_items"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "target_prover_replay_local_proof_state_responses"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "target_prover_replay_refinement_evidence_contract_ok"
+        ]
+        >= manifest["live_route_planner_counts"][
+            "target_prover_replay_proof_state_feedback_items"
+        ]
+    )
+    assert (
+        manifest["live_route_planner_counts"][
+            "target_prover_replay_refinement_evidence_awaiting_tool_response"
+        ]
+        == manifest["live_route_planner_counts"][
+            "target_prover_replay_refinement_items"
+        ]
+        - manifest["live_route_planner_counts"][
+            "target_prover_replay_refinement_evidence_contract_ok"
+        ]
+    )
     assert manifest["live_route_planner_counts"]["input_routes"] == 3
     assert (
         manifest["live_route_planner_counts"][
@@ -1862,6 +1902,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         == 2
     )
     assert live_manifest["all_live_route_planner_responses_recorded"] is True
+    assert live_manifest["target_prover_replay_complete"] is True
     assert live_manifest["counts"]["provider_total_tokens"] == 168
     assert (
         live_manifest["counts"]["provider_total_tokens_including_staged_followups"]
@@ -1897,6 +1938,7 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                             "live_route_planner_followup_required": False,
                             "live_llm_invoked": True,
                             "live_route_planner_all_responses_recorded": True,
+                            "live_route_planner_target_prover_replay_complete": True,
                             "live_route_planner_manifest_path": (
                                 "runtime_formalization_gap_planner_live_route_planner/"
                                 "runtime_formalization_gap_planner_live_route_planner_manifest.json"
@@ -1929,6 +1971,17 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "standalone_seed_source_rows": 2,
                                 "standalone_seed_direct_source_rows": 1,
                                 "standalone_seed_staged_assembled_source_rows": 1,
+                                "target_prover_replay_attempts": 1,
+                                "target_prover_replay_all_ok": 1,
+                                "target_prover_replay_refinement_items": 3,
+                                "target_prover_replay_proof_state_feedback_items": 2,
+                                "target_prover_replay_local_proof_state_responses": 2,
+                                "target_prover_replay_refinement_evidence_contract_ok": 3,
+                                "target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
+                                "target_prover_replay_route_revision_proposals": 2,
+                                "target_prover_replay_local_lean_failed": 1,
+                                "target_prover_replay_local_lean_unavailable": 1,
+                                "target_prover_replay_kernel_scaffold_accepted": 0,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
@@ -2082,6 +2135,54 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_standalone_seed_staged_assembled_source_rows"
         ]
         == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok"
+        ]
+        == 3
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals"
+        ]
+        == 2
     )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"
@@ -2793,7 +2894,9 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
 
     assert followthrough["passed"] is False
     assert "followups_required=1" in followthrough["evidence"]
-    assert "contract-valid responses" in followthrough["blocker"]
+    assert "contract-valid responses plus target-prover replay" in followthrough[
+        "blocker"
+    ]
     assert followthrough["next_owner_subsystem"] == "FormalizationGapPlanner"
     recommended_command = followthrough["recommended_capability_eval_command"]
     assert "--resume-runtime-manifest" not in recommended_command
@@ -2812,6 +2915,28 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
             "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is False
+    assert "target_replay_complete=0" in rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["evidence"]
+
+    payload.update(
+        {
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": 2,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses": 2,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok": 2,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
         }
     )
 
