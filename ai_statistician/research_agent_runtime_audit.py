@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .model_backend import SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS
+from .model_backend import (
+    SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS as MODEL_SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
+)
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
@@ -68,6 +72,10 @@ REQUIRED_SUBSYSTEMS = (
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 ROUTEABLE_RUNTIME_SUBSYSTEMS = (*REQUIRED_ARCHITECT_SUBSYSTEMS, "ProofEngineer")
 SUPPORTED_GENERATOR_PROVIDERS = set(MODEL_SUPPORTED_GENERATOR_PROVIDERS)
+SUPPORTED_LIVE_GENERATOR_PROVIDERS = set(MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS = set(
+    MODEL_SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS
+)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
     "proof_state_feedback_manifest:",
@@ -4244,6 +4252,24 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
         errors.append(
             "supported generator providers changed: "
             + ",".join(sorted(supported))
+        )
+    supported_live = set(
+        str(item)
+        for item in policy.get("supported_live_generator_providers", []) or []
+    )
+    if supported_live and supported_live != SUPPORTED_LIVE_GENERATOR_PROVIDERS:
+        errors.append(
+            "supported live generator providers changed: "
+            + ",".join(sorted(supported_live))
+        )
+    static_replay = set(
+        str(item)
+        for item in policy.get("static_replay_generator_providers", []) or []
+    )
+    if static_replay and static_replay != SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
+        errors.append(
+            "static replay generator providers changed: "
+            + ",".join(sorted(static_replay))
         )
     resolved_status = str(
         policy.get("resolved_claude_model_tier_policy_status", "")

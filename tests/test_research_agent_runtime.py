@@ -54793,6 +54793,36 @@ def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() 
     assert any("collapsed to one resolved model" in error for error in errors)
 
 
+def test_runtime_topology_audit_rejects_static_as_supported_live_provider() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "unsupported_generator_backends_enabled": 0,
+            "subsystem_model_tier_policy_mismatches": 0,
+        },
+        "policy": {
+            "supported_live_generator_providers": ["anthropic", "openai", "static"],
+            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "static_replay_generator_providers": ["static"],
+            "resolved_claude_models_by_tier": {
+                "haiku": "claude-haiku-4-5-20251001",
+                "sonnet": "claude-sonnet-4-6",
+                "opus": "claude-opus-4-8",
+            },
+            "resolved_claude_model_tier_policy_status": "OK",
+            "resolved_claude_model_tier_policy_violations": [],
+        },
+        "llm_agents": [],
+    }
+
+    errors = _audit_topology({"llm_runtime_topology": topology})
+
+    assert any(
+        "supported live generator providers changed: anthropic,openai,static" in error
+        for error in errors
+    )
+
+
 def test_runtime_topology_summary_requires_live_backend_identity() -> None:
     topology = {
         "policy_status": "OK",
