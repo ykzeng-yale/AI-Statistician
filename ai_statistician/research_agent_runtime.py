@@ -16526,6 +16526,7 @@ def run_research_agent_runtime(
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
+    evidence_rows: list[dict[str, Any]] = []
     handoff_rows: list[dict[str, Any]] = []
     observation_rows: list[dict[str, Any]] = []
     tool_call_rows: list[dict[str, Any]] = []
@@ -16778,6 +16779,24 @@ def run_research_agent_runtime(
             if isinstance(result_json.get("blackboard", {}), Mapping)
             else {}
         )
+        raw_evidence_ledger = (
+            blackboard_json.get("evidence_ledger", [])
+            if isinstance(blackboard_json.get("evidence_ledger", []), list)
+            else []
+        )
+        for evidence_index, evidence in enumerate(raw_evidence_ledger):
+            if not isinstance(evidence, Mapping):
+                continue
+            evidence_rows.append(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "question_id": question.id,
+                    "question_title": question.title,
+                    "project_id": str(blackboard_json.get("project_id", "") or ""),
+                    "evidence_index": evidence_index,
+                    **dict(evidence),
+                }
+            )
         raw_handoff_ledger = (
             blackboard_json.get("handoff_ledger", [])
             if isinstance(blackboard_json.get("handoff_ledger", []), list)
@@ -16855,6 +16874,8 @@ def run_research_agent_runtime(
 
     traces_path = out_dir / "runtime_traces.jsonl"
     _write_jsonl(traces_path, trace_rows)
+    evidence_ledger_path = out_dir / "runtime_evidence_ledger.jsonl"
+    _write_jsonl(evidence_ledger_path, evidence_rows)
     task_handoffs_path = out_dir / "runtime_task_handoffs.jsonl"
     _write_jsonl(task_handoffs_path, handoff_rows)
     observations_path = out_dir / "runtime_observations.jsonl"
@@ -16916,6 +16937,7 @@ def run_research_agent_runtime(
         "runtime_architect_coordinator_registered": architect_coordinator is not None,
         "runtime_architect_coordinator_executed": n_architect_coordinator_traces > 0,
         "n_runtime_architect_coordinator_traces": n_architect_coordinator_traces,
+        "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),
         "n_runtime_tool_calls": len(tool_call_rows),
@@ -17289,6 +17311,13 @@ def run_research_agent_runtime(
         ],
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "simulation_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
+        "runtime_evidence_ledger_boundary": (
+            "Runtime evidence ledger rows are subsystem-declared evidence records "
+            "with explicit status and boundary fields. Row presence alone is not "
+            "proof, simulation success, generated-code execution, or verifier "
+            "success; those claims require the row status plus the dedicated "
+            "kernel, sandbox, tool-call, or retrieval provenance gates."
+        ),
         "runtime_task_handoff_boundary": (
             "Task handoff rows are orchestration and communication records. "
             "They preserve subsystem routing, artifact, and evidence references "
@@ -17310,6 +17339,7 @@ def run_research_agent_runtime(
         "artifacts": {
             "runtime_progress_jsonl": str(progress_path),
             "runtime_traces_jsonl": str(traces_path),
+            "runtime_evidence_ledger_jsonl": str(evidence_ledger_path),
             "runtime_task_handoffs_jsonl": str(task_handoffs_path),
             "runtime_observations_jsonl": str(observations_path),
             "runtime_tool_calls_jsonl": str(tool_calls_path),

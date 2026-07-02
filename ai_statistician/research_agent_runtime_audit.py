@@ -845,6 +845,207 @@ def _runtime_observation_payload_hash(payload: Any) -> str:
         return stable_hash(str(payload))
 
 
+def _runtime_evidence_ledger_export_audit_summary(
+    *,
+    result_paths: list[Path],
+    evidence_export_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    expected_by_key: dict[
+        tuple[str, str, str, str, str, str],
+        Mapping[str, Any],
+    ] = {}
+    n_blackboard_evidence_rows = 0
+    n_blackboard_missing_boundary = 0
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        question_id = str(blackboard.get("project_id", "") or "").split(":", 1)[-1]
+        evidence_ledger = (
+            blackboard.get("evidence_ledger", [])
+            if isinstance(blackboard.get("evidence_ledger", []), list)
+            else []
+        )
+        for evidence_index, evidence in enumerate(evidence_ledger):
+            if not isinstance(evidence, Mapping):
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="blackboard_evidence_ledger_row_not_object",
+                    detail=f"evidence_index={evidence_index} is not an object",
+                )
+                continue
+            n_blackboard_evidence_rows += 1
+            if not str(evidence.get("boundary", "") or "").strip():
+                n_blackboard_missing_boundary += 1
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="blackboard_evidence_ledger_row_missing_boundary",
+                    detail=f"evidence_index={evidence_index}",
+                )
+            key = _runtime_evidence_ledger_export_key(
+                question_id=question_id,
+                evidence_index=evidence_index,
+                evidence_id=evidence.get("evidence_id", ""),
+                task_id=evidence.get("task_id", ""),
+                artifact_id=evidence.get("artifact_id", ""),
+                evidence_type=evidence.get("evidence_type", ""),
+            )
+            expected_by_key[key] = {
+                "question_id": question_id,
+                "evidence_index": evidence_index,
+                "evidence_id": str(evidence.get("evidence_id", "") or ""),
+                "task_id": str(evidence.get("task_id", "") or ""),
+                "artifact_id": str(evidence.get("artifact_id", "") or ""),
+                "evidence_type": str(evidence.get("evidence_type", "") or ""),
+                "status": str(evidence.get("status", "") or ""),
+                "boundary": str(evidence.get("boundary", "") or ""),
+                "payload_hash": _runtime_observation_payload_hash(
+                    evidence.get("payload", {})
+                ),
+            }
+
+    export_by_key: dict[
+        tuple[str, str, str, str, str, str],
+        Mapping[str, Any],
+    ] = {}
+    n_export_unknown_rows = 0
+    n_export_mismatched_rows = 0
+    n_export_missing_boundary = 0
+    for row_index, row in enumerate(evidence_export_rows):
+        key = _runtime_evidence_ledger_export_key(
+            question_id=row.get("question_id", ""),
+            evidence_index=row.get("evidence_index", 0),
+            evidence_id=row.get("evidence_id", ""),
+            task_id=row.get("task_id", ""),
+            artifact_id=row.get("artifact_id", ""),
+            evidence_type=row.get("evidence_type", ""),
+        )
+        if not str(row.get("boundary", "") or "").strip():
+            n_export_missing_boundary += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_evidence_ledger_export_row_missing_boundary",
+                trace_index=row_index,
+                detail="runtime_evidence_ledger.jsonl row has no boundary",
+            )
+        if key in export_by_key:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_evidence_ledger_export_duplicate_key",
+                trace_index=row_index,
+                detail="runtime_evidence_ledger.jsonl repeats an evidence key",
+            )
+            continue
+        export_by_key[key] = row
+        expected = expected_by_key.get(key)
+        if expected is None:
+            n_export_unknown_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_evidence_ledger_export_unknown_row",
+                trace_index=row_index,
+                detail="runtime_evidence_ledger.jsonl row is absent from blackboard.evidence_ledger",
+            )
+            continue
+        mismatches = [
+            field
+            for field in (
+                "question_id",
+                "evidence_index",
+                "evidence_id",
+                "task_id",
+                "artifact_id",
+                "evidence_type",
+                "status",
+                "boundary",
+            )
+            if str(row.get(field, "") or "") != str(expected.get(field, "") or "")
+        ]
+        if _runtime_observation_payload_hash(row.get("payload", {})) != expected[
+            "payload_hash"
+        ]:
+            mismatches.append("payload")
+        if mismatches:
+            n_export_mismatched_rows += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_evidence_ledger_export_blackboard_mismatch",
+                trace_index=row_index,
+                detail=",".join(mismatches),
+            )
+
+    missing_keys = sorted(set(expected_by_key) - set(export_by_key))
+    for key in missing_keys[:20]:
+        _append_handoff_issue(
+            issues,
+            issue="blackboard_evidence_ledger_missing_export_row",
+            detail="runtime_evidence_ledger.jsonl missing key=" + repr(key),
+        )
+    n_missing_export_rows = len(missing_keys)
+    complete = (
+        (n_blackboard_evidence_rows <= 0 and not evidence_export_rows)
+        or (
+            n_missing_export_rows == 0
+            and n_export_unknown_rows == 0
+            and n_export_mismatched_rows == 0
+            and n_blackboard_missing_boundary == 0
+            and n_export_missing_boundary == 0
+            and len(evidence_export_rows) == n_blackboard_evidence_rows
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeEvidenceLedgerExportAudit",
+        "runtime_evidence_ledger_export_complete": complete,
+        "n_runtime_blackboard_evidence_ledger_rows": n_blackboard_evidence_rows,
+        "n_runtime_evidence_ledger_export_rows": len(evidence_export_rows),
+        "n_runtime_evidence_ledger_export_missing_rows": n_missing_export_rows,
+        "n_runtime_evidence_ledger_export_unknown_rows": n_export_unknown_rows,
+        "n_runtime_evidence_ledger_export_mismatched_rows": (
+            n_export_mismatched_rows
+        ),
+        "n_runtime_blackboard_evidence_ledger_rows_missing_boundary": (
+            n_blackboard_missing_boundary
+        ),
+        "n_runtime_evidence_ledger_export_rows_missing_boundary": (
+            n_export_missing_boundary
+        ),
+        "runtime_evidence_ledger_export_issues": issues,
+        "boundary": (
+            "Runtime evidence ledger export rows preserve subsystem-declared "
+            "evidence records for audit and agent handoff. Row presence is not "
+            "itself proof, execution success, or verifier success; consumers "
+            "must respect each row status, boundary, and dedicated verifier gate."
+        ),
+    }
+
+
+def _runtime_evidence_ledger_export_key(
+    *,
+    question_id: Any,
+    evidence_index: Any,
+    evidence_id: Any,
+    task_id: Any,
+    artifact_id: Any,
+    evidence_type: Any,
+) -> tuple[str, str, str, str, str, str]:
+    return (
+        str(question_id or ""),
+        str(_safe_int(evidence_index)),
+        str(evidence_id or ""),
+        str(task_id or ""),
+        str(artifact_id or ""),
+        str(evidence_type or ""),
+    )
+
+
 def _runtime_tool_call_export_audit_summary(
     *,
     result_paths: list[Path],
@@ -1567,6 +1768,10 @@ def audit_research_agent_runtime(
         artifacts = {}
     trace_path = _resolve_path(runtime_dir, artifacts.get("runtime_traces_jsonl", ""))
     progress_path = _resolve_path(runtime_dir, artifacts.get("runtime_progress_jsonl", ""))
+    evidence_ledger_path = _resolve_path(
+        runtime_dir,
+        artifacts.get("runtime_evidence_ledger_jsonl", ""),
+    )
     handoff_path = _resolve_path(
         runtime_dir,
         artifacts.get("runtime_task_handoffs_jsonl", ""),
@@ -1623,6 +1828,11 @@ def audit_research_agent_runtime(
         errors,
         required=bool(artifacts.get("runtime_progress_jsonl")),
     )
+    evidence_export_rows = _load_jsonl(
+        evidence_ledger_path,
+        errors,
+        required=bool(artifacts.get("runtime_evidence_ledger_jsonl")),
+    )
     handoff_export_rows = _load_jsonl(
         handoff_path,
         errors,
@@ -1655,6 +1865,12 @@ def audit_research_agent_runtime(
         errors.append("manifest n_runtime_learning_rows does not match learning JSONL")
     if len(trace_rows) != sum(row.n_traces for row in rows):
         errors.append("runtime_traces.jsonl row count does not match per-question traces")
+    if "n_runtime_evidence_ledger_rows" in manifest and int(
+        manifest.get("n_runtime_evidence_ledger_rows", -1)
+    ) != len(evidence_export_rows):
+        errors.append(
+            "manifest n_runtime_evidence_ledger_rows does not match runtime_evidence_ledger JSONL"
+        )
     if "n_runtime_task_handoffs" in manifest and int(
         manifest.get("n_runtime_task_handoffs", -1)
     ) != len(handoff_export_rows):
@@ -1752,6 +1968,13 @@ def audit_research_agent_runtime(
             result_paths=result_paths,
             progress_rows=progress_rows,
             handoff_export_rows=handoff_export_rows,
+            errors=errors,
+        )
+    )
+    runtime_evidence_ledger_export_summary = (
+        _runtime_evidence_ledger_export_audit_summary(
+            result_paths=result_paths,
+            evidence_export_rows=evidence_export_rows,
             errors=errors,
         )
     )
@@ -2179,6 +2402,54 @@ def audit_research_agent_runtime(
         "by_status": dict(sorted(by_status.items())),
         "n_runtime_progress_events": len(progress_rows),
         "n_runtime_traces": len(trace_rows),
+        "runtime_evidence_ledger_export_audit_summary": (
+            runtime_evidence_ledger_export_summary
+        ),
+        "runtime_evidence_ledger_export_complete": bool(
+            runtime_evidence_ledger_export_summary[
+                "runtime_evidence_ledger_export_complete"
+            ]
+        ),
+        "n_runtime_blackboard_evidence_ledger_rows": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_blackboard_evidence_ledger_rows"
+            ]
+        ),
+        "n_runtime_evidence_ledger_export_rows": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_evidence_ledger_export_rows"
+            ]
+        ),
+        "n_runtime_evidence_ledger_export_missing_rows": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_evidence_ledger_export_missing_rows"
+            ]
+        ),
+        "n_runtime_evidence_ledger_export_unknown_rows": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_evidence_ledger_export_unknown_rows"
+            ]
+        ),
+        "n_runtime_evidence_ledger_export_mismatched_rows": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_evidence_ledger_export_mismatched_rows"
+            ]
+        ),
+        "n_runtime_blackboard_evidence_ledger_rows_missing_boundary": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_blackboard_evidence_ledger_rows_missing_boundary"
+            ]
+        ),
+        "n_runtime_evidence_ledger_export_rows_missing_boundary": int(
+            runtime_evidence_ledger_export_summary[
+                "n_runtime_evidence_ledger_export_rows_missing_boundary"
+            ]
+        ),
+        "runtime_evidence_ledger_export_issues": list(
+            runtime_evidence_ledger_export_summary[
+                "runtime_evidence_ledger_export_issues"
+            ]
+        ),
         "runtime_task_handoff_ledger_audit_summary": (
             runtime_task_handoff_ledger_summary
         ),
@@ -8280,6 +8551,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_task_handoff_trace_rows = int(
         payload.get("n_runtime_task_handoff_trace_rows", 0) or 0
     )
+    raw_evidence_ledger_export_complete = payload.get(
+        "runtime_evidence_ledger_export_complete"
+    )
+    runtime_evidence_ledger_export_complete = (
+        True
+        if raw_evidence_ledger_export_complete is None
+        and int(payload.get("n_runtime_blackboard_evidence_ledger_rows", 0) or 0)
+        <= 0
+        else raw_evidence_ledger_export_complete is True
+    )
     raw_task_handoff_ledger_complete = payload.get(
         "runtime_task_handoff_ledger_complete"
     )
@@ -9716,6 +9997,49 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "runtime_evidence_ledger_export_complete",
+            runtime_evidence_ledger_export_complete,
+            (
+                "blackboard_rows="
+                f"{payload.get('n_runtime_blackboard_evidence_ledger_rows')} "
+                "export_rows="
+                f"{payload.get('n_runtime_evidence_ledger_export_rows')} "
+                "missing="
+                f"{payload.get('n_runtime_evidence_ledger_export_missing_rows')} "
+                "unknown="
+                f"{payload.get('n_runtime_evidence_ledger_export_unknown_rows')} "
+                "mismatched="
+                f"{payload.get('n_runtime_evidence_ledger_export_mismatched_rows')} "
+                "blackboard_missing_boundary="
+                f"{payload.get('n_runtime_blackboard_evidence_ledger_rows_missing_boundary')} "
+                "export_missing_boundary="
+                f"{payload.get('n_runtime_evidence_ledger_export_rows_missing_boundary')} "
+                "issues="
+                f"{payload.get('runtime_evidence_ledger_export_issues')}"
+            ),
+            (
+                "AgentRuntime evidence ledger rows were not preserved as a "
+                "central runtime_evidence_ledger.jsonl contract with explicit "
+                "status and boundaries; subsystem claims are not auditable end "
+                "to end"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Rerun with the current runtime so every "
+                    "blackboard.evidence_ledger row is exported to "
+                    "runtime_evidence_ledger.jsonl with matching identity, "
+                    "payload hash, status, and boundary."
+                ),
+                success_metric=(
+                    "runtime_evidence_ledger_export_complete=true with export "
+                    "rows matching every blackboard.evidence_ledger row and "
+                    "zero missing boundaries"
+                ),
+            ),
         ),
         _scorecard_row(
             "runtime_observation_export_complete",
@@ -11232,6 +11556,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
+        "- runtime evidence ledger export complete / rows: "
+        f"{payload.get('runtime_evidence_ledger_export_complete')} / "
+        f"{payload.get('n_runtime_evidence_ledger_export_rows')}",
         "- runtime observation export complete / rows: "
         f"{payload.get('runtime_observation_export_complete')} / "
         f"{payload.get('n_runtime_observation_export_rows')}",

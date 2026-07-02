@@ -2656,6 +2656,49 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
+    clean_evidence_payload = {
+        "n_runtime_blackboard_evidence_ledger_rows": 2,
+        "n_runtime_evidence_ledger_export_rows": 2,
+        "n_runtime_evidence_ledger_export_missing_rows": 0,
+        "n_runtime_evidence_ledger_export_unknown_rows": 0,
+        "n_runtime_evidence_ledger_export_mismatched_rows": 0,
+        "n_runtime_blackboard_evidence_ledger_rows_missing_boundary": 0,
+        "n_runtime_evidence_ledger_export_rows_missing_boundary": 0,
+        "runtime_evidence_ledger_export_complete": True,
+        "runtime_evidence_ledger_export_issues": [],
+    }
+    clean_evidence_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_evidence_payload)["rows"]
+    }
+    assert (
+        clean_evidence_rows["runtime_evidence_ledger_export_complete"]["passed"]
+        is True
+    )
+
+    evidence_payload = dict(clean_evidence_payload)
+    evidence_payload.update(
+        {
+            "n_runtime_evidence_ledger_export_rows": 1,
+            "n_runtime_evidence_ledger_export_missing_rows": 1,
+            "n_runtime_evidence_ledger_export_rows_missing_boundary": 1,
+            "runtime_evidence_ledger_export_complete": False,
+            "runtime_evidence_ledger_export_issues": [
+                {"issue": "blackboard_evidence_ledger_missing_export_row"}
+            ],
+        }
+    )
+    evidence_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(evidence_payload)["rows"]
+    }
+    evidence_row = evidence_rows["runtime_evidence_ledger_export_complete"]
+    assert evidence_row["passed"] is False
+    assert "missing=1" in evidence_row["evidence"]
+    assert "export_missing_boundary=1" in evidence_row["evidence"]
+    assert "runtime_evidence_ledger.jsonl" in evidence_row["blocker"]
+    assert evidence_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
     clean_observation_payload = {
         "n_runtime_trace_observation_rows": 2,
         "n_runtime_observation_export_rows": 2,
@@ -49898,6 +49941,27 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert task_handoff_rows[0]["question_id"] == question.id
     assert task_handoff_rows[0]["project_id"] == result["blackboard"]["project_id"]
     assert task_handoff_rows[0]["handoff_id"] == handoff_ledger[0]["handoff_id"]
+    runtime_evidence_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_evidence_ledger_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    expected_evidence_rows = len(result["blackboard"]["evidence_ledger"])
+    assert expected_evidence_rows > 0
+    assert manifest["n_runtime_evidence_ledger_rows"] == len(
+        runtime_evidence_rows
+    )
+    assert len(runtime_evidence_rows) == expected_evidence_rows
+    assert runtime_evidence_rows[0]["question_id"] == question.id
+    assert runtime_evidence_rows[0]["project_id"] == result["blackboard"][
+        "project_id"
+    ]
+    assert runtime_evidence_rows[0]["evidence_id"] == result["blackboard"][
+        "evidence_ledger"
+    ][0]["evidence_id"]
+    assert all(row["boundary"] for row in runtime_evidence_rows)
     runtime_observation_rows = [
         json.loads(line)
         for line in Path(
@@ -50664,6 +50728,22 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_result_errors"] == 0
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["runtime_evidence_ledger_export_complete"] is True
+    assert (
+        audit["n_runtime_blackboard_evidence_ledger_rows"]
+        == expected_evidence_rows
+    )
+    assert audit["n_runtime_evidence_ledger_export_rows"] == len(
+        runtime_evidence_rows
+    )
+    assert audit["n_runtime_evidence_ledger_export_missing_rows"] == 0
+    assert audit["n_runtime_evidence_ledger_export_unknown_rows"] == 0
+    assert audit["n_runtime_evidence_ledger_export_mismatched_rows"] == 0
+    assert (
+        audit["n_runtime_blackboard_evidence_ledger_rows_missing_boundary"]
+        == 0
+    )
+    assert audit["n_runtime_evidence_ledger_export_rows_missing_boundary"] == 0
     assert audit["runtime_task_handoff_ledger_complete"] is True
     assert audit["runtime_observation_export_complete"] is True
     assert audit["n_runtime_trace_observation_rows"] == expected_observations
@@ -50730,6 +50810,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     assert truth_rows["formal_gaps"]["status"] == "OPEN"
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
+    assert (
+        scorecard_rows["runtime_evidence_ledger_export_complete"]["passed"]
+        is True
+    )
     assert scorecard_rows["runtime_observation_export_complete"]["passed"] is True
     assert scorecard_rows["runtime_tool_call_export_complete"]["passed"] is True
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
