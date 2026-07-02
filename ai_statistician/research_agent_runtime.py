@@ -17273,6 +17273,11 @@ def run_research_agent_runtime(
         "runtime_handoff_transition_route_sources": handoff_transition_summary[
             "route_decision_sources"
         ],
+        "n_runtime_handoff_transitions_aligned_with_architect_plan": (
+            handoff_transition_summary[
+                "n_transitions_aligned_with_architect_execution_plan"
+            ]
+        ),
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),
@@ -60991,9 +60996,14 @@ def _runtime_handoff_transition_summary(
             to_subsystem = str(next_task.get("owner_subsystem", "") or "").strip()
             pair = f"{from_subsystem}->{to_subsystem}"
             transition_pairs.append(pair)
+            architect_plan_alignment = _runtime_transition_architect_plan_alignment(
+                next_task=next_task,
+                to_subsystem=to_subsystem,
+            )
             sources = _runtime_transition_route_sources(
                 trace=trace,
                 next_task=next_task,
+                architect_plan_alignment=architect_plan_alignment,
             )
             route_decision_sources.extend(sources)
             acceptance_gate = str(next_task.get("acceptance_gate", "") or "").strip()
@@ -61023,6 +61033,15 @@ def _runtime_handoff_transition_summary(
                     "to_subsystem": to_subsystem,
                     "status": str(trace.get("status", "") or ""),
                     "route_decision_sources": sources,
+                    "architect_execution_plan_aligned": bool(
+                        architect_plan_alignment["aligned"]
+                    ),
+                    "architect_execution_plan_stage_index": (
+                        architect_plan_alignment["stage_index"]
+                    ),
+                    "architect_execution_plan_stage_objective": (
+                        architect_plan_alignment["stage_objective"]
+                    ),
                     "has_architect_context": bool(architect_context),
                     "has_environment_feedback": bool(environment_feedback),
                     "next_task_input_keys": sorted(str(key) for key in inputs),
@@ -61079,6 +61098,9 @@ def _runtime_handoff_transition_summary(
         "n_transitions_with_environment_feedback": (
             n_transitions_with_environment_feedback
         ),
+        "n_transitions_aligned_with_architect_execution_plan": sum(
+            1 for row in rows if row["architect_execution_plan_aligned"]
+        ),
         "all_transitions_have_acceptance_gate": bool(
             n_transition_rows <= 0
             or n_transitions_with_acceptance_gate == n_transition_rows
@@ -61107,8 +61129,14 @@ def _runtime_transition_route_sources(
     *,
     trace: Mapping[str, Any],
     next_task: Mapping[str, Any],
+    architect_plan_alignment: Mapping[str, Any] | None = None,
 ) -> list[str]:
     sources: list[str] = []
+    if (
+        isinstance(architect_plan_alignment, Mapping)
+        and architect_plan_alignment.get("aligned") is True
+    ):
+        sources.append("architect_execution_plan")
     for observation in trace.get("observations", []) or []:
         if not isinstance(observation, Mapping):
             continue
@@ -61152,6 +61180,49 @@ def _runtime_transition_route_sources(
     if not sources:
         sources.append("subsystem_explicit_next_task")
     return list(dict.fromkeys(sources))
+
+
+def _runtime_transition_architect_plan_alignment(
+    *,
+    next_task: Mapping[str, Any],
+    to_subsystem: str,
+) -> dict[str, Any]:
+    inputs = (
+        next_task.get("inputs", {})
+        if isinstance(next_task.get("inputs", {}), Mapping)
+        else {}
+    )
+    context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    plan = (
+        context.get("architect_runtime_plan", {})
+        if isinstance(context.get("architect_runtime_plan", {}), Mapping)
+        else {}
+    )
+    stages = plan.get("subsystem_execution_plan", [])
+    if not isinstance(stages, list):
+        stages = []
+    canonical_to = _canonical_architect_subsystem(to_subsystem)
+    for stage_index, stage in enumerate(stages):
+        if not isinstance(stage, Mapping):
+            continue
+        subsystem = _canonical_architect_subsystem(stage.get("subsystem"))
+        if subsystem and subsystem == canonical_to:
+            return {
+                "aligned": True,
+                "stage_index": stage_index,
+                "stage_subsystem": subsystem,
+                "stage_objective": str(stage.get("objective", "") or ""),
+            }
+    return {
+        "aligned": False,
+        "stage_index": -1,
+        "stage_subsystem": canonical_to,
+        "stage_objective": "",
+    }
 
 
 def _proof_bank_obligation_request_ids(

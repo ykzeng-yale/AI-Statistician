@@ -2967,6 +2967,7 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         "runtime_handoff_transition_route_sources": {
             "subsystem_explicit_next_task": 2,
         },
+        "n_runtime_handoff_transitions_aligned_with_architect_plan": 0,
         "runtime_handoff_transition_summary": {
             "trace_handoff_ids_missing_from_ledger": [],
             "ledger_handoff_ids_missing_from_traces": [],
@@ -2979,6 +2980,10 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert clean_rows["runtime_task_handoff_ledger_complete"]["passed"] is True
     assert (
         clean_rows["runtime_handoff_transition_summary_audited"]["passed"]
+        is True
+    )
+    assert (
+        clean_rows["runtime_architect_transition_policy_visible"]["passed"]
         is True
     )
 
@@ -3031,6 +3036,30 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "alignment_ok=False" in transition_row["evidence"]
     assert "hidden fixed-pipeline routing" in transition_row["blocker"]
     assert transition_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
+    architect_policy_payload = dict(clean_payload)
+    architect_policy_payload.update(
+        {
+            "runtime_architect_coordinator_executed": True,
+            "n_runtime_architect_coordinator_traces": 1,
+            "n_runtime_handoff_transitions_aligned_with_architect_plan": 0,
+            "runtime_handoff_transition_route_sources": {
+                "subsystem_explicit_next_task": 2,
+            },
+        }
+    )
+    architect_policy_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(architect_policy_payload)["rows"]
+    }
+    architect_policy_row = architect_policy_rows[
+        "runtime_architect_transition_policy_visible"
+    ]
+    assert architect_policy_row["passed"] is False
+    assert "architect_executed=True" in architect_policy_row["evidence"]
+    assert "architect_plan_aligned=0" in architect_policy_row["evidence"]
+    assert "visible Architect policy" in architect_policy_row["blocker"]
+    assert architect_policy_row["next_owner_subsystem"] == "ArchitectCoordinator"
 
     lineage_payload = dict(clean_payload)
     lineage_payload.update(
@@ -51795,6 +51824,19 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert transition_summary["route_decision_sources"][
         "architect_initial_routing"
     ] == 1
+    assert transition_summary["route_decision_sources"][
+        "architect_execution_plan"
+    ] == transition_summary["n_transition_rows"]
+    assert (
+        transition_summary[
+            "n_transitions_aligned_with_architect_execution_plan"
+        ]
+        == transition_summary["n_transition_rows"]
+    )
+    assert all(
+        row["architect_execution_plan_aligned"]
+        for row in transition_summary["rows"]
+    )
     assert sum(transition_summary["route_decision_sources"].values()) >= (
         transition_summary["n_transition_rows"]
     )
@@ -51809,6 +51851,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert manifest["runtime_handoff_transition_pairs"] == transition_summary[
         "transition_pairs"
     ]
+    assert manifest[
+        "n_runtime_handoff_transitions_aligned_with_architect_plan"
+    ] == transition_summary[
+        "n_transitions_aligned_with_architect_execution_plan"
+    ]
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
@@ -51821,6 +51868,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["runtime_handoff_transition_manifest_present"] is True
     assert audit["runtime_handoff_transition_manifest_stale"] is False
     assert audit["runtime_handoff_trace_alignment_ok"] is True
+    assert audit[
+        "n_runtime_handoff_transitions_aligned_with_architect_plan"
+    ] == transition_summary[
+        "n_transitions_aligned_with_architect_execution_plan"
+    ]
     assert audit["n_results_with_architect_initial_routing"] == 1
     assert audit["n_architect_initial_routing_decisions"] == 1
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
@@ -52031,6 +52083,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert (
         scorecard_rows[
             "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_architect_transition_policy_visible"
         ]["passed"]
         is True
     )
@@ -58591,6 +58649,12 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["n_runtime_handoff_transition_rows"] == transition_summary[
         "n_transition_rows"
     ]
+    assert transition_summary[
+        "n_transitions_aligned_with_architect_execution_plan"
+    ] == 0
+    assert manifest[
+        "n_runtime_handoff_transitions_aligned_with_architect_plan"
+    ] == 0
     coding_capability = manifest["runtime_coding_agent_capability"]
     assert coding_capability["artifact_kind"] == "RuntimeCodingAgentCapabilityTable"
     assert coding_capability["coding_agent_capability_ready"] is False
@@ -58906,11 +58970,21 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["runtime_handoff_transition_manifest_present"] is True
     assert audit["runtime_handoff_transition_manifest_stale"] is False
     assert audit["runtime_handoff_trace_alignment_ok"] is True
+    assert (
+        audit["n_runtime_handoff_transitions_aligned_with_architect_plan"]
+        == 0
+    )
     assert audit["n_results_with_architect_initial_routing"] == 0
     assert audit["n_architect_initial_routing_decisions"] == 0
     assert (
         scorecard_rows[
             "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_architect_transition_policy_visible"
         ]["passed"]
         is True
     )

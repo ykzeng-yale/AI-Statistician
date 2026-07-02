@@ -2981,6 +2981,11 @@ def audit_research_agent_runtime(
                 "runtime_handoff_transition_summary"
             ]["route_decision_sources"]
         ),
+        "n_runtime_handoff_transitions_aligned_with_architect_plan": int(
+            runtime_handoff_transition_summary[
+                "runtime_handoff_transition_summary"
+            ]["n_transitions_aligned_with_architect_execution_plan"]
+        ),
         "n_results": len(rows),
         "question_ids": sorted(
             {row.question_id for row in rows if row.question_id}
@@ -6431,6 +6436,7 @@ def _runtime_handoff_transition_summary_from_results(
             "n_runtime_handoff_transition_rows",
             "runtime_handoff_transition_pairs",
             "runtime_handoff_transition_route_sources",
+            "n_runtime_handoff_transitions_aligned_with_architect_plan",
         )
         if key in manifest
     }
@@ -6442,6 +6448,9 @@ def _runtime_handoff_transition_summary_from_results(
         "runtime_handoff_transition_pairs": summary.get("transition_pairs"),
         "runtime_handoff_transition_route_sources": summary.get(
             "route_decision_sources"
+        ),
+        "n_runtime_handoff_transitions_aligned_with_architect_plan": summary.get(
+            "n_transitions_aligned_with_architect_execution_plan"
         ),
     }
     summary_stale = bool(manifest_summary) and manifest_summary != summary
@@ -10330,6 +10339,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or runtime_task_handoff_trace_rows <= 0
         )
     )
+    runtime_handoff_transitions_aligned_with_architect_plan = int(
+        payload.get(
+            "n_runtime_handoff_transitions_aligned_with_architect_plan",
+            0,
+        )
+        or 0
+    )
+    runtime_architect_transition_policy_visible = (
+        not architect_orchestration_executed
+        or runtime_task_handoff_trace_rows <= 0
+        or runtime_handoff_transitions_aligned_with_architect_plan > 0
+    )
     runtime_pending_task_handoff_lineage_required = (
         payload.get("runtime_pending_task_handoff_lineage_required") is True
     )
@@ -12116,6 +12137,38 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "runtime_architect_transition_policy_visible",
+            runtime_architect_transition_policy_visible,
+            (
+                "architect_executed="
+                f"{architect_orchestration_executed} "
+                "transition_rows="
+                f"{payload.get('n_runtime_handoff_transition_rows')} "
+                "architect_plan_aligned="
+                f"{payload.get('n_runtime_handoff_transitions_aligned_with_architect_plan')} "
+                "route_sources="
+                f"{payload.get('runtime_handoff_transition_route_sources')}"
+            ),
+            (
+                "ArchitectCoordinator executed, but no runtime handoff transition "
+                "was aligned to the Architect subsystem_execution_plan; routing "
+                "looks like subsystem defaults rather than visible Architect policy"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Carry Architect subsystem_execution_plan context through "
+                    "runtime handoffs so transition summaries can show at least "
+                    "one architect_execution_plan-aligned route source."
+                ),
+                success_metric=(
+                    "n_runtime_handoff_transitions_aligned_with_architect_plan>0 "
+                    "whenever ArchitectCoordinator executes and runtime handoffs occur"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "runtime_pending_task_handoff_lineage_complete",
             runtime_pending_task_handoff_lineage_complete,
             (
@@ -13715,6 +13768,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- Architect initial routing selected / requested: "
         f"{payload.get('architect_initial_routing_selected_subsystems')} / "
         f"{payload.get('architect_initial_routing_requested_subsystems')}",
+        "- Runtime handoff transition sources / Architect-plan aligned: "
+        f"{payload.get('runtime_handoff_transition_route_sources')} / "
+        f"{payload.get('n_runtime_handoff_transitions_aligned_with_architect_plan')}",
         f"- Architect control status: {payload.get('runtime_architect_control_status')}",
         f"- Architect orchestration evidence: {payload.get('runtime_architect_orchestration_evidence')}",
         f"- Architect orchestration blocker: {payload.get('runtime_architect_orchestration_blocker')}",
