@@ -941,7 +941,16 @@ def _runtime_learning_rows_contract_audit_summary(
                 detail="runtime_learning_rows.jsonl repeats an identical row",
             )
         seen_hashes.add(row_hash)
-        learning_task = str(row.get("learning_task", "") or "").strip()
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        learning_task = str(
+            row.get("learning_task", "")
+            or input_summary.get("learning_task", "")
+            or ""
+        ).strip()
         if learning_task:
             learning_tasks[learning_task] += 1
         else:
@@ -961,11 +970,6 @@ def _runtime_learning_rows_contract_audit_summary(
             row.get("target_behavior", ""),
             row.get("acceptance_gate", ""),
         ]
-        input_summary = (
-            row.get("input_summary", {})
-            if isinstance(row.get("input_summary", {}), Mapping)
-            else {}
-        )
         routing_values.extend(
             [
                 input_summary.get("next_owner_subsystem", ""),
@@ -994,6 +998,13 @@ def _runtime_learning_rows_contract_audit_summary(
             row.get("routing_boundary", ""),
             row.get("evidence_boundary", ""),
             row.get("feedback_boundary", ""),
+            input_summary.get("proof_evidence_status", ""),
+            input_summary.get("proof_evidence_boundary", ""),
+            input_summary.get("boundary", ""),
+            input_summary.get("memory_boundary", ""),
+            input_summary.get("routing_boundary", ""),
+            input_summary.get("evidence_boundary", ""),
+            input_summary.get("feedback_boundary", ""),
         ]
         if not any(str(value or "").strip() for value in boundary_values):
             n_missing_boundary += 1
@@ -12358,9 +12369,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 owner="AgentRuntimeOrchestrator",
                 target_behavior=(
                     "Regenerate runtime_learning_rows.jsonl so every row has "
-                    "a learning_task, a next owner/action or target behavior, "
-                    "and proof_evidence_status/proof_evidence_boundary or an "
-                    "equivalent boundary field."
+                    "a learning_task at row or compact input_summary level, a "
+                    "next owner/action or target behavior, and "
+                    "proof_evidence_status/proof_evidence_boundary or an "
+                    "equivalent boundary field at row or input_summary level."
                 ),
                 success_metric=(
                     "runtime_learning_rows_contract_complete=true with zero "

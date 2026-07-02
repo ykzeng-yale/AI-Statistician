@@ -3862,6 +3862,42 @@ def test_runtime_learning_rows_writer_normalizes_evidence_boundaries(
     assert summary["n_runtime_learning_rows_missing_evidence_boundary"] == 0
 
 
+def test_runtime_learning_rows_contract_accepts_compact_formal_gap_feedback() -> None:
+    compact_feedback_row = {
+        "schema_version": 1,
+        "question_id": "q-route",
+        "route_planner_contract_feedback_id": "route-feedback:audit-compact",
+        "input_summary": {
+            "learning_task": (
+                "formalization_gap_planner_live_route_planner_contract_feedback"
+            ),
+            "owner_subsystem": "FormalizationGapPlanner/ArchitectCoordinator",
+            "target_behavior": "rerun compact route planner with contract feedback",
+            "agenda_id": "formal_gap:live_route_planner_contract_repair:audit",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "proof_evidence_status": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+            ),
+            "proof_evidence_boundary": (
+                runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+            ),
+        },
+    }
+
+    summary = _runtime_learning_rows_contract_audit_summary(
+        learning_rows=[compact_feedback_row]
+    )
+
+    assert summary["runtime_learning_rows_contract_complete"] is True
+    assert summary["n_runtime_learning_rows_missing_learning_task"] == 0
+    assert summary["n_runtime_learning_rows_missing_routing_contract"] == 0
+    assert summary["n_runtime_learning_rows_missing_evidence_boundary"] == 0
+    assert summary["runtime_learning_row_learning_tasks"] == {
+        "formalization_gap_planner_live_route_planner_contract_feedback": 1
+    }
+    assert summary["runtime_learning_rows_contract_issues"] == []
+
+
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
     clean_progress_payload = {
         "n_runtime_progress_events": 4,
