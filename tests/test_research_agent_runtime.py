@@ -2655,6 +2655,59 @@ def test_runtime_capability_scorecard_flags_missing_handoff_artifacts() -> None:
     assert "rerun or rehydrate" in handoff_score["blocker"]
 
 
+def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
+    clean_payload = {
+        "n_runtime_task_handoff_trace_rows": 2,
+        "n_runtime_task_handoff_ledger_rows": 2,
+        "n_runtime_task_handoff_ledger_rows_validated": 2,
+        "n_runtime_task_handoff_trace_rows_missing_handoff_id": 0,
+        "n_runtime_task_handoff_ledger_missing_rows": 0,
+        "n_runtime_task_handoff_ledger_mismatched_rows": 0,
+        "n_runtime_task_handoff_ledger_extra_rows": 0,
+        "n_runtime_task_handoff_progress_finish_rows": 2,
+        "n_runtime_task_handoff_progress_rows_missing_handoff_id": 0,
+        "n_runtime_task_handoff_progress_rows_unknown_handoff_id": 0,
+        "runtime_task_handoff_ledger_complete": True,
+        "runtime_task_handoff_ledger_issues": [],
+    }
+    clean_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(clean_payload)["rows"]
+    }
+    assert clean_rows["runtime_task_handoff_ledger_complete"]["passed"] is True
+
+    payload = dict(clean_payload)
+    payload.update(
+        {
+            "n_runtime_task_handoff_ledger_rows": 1,
+            "n_runtime_task_handoff_ledger_rows_validated": 1,
+            "n_runtime_task_handoff_trace_rows_missing_handoff_id": 1,
+            "n_runtime_task_handoff_ledger_missing_rows": 1,
+            "n_runtime_task_handoff_progress_rows_missing_handoff_id": 1,
+            "runtime_task_handoff_ledger_complete": False,
+            "runtime_task_handoff_ledger_issues": [
+                {
+                    "issue": "trace_handoff_missing_ledger_row",
+                    "handoff_id": "handoff:1:theory->simulation",
+                }
+            ],
+        }
+    )
+
+    rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+    handoff_row = rows["runtime_task_handoff_ledger_complete"]
+
+    assert handoff_row["passed"] is False
+    assert "trace_handoffs=2" in handoff_row["evidence"]
+    assert "ledger_missing=1" in handoff_row["evidence"]
+    assert "progress_missing_handoff_id=1" in handoff_row["evidence"]
+    assert "central blackboard.handoff_ledger" in handoff_row["blocker"]
+    assert handoff_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
+
 def test_runtime_capability_gaps_separate_component_calibration() -> None:
     scorecard = {
         "rows": [
@@ -50401,6 +50454,19 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["n_result_errors"] == 0
     assert audit["n_budget_exhausted_with_pending_next_task"] == 1
     assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["runtime_task_handoff_ledger_complete"] is True
+    assert audit["n_runtime_task_handoff_trace_rows"] == len(
+        [row for row in result["traces"] if row["next_task_id"]]
+    )
+    assert audit["n_runtime_task_handoff_ledger_rows"] == len(
+        result["blackboard"]["handoff_ledger"]
+    )
+    assert audit["n_runtime_task_handoff_ledger_rows_validated"] == audit[
+        "n_runtime_task_handoff_trace_rows"
+    ]
+    assert audit["n_runtime_task_handoff_ledger_missing_rows"] == 0
+    assert audit["n_runtime_task_handoff_ledger_mismatched_rows"] == 0
+    assert audit["n_runtime_task_handoff_progress_rows_missing_handoff_id"] == 0
     assert audit["capability_ready_for_full_ai_statistician"] is False
     assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]
@@ -50426,6 +50492,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
+    assert (
+        scorecard_rows["runtime_task_handoff_ledger_complete"]["passed"]
+        is True
+    )
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
     assert scorecard_rows["live_lean_lsp_mcp_called"]["passed"] is False
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is False

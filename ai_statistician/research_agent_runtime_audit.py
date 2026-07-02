@@ -341,6 +341,266 @@ def _runtime_result_primary_task_family(payload: Mapping[str, Any]) -> str:
     return ""
 
 
+def _runtime_task_handoff_ledger_audit_summary(
+    *,
+    result_paths: list[Path],
+    progress_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    n_trace_handoffs = 0
+    n_ledger_rows = 0
+    n_validated = 0
+    n_trace_missing_handoff_id = 0
+    n_missing_ledger_rows = 0
+    n_mismatched_ledger_rows = 0
+    n_extra_ledger_rows = 0
+    issues: list[dict[str, Any]] = []
+    all_trace_handoff_ids: set[str] = set()
+    all_ledger_handoff_ids: set[str] = set()
+
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        traces = payload.get("traces", []) if isinstance(payload.get("traces", []), list) else []
+        raw_ledger = (
+            blackboard.get("handoff_ledger", [])
+            if isinstance(blackboard.get("handoff_ledger", []), list)
+            else []
+        )
+        ledger_rows = [row for row in raw_ledger if isinstance(row, Mapping)]
+        n_ledger_rows += len(ledger_rows)
+        ledger_by_id: dict[str, Mapping[str, Any]] = {}
+        for row in ledger_rows:
+            handoff_id = str(row.get("handoff_id", "") or "").strip()
+            if not handoff_id:
+                n_mismatched_ledger_rows += 1
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="ledger_row_missing_handoff_id",
+                    detail="handoff_ledger row has no handoff_id",
+                )
+                continue
+            ledger_by_id[handoff_id] = row
+            all_ledger_handoff_ids.add(handoff_id)
+
+        result_trace_handoff_ids: set[str] = set()
+        for trace_index, trace in enumerate(traces):
+            if not isinstance(trace, Mapping):
+                continue
+            next_task = (
+                trace.get("next_task", {})
+                if isinstance(trace.get("next_task", {}), Mapping)
+                else {}
+            )
+            next_task_id = str(trace.get("next_task_id", "") or "").strip()
+            if not next_task_id:
+                next_task_id = str(next_task.get("task_id", "") or "").strip()
+            if not next_task_id:
+                continue
+
+            n_trace_handoffs += 1
+            handoff_id = str(trace.get("handoff_id", "") or "").strip()
+            if not handoff_id:
+                n_trace_missing_handoff_id += 1
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="trace_missing_handoff_id",
+                    trace_index=trace_index,
+                    detail=f"trace next_task_id={next_task_id} has no handoff_id",
+                )
+                continue
+
+            all_trace_handoff_ids.add(handoff_id)
+            result_trace_handoff_ids.add(handoff_id)
+            ledger_row = ledger_by_id.get(handoff_id)
+            if ledger_row is None:
+                n_missing_ledger_rows += 1
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="trace_handoff_missing_ledger_row",
+                    trace_index=trace_index,
+                    handoff_id=handoff_id,
+                    detail="trace handoff_id is absent from blackboard.handoff_ledger",
+                )
+                continue
+
+            mismatches = _runtime_task_handoff_ledger_mismatches(
+                trace=trace,
+                ledger_row=ledger_row,
+                next_task_id=next_task_id,
+            )
+            if mismatches:
+                n_mismatched_ledger_rows += 1
+                _append_handoff_issue(
+                    issues,
+                    path=path,
+                    issue="trace_handoff_ledger_mismatch",
+                    trace_index=trace_index,
+                    handoff_id=handoff_id,
+                    detail=",".join(mismatches),
+                )
+                continue
+            n_validated += 1
+
+        for handoff_id in sorted(set(ledger_by_id) - result_trace_handoff_ids):
+            n_extra_ledger_rows += 1
+            _append_handoff_issue(
+                issues,
+                path=path,
+                issue="ledger_row_without_trace_handoff",
+                handoff_id=handoff_id,
+                detail="handoff_ledger row does not correspond to a trace handoff",
+            )
+
+    n_progress_finish_handoffs = 0
+    n_progress_missing_handoff_id = 0
+    n_progress_unknown_handoff_id = 0
+    known_handoff_ids = all_trace_handoff_ids | all_ledger_handoff_ids
+    for row_index, row in enumerate(progress_rows):
+        if str(row.get("event_type", "") or "") != "subsystem_finish":
+            continue
+        next_task_id = str(row.get("next_task_id", "") or "").strip()
+        if not next_task_id:
+            continue
+        n_progress_finish_handoffs += 1
+        handoff_id = str(row.get("handoff_id", "") or "").strip()
+        if not handoff_id:
+            n_progress_missing_handoff_id += 1
+            _append_handoff_issue(
+                issues,
+                issue="progress_finish_missing_handoff_id",
+                trace_index=row_index,
+                detail=f"progress finish next_task_id={next_task_id} has no handoff_id",
+            )
+            continue
+        if handoff_id not in known_handoff_ids:
+            n_progress_unknown_handoff_id += 1
+            _append_handoff_issue(
+                issues,
+                issue="progress_finish_unknown_handoff_id",
+                trace_index=row_index,
+                handoff_id=handoff_id,
+                detail="progress finish handoff_id is absent from traces and ledger",
+            )
+
+    complete = (
+        n_trace_handoffs <= 0
+        or (
+            n_trace_missing_handoff_id == 0
+            and n_missing_ledger_rows == 0
+            and n_mismatched_ledger_rows == 0
+            and n_extra_ledger_rows == 0
+            and n_progress_missing_handoff_id == 0
+            and n_progress_unknown_handoff_id == 0
+            and n_validated == n_trace_handoffs
+        )
+    )
+    return {
+        "artifact_kind": "RuntimeTaskHandoffLedgerAudit",
+        "source": "per_question_results_and_runtime_progress_recomputed",
+        "runtime_task_handoff_ledger_complete": complete,
+        "n_runtime_task_handoff_trace_rows": n_trace_handoffs,
+        "n_runtime_task_handoff_ledger_rows": n_ledger_rows,
+        "n_runtime_task_handoff_ledger_rows_validated": n_validated,
+        "n_runtime_task_handoff_trace_rows_missing_handoff_id": (
+            n_trace_missing_handoff_id
+        ),
+        "n_runtime_task_handoff_ledger_missing_rows": n_missing_ledger_rows,
+        "n_runtime_task_handoff_ledger_mismatched_rows": n_mismatched_ledger_rows,
+        "n_runtime_task_handoff_ledger_extra_rows": n_extra_ledger_rows,
+        "n_runtime_task_handoff_progress_finish_rows": n_progress_finish_handoffs,
+        "n_runtime_task_handoff_progress_rows_missing_handoff_id": (
+            n_progress_missing_handoff_id
+        ),
+        "n_runtime_task_handoff_progress_rows_unknown_handoff_id": (
+            n_progress_unknown_handoff_id
+        ),
+        "runtime_task_handoff_ledger_issues": issues,
+        "boundary": (
+            "Task handoff ledger rows are orchestration/communication evidence. "
+            "They prove that AgentRuntime preserved subsystem handoff state, "
+            "not that the downstream statistical, simulation, code, or proof "
+            "claim is correct."
+        ),
+    }
+
+
+def _runtime_task_handoff_ledger_mismatches(
+    *,
+    trace: Mapping[str, Any],
+    ledger_row: Mapping[str, Any],
+    next_task_id: str,
+) -> list[str]:
+    task = (
+        trace.get("task", {})
+        if isinstance(trace.get("task", {}), Mapping)
+        else {}
+    )
+    next_task = (
+        trace.get("next_task", {})
+        if isinstance(trace.get("next_task", {}), Mapping)
+        else {}
+    )
+    checks = {
+        "from_task_id": str(task.get("task_id", "") or ""),
+        "to_task_id": next_task_id,
+        "from_subsystem": str(trace.get("subsystem", "") or ""),
+        "to_subsystem": str(next_task.get("owner_subsystem", "") or ""),
+        "status": str(trace.get("status", "") or ""),
+        "failure_classification": str(trace.get("failure_classification", "") or ""),
+    }
+    mismatches = [
+        key
+        for key, expected in checks.items()
+        if str(ledger_row.get(key, "") or "") != expected
+    ]
+    for key in ("produced_artifact_ids", "evidence_ids"):
+        if _handoff_string_tuple(ledger_row.get(key, [])) != _handoff_string_tuple(
+            trace.get(key, [])
+        ):
+            mismatches.append(key)
+    return mismatches
+
+
+def _handoff_string_tuple(value: Any) -> tuple[str, ...]:
+    if isinstance(value, (str, int, float, bool)):
+        values = [value]
+    else:
+        try:
+            values = list(value or [])
+        except TypeError:
+            values = [value]
+    return tuple(str(item) for item in values)
+
+
+def _append_handoff_issue(
+    issues: list[dict[str, Any]],
+    *,
+    issue: str,
+    detail: str,
+    path: Path | None = None,
+    trace_index: int | None = None,
+    handoff_id: str = "",
+) -> None:
+    if len(issues) >= 20:
+        return
+    row: dict[str, Any] = {"issue": issue, "detail": detail}
+    if path is not None:
+        row["result_path"] = str(path)
+    if trace_index is not None:
+        row["trace_index"] = trace_index
+    if handoff_id:
+        row["handoff_id"] = handoff_id
+    issues.append(row)
+
+
 def _manifest_question_task_family_map(manifest: Mapping[str, Any]) -> dict[str, str]:
     out: dict[str, str] = {}
     raw_families = manifest.get("question_task_families", {})
@@ -629,6 +889,13 @@ def audit_research_agent_runtime(
             ),
             learning_rows=learning_rows,
             agenda_rows=agenda_rows,
+        )
+    )
+    runtime_task_handoff_ledger_summary = (
+        _runtime_task_handoff_ledger_audit_summary(
+            result_paths=result_paths,
+            progress_rows=progress_rows,
+            errors=errors,
         )
     )
     runtime_target_prover_replay_route_revision_summary = (
@@ -1018,6 +1285,69 @@ def audit_research_agent_runtime(
         "by_status": dict(sorted(by_status.items())),
         "n_runtime_progress_events": len(progress_rows),
         "n_runtime_traces": len(trace_rows),
+        "runtime_task_handoff_ledger_audit_summary": (
+            runtime_task_handoff_ledger_summary
+        ),
+        "runtime_task_handoff_ledger_complete": bool(
+            runtime_task_handoff_ledger_summary[
+                "runtime_task_handoff_ledger_complete"
+            ]
+        ),
+        "n_runtime_task_handoff_trace_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_trace_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_ledger_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_ledger_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_ledger_rows_validated": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_ledger_rows_validated"
+            ]
+        ),
+        "n_runtime_task_handoff_trace_rows_missing_handoff_id": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_trace_rows_missing_handoff_id"
+            ]
+        ),
+        "n_runtime_task_handoff_ledger_missing_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_ledger_missing_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_ledger_mismatched_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_ledger_mismatched_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_ledger_extra_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_ledger_extra_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_progress_finish_rows": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_progress_finish_rows"
+            ]
+        ),
+        "n_runtime_task_handoff_progress_rows_missing_handoff_id": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_progress_rows_missing_handoff_id"
+            ]
+        ),
+        "n_runtime_task_handoff_progress_rows_unknown_handoff_id": int(
+            runtime_task_handoff_ledger_summary[
+                "n_runtime_task_handoff_progress_rows_unknown_handoff_id"
+            ]
+        ),
+        "runtime_task_handoff_ledger_issues": list(
+            runtime_task_handoff_ledger_summary[
+                "runtime_task_handoff_ledger_issues"
+            ]
+        ),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
         "n_runtime_pending_task_memory_rows": len(runtime_pending_task_memory_rows),
@@ -6871,6 +7201,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
+    runtime_task_handoff_trace_rows = int(
+        payload.get("n_runtime_task_handoff_trace_rows", 0) or 0
+    )
+    raw_task_handoff_ledger_complete = payload.get(
+        "runtime_task_handoff_ledger_complete"
+    )
+    runtime_task_handoff_ledger_complete = (
+        True
+        if raw_task_handoff_ledger_complete is None
+        and runtime_task_handoff_trace_rows <= 0
+        else raw_task_handoff_ledger_complete is True
+    )
     runtime_route_missing_target_ids_count = int(
         payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
     )
@@ -8258,6 +8600,54 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "runtime_task_handoff_ledger_complete",
+            runtime_task_handoff_ledger_complete,
+            (
+                "trace_handoffs="
+                f"{payload.get('n_runtime_task_handoff_trace_rows')} "
+                "ledger_rows="
+                f"{payload.get('n_runtime_task_handoff_ledger_rows')} "
+                "validated="
+                f"{payload.get('n_runtime_task_handoff_ledger_rows_validated')} "
+                "trace_missing_handoff_id="
+                f"{payload.get('n_runtime_task_handoff_trace_rows_missing_handoff_id')} "
+                "ledger_missing="
+                f"{payload.get('n_runtime_task_handoff_ledger_missing_rows')} "
+                "ledger_mismatched="
+                f"{payload.get('n_runtime_task_handoff_ledger_mismatched_rows')} "
+                "ledger_extra="
+                f"{payload.get('n_runtime_task_handoff_ledger_extra_rows')} "
+                "progress_finish_handoffs="
+                f"{payload.get('n_runtime_task_handoff_progress_finish_rows')} "
+                "progress_missing_handoff_id="
+                f"{payload.get('n_runtime_task_handoff_progress_rows_missing_handoff_id')} "
+                "progress_unknown_handoff_id="
+                f"{payload.get('n_runtime_task_handoff_progress_rows_unknown_handoff_id')} "
+                "issues="
+                f"{payload.get('runtime_task_handoff_ledger_issues')}"
+            ),
+            (
+                "AgentRuntime next-task handoffs were not preserved as a "
+                "central blackboard.handoff_ledger contract with matching "
+                "trace/progress handoff_id values; subsystem communication is "
+                "not auditable end to end"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Rerun or resume with the current AgentRuntime so every "
+                    "next_task handoff records a blackboard.handoff_ledger row "
+                    "and matching trace/progress handoff_id."
+                ),
+                success_metric=(
+                    "runtime_task_handoff_ledger_complete=true, with validated "
+                    "handoff ledger rows matching every trace next_task and "
+                    "no progress finish rows missing handoff_id"
+                ),
+            ),
         ),
         _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
