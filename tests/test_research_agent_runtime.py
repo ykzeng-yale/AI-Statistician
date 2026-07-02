@@ -56806,12 +56806,41 @@ def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> 
 
     assert rows[
         "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["passed"] is False
+    assert "repair_required=True" in rows[
+        "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_late_typechecked_review_not_hidden"
     ]["passed"] is True
 
     payload["source_theorem_exact_semantic_definition_repair_required"] = False
     payload["source_theorem_exact_semantic_definition_repair_required_reason"] = ""
     payload[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+    ] = 0
+    payload[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["passed"] is True
+
+    payload[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows"
+    ] = 0
+    payload[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets"
     ] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
