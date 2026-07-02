@@ -14175,13 +14175,25 @@ def _runtime_formalization_gap_planner_task_runtime_learning_rows(
         if isinstance(architect_runtime_learning_memory, Mapping):
             extend_rows(architect_runtime_learning_memory.get("rows", []))
     environment_feedback = inputs.get("environment_feedback", {})
-    if isinstance(environment_feedback, Mapping) and (
-        str(environment_feedback.get("route_planner_contract_feedback_id", "") or "")
-        .strip()
-        or str(environment_feedback.get("learning_task", "") or "").strip()
-        == "formalization_gap_planner_live_route_planner_contract_feedback"
-    ):
-        rows.append(dict(environment_feedback))
+    if isinstance(environment_feedback, Mapping):
+        input_summary = (
+            environment_feedback.get("input_summary", {})
+            if isinstance(environment_feedback.get("input_summary", {}), Mapping)
+            else {}
+        )
+        legacy_route_contract_feedback = bool(
+            str(
+                environment_feedback.get("route_planner_contract_feedback_id", "")
+                or ""
+            ).strip()
+        )
+        if legacy_route_contract_feedback or (
+            _runtime_learning_memory_row_is_formal_gap_next_action_routing(
+                environment_feedback,
+                input_summary,
+            )
+        ):
+            rows.append(dict(environment_feedback))
 
     deduped_rows: list[dict[str, Any]] = []
     seen: set[str] = set()

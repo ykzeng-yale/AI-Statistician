@@ -1737,6 +1737,118 @@ def test_formalization_gap_planner_runtime_subsystem_replays_route_contract_feed
     assert str(feedback_jsonl) in live_stage["required_inputs"]
 
 
+def test_formalization_gap_planner_runtime_subsystem_replays_route_revision_overlay_from_environment_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    overlay_dir = tmp_path / "environment_route_revision_overlay"
+    overlay_dir.mkdir()
+    overlay_manifest = (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    )
+    overlay_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "all_ok": True,
+                "n_overlay_rows": 1,
+                "n_routes_with_revision": 1,
+                "n_orphan_rows": 0,
+                "rows": [
+                    {
+                        "route_revision_overlay_id": (
+                            "formalization_gap_planner_route_revision_overlay:"
+                            "environment-feedback"
+                        ),
+                        "route_id": "route:environment-feedback",
+                        "target_primitives": list(bridge["target_ids"]),
+                        "revision_status": "ROUTE_REVISION_APPLIED",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    feedback_row = {
+        "schema_version": 1,
+        "question_id": question.id,
+        "learning_task": (
+            "formalization_gap_planner_target_prover_replay_feedback"
+        ),
+        "route_revision_proposal_id": "route-revision:environment-feedback",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "target_ids": list(bridge["target_ids"]),
+        "route_revision_overlay_dir": str(overlay_dir),
+        "route_revision_overlay_manifest": str(overlay_manifest),
+        "n_route_revision_overlay_rows": 1,
+        "n_route_revision_overlay_routes_with_revision": 1,
+        "n_route_revision_overlay_orphan_rows": 0,
+        "proof_evidence_status": (
+            runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_LEARNING_STATUS
+        ),
+    }
+    blackboard = BlackboardState(
+        project_id="gap-planner-environment-route-revision-feedback-test"
+    )
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-handoff:causal_ate_aipw:environment-route-revision",
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Replay direct target-prover route-revision feedback into the next "
+            "gap-planner handoff."
+        ),
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": feedback_row,
+        },
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "ACCEPTED"
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    handoff = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+    )
+    assert manifest["counts"]["runtime_learning_rows"] == 1
+    assert manifest["counts"]["route_contract_feedback_rows"] == 0
+    assert manifest["counts"]["route_revision_overlay_rows"] == 1
+    assert handoff["n_route_contract_feedback_rows"] == 0
+    assert handoff["n_route_revision_overlay_rows"] == 1
+    assert handoff["route_revision_overlay_dir"] == str(overlay_dir)
+    assert handoff["route_revision_overlay_manifest"] == str(overlay_manifest)
+    assert (
+        "--formalization-gap-planner-route-revision-overlay-dir "
+        in handoff["llm_route_planner_prompt_cli"]
+    )
+    assert str(overlay_dir) in handoff["llm_route_planner_prompt_cli"]
+    assert str(overlay_dir) in handoff["llm_route_planner_live_cli"]
+    prompt_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_prompt"
+    )
+    live_stage = next(
+        stage
+        for stage in handoff["execution_plan"]["stages"]
+        if stage["stage_id"] == "llm_route_planner_live_optional"
+    )
+    assert str(overlay_dir) in prompt_stage["required_inputs"]
+    assert str(overlay_dir) in live_stage["required_inputs"]
+
+
 def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when_enabled(
     tmp_path: Path,
 ) -> None:
