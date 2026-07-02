@@ -231,6 +231,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gaps_from_scorecard,
     _architect_initial_routing_record_errors,
     _runtime_audit_expected_subsystem_sequence,
+    _runtime_trace_sequence_has_control_contract,
     _trace_architect_initial_routing_records,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
@@ -8450,6 +8451,190 @@ def test_runtime_handoff_transition_summary_audits_explicit_next_task() -> None:
         "environment_feedback",
     ]
     assert "not prove statistical claims" in summary["boundary"]
+
+
+def test_runtime_audit_accepts_explicit_handoff_contract_without_static_pipeline(
+    tmp_path: Path,
+) -> None:
+    question = {"id": "dynamic_route", "title": "Dynamic route"}
+    architect_context = {
+        "architect_runtime_plan": {
+            "problem_analysis": {"summary": "route dynamically"},
+            "stat_knowledge_bank_plan": {"query": "dynamic"},
+            "literature_fair_comparison_plan": [{"baseline": "dynamic"}],
+        },
+        "architect_initial_routing": {
+            "artifact_kind": "ArchitectInitialRoutingDecision",
+            "selected_subsystem": "RetrievalMemory",
+            "requested_subsystem": "RetrievalMemory",
+            "source": "architect_packet",
+            "requires_prerequisite_theory": False,
+            "proof_evidence_status": (
+                "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "Architect initial routing is orchestration control only. It "
+                "does not execute tools, validate generated code or simulations, "
+                "or prove a theorem."
+            ),
+        },
+    }
+    architect_task = {
+        "task_id": "architect:dynamic_route",
+        "owner_subsystem": "ArchitectCoordinator",
+        "objective": "Plan dynamic route",
+        "inputs": {"question": question, "architect_context": architect_context},
+        "allowed_tools": ["model_backend"],
+        "expected_artifacts": ["architect_coordinator_packet"],
+        "acceptance_gate": "architect plan recorded",
+    }
+    retrieval_task = {
+        "task_id": "retrieve:dynamic_route",
+        "owner_subsystem": "RetrievalMemory",
+        "objective": "Retrieve sources",
+        "inputs": {"question": question, "architect_context": architect_context},
+        "allowed_tools": ["research_knowledge"],
+        "expected_artifacts": ["retrieval_memory_manifest"],
+        "acceptance_gate": "retrieval context recorded",
+    }
+    theory_task = {
+        "task_id": "theory:dynamic_route",
+        "owner_subsystem": "TheoryDeveloper",
+        "objective": "Derive theory",
+        "inputs": {"question": question, "architect_context": architect_context},
+        "allowed_tools": ["model_backend"],
+        "expected_artifacts": ["theory_derivation_packet"],
+        "acceptance_gate": "theory packet recorded",
+    }
+    result = {
+        "status": "ACCEPTED",
+        "final_task_id": "theory:dynamic_route",
+        "blackboard": {
+            "project_id": "project:dynamic_route",
+            "artifacts": {},
+            "evidence_ledger": [],
+            "handoff_ledger": [
+                {
+                    "handoff_id": "handoff:1:architect->retrieve",
+                    "from_task_id": architect_task["task_id"],
+                    "to_task_id": retrieval_task["task_id"],
+                    "from_subsystem": "ArchitectCoordinator",
+                    "to_subsystem": "RetrievalMemory",
+                    "status": "REROUTE",
+                    "rationale": "Architect routed to retrieval.",
+                    "produced_artifact_ids": [],
+                    "evidence_ids": [],
+                    "next_task_input_keys": ["architect_context", "question"],
+                    "next_task_allowed_tools": ["research_knowledge"],
+                    "next_task_expected_artifacts": [
+                        "retrieval_memory_manifest"
+                    ],
+                    "next_task_acceptance_gate": "retrieval context recorded",
+                },
+                {
+                    "handoff_id": "handoff:2:retrieve->theory",
+                    "from_task_id": retrieval_task["task_id"],
+                    "to_task_id": theory_task["task_id"],
+                    "from_subsystem": "RetrievalMemory",
+                    "to_subsystem": "TheoryDeveloper",
+                    "status": "REROUTE",
+                    "rationale": "Retrieval routed to theory.",
+                    "produced_artifact_ids": [],
+                    "evidence_ids": [],
+                    "next_task_input_keys": ["architect_context", "question"],
+                    "next_task_allowed_tools": ["model_backend"],
+                    "next_task_expected_artifacts": ["theory_derivation_packet"],
+                    "next_task_acceptance_gate": "theory packet recorded",
+                },
+            ],
+            "active_blockers": [],
+            "task_history": [
+                architect_task["task_id"],
+                retrieval_task["task_id"],
+                theory_task["task_id"],
+            ],
+        },
+        "traces": [
+            {
+                "iteration": 1,
+                "task": architect_task,
+                "subsystem": "ArchitectCoordinator",
+                "status": "REROUTE",
+                "rationale": "Architect routed to retrieval.",
+                "observations": [
+                    {
+                        "observation_type": (
+                            "llm_architect_coordinator_proposal"
+                        ),
+                        "payload": {
+                            "initial_routing": architect_context[
+                                "architect_initial_routing"
+                            ]
+                        },
+                    }
+                ],
+                "tool_calls": [],
+                "produced_artifact_ids": [],
+                "evidence_ids": [],
+                "handoff_id": "handoff:1:architect->retrieve",
+                "next_task_id": retrieval_task["task_id"],
+                "next_task": retrieval_task,
+            },
+            {
+                "iteration": 2,
+                "task": retrieval_task,
+                "subsystem": "RetrievalMemory",
+                "status": "REROUTE",
+                "rationale": "Retrieval routed to theory.",
+                "observations": [],
+                "tool_calls": [],
+                "produced_artifact_ids": [],
+                "evidence_ids": [],
+                "handoff_id": "handoff:2:retrieve->theory",
+                "next_task_id": theory_task["task_id"],
+                "next_task": theory_task,
+            },
+            {
+                "iteration": 3,
+                "task": theory_task,
+                "subsystem": "TheoryDeveloper",
+                "status": "ACCEPTED",
+                "rationale": "Theory accepted.",
+                "observations": [],
+                "tool_calls": [],
+                "produced_artifact_ids": [],
+                "evidence_ids": [],
+                "handoff_id": "",
+                "next_task_id": "",
+                "next_task": None,
+            },
+        ],
+    }
+    assert _runtime_trace_sequence_has_control_contract(
+        result,
+        result["traces"],
+    ) is True
+
+    result_path = tmp_path / "dynamic_runtime_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    row = _audit_result_path(result_path)
+
+    assert "runtime trace subsystem order is incomplete or misordered" not in (
+        row.errors
+    )
+
+    missing_handoff_result = json.loads(json.dumps(result))
+    missing_handoff_result["blackboard"]["handoff_ledger"] = []
+    missing_handoff_path = tmp_path / "dynamic_missing_handoff_result.json"
+    missing_handoff_path.write_text(
+        json.dumps(missing_handoff_result),
+        encoding="utf-8",
+    )
+    missing_handoff_row = _audit_result_path(missing_handoff_path)
+
+    assert "runtime trace subsystem order is incomplete or misordered" in (
+        missing_handoff_row.errors
+    )
 
 
 def test_capability_scorecard_requires_architect_initial_routing_audit() -> None:

@@ -6492,7 +6492,15 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         budgeted_continuation_contract_ok
         and _runtime_trace_sequence_uses_known_subsystems(subsystem_sequence)
     )
-    if not static_order_ok and not budgeted_continuation_order_ok:
+    explicit_transition_order_ok = _runtime_trace_sequence_has_control_contract(
+        data,
+        traces,
+    )
+    if (
+        not static_order_ok
+        and not budgeted_continuation_order_ok
+        and not explicit_transition_order_ok
+    ):
         errors.append("runtime trace subsystem order is incomplete or misordered")
     if architect_resume and len(subsystem_sequence) > 1:
         pending_owner = _architect_resume_pending_owner(traces)
@@ -7061,6 +7069,51 @@ def _runtime_audit_expected_subsystem_sequence(
     if selected == "RetrievalMemory":
         return REQUIRED_ARCHITECT_SUBSYSTEMS
     return REQUIRED_ARCHITECT_SUBSYSTEMS
+
+
+def _runtime_trace_sequence_has_control_contract(
+    data: Mapping[str, Any],
+    traces: list[Any],
+) -> bool:
+    subsystem_sequence = [
+        str(row.get("subsystem", "") or "").strip()
+        for row in traces
+        if isinstance(row, Mapping)
+    ]
+    if not _runtime_trace_sequence_uses_known_subsystems(subsystem_sequence):
+        return False
+    if len(subsystem_sequence) <= 1:
+        return True
+    summary = _runtime_handoff_transition_summary([data])
+    if not bool(summary.get("handoff_trace_alignment_ok", False)):
+        return False
+    transition_rows = summary.get("rows", [])
+    if not isinstance(transition_rows, list) or not transition_rows:
+        return False
+    if int(summary.get("n_transition_rows", 0) or 0) != len(transition_rows):
+        return False
+    for row in transition_rows:
+        if not isinstance(row, Mapping):
+            return False
+        if not str(row.get("handoff_id", "") or "").strip():
+            return False
+        if not str(row.get("from_task_id", "") or "").strip():
+            return False
+        if not str(row.get("to_task_id", "") or "").strip():
+            return False
+        from_subsystem = str(row.get("from_subsystem", "") or "").strip()
+        to_subsystem = str(row.get("to_subsystem", "") or "").strip()
+        if from_subsystem not in set(ROUTEABLE_RUNTIME_SUBSYSTEMS):
+            return False
+        if to_subsystem not in set(ROUTEABLE_RUNTIME_SUBSYSTEMS):
+            return False
+        if not row.get("route_decision_sources"):
+            return False
+        if not str(row.get("next_task_acceptance_gate", "") or "").strip():
+            return False
+        if not row.get("next_task_expected_artifacts"):
+            return False
+    return True
 
 
 def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
