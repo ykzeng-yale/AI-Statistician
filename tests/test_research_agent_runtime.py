@@ -1704,6 +1704,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "max_tokens": 9000,
             "temperature": 0.1,
             "max_repair_attempts": 1,
+            "max_staged_followup_stage_calls": 3,
             "environment_feedback": {
                 "failure_classification": (
                     "formalization_gap_planner_live_route_planner_requested"
@@ -1741,6 +1742,12 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "n_response_present": 1,
             "n_response_contract_ok": 1,
             "n_provider_failures": 0,
+            "n_staged_followups_required": 0,
+            "n_staged_followups_due_to_max_tokens": 0,
+            "n_staged_followup_stage_attempt_rows": 0,
+            "n_staged_followup_stage_response_contract_ok": 0,
+            "n_staged_followup_stage_provider_failures": 0,
+            "n_staged_followup_stage_calls_blocked_by_budget": 0,
             "n_awaiting_llm_response": 0,
             "n_route_adoption_ready": 1,
             "n_route_adoption_pending_refinement": 0,
@@ -1748,6 +1755,8 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "total_provider_input_tokens": 123,
             "total_provider_output_tokens": 45,
             "total_provider_total_tokens": 168,
+            "total_staged_followup_stage_provider_total_tokens": 0,
+            "total_provider_total_tokens_including_staged_followups": 168,
             "errors": [],
         }
 
@@ -1769,6 +1778,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert calls[0]["provider_name"] == "anthropic"
     assert calls[0]["model_tier"] == "auto"
     assert calls[0]["max_route_requests"] == 1
+    assert calls[0]["max_staged_followup_stage_calls"] == 3
     assert Path(str(calls[0]["formalization_gap_planner_target_intake_dir"])).exists()
     manifest = next(
         artifact
@@ -1795,6 +1805,10 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     )
     assert live_manifest["all_live_route_planner_responses_recorded"] is True
     assert live_manifest["counts"]["provider_total_tokens"] == 168
+    assert (
+        live_manifest["counts"]["provider_total_tokens_including_staged_followups"]
+        == 168
+    )
     assert Path(live_manifest["manifest_path"]).exists()
     assert any(
         tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
@@ -1840,9 +1854,15 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "routes_omitted_by_max_route_requests": 2,
                                 "staged_followups_required": 1,
                                 "staged_followups_due_to_max_tokens": 1,
+                                "staged_followup_stage_attempt_rows": 2,
+                                "staged_followup_stage_response_contract_ok": 2,
+                                "staged_followup_stage_provider_failures": 0,
+                                "staged_followup_stage_calls_blocked_by_budget": 1,
                                 "provider_input_tokens": 123,
                                 "provider_output_tokens": 45,
                                 "provider_total_tokens": 168,
+                                "staged_followup_stage_provider_total_tokens": 70,
+                                "provider_total_tokens_including_staged_followups": 238,
                             },
                         }
                     }
@@ -1890,9 +1910,39 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
         ]
         == 1
     )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_attempt_rows"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_response_contract_ok"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_failures"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_calls_blocked_by_budget"
+        ]
+        == 1
+    )
     assert summary[
         "runtime_formalization_gap_planner_live_route_planner_token_counts"
     ]["provider_total_tokens"] == 168
+    assert summary[
+        "runtime_formalization_gap_planner_live_route_planner_token_counts"
+    ]["staged_followup_stage_provider_total_tokens"] == 70
+    assert summary[
+        "runtime_formalization_gap_planner_live_route_planner_token_counts"
+    ]["provider_total_tokens_including_staged_followups"] == 238
 
 
 def test_runtime_routes_missing_explicit_handoff_artifacts_to_producers(

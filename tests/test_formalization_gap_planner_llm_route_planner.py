@@ -12711,6 +12711,7 @@ def test_llm_route_planner_records_staged_followup_for_max_token_truncation() ->
     assert payload["n_provider_failures"] == 0
     assert payload["n_staged_followups_required"] == 1
     assert payload["n_staged_followups_due_to_max_tokens"] == 1
+    assert payload["n_staged_followup_stage_attempt_rows"] == 0
     followup = payload["staged_followup_rows"][0]
     assert followup["followup_kind"] == (
         "formalization_gap_planner_llm_route_planner_staged_followup"
@@ -12740,6 +12741,141 @@ def test_llm_route_planner_records_staged_followup_for_max_token_truncation() ->
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "Staged followups required: 1 max-token=1" in report
+
+
+def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_staged_stage_calls"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    calls: list[object] = []
+
+    def stage_fragment(stage_id: str) -> dict[str, object]:
+        if stage_id == "route_core_compaction":
+            return {
+                "informal_knowledge_dag_nodes": [],
+                "informal_knowledge_dag_edges": [],
+                "formal_realization_dag_nodes": [],
+                "formal_realization_dag_edges": [],
+                "route_alignment_edges": [],
+                "minimal_delta_plan": {},
+            }
+        if stage_id == "residual_batch_interpretation":
+            return {
+                "residual_interpretations": [],
+                "search_requests": [],
+                "planner_next_actions": [],
+            }
+        return {
+            "formal_attempt_queue": [],
+            "standalone_route": {},
+            "uncertainty_flags": [],
+            "semantic_alignment_risks": [],
+        }
+
+    class StagedAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            if len(calls) == 1:
+                return GeneratorResponse(
+                    text='{"proof_evidence_boundary":"not theorem proof evidence", "minimal_delta_plan": ',
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={
+                        "generator_only": True,
+                        "tools_available": False,
+                        "schema_supplied": request.schema is not None,
+                        "provider_stop_reason": "max_tokens",
+                        "provider_usage": {
+                            "input_tokens": 111,
+                            "output_tokens": request.max_tokens,
+                        },
+                    },
+                )
+            stage_id = str(request.metadata["stage_id"])
+            payload = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": ["validated staged fragment"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                    "provider_stop_reason": "end_turn",
+                    "provider_usage": {
+                        "input_tokens": 10 + len(calls),
+                        "output_tokens": 20 + len(calls),
+                    },
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=StagedAnthropicBackend(),
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=2,
+    )
+
+    assert len(calls) == 3
+    assert payload["n_staged_followups_required"] == 1
+    assert payload["n_staged_followup_stage_attempt_rows"] == 2
+    assert payload["n_staged_followups_with_stage_attempts"] == 1
+    assert payload["n_staged_followup_stage_responses_present"] == 2
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 2
+    assert payload["n_staged_followup_stage_provider_failures"] == 0
+    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 1
+    assert payload["total_staged_followup_stage_provider_total_tokens"] == 70
+    assert (
+        payload["total_provider_total_tokens_including_staged_followups"]
+        == payload["total_provider_total_tokens"] + 70
+    )
+    assert calls[1].metadata["staged_followup_stage_call"] is True
+    assert calls[1].metadata["stage_id"] == "route_core_compaction"
+    assert calls[1].max_tokens == 2400
+    assert calls[2].metadata["stage_id"] == "residual_batch_interpretation"
+    stage_rows = payload["staged_followup_stage_attempt_rows"]
+    assert [row["stage_id"] for row in stage_rows] == [
+        "route_core_compaction",
+        "residual_batch_interpretation",
+    ]
+    assert all(row["response_contract_ok"] for row in stage_rows)
+    staged_attempts_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_staged_followup_stage_attempts.jsonl"
+    )
+    assert staged_attempts_jsonl.exists()
+    persisted_rows = [
+        json.loads(line)
+        for line in staged_attempts_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert persisted_rows == stage_rows
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "Staged followup stage attempts: 2 ok=2 budget-blocked=1" in report
 
 
 def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:

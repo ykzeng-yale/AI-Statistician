@@ -111,6 +111,7 @@ from .formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
@@ -5421,6 +5422,9 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         max_estimated_prompt_input_tokens=args.max_estimated_prompt_input_tokens,
         max_route_requests=args.max_route_requests,
         max_repair_attempts=args.max_repair_attempts,
+        max_staged_followup_stage_calls=(
+            args.max_staged_followup_stage_calls
+        ),
         invoke_provider=args.invoke_provider,
         response_json=Path(args.response_json) if args.response_json else None,
         static_response_json=(
@@ -5514,6 +5518,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         f"search_requests={payload['n_search_requests']} "
         f"preflight_blocks={payload['n_generation_preflight_blocked']} "
         f"prompt_budget_blocks={payload['n_prompt_token_budget_preflight_blocked']} "
+        f"staged_followup_stage_attempts={payload['n_staged_followup_stage_attempt_rows']} "
         f"rejected={payload['n_rejected']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -13681,6 +13686,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum local-validator repair retries for invoked LLM responses; "
             "set 0 to disable extra provider calls"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-staged-followup-stage-calls",
+        type=int,
+        default=LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
+        help=(
+            "maximum compact staged-followup provider calls after a bounded "
+            "live response is truncated or fails JSON extraction; 0 disables "
+            "staged followup execution"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(

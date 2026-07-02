@@ -75,6 +75,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     audit_formalization_gap_planner_runtime_handoffs,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
@@ -2908,6 +2909,10 @@ class ResearchAgentRuntimeConfig:
     formalization_gap_planner_live_max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     formalization_gap_planner_live_temperature: float = 0.1
     formalization_gap_planner_live_max_repair_attempts: int = 1
+    formalization_gap_planner_live_max_staged_followup_stage_calls: int = max(
+        3,
+        LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
+    )
     formalization_gap_planner_live_timeout_seconds: float = (
         DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     )
@@ -13138,6 +13143,24 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 ),
             )
 
+    def _live_route_planner_max_staged_followup_stage_calls(
+        self,
+        task: AgentTask,
+    ) -> int:
+        raw = task.inputs.get(
+            "max_staged_followup_stage_calls",
+            self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls
+                ),
+            )
+
     def _live_route_planner_timeout_seconds(self, task: AgentTask) -> float:
         raw = task.inputs.get(
             "timeout_seconds",
@@ -13318,6 +13341,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
         max_tokens = self._live_route_planner_max_tokens(task)
         temperature = self._live_route_planner_temperature(task)
         max_repair_attempts = self._live_route_planner_max_repair_attempts(task)
+        max_staged_followup_stage_calls = (
+            self._live_route_planner_max_staged_followup_stage_calls(task)
+        )
         max_route_requests_per_handoff = (
             self._live_route_planner_max_route_requests_per_handoff(task)
         )
@@ -13366,6 +13392,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     ),
                     max_route_requests=max_route_requests_per_handoff,
                     max_repair_attempts=max_repair_attempts,
+                    max_staged_followup_stage_calls=(
+                        max_staged_followup_stage_calls
+                    ),
                     invoke_provider=True,
                     generator_backend=generator_backend,
                     formalization_gap_planner_target_intake_dir=(
@@ -13443,6 +13472,41 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "staged_followup_rows": list(
                             payload.get("staged_followup_rows", []) or []
                         ),
+                        "n_staged_followup_stage_attempt_rows": int(
+                            payload.get(
+                                "n_staged_followup_stage_attempt_rows",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_response_contract_ok": int(
+                            payload.get(
+                                "n_staged_followup_stage_response_contract_ok",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_provider_failures": int(
+                            payload.get(
+                                "n_staged_followup_stage_provider_failures",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_calls_blocked_by_budget": int(
+                            payload.get(
+                                "n_staged_followup_stage_calls_blocked_by_budget",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "staged_followup_stage_attempt_rows": list(
+                            payload.get(
+                                "staged_followup_stage_attempt_rows",
+                                [],
+                            )
+                            or []
+                        ),
                         "n_awaiting_llm_response": int(
                             payload.get("n_awaiting_llm_response", 0) or 0
                         ),
@@ -13471,6 +13535,20 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         ),
                         "total_provider_total_tokens": int(
                             payload.get("total_provider_total_tokens", 0) or 0
+                        ),
+                        "total_staged_followup_stage_provider_total_tokens": int(
+                            payload.get(
+                                "total_staged_followup_stage_provider_total_tokens",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "total_provider_total_tokens_including_staged_followups": int(
+                            payload.get(
+                                "total_provider_total_tokens_including_staged_followups",
+                                payload.get("total_provider_total_tokens", 0),
+                            )
+                            or 0
                         ),
                         "errors": row_errors[:10],
                         "proof_evidence_status": (
@@ -13506,6 +13584,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followups_required": 0,
                         "n_staged_followups_due_to_max_tokens": 0,
                         "staged_followup_rows": [],
+                        "n_staged_followup_stage_attempt_rows": 0,
+                        "n_staged_followup_stage_response_contract_ok": 0,
+                        "n_staged_followup_stage_provider_failures": 0,
+                        "n_staged_followup_stage_calls_blocked_by_budget": 0,
+                        "staged_followup_stage_attempt_rows": [],
                         "n_awaiting_llm_response": 0,
                         "errors": [message],
                         "proof_evidence_status": (
@@ -13555,6 +13638,40 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 int(row.get("n_staged_followups_due_to_max_tokens", 0) or 0)
                 for row in rows
             ),
+            "staged_followup_stage_attempt_rows": sum(
+                int(row.get("n_staged_followup_stage_attempt_rows", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_stage_response_contract_ok": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_stage_response_contract_ok",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_stage_provider_failures": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_stage_provider_failures",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_stage_calls_blocked_by_budget": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_stage_calls_blocked_by_budget",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
             "awaiting_llm_response": sum(
                 int(row.get("n_awaiting_llm_response", 0) or 0) for row in rows
             ),
@@ -13579,6 +13696,26 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "provider_total_tokens": sum(
                 int(row.get("total_provider_total_tokens", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_stage_provider_total_tokens": sum(
+                int(
+                    row.get(
+                        "total_staged_followup_stage_provider_total_tokens",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "provider_total_tokens_including_staged_followups": sum(
+                int(
+                    row.get(
+                        "total_provider_total_tokens_including_staged_followups",
+                        row.get("total_provider_total_tokens", 0),
+                    )
+                    or 0
+                )
                 for row in rows
             ),
         }
@@ -13615,6 +13752,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "max_repair_attempts": max_repair_attempts,
+            "max_staged_followup_stage_calls": max_staged_followup_stage_calls,
             "max_route_requests_per_handoff": max_route_requests_per_handoff,
             "timeout_seconds": timeout_seconds,
             "max_estimated_prompt_input_tokens": (
@@ -13853,6 +13991,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             self.runtime_config.formalization_gap_planner_live_provider,
                             self.runtime_config.formalization_gap_planner_live_model,
                             self.runtime_config.formalization_gap_planner_live_model_tier,
+                            self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls,
                         ]
                     )[:12]
                 ),
@@ -13889,6 +14028,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "temperature": self.runtime_config.formalization_gap_planner_live_temperature,
                     "max_repair_attempts": (
                         self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                    ),
+                    "max_staged_followup_stage_calls": (
+                        self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls
                     ),
                     "timeout_seconds": (
                         self.runtime_config.formalization_gap_planner_live_timeout_seconds
@@ -53719,6 +53861,10 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "provider_failures",
         "staged_followups_required",
         "staged_followups_due_to_max_tokens",
+        "staged_followup_stage_attempt_rows",
+        "staged_followup_stage_response_contract_ok",
+        "staged_followup_stage_provider_failures",
+        "staged_followup_stage_calls_blocked_by_budget",
         "awaiting_llm_response",
         "route_adoption_ready",
         "route_adoption_pending_refinement",
@@ -53727,6 +53873,8 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "provider_input_tokens",
         "provider_output_tokens",
         "provider_total_tokens",
+        "staged_followup_stage_provider_total_tokens",
+        "provider_total_tokens_including_staged_followups",
     )
     aggregate_counts: Counter[str] = Counter()
     manifest_ids: list[str] = []
@@ -53803,6 +53951,18 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followups_due_to_max_tokens": int(
             aggregate_counts["staged_followups_due_to_max_tokens"]
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_attempt_rows": int(
+            aggregate_counts["staged_followup_stage_attempt_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_response_contract_ok": int(
+            aggregate_counts["staged_followup_stage_response_contract_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_failures": int(
+            aggregate_counts["staged_followup_stage_provider_failures"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_calls_blocked_by_budget": int(
+            aggregate_counts["staged_followup_stage_calls_blocked_by_budget"]
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": int(
             aggregate_counts["awaiting_llm_response"]
         ),
@@ -53822,6 +53982,12 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             "provider_input_tokens": int(aggregate_counts["provider_input_tokens"]),
             "provider_output_tokens": int(aggregate_counts["provider_output_tokens"]),
             "provider_total_tokens": int(aggregate_counts["provider_total_tokens"]),
+            "staged_followup_stage_provider_total_tokens": int(
+                aggregate_counts["staged_followup_stage_provider_total_tokens"]
+            ),
+            "provider_total_tokens_including_staged_followups": int(
+                aggregate_counts["provider_total_tokens_including_staged_followups"]
+            ),
         },
         "runtime_formalization_gap_planner_live_route_planner_boundary": (
             "Integrated live FormalizationGapPlanner route-planner responses are "
