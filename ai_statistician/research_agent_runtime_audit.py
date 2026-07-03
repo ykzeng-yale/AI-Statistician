@@ -11740,6 +11740,39 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
         is True
     )
+    adapter_premise_exact_repair_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback",
+            0,
+        )
+        or 0
+    )
+    adapter_premise_exact_queue_ran = (
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran"
+        )
+        is True
+    )
+    adapter_premise_exact_executor_requested_value = payload.get(
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
+    )
+    adapter_premise_exact_executor_requested_present = (
+        adapter_premise_exact_executor_requested_value is True
+        or adapter_premise_exact_executor_requested_value is False
+    )
+    adapter_premise_exact_executor_requested = (
+        adapter_premise_exact_executor_requested_value is True
+    )
+    adapter_premise_exact_executor_ran = (
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran"
+        )
+        is True
+    )
+    adapter_premise_exact_executor_required = (
+        adapter_premise_exact_repair_work_orders > 0
+        and adapter_premise_exact_queue_ran
+    )
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -14122,29 +14155,31 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "adapter_premise_verified_adapter_exact_executor_ran_when_requested",
-            (
-                payload.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
-                )
-                is not True
-            )
+            (not adapter_premise_exact_executor_required)
             or (
-                payload.get(
-                    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran"
-                )
-                is True
+                adapter_premise_exact_executor_requested
+                and adapter_premise_exact_executor_ran
             ),
             (
+                "exact_executor_required="
+                f"{adapter_premise_exact_executor_required} "
+                "exact_executor_requested_telemetry_present="
+                f"{adapter_premise_exact_executor_requested_present} "
                 "exact_executor_requested="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested')} "
                 "exact_executor_ran="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran')} "
+                "exact_repair_work_orders="
+                f"{payload.get('n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback')} "
+                "exact_queue_ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')} "
                 "exact_executor_results="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows')}"
             ),
             (
                 "Adapter-premise verified-adapter exact source-theorem proof-body "
-                "executor was requested but did not run"
+                "executor was required/requested but did not run with explicit "
+                "handoff telemetry"
             ),
         ),
         _scorecard_row(
