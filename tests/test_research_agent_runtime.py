@@ -63795,6 +63795,68 @@ def test_runtime_capability_scorecard_requires_same_lane_exact_semantic_authorin
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_rejects_reported_live_exact_semantic_authoring_without_live_backend() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": (
+            "static"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "reported_live_llm_attempted=1" in scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert "live_llm_attempted=0" in scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "n_reported_live_llm_attempted=1" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert "n_live_llm_attempted=0" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert truth_table["exact_semantic_definition_authoring_live_attempted"] is False
+    assert truth_rows["exact_semantic_definition_authoring_live_attempt"][
+        "status"
+    ] == "STATIC_OR_REPLAY_ATTEMPTED"
+
+
 def test_runtime_capability_scorecard_flags_exact_semantic_authoring_worker_without_prompt_output() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",

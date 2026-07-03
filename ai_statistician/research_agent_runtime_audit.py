@@ -15623,6 +15623,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
                 "llm_attempted="
                 f"{exact_semantic_definition_authoring['n_llm_attempted']} "
+                "reported_live_llm_attempted="
+                f"{exact_semantic_definition_authoring['n_reported_live_llm_attempted']} "
                 "live_llm_attempted="
                 f"{exact_semantic_definition_authoring['n_live_llm_attempted']}"
             ),

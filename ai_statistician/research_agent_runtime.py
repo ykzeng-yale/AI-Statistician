@@ -778,6 +778,92 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         + late_prompt_packets
         + post_runtime_prompt_packets
     )
+    primary_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+    primary_backend_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+    retry_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+    retry_backend_provider_name = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+    late_provider_names = _str_tuple(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
+            [],
+        )
+    )
+    late_backend_provider_names = _str_tuple(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
+            [],
+        )
+    )
+    post_runtime_provider_name = str(
+        payload.get(
+            "post_runtime_exact_semantic_definition_authoring_worker_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+    post_runtime_backend_provider_name = str(
+        payload.get(
+            "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name",
+            "",
+        )
+        or ""
+    ).strip()
+
+    def _trusted_live_attempts(
+        raw_count: int,
+        provider_name: object,
+        backend_provider_name: object,
+        *,
+        lineage_ok: bool = True,
+    ) -> int:
+        if raw_count <= 0 or not lineage_ok:
+            return 0
+        if not is_live_generator_backend(provider_name, backend_provider_name):
+            return 0
+        return raw_count
+
+    def _trusted_late_live_attempts(raw_count: int) -> int:
+        if raw_count <= 0 or not late_provider_names or not late_backend_provider_names:
+            return 0
+        if len(late_provider_names) == len(late_backend_provider_names):
+            pairs = tuple(zip(late_provider_names, late_backend_provider_names))
+        else:
+            pairs = tuple(
+                (provider, backend)
+                for provider in late_provider_names
+                for backend in late_backend_provider_names
+            )
+        if not any(
+            is_live_generator_backend(provider, backend)
+            for provider, backend in pairs
+        ):
+            return 0
+        return raw_count
+
     primary_generic_attempts = _runtime_manifest_int(
         payload,
         "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
@@ -800,21 +886,44 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         + late_generic_attempts
         + post_runtime_generic_attempts
     )
-    primary_live_attempts = _runtime_manifest_int(
+    primary_reported_live_attempts = _runtime_manifest_int(
         payload,
         "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
     )
-    retry_live_attempts = _runtime_manifest_int(
+    retry_reported_live_attempts = _runtime_manifest_int(
         payload,
         "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted",
     )
-    late_live_attempts = _runtime_manifest_int(
+    late_reported_live_attempts = _runtime_manifest_int(
         payload,
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
     )
-    post_runtime_live_attempts = _runtime_manifest_int(
+    post_runtime_reported_live_attempts = _runtime_manifest_int(
         payload,
         "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+    )
+    reported_live_attempts = (
+        primary_reported_live_attempts
+        + retry_reported_live_attempts
+        + late_reported_live_attempts
+        + post_runtime_reported_live_attempts
+    )
+    primary_live_attempts = _trusted_live_attempts(
+        primary_reported_live_attempts,
+        primary_provider_name,
+        primary_backend_provider_name,
+    )
+    retry_live_attempts = _trusted_live_attempts(
+        retry_reported_live_attempts,
+        retry_provider_name,
+        retry_backend_provider_name,
+    )
+    late_live_attempts = _trusted_late_live_attempts(late_reported_live_attempts)
+    post_runtime_live_attempts = _trusted_live_attempts(
+        post_runtime_reported_live_attempts,
+        post_runtime_provider_name,
+        post_runtime_backend_provider_name,
+        lineage_ok=post_runtime_lineage_ok,
     )
     live_attempts = (
         primary_live_attempts
@@ -1002,48 +1111,20 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     provider_names = [
         str(value or "").strip()
         for value in (
-            payload.get(
-                "source_theorem_exact_semantic_definition_authoring_worker_provider_name",
-                "",
-            ),
-            payload.get(
-                "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name",
-                "",
-            ),
-            *_str_tuple(
-                payload.get(
-                    "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
-                    [],
-                )
-            ),
-            payload.get(
-                "post_runtime_exact_semantic_definition_authoring_worker_provider_name",
-                "",
-            ),
+            primary_provider_name,
+            retry_provider_name,
+            *late_provider_names,
+            post_runtime_provider_name,
         )
         if str(value or "").strip()
     ]
     backend_provider_names = [
         str(value or "").strip()
         for value in (
-            payload.get(
-                "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name",
-                "",
-            ),
-            payload.get(
-                "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name",
-                "",
-            ),
-            *_str_tuple(
-                payload.get(
-                    "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
-                    [],
-                )
-            ),
-            payload.get(
-                "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name",
-                "",
-            ),
+            primary_backend_provider_name,
+            retry_backend_provider_name,
+            *late_backend_provider_names,
+            post_runtime_backend_provider_name,
         )
         if str(value or "").strip()
     ]
@@ -1079,6 +1160,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_prompt_packets": prompt_packets,
         "n_llm_attempted": generic_attempts,
         "n_live_llm_attempted": live_attempts,
+        "n_reported_live_llm_attempted": reported_live_attempts,
         "candidate_verifier_required": candidate_verifier_required,
         "candidate_verifier_ready": candidate_verifier_ready,
         "n_candidate_packets": candidate_packets,
@@ -1274,6 +1356,8 @@ def _runtime_evidence_truth_table_from_manifest(
             f"{exact_semantic_authoring['provider_names']} backend_provider="
             f"{exact_semantic_authoring['backend_provider_names']} "
             f"n_llm_attempted={exact_semantic_authoring_generic_attempts} "
+            "n_reported_live_llm_attempted="
+            f"{exact_semantic_authoring['n_reported_live_llm_attempted']} "
             f"n_live_llm_attempted={exact_semantic_authoring_live_attempts}"
         )
     architect_truth = _runtime_architect_control_truth(payload)
@@ -2213,6 +2297,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
                 "n_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts}; "
+                "n_reported_live_llm_attempted="
+                f"{exact_semantic_authoring['n_reported_live_llm_attempted']}; "
                 "n_live_llm_attempted="
                 f"{exact_semantic_authoring_live_attempts}"
             ),
@@ -2241,6 +2327,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring_required}; "
                 "n_live_llm_attempted="
                 f"{exact_semantic_authoring_live_attempts}; "
+                "verifier_ready_channels="
+                f"{exact_semantic_authoring['candidate_verifier_ready_channels']}; "
                 "candidate_packets="
                 f"{exact_semantic_authoring['n_candidate_packets']}; "
                 "worker_candidate_packets="
