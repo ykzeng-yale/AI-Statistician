@@ -447,6 +447,95 @@ def test_authoring_worker_prompt_contract_reports_project_verified_import_invent
     ] == inventory
 
 
+def test_authoring_worker_prompt_contract_prefers_compiled_import_descendants(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    project = tmp_path / "LeanProject"
+    compiled_root = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+    )
+    for module in [
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Algebra.Order.Floor.Defs",
+        "Mathlib.Algebra.Order.Floor.Ring",
+        "Mathlib.Topology.Algebra.Order.Floor",
+    ]:
+        path = compiled_root / Path(*module.split(".")).with_suffix(".olean")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"")
+    candidate = tmp_path / "candidate_defs_only.lean"
+    candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n"
+        "import Mathlib.Algebra.Order.Floor\n\n"
+        "def reviewedCovered : Nat := 0\n",
+        encoding="utf-8",
+    )
+    row = json.loads(tasks_path.read_text(encoding="utf-8"))
+    row["candidate_lean_project_hint"] = str(project)
+    row["definition_only_candidate_artifact_path"] = str(candidate)
+    row["candidate_artifact_path"] = str(candidate)
+    row["local_lean_diagnostics"] = [
+        (
+            f"{candidate}:2:0: error: object file "
+            f"'{compiled_root / 'Mathlib' / 'Algebra' / 'Order' / 'Floor.olean'}' "
+            "of module Mathlib.Algebra.Order.Floor does not exist"
+        )
+    ]
+    tasks_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"]).read_text().splitlines()
+    ]
+    contract = prompt_packets[0]["lean_authoring_environment_contract"]
+    inventory = contract["project_verified_import_inventory"]
+    repair_row = inventory["unavailable_import_repair_rows"][0]
+    assert repair_row["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert repair_row["verified_exact_or_descendant_modules"][:2] == [
+        "Mathlib.Algebra.Order.Floor.Defs",
+        "Mathlib.Algebra.Order.Floor.Ring",
+    ]
+    assert repair_row["nearest_verified_modules"][:2] == [
+        "Mathlib.Algebra.Order.Floor.Defs",
+        "Mathlib.Algebra.Order.Floor.Ring",
+    ]
+    assert "Mathlib.Topology.Algebra.Order.Floor" in repair_row[
+        "nearest_verified_modules"
+    ]
+    assert any(
+        "replace the unavailable import with one verified_exact_or_descendant_module"
+        in option
+        for option in repair_row["repair_options"]
+    )
+    assert any(
+        "unavailable_import_repair_rows" in item
+        for item in contract["repair_policy"]
+    )
+    assert any(
+        "verified_exact_or_descendant_modules" in item
+        for item in contract["import_policy"]
+    )
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    assert prompt_payload["lean_authoring_environment_contract"][
+        "project_verified_import_inventory"
+    ] == inventory
+
+
 def test_authoring_worker_prompt_contract_reports_unknown_identifier_source_lookup(
     tmp_path: Path,
 ) -> None:
@@ -545,6 +634,126 @@ def test_authoring_worker_prompt_contract_reports_unknown_identifier_source_look
     )
     assert any(
         "Do not swap to a sibling API" in item
+        for item in contract["repair_policy"]
+    )
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    assert prompt_payload["lean_authoring_environment_contract"][
+        "project_identifier_lookup"
+    ] == lookup
+
+
+def test_authoring_worker_prompt_contract_reports_typeclass_failure_lookup(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    project = tmp_path / "LeanProject"
+    compiled_root = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+    )
+    module = "Mathlib.Algebra.Order.Floor.Defs"
+    compiled_path = compiled_root / Path(*module.split(".")).with_suffix(".olean")
+    compiled_path.parent.mkdir(parents=True, exist_ok=True)
+    compiled_path.write_bytes(b"")
+    source_path = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / "Mathlib"
+        / "Algebra"
+        / "Order"
+        / "Floor"
+        / "Defs.lean"
+    )
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        "/-- A type with integer-valued floor and ceil. -/\n"
+        "class FloorRing (α) [Ring α] [LinearOrder α] where\n"
+        "  floor : α → ℤ\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate_defs_only.lean"
+    candidate.write_text(
+        "import Mathlib.Algebra.Order.Floor.Defs\n\n"
+        "def reviewedCovered : Nat := 0\n",
+        encoding="utf-8",
+    )
+    row = json.loads(tasks_path.read_text(encoding="utf-8"))
+    row["candidate_lean_project_hint"] = str(project)
+    row["definition_only_candidate_artifact_path"] = str(candidate)
+    row["candidate_artifact_path"] = str(candidate)
+    row["local_lean_diagnostics"] = [
+        (
+            f"{candidate}:3:21: error(lean.synthInstanceFailed): "
+            "failed to synthesize instance of type class"
+        ),
+        "  FloorRing ℝ",
+        (
+            "Hint: Type class instance resolution failures can be inspected with "
+            "the `set_option trace.Meta.synthInstance true` command."
+        ),
+    ]
+    tasks_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"]).read_text().splitlines()
+    ]
+    contract = prompt_packets[0]["lean_authoring_environment_contract"]
+    feedback = contract["local_lean_feedback"]
+    assert feedback["typeclass_failures_from_last_check"] == [
+        {
+            "diagnostic_excerpt": (
+                f"{candidate}:3:21: error(lean.synthInstanceFailed): "
+                "failed to synthesize instance of type class"
+            ),
+            "failed_instance_type": "FloorRing ℝ",
+            "failed_typeclass": "FloorRing",
+        }
+    ]
+    lookup = contract["project_identifier_lookup"]
+    row = lookup["identifier_lookup_rows"][0]
+    assert row["lookup_reason"] == "typeclass_synthesis_failure"
+    assert row["lookup_identifier"] == "FloorRing"
+    assert row["typeclass_failure"]["failed_instance_type"] == "FloorRing ℝ"
+    assert row["verified_declaration_modules"] == [
+        "Mathlib.Algebra.Order.Floor.Defs"
+    ]
+    assert row["declaration_hits"][0]["declaration_kind"] == "class"
+    assert row["declaration_hits"][0]["declaration_name"] == "FloorRing"
+    assert any(
+        "do not treat a class declaration module as evidence that an instance exists"
+        in option
+        for option in row["repair_options"]
+    )
+    assert any(
+        "do not replace the failed operation with a new named API" in option
+        for option in row["repair_options"]
+    )
+    assert any(
+        "typeclass_synthesis_failure" in item
+        for item in contract["repair_policy"]
+    )
+    assert any(
+        "Any replacement operation must have its own source lookup" in item
+        for item in contract["repair_policy"]
+    )
+    assert not any(
+        item.startswith("For unknown identifiers, consult project_identifier_lookup")
         for item in contract["repair_policy"]
     )
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])

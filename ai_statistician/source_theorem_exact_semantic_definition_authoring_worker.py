@@ -1028,6 +1028,9 @@ def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
         "unknown_identifiers_from_last_check": (
             _lean_unknown_identifiers_from_diagnostics(diagnostics)
         ),
+        "typeclass_failures_from_last_check": (
+            _lean_typeclass_failures_from_diagnostics(diagnostics)
+        ),
         "unavailable_imports_from_last_check": (
             _lean_unavailable_imports_from_diagnostics(diagnostics)
         ),
@@ -1081,16 +1084,20 @@ def _lean_project_import_inventory_contract(
         for module in unavailable_imports
         if _lean_module_source_exists(project, module)
     ]
+    unavailable_import_repair_rows = [
+        _unavailable_import_repair_row(
+            module,
+            compiled_modules=compiled_modules,
+            limit=LEAN_PROJECT_IMPORT_INVENTORY_LIMIT,
+        )
+        for module in unavailable_imports
+    ]
     nearest_rows = [
         {
-            "unavailable_import": module,
-            "nearest_verified_modules": _nearest_verified_import_modules(
-                module,
-                compiled_modules,
-                limit=LEAN_PROJECT_IMPORT_INVENTORY_LIMIT,
-            ),
+            "unavailable_import": row["unavailable_import"],
+            "nearest_verified_modules": row["nearest_verified_modules"],
         }
-        for module in unavailable_imports
+        for row in unavailable_import_repair_rows
     ]
     return {
         "project_import_inventory_status": status,
@@ -1111,6 +1118,7 @@ def _lean_project_import_inventory_contract(
             source_available_unavailable_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT]
         ),
         "nearby_verified_import_modules_by_unavailable_import": nearest_rows,
+        "unavailable_import_repair_rows": unavailable_import_repair_rows,
         "inventory_scope": (
             "bounded compiled .olean module inventory plus direct source-file "
             "existence checks from the configured Lake project"
@@ -1127,39 +1135,52 @@ def _lean_project_identifier_lookup_contract(
 ) -> dict[str, Any]:
     project_raw = str(import_inventory.get("project_path", "") or "").strip()
     project = Path(project_raw).expanduser() if project_raw else Path()
-    unknown_identifiers = _string_list(
-        lean_feedback.get("unknown_identifiers_from_last_check", [])
-    )
-    if not unknown_identifiers:
+    lookup_specs = _lean_identifier_lookup_specs(lean_feedback)
+    if not lookup_specs:
         return {
             "project_identifier_lookup_status": "no_unknown_identifiers",
             "project_path": project_raw,
             "unknown_identifier_rows": [],
+            "identifier_lookup_rows": [],
             "lookup_scope": "not_run_without_unknown_identifiers",
             "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
         }
     if not project_raw:
         status = "no_project_hint"
         rows = [
-            _empty_unknown_identifier_lookup_row(identifier)
-            for identifier in unknown_identifiers
+            _empty_unknown_identifier_lookup_row(
+                spec["identifier"],
+                lookup_reason=spec["lookup_reason"],
+                typeclass_failure=spec.get("typeclass_failure"),
+            )
+            for spec in lookup_specs
         ]
     elif not project.exists():
         status = "project_missing"
         rows = [
-            _empty_unknown_identifier_lookup_row(identifier)
-            for identifier in unknown_identifiers
+            _empty_unknown_identifier_lookup_row(
+                spec["identifier"],
+                lookup_reason=spec["lookup_reason"],
+                typeclass_failure=spec.get("typeclass_failure"),
+            )
+            for spec in lookup_specs
         ]
     else:
         status = "available"
         rows = [
-            _unknown_identifier_source_lookup_row(project, identifier)
-            for identifier in unknown_identifiers
+            _unknown_identifier_source_lookup_row(
+                project,
+                spec["identifier"],
+                lookup_reason=spec["lookup_reason"],
+                typeclass_failure=spec.get("typeclass_failure"),
+            )
+            for spec in lookup_specs
         ]
     return {
         "project_identifier_lookup_status": status,
         "project_path": project_raw,
         "unknown_identifier_rows": rows,
+        "identifier_lookup_rows": rows,
         "lookup_scope": (
             "bounded lexical Lean source lookup over the configured project and "
             "Mathlib package; hits are retrieval/context only, not proof evidence"
@@ -1168,25 +1189,80 @@ def _lean_project_identifier_lookup_contract(
     }
 
 
-def _empty_unknown_identifier_lookup_row(identifier: str) -> dict[str, Any]:
+def _lean_identifier_lookup_specs(lean_feedback: Mapping[str, Any]) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for identifier in _string_list(
+        lean_feedback.get("unknown_identifiers_from_last_check", [])
+    ):
+        specs.append(
+            {
+                "identifier": identifier,
+                "lookup_reason": "unknown_identifier",
+            }
+        )
+    for failure in lean_feedback.get("typeclass_failures_from_last_check", []) or []:
+        if not isinstance(failure, Mapping):
+            continue
+        failed_typeclass = str(failure.get("failed_typeclass", "") or "").strip()
+        if not failed_typeclass:
+            continue
+        specs.append(
+            {
+                "identifier": failed_typeclass,
+                "lookup_reason": "typeclass_synthesis_failure",
+                "typeclass_failure": dict(failure),
+            }
+        )
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for spec in specs:
+        key = (spec["identifier"], spec["lookup_reason"])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(spec)
+    return deduped
+
+
+def _empty_unknown_identifier_lookup_row(
+    identifier: str,
+    *,
+    lookup_reason: str = "unknown_identifier",
+    typeclass_failure: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "unknown_identifier": identifier,
+        "lookup_identifier": identifier,
+        "lookup_reason": lookup_reason,
+        "typeclass_failure": dict(typeclass_failure or {}),
         "declaration_hits": [],
         "reference_hits": [],
         "verified_declaration_modules": [],
-        "repair_options": _unknown_identifier_repair_options(verified_modules=[]),
+        "repair_options": _identifier_lookup_repair_options(
+            verified_modules=[],
+            lookup_reason=lookup_reason,
+        ),
         "source_lookup_status": "not_run",
         "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
     }
 
 
-def _unknown_identifier_source_lookup_row(project: Path, identifier: str) -> dict[str, Any]:
+def _unknown_identifier_source_lookup_row(
+    project: Path,
+    identifier: str,
+    *,
+    lookup_reason: str = "unknown_identifier",
+    typeclass_failure: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     declaration_hits: list[dict[str, Any]] = []
     reference_hits: list[dict[str, Any]] = []
     full_identifier = str(identifier or "").strip()
     short_identifier = full_identifier.rsplit(".", 1)[-1]
     if not full_identifier or not short_identifier:
-        return _empty_unknown_identifier_lookup_row(full_identifier)
+        return _empty_unknown_identifier_lookup_row(
+            full_identifier,
+            lookup_reason=lookup_reason,
+            typeclass_failure=typeclass_failure,
+        )
     for source_root, module_root in _lean_source_lookup_roots(project):
         for path in _iter_lean_source_paths(source_root, project=project):
             if len(declaration_hits) >= LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT and len(
@@ -1227,13 +1303,17 @@ def _unknown_identifier_source_lookup_row(project: Path, identifier: str) -> dic
     ]
     return {
         "unknown_identifier": full_identifier,
+        "lookup_identifier": full_identifier,
+        "lookup_reason": lookup_reason,
+        "typeclass_failure": dict(typeclass_failure or {}),
         "declaration_hits": declaration_hits[:LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT],
         "reference_hits": reference_hits[:LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT],
         "verified_declaration_modules": list(dict.fromkeys(verified_modules))[
             :LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT
         ],
-        "repair_options": _unknown_identifier_repair_options(
+        "repair_options": _identifier_lookup_repair_options(
             verified_modules=verified_modules,
+            lookup_reason=lookup_reason,
         ),
         "source_lookup_status": "hits_found"
         if declaration_hits or reference_hits
@@ -1242,7 +1322,44 @@ def _unknown_identifier_source_lookup_row(project: Path, identifier: str) -> dic
     }
 
 
-def _unknown_identifier_repair_options(*, verified_modules: Sequence[str]) -> list[str]:
+def _identifier_lookup_repair_options(
+    *,
+    verified_modules: Sequence[str],
+    lookup_reason: str,
+) -> list[str]:
+    if lookup_reason == "typeclass_synthesis_failure":
+        options = [
+            (
+                "do not treat a class declaration module as evidence that an "
+                "instance exists for the failed instance type"
+            ),
+            (
+                "remove or parameterize the operation requiring this typeclass "
+                "unless the source theorem semantics require it"
+            ),
+            (
+                "do not replace the failed operation with a new named API unless "
+                "that replacement identifier is grounded by source references, "
+                "project_identifier_lookup, or a local Lean rerun"
+            ),
+            (
+                "if keeping the operation, retrieve and locally verify an actual "
+                "instance declaration for the failed instance type before semantic review"
+            ),
+            (
+                "return blocked_or_insufficient_context if the required instance "
+                "or source theorem binder context is missing"
+            ),
+        ]
+        if verified_modules:
+            options.insert(
+                0,
+                (
+                    "use verified_declaration_modules only as source context for "
+                    "the class/API, then rerun local Lean after an instance-level repair"
+                ),
+            )
+        return options
     options = [
         (
             "remove the dependency or make the operation an explicit parameter "
@@ -1512,11 +1629,91 @@ def _nearest_verified_import_modules(
     return [candidate for _, candidate in scored[:limit]]
 
 
+def _unavailable_import_repair_row(
+    module: str,
+    *,
+    compiled_modules: Sequence[str],
+    limit: int,
+) -> dict[str, Any]:
+    compiled_set = set(compiled_modules)
+    exact_modules = [module] if module in compiled_set else []
+    descendant_modules = _verified_descendant_import_modules(
+        module,
+        compiled_modules,
+        limit=limit,
+    )
+    exact_or_descendant_modules = list(
+        dict.fromkeys([*exact_modules, *descendant_modules])
+    )[:limit]
+    return {
+        "unavailable_import": module,
+        "unavailable_import_compiled": module in compiled_set,
+        "verified_exact_or_descendant_modules": exact_or_descendant_modules,
+        "nearest_verified_modules": _nearest_verified_import_modules(
+            module,
+            compiled_modules,
+            limit=limit,
+        ),
+        "repair_options": _unavailable_import_repair_options(
+            verified_exact_or_descendant_modules=exact_or_descendant_modules,
+        ),
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _verified_descendant_import_modules(
+    module: str,
+    compiled_modules: Sequence[str],
+    *,
+    limit: int,
+) -> list[str]:
+    prefix = f"{module}."
+    descendants = [
+        candidate
+        for candidate in compiled_modules
+        if candidate.startswith(prefix)
+    ]
+    descendants.sort(key=lambda candidate: (len(candidate.split(".")), candidate))
+    return descendants[:limit]
+
+
+def _unavailable_import_repair_options(
+    *,
+    verified_exact_or_descendant_modules: Sequence[str],
+) -> list[str]:
+    options = [
+        "remove the unavailable import if the definition can be made self-contained",
+        (
+            "record blocked_or_insufficient_context or known_gaps if no verified "
+            "module provides the required API"
+        ),
+        (
+            "do not replace the unavailable import with a nearby sibling module "
+            "unless the sibling is verified by source lookup or a local Lean rerun"
+        ),
+    ]
+    if verified_exact_or_descendant_modules:
+        options.insert(
+            0,
+            (
+                "replace the unavailable import with one "
+                "verified_exact_or_descendant_module and rerun local Lean"
+            ),
+        )
+    return options
+
+
 def _lean_import_similarity_score(target: str, candidate: str) -> int:
     target_parts = [part.lower() for part in target.split(".") if part]
     candidate_parts = [part.lower() for part in candidate.split(".") if part]
     if not target_parts or not candidate_parts:
         return 0
+    if candidate == target:
+        return 10000
+    if candidate.startswith(f"{target}."):
+        return 8000 - min(len(candidate_parts) - len(target_parts), 100)
+    if target.startswith(f"{candidate}."):
+        return 5000 - min(len(target_parts) - len(candidate_parts), 100)
     score = 0
     for left, right in zip(target_parts, candidate_parts):
         if left != right:
@@ -1561,6 +1758,56 @@ def _lean_unknown_identifiers_from_diagnostics(
                 if identifier and identifier not in identifiers:
                     identifiers.append(identifier)
     return identifiers
+
+
+def _lean_typeclass_failures_from_diagnostics(
+    diagnostics: Sequence[str],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    normalized = [str(diagnostic or "") for diagnostic in diagnostics]
+    for index, diagnostic in enumerate(normalized):
+        if "failed to synthesize instance" not in diagnostic.lower():
+            continue
+        failed_instance_type = _lean_failed_instance_type_from_diagnostic(
+            diagnostic,
+            normalized[index + 1] if index + 1 < len(normalized) else "",
+        )
+        failed_typeclass = _lean_typeclass_head(failed_instance_type)
+        if not failed_instance_type or not failed_typeclass:
+            continue
+        row = {
+            "failed_typeclass": failed_typeclass,
+            "failed_instance_type": failed_instance_type,
+            "diagnostic_excerpt": diagnostic.strip()[:320],
+        }
+        if row not in rows:
+            rows.append(row)
+    return rows
+
+
+def _lean_failed_instance_type_from_diagnostic(
+    diagnostic: str,
+    next_diagnostic: str,
+) -> str:
+    next_text = str(next_diagnostic or "").strip()
+    if next_text and not next_text.lower().startswith("hint:"):
+        return next_text[:240]
+    match = re.search(
+        r"failed to synthesize instance(?: of type class)?\s*[:`']?\s*(.+)$",
+        str(diagnostic or ""),
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return ""
+    return _lean_diagnostic_token(match.group(1))[:240]
+
+
+def _lean_typeclass_head(instance_type: str) -> str:
+    match = re.search(
+        r"\b([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+        str(instance_type or ""),
+    )
+    return _lean_diagnostic_token(match.group(1)) if match else ""
 
 
 def _lean_unavailable_imports_from_diagnostics(
@@ -1673,17 +1920,40 @@ def _lean_authoring_environment_contract(
                 "shows the module exists."
             )
         )
+        repair_policy.append(
+            (
+                "For unavailable imports, consult "
+                "project_verified_import_inventory.unavailable_import_repair_rows. "
+                "If verified_exact_or_descendant_modules is nonempty, use one of "
+                "those exact compiled modules before considering looser nearby "
+                "modules, then rerun local Lean."
+            )
+        )
     if import_inventory["unverified_candidate_import_modules"]:
         repair_policy.append(
             (
                 "Imports listed in unverified_candidate_import_modules did not "
                 "appear in the compiled local project inventory. Do not treat "
                 "nearby_verified_import_modules_by_unavailable_import as API "
-                "evidence; use them only as lookup targets for source/RAG/local "
-                "Lean checks."
+                "evidence; prefer unavailable_import_repair_rows exact/descendant "
+                "modules, and use nearby modules only as lookup targets for "
+                "source/RAG/local Lean checks."
             )
         )
-    if identifier_lookup["unknown_identifier_rows"]:
+    if lean_feedback["typeclass_failures_from_last_check"]:
+        repair_policy.append(
+            (
+                "For typeclass synthesis failures, use "
+                "local_lean_feedback.typeclass_failures_from_last_check and "
+                "project_identifier_lookup rows with lookup_reason="
+                "typeclass_synthesis_failure. A class declaration lookup is not "
+                "an instance proof; repair by removing/parameterizing the "
+                "operation, retrieving an actual instance declaration, or failing "
+                "closed as insufficient context. Any replacement operation must "
+                "have its own source lookup or local Lean check before use."
+            )
+        )
+    if lean_feedback["unknown_identifiers_from_last_check"]:
         repair_policy.append(
             (
                 "For unknown identifiers, consult project_identifier_lookup "
@@ -1736,6 +2006,12 @@ def _lean_authoring_environment_contract(
                 "When project_verified_import_inventory is available, required_imports "
                 "should be limited to verified_candidate_import_modules unless "
                 "known_gaps explicitly records the missing import/API."
+            ),
+            (
+                "When repairing an unavailable import, required_imports may add "
+                "one module from unavailable_import_repair_rows."
+                "verified_exact_or_descendant_modules; do not add parent or "
+                "sibling modules merely because their names are nearby."
             ),
         ],
         "binder_policy": [

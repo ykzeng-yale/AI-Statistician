@@ -963,6 +963,21 @@ after `Int.ceil` was grounded to `Mathlib.Algebra.Order.Floor.Defs`, the model
 guessed sibling API `Int.floor`; local Lean rejected it, and the follow-up prompt
 now applies the same lookup/no-sibling-swap rule to `Int.floor`.
 
+The newest exact-definition loop patch makes import and typeclass failures part
+of the same verifier-driven contract. When local Lean rejects an unavailable
+parent import, `project_verified_import_inventory` now records
+`unavailable_import_repair_rows` with exact compiled modules, compiled child
+modules, and looser nearby modules kept separate. In the live `C_n` probe this
+moved the repair from unavailable `Mathlib.Algebra.Order.Floor` to compiled
+descendant `Mathlib.Algebra.Order.Floor.Ring`, then local Lean exposed the next
+real blocker: `FloorRing ℝ` instance synthesis. Typeclass failures are now parsed
+as `typeclass_failures_from_last_check` and looked up with
+`lookup_reason=typeclass_synthesis_failure`; the prompt explicitly says a class
+declaration module is source context, not an instance proof. A later `Nat.ceil`
+replacement was again rejected by Lean and routed back through identifier lookup,
+which is the intended behavior until a locally checked definition or a
+fail-closed/parameterized semantic object exists.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
