@@ -19694,6 +19694,18 @@ def run_research_agent_runtime(
     pseudo_formal_formalizer_work_order_rows = (
         _runtime_pseudo_formal_work_order_rows_from_formalizer(results)
     )
+    pseudo_formal_next_action_rows = (
+        _runtime_pseudo_formal_next_action_agenda_rows(
+            pseudo_formal_formalizer_work_order_rows
+        )
+    )
+    pseudo_formal_learning_rows = _runtime_pseudo_formal_next_action_learning_rows(
+        pseudo_formal_next_action_rows
+    )
+    if pseudo_formal_next_action_rows:
+        agenda_rows.extend(pseudo_formal_next_action_rows)
+    if pseudo_formal_learning_rows:
+        learning_rows.extend(pseudo_formal_learning_rows)
     source_theorem_formal_environment_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows(results)
     )
@@ -20596,7 +20608,9 @@ def run_research_agent_runtime(
                 source_theorem_formal_environment_work_orders_path,
                 source_theorem_formal_environment_work_order_rows,
             )
-    generated_next_action_rows: list[dict[str, Any]] = []
+    generated_next_action_rows: list[dict[str, Any]] = list(
+        pseudo_formal_next_action_rows
+    )
     generated_next_action_rows.extend(
         _append_runtime_generated_next_action_rows(
             agenda_rows,
@@ -26654,6 +26668,12 @@ def run_research_agent_runtime(
     manifest[
         "n_runtime_pseudo_formal_work_orders_from_formalizer"
     ] = len(pseudo_formal_formalizer_work_order_rows)
+    manifest["n_runtime_pseudo_formal_next_action_items"] = len(
+        pseudo_formal_next_action_rows
+    )
+    manifest["n_runtime_pseudo_formal_learning_rows"] = len(
+        pseudo_formal_learning_rows
+    )
     manifest["source_theorem_proof_body_adapter_required"] = bool(
         source_theorem_proof_body_adapter_work_order_rows
     )
@@ -54697,6 +54717,354 @@ def _runtime_pseudo_formal_work_order_rows_from_formalizer(
                     by_row_id[row_id] = len(rows)
                 rows.append(row)
     return rows
+
+
+def _runtime_pseudo_formal_next_action_agenda_rows(
+    work_order_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for work_order in work_order_rows:
+        if not isinstance(work_order, Mapping):
+            continue
+        work_order_id = str(
+            work_order.get("row_id", "")
+            or work_order.get("work_order_id", "")
+            or ""
+        ).strip()
+        if not work_order_id:
+            continue
+        target_lane = str(work_order.get("target_lane", "") or "").strip()
+        target_ids = _pseudo_formal_next_action_target_ids(work_order)
+        source_theorem_id = str(
+            work_order.get("source_theorem_id", "") or ""
+        ).strip()
+        semantic_primitive = str(
+            work_order.get("semantic_primitive", "") or ""
+        ).strip()
+        source_block_id = str(work_order.get("source_block_id", "") or "").strip()
+        owner_subsystem = _pseudo_formal_next_action_owner(target_lane)
+        action = _pseudo_formal_next_action_action(
+            work_order,
+            source_block_id=source_block_id,
+            target_lane=target_lane,
+        )
+        acceptance_gate = _pseudo_formal_next_action_acceptance_gate(target_lane)
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeNextActionAgendaRow",
+                "id": (
+                    "pseudo_formal:"
+                    + (target_lane or "formal_gap")
+                    + ":"
+                    + stable_hash(work_order_id)[:12]
+                ),
+                "question_id": str(work_order.get("question_id", "") or ""),
+                "question_title": str(work_order.get("question_title", "") or ""),
+                "owner_subsystem": owner_subsystem,
+                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "action": action,
+                "acceptance_gate": acceptance_gate,
+                "priority": (
+                    "high"
+                    if target_lane
+                    in {
+                        "formal_targets",
+                        "source_to_bridge",
+                        "source_theorem_exact_semantic_definition",
+                    }
+                    else "medium"
+                ),
+                "target_ids": target_ids,
+                "target_theorem_name": source_theorem_id,
+                "semantic_primitive_id": semantic_primitive,
+                "placeholder_symbol": (
+                    semantic_primitive
+                    if target_lane == "source_to_bridge"
+                    else source_block_id
+                ),
+                "work_order_id": work_order_id,
+                "pseudo_formal_work_order_id": work_order_id,
+                "source_packet_id": str(work_order.get("source_packet_id", "") or ""),
+                "source_formalizer_proposal_id": str(
+                    work_order.get("source_formalizer_proposal_id", "") or ""
+                ),
+                "source_formalization_manifest_id": str(
+                    work_order.get("source_formalization_manifest_id", "") or ""
+                ),
+                "source_artifact_id": str(
+                    work_order.get("source_artifact_id", "") or ""
+                ),
+                "source_theorem_id": source_theorem_id,
+                "source_block_id": source_block_id,
+                "source_block_type": str(
+                    work_order.get("source_block_type", "") or ""
+                ),
+                "source_block_conclusion": str(
+                    work_order.get("source_block_conclusion", "") or ""
+                ),
+                "source_anchors": list(
+                    work_order.get("source_anchors", []) or []
+                ),
+                "pseudo_formal_row_kind": str(
+                    work_order.get("row_kind", "") or ""
+                ),
+                "target_lane": target_lane,
+                "reason": str(work_order.get("reason", "") or ""),
+                "runtime_queue_status": str(
+                    work_order.get("runtime_queue_status", "")
+                    or _pseudo_formal_runtime_queue_status(work_order)
+                ),
+                "runtime_generated_queue_name": (
+                    "pseudo_formal_work_orders_from_formalizer"
+                ),
+                "runtime_queue_boundary": str(
+                    work_order.get("runtime_queue_boundary", "") or ""
+                ),
+                "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+                "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                "kernel_verified": False,
+                "source_theorem_kernel_verified": False,
+                "boundary": (
+                    "This next-action row was derived from a pseudo-formal proof "
+                    "block. It is decomposition and routing memory only; target "
+                    "prover kernel replay is required before proof promotion."
+                ),
+            }
+        )
+    return _dedupe_runtime_next_action_agenda_rows(rows)
+
+
+def _runtime_pseudo_formal_next_action_learning_rows(
+    agenda_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for agenda in agenda_rows:
+        if not isinstance(agenda, Mapping):
+            continue
+        work_order_id = str(
+            agenda.get("pseudo_formal_work_order_id", "")
+            or agenda.get("work_order_id", "")
+            or ""
+        ).strip()
+        if not work_order_id:
+            continue
+        target_ids = list(_runtime_row_string_values(agenda, "target_ids"))
+        target_theorem_name = str(
+            agenda.get("target_theorem_name", "") or ""
+        ).strip()
+        rows.append(
+            _runtime_learning_row_with_surface_targets(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "RuntimeLearningRow",
+                    "question_id": str(agenda.get("question_id", "") or ""),
+                    "question_title": str(agenda.get("question_title", "") or ""),
+                    "learning_task": "pseudo_formal_block_routing_feedback",
+                    "target_theorem_name": target_theorem_name,
+                    "target_ids": target_ids,
+                    "next_owner_subsystem": str(
+                        agenda.get("owner_subsystem", "") or ""
+                    ),
+                    "memory_status": "PSEUDO_FORMAL_ROUTING_MEMORY",
+                    "source_agenda_id": str(agenda.get("id", "") or ""),
+                    "source_pseudo_formal_work_order_id": work_order_id,
+                    "source_formalizer_proposal_id": str(
+                        agenda.get("source_formalizer_proposal_id", "") or ""
+                    ),
+                    "source_formalization_manifest_id": str(
+                        agenda.get("source_formalization_manifest_id", "") or ""
+                    ),
+                    "source_packet_id": str(agenda.get("source_packet_id", "") or ""),
+                    "source_artifact_id": str(
+                        agenda.get("source_artifact_id", "") or ""
+                    ),
+                    "source_theorem_id": str(
+                        agenda.get("source_theorem_id", "") or ""
+                    ),
+                    "source_block_id": str(
+                        agenda.get("source_block_id", "") or ""
+                    ),
+                    "source_block_type": str(
+                        agenda.get("source_block_type", "") or ""
+                    ),
+                    "source_block_conclusion": str(
+                        agenda.get("source_block_conclusion", "") or ""
+                    ),
+                    "semantic_primitive_id": str(
+                        agenda.get("semantic_primitive_id", "") or ""
+                    ),
+                    "runtime_generated_queue_name": str(
+                        agenda.get("runtime_generated_queue_name", "") or ""
+                    ),
+                    "runtime_queue_status": str(
+                        agenda.get("runtime_queue_status", "") or ""
+                    ),
+                    "input_summary": {
+                        "trigger": str(agenda.get("trigger", "") or ""),
+                        "agenda_id": str(agenda.get("id", "") or ""),
+                        "work_order_id": work_order_id,
+                        "row_kind": str(
+                            agenda.get("pseudo_formal_row_kind", "") or ""
+                        ),
+                        "target_lane": str(agenda.get("target_lane", "") or ""),
+                        "reason": str(agenda.get("reason", "") or ""),
+                        "source_theorem_id": str(
+                            agenda.get("source_theorem_id", "") or ""
+                        ),
+                        "source_block_id": str(
+                            agenda.get("source_block_id", "") or ""
+                        ),
+                        "source_block_type": str(
+                            agenda.get("source_block_type", "") or ""
+                        ),
+                        "source_block_conclusion": str(
+                            agenda.get("source_block_conclusion", "") or ""
+                        ),
+                        "source_anchors": list(
+                            agenda.get("source_anchors", []) or []
+                        ),
+                        "semantic_primitive_id": str(
+                            agenda.get("semantic_primitive_id", "") or ""
+                        ),
+                        "target_ids": target_ids,
+                        "runtime_queue_status": str(
+                            agenda.get("runtime_queue_status", "") or ""
+                        ),
+                        "runtime_queue_boundary": str(
+                            agenda.get("runtime_queue_boundary", "") or ""
+                        ),
+                        "proof_evidence_status": (
+                            PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+                        ),
+                        "proof_evidence_boundary": (
+                            PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+                        ),
+                    },
+                    "target_behavior": str(agenda.get("action", "") or ""),
+                    "acceptance_gate": str(agenda.get("acceptance_gate", "") or ""),
+                    "proof_evidence_status": (
+                        PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+                    ),
+                    "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                    "kernel_verified": False,
+                    "source_theorem_kernel_verified": False,
+                    "boundary": (
+                        "This learning row preserves pseudo-formal block routing "
+                        "feedback for later LLM, RAG, and prover work. It is not "
+                        "proof evidence and cannot promote a theorem without "
+                        "target-prover kernel replay."
+                    ),
+                }
+            )
+        )
+    return rows
+
+
+def _pseudo_formal_next_action_target_ids(
+    row: Mapping[str, Any],
+) -> list[str]:
+    values = [
+        str(row.get("source_theorem_id", "") or ""),
+        str(row.get("source_block_id", "") or ""),
+        str(row.get("semantic_primitive", "") or ""),
+        str(row.get("row_id", "") or row.get("work_order_id", "") or ""),
+    ]
+    return list(dict.fromkeys(value for value in values if value.strip()))
+
+
+def _pseudo_formal_next_action_owner(target_lane: str) -> str:
+    if target_lane == "formal_targets":
+        return "Formalizer/ProofEngineer/LeanProver"
+    if target_lane == "lean_rag":
+        return "FormalSourceRetriever/FormalizationGapPlanner"
+    if target_lane in {
+        "source_to_bridge",
+        "source_theorem_exact_semantic_definition",
+    }:
+        return "TheoryDeveloper/Formalizer/ProofEngineer"
+    return "FormalizationGapPlanner"
+
+
+def _pseudo_formal_next_action_action(
+    row: Mapping[str, Any],
+    *,
+    source_block_id: str,
+    target_lane: str,
+) -> str:
+    block_label = source_block_id or str(row.get("source_theorem_id", "") or "block")
+    conclusion = str(row.get("source_block_conclusion", "") or "").strip()
+    target_text = f" `{block_label}`"
+    if conclusion:
+        target_text += f" ({conclusion[:160]})"
+    if target_lane == "formal_targets":
+        return (
+            "materialize pseudo-formal block"
+            + target_text
+            + " as a concrete Lean candidate, run local Lean/AXLE, and keep "
+            "pseudo-formal verification separate from proof evidence"
+        )
+    if target_lane == "lean_rag":
+        return (
+            "ground pseudo-formal block"
+            + target_text
+            + " against the Lean library/RAG index, recording exact declarations "
+            "or a formal-library gap before attempting proof replay"
+        )
+    if target_lane == "source_to_bridge":
+        primitive = str(row.get("semantic_primitive", "") or "").strip()
+        return (
+            "derive or request the source-to-bridge semantic primitive"
+            + (f" `{primitive}`" if primitive else "")
+            + " required by pseudo-formal block"
+            + target_text
+            + ", then rerun a bounded Lean/AXLE premise check"
+        )
+    if target_lane == "source_theorem_exact_semantic_definition":
+        return (
+            "author exact source-theorem semantic definitions for pseudo-formal "
+            "block"
+            + target_text
+            + " and typecheck/materialize them before proof-body search resumes"
+        )
+    return (
+        "review pseudo-formal block"
+        + target_text
+        + " in the FormalizationGapPlanner, split or reroute the residual gap, "
+        "and only pass concrete subgoals to Lean/RAG/source-to-bridge lanes"
+    )
+
+
+def _pseudo_formal_next_action_acceptance_gate(target_lane: str) -> str:
+    if target_lane == "formal_targets":
+        return (
+            "A concrete Lean candidate for the block is generated and checked by "
+            "local Lean/AXLE; pseudo-formal block verification remains non-proof "
+            "until the target prover kernel verifies the candidate."
+        )
+    if target_lane == "lean_rag":
+        return (
+            "Formal library grounding returns exact Lean declarations or a "
+            "documented formal-library gap, and no theorem proof claim is made "
+            "without later target-prover kernel replay."
+        )
+    if target_lane == "source_to_bridge":
+        return (
+            "TheoryDeveloper/Formalizer records a source-backed semantic primitive "
+            "or premise derivation candidate and AXLE/local Lean verifies that "
+            "bounded premise before any source-theorem proof promotion."
+        )
+    if target_lane == "source_theorem_exact_semantic_definition":
+        return (
+            "Exact semantic definitions are source-anchored and Lean typechecked "
+            "before proof-body search; pseudo-formal blocks alone never satisfy "
+            "the source theorem kernel evidence gate."
+        )
+    return (
+        "FormalizationGapPlanner records a concrete reroute, split target, or "
+        "library/semantic blocker, and every downstream proof claim still requires "
+        "target-prover kernel replay."
+    )
 
 
 def _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer(

@@ -154,6 +154,8 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_pseudo_formal_work_order_rows_from_formalizer,
+    _runtime_pseudo_formal_next_action_agenda_rows,
+    _runtime_pseudo_formal_next_action_learning_rows,
     _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer,
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows,
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_post_executor_formal_environment_learning_rows,
@@ -21179,6 +21181,53 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
         "not theorem proof evidence" in row["proof_evidence_boundary"]
         for row in exported_rows
     )
+
+    agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
+    learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
+
+    assert len(agenda_rows) == len(exported_rows)
+    assert len(learning_rows) == len(agenda_rows)
+    assert {row["runtime_generated_queue_name"] for row in agenda_rows} == {
+        "pseudo_formal_work_orders_from_formalizer"
+    }
+    assert {row["trigger"] for row in agenda_rows} == {
+        "PSEUDO_FORMAL_WORK_ORDER_READY"
+    }
+    assert all(row["target_ids"] for row in agenda_rows)
+    assert all(row["kernel_verified"] is False for row in agenda_rows)
+    assert all(
+        row["source_theorem_kernel_verified"] is False for row in agenda_rows
+    )
+    assert {row["proof_evidence_status"] for row in agenda_rows} == {
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
+    assert any(
+        row["owner_subsystem"] == "Formalizer/ProofEngineer/LeanProver"
+        for row in agenda_rows
+    )
+    assert any(
+        row["owner_subsystem"] == "TheoryDeveloper/Formalizer/ProofEngineer"
+        for row in agenda_rows
+    )
+    assert any(
+        "target prover kernel" in row["acceptance_gate"]
+        or "AXLE/local Lean" in row["acceptance_gate"]
+        for row in agenda_rows
+    )
+    assert {row["learning_task"] for row in learning_rows} == {
+        "pseudo_formal_block_routing_feedback"
+    }
+    assert {row["memory_status"] for row in learning_rows} == {
+        "PSEUDO_FORMAL_ROUTING_MEMORY"
+    }
+    assert all(row["target_ids"] for row in learning_rows)
+    assert all(
+        row["input_summary"]["runtime_queue_status"].startswith("PENDING_")
+        for row in learning_rows
+    )
+    assert {row["proof_evidence_status"] for row in learning_rows} == {
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
 
 
 def test_runtime_export_normalizes_persisted_source_to_bridge_work_order_declaration() -> None:
