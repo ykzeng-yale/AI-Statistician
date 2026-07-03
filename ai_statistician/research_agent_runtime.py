@@ -792,6 +792,14 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
         ),
     )
+    materialized_feedback_rows = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
+        ),
+    )
     candidate_packets = max(
         candidate_packets_from_workers,
         candidate_packets_from_materializers,
@@ -807,6 +815,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             candidate_packets > 0
             and materialized_lean_repair_tasks > 0
             and materialized_local_lean_checked > 0
+            and materialized_feedback_rows > 0
         )
     )
     provider_names = [
@@ -896,6 +905,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_materializer_candidate_packets": candidate_packets_from_materializers,
         "n_materialized_lean_repair_tasks": materialized_lean_repair_tasks,
         "n_materialized_local_lean_checked": materialized_local_lean_checked,
+        "n_materialized_feedback_rows": materialized_feedback_rows,
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
         "post_runtime_attached": post_runtime_attached,
@@ -1984,7 +1994,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "materialized_lean_repair_tasks="
                 f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']}; "
                 "materialized_local_lean_checked="
-                f"{exact_semantic_authoring['n_materialized_local_lean_checked']}"
+                f"{exact_semantic_authoring['n_materialized_local_lean_checked']}; "
+                "materialized_feedback_rows="
+                f"{exact_semantic_authoring['n_materialized_feedback_rows']}"
             ),
             "blocker": (
                 ""
@@ -1992,7 +2004,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 else (
                     "live exact semantic-definition authoring produced or should "
                     "have produced definition candidates, but no materialized "
-                    "candidate was routed through local Lean/AXLE diagnostics"
+                    "candidate was routed through local Lean/AXLE diagnostics "
+                    "and persisted as runtime learning feedback"
                 )
             ),
         },
@@ -2365,8 +2378,9 @@ def _runtime_coding_agent_capability_learning_rows(
                 "after live exact semantic-definition authoring, "
                 "n_candidate_packets>0, "
                 "n_materialized_lean_repair_tasks>0, and "
-                "n_materialized_local_lean_checked>0 in the integrated "
-                "AgentRuntime manifest"
+                "n_materialized_local_lean_checked>0, and "
+                "n_materialized_feedback_rows>0 in the integrated AgentRuntime "
+                "manifest"
             )
         else:
             next_owner = "ArchitectCoordinator"
@@ -20216,9 +20230,13 @@ def run_research_agent_runtime(
                                 )
                             )
                             if retry_materialized_executor_learning_path.exists():
-                                source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_learning_rows = _read_jsonl(
-                                    retry_materialized_executor_learning_path
-                                )
+                                source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_learning_rows = [
+                                    row
+                                    for row in _read_jsonl(
+                                        retry_materialized_executor_learning_path
+                                    )
+                                    if isinstance(row, dict)
+                                ]
                                 if (
                                     source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_learning_rows
                                 ):
@@ -20759,9 +20777,13 @@ def run_research_agent_runtime(
                                                     )
                                                 )
                                                 if late_materialized_executor_learning_path.exists():
-                                                    late_materialized_executor_learning_rows = _read_jsonl(
-                                                        late_materialized_executor_learning_path
-                                                    )
+                                                    late_materialized_executor_learning_rows = [
+                                                        row
+                                                        for row in _read_jsonl(
+                                                            late_materialized_executor_learning_path
+                                                        )
+                                                        if isinstance(row, dict)
+                                                    ]
                                                     if late_materialized_executor_learning_rows:
                                                         late_source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows.extend(
                                                             late_materialized_executor_learning_rows
@@ -21348,6 +21370,9 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest: (
         dict[str, Any] | None
     ) = None
+    source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows: list[
+        dict[str, Any]
+    ] = []
     source_theorem_exact_semantic_definition_closure_review_manifest: (
         dict[str, Any] | None
     ) = None
@@ -21936,12 +21961,16 @@ def run_research_agent_runtime(
                                     )
                                 )
                                 if materialized_executor_learning_path.exists():
-                                    materialized_executor_learning_rows = _read_jsonl(
-                                        materialized_executor_learning_path
-                                    )
-                                    if materialized_executor_learning_rows:
+                                    source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows = [
+                                        row
+                                        for row in _read_jsonl(
+                                            materialized_executor_learning_path
+                                        )
+                                        if isinstance(row, dict)
+                                    ]
+                                    if source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows:
                                         learning_rows.extend(
-                                            materialized_executor_learning_rows
+                                            source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows
                                         )
                                         _write_jsonl(learning_path, learning_rows)
                                 materialized_executor_results_path = Path(
@@ -28249,6 +28278,11 @@ def run_research_agent_runtime(
             or {}
         ).get("n_typechecked_candidate_review_packets", 0)
         or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] = len(
+        source_theorem_exact_semantic_definition_materialized_lean_repair_executor_learning_rows
     )
     manifest[
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_environment_repair_tasks"

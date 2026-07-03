@@ -56977,6 +56977,17 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
     ladder = _runtime_capability_ladder(payload)
     rows = {row["level"]: row for row in ladder["levels"]}
 
+    assert rows[5]["passed"] is False
+    assert "exact_semantic_authoring_materialized_feedback_rows=0" in rows[5][
+        "evidence"
+    ]
+
+    payload[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] = 1
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
     assert rows[5]["passed"] is True
     assert rows[6]["passed"] is True
     assert rows[7]["passed"] is True
@@ -57105,6 +57116,25 @@ def test_runtime_readiness_surfaces_include_retry_semantic_authoring_provenance(
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked": 1,
         }
     )
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert capability_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "materialized_feedback_rows=0" in capability_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] = 1
     capability_table = _runtime_coding_agent_capability_table(payload)
     capability_rows = {
         row["capability_id"]: row for row in capability_table["rows"]
@@ -57989,6 +58019,27 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
         }
     )
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "materialized_feedback_rows=0" in rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+    learning_rows = _runtime_coding_agent_capability_learning_rows(
+        manifest=payload,
+        capability_table=table,
+    )
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["capability_id"] == (
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    )
+    assert "n_materialized_feedback_rows>0" in learning_rows[0]["success_metric"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] = 1
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows[
@@ -60737,6 +60788,19 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
         }
     )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "materialized_feedback_rows=0" in rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 

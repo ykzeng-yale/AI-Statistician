@@ -5357,6 +5357,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
@@ -5374,6 +5381,13 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
                 0,
             )
             or 0
@@ -5656,6 +5670,13 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
                 0,
             )
             or 0
@@ -10451,6 +10472,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']} "
                 "exact_semantic_authoring_materialized_local_lean_checked="
                 f"{exact_semantic_authoring['n_materialized_local_lean_checked']} "
+                "exact_semantic_authoring_materialized_feedback_rows="
+                f"{exact_semantic_authoring['n_materialized_feedback_rows']} "
                 "exact_semantic_authoring_provider="
                 f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
@@ -10505,6 +10528,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']} "
                 "exact_semantic_authoring_materialized_local_lean_checked="
                 f"{exact_semantic_authoring['n_materialized_local_lean_checked']} "
+                "exact_semantic_authoring_materialized_feedback_rows="
+                f"{exact_semantic_authoring['n_materialized_feedback_rows']} "
                 "exact_semantic_authoring_provider="
                 f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
@@ -13473,6 +13498,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['n_materialized_lean_repair_tasks']} "
                 "materialized_local_lean_checked="
                 f"{exact_semantic_definition_authoring['n_materialized_local_lean_checked']} "
+                "materialized_feedback_rows="
+                f"{exact_semantic_definition_authoring['n_materialized_feedback_rows']} "
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="
@@ -13481,7 +13508,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "live exact semantic-definition authoring was recorded, but "
                 "its definition candidates were not materialized and checked "
-                "by local Lean/AXLE in the integrated feedback loop"
+                "by local Lean/AXLE and persisted as runtime learning feedback "
+                "in the integrated loop"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -13496,7 +13524,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "after live exact semantic-definition authoring, "
                     "candidate_packets>0, materialized_lean_repair_tasks>0, "
-                    "and materialized_local_lean_checked>0"
+                    "materialized_local_lean_checked>0, and "
+                    "materialized_feedback_rows>0"
                 ),
             ),
         ),
