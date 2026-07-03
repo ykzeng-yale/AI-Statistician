@@ -2787,6 +2787,20 @@ def audit_research_agent_runtime(
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
     )
+    manifest_formalizer_repair_sequences = int(
+        manifest.get(
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    runtime_summary_formalizer_repair_sequences = int(
+        runtime_proof_summary.get(
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
     runtime_source_theorem_formal_environment_work_order_summary = (
         _runtime_source_theorem_formal_environment_work_order_recompute_summary(
             result_paths=result_paths,
@@ -2836,22 +2850,13 @@ def audit_research_agent_runtime(
     source_theorem_target_binding = (
         _runtime_source_theorem_target_bound_kernel_evidence_summary(manifest)
     )
-    formalizer_repair_sequences = max(
-        int(
-            manifest.get(
-                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
-                0,
-            )
-            or 0
-        ),
-        int(
-            runtime_proof_summary.get(
-                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
-                0,
-            )
-            or 0
-        ),
-        derived_formalizer_repair_sequences,
+    formalizer_repair_sequences = derived_formalizer_repair_sequences
+    formalizer_repair_sequence_claims_stale = (
+        max(
+            manifest_formalizer_repair_sequences,
+            runtime_summary_formalizer_repair_sequences,
+        )
+        > derived_formalizer_repair_sequences
     )
     attached_coding_agent_repair_eval = (
         dict(manifest.get("internal_coding_agent_generated_code_repair_eval", {}) or {})
@@ -4719,6 +4724,15 @@ def audit_research_agent_runtime(
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_derived_from_results": (
             derived_formalizer_repair_sequences
+        ),
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_manifest_claimed": (
+            manifest_formalizer_repair_sequences
+        ),
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_runtime_summary_claimed": (
+            runtime_summary_formalizer_repair_sequences
+        ),
+        "formalizer_lean_candidate_repair_sequence_claims_stale": (
+            formalizer_repair_sequence_claims_stale
         ),
         "n_integrated_lean_lsp_mcp_live_calls": sum(
             row.n_lean_lsp_mcp_live_calls for row in rows

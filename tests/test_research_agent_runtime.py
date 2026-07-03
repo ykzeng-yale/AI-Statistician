@@ -29486,6 +29486,79 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
     ] is False
 
 
+def test_runtime_audit_does_not_trust_self_reported_formalizer_repair_sequences(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {"artifacts": {}},
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_evaluation_mode": "capability_eval",
+                "n_questions": 1,
+                "question_ids": ["conformal_prediction_coverage"],
+                "artifacts": {"per_question_results": [str(result_path)]},
+                "n_live_llm_formalizer_proof_engineer_proposals": 1,
+                "n_formalizer_lean_candidate_local_lean_checked": 1,
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                "runtime_evidence_summary": {
+                    "proof": {
+                        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert (
+        audit["n_formalizer_lean_candidate_failed_then_passed_repair_sequences"]
+        == 0
+    )
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_derived_from_results"
+        ]
+        == 0
+    )
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_manifest_claimed"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences_runtime_summary_claimed"
+        ]
+        == 1
+    )
+    assert audit["formalizer_lean_candidate_repair_sequence_claims_stale"] is True
+    assert rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]["passed"] is False
+    assert "integrated_formalizer_repair_sequences=0" in rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]["evidence"]
+
+
 def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
     tmp_path: Path,
 ) -> None:
