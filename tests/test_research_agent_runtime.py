@@ -61766,6 +61766,50 @@ def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_ha
     )
 
 
+@pytest.mark.parametrize("requested_value", [None, False])
+def test_runtime_capability_scorecard_flags_post_adapter_exact_executor_request_telemetry_gap(
+    requested_value: bool | None,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": 1,
+    }
+    if requested_value is not None:
+        payload[
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
+        ] = requested_value
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "post_adapter_exact_source_theorem_proof_body_retry_queued"
+    ]["passed"] is True
+    assert rows[
+        "post_adapter_exact_source_theorem_proof_body_executor_ran"
+    ]["passed"] is False
+    assert (
+        "explicit handoff telemetry"
+        in rows[
+            "post_adapter_exact_source_theorem_proof_body_executor_ran"
+        ]["blocker"]
+    )
+
+
 def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
