@@ -63680,6 +63680,19 @@ def test_runtime_capability_scorecard_flags_dropped_candidate_synthesis_recheck_
 
     assert rows[
         "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+    ]["passed"] is False
+    assert "executor_output_rows=0" in rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
     ]["passed"] is True
 
 
@@ -63723,7 +63736,85 @@ def test_runtime_capability_scorecard_flags_dropped_typechecked_review_recheck_e
 
     assert rows[
         "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
+    ]["passed"] is False
+    assert "late_output_rows=0" in rows[
+        "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
+    ]["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
     ]["passed"] is True
+
+
+@pytest.mark.parametrize(
+    (
+        "queue_execution_rows_key",
+        "executor_ran_key",
+        "executor_result_rows_key",
+        "executor_source_kernel_key",
+        "evidence_prefix",
+    ),
+    [
+        (
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "primary",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "materialized",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "late",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_flags_empty_typechecked_review_recheck_executor_outputs(
+    queue_execution_rows_key: str,
+    executor_ran_key: str,
+    executor_result_rows_key: str,
+    executor_source_kernel_key: str,
+    evidence_prefix: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        queue_execution_rows_key: 1,
+        executor_ran_key: True,
+        executor_result_rows_key: 0,
+        executor_source_kernel_key: 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"]
+
+    assert row["passed"] is False
+    assert f"{evidence_prefix}_output_rows=0" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_derivation_handoff() -> None:

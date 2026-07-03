@@ -12059,6 +12059,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    exact_semantic_definition_candidate_synthesis_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_definition_candidate_synthesis_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_definition_candidate_synthesis_recheck_executor_output_rows = (
+        exact_semantic_definition_candidate_synthesis_recheck_executor_results
+        + exact_semantic_definition_candidate_synthesis_recheck_executor_source_kernel
+    )
     exact_semantic_definition_authoring = (
         _runtime_exact_semantic_definition_authoring_provenance(payload)
     )
@@ -12223,17 +12241,71 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    primary_typechecked_review_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_recheck_executor_output_rows = (
+        primary_typechecked_review_recheck_executor_results
+        + primary_typechecked_review_recheck_executor_source_kernel
+    )
     materialized_typechecked_review_recheck_executor_ran = (
         payload.get(
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran"
         )
         is True
     )
+    materialized_typechecked_review_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            0,
+        )
+        or 0
+    )
+    materialized_typechecked_review_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    materialized_typechecked_review_recheck_executor_output_rows = (
+        materialized_typechecked_review_recheck_executor_results
+        + materialized_typechecked_review_recheck_executor_source_kernel
+    )
     late_typechecked_review_recheck_executor_ran = (
         payload.get(
             "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran"
         )
         is True
+    )
+    late_typechecked_review_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            0,
+        )
+        or 0
+    )
+    late_typechecked_review_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    late_typechecked_review_recheck_executor_output_rows = (
+        late_typechecked_review_recheck_executor_results
+        + late_typechecked_review_recheck_executor_source_kernel
     )
     source_to_bridge_formalizer_work_orders = int(
         payload.get(
@@ -15260,23 +15332,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped",
             exact_semantic_definition_candidate_synthesis_recheck_rows <= 0
-            or exact_semantic_definition_candidate_synthesis_recheck_executor_ran,
+            or (
+                exact_semantic_definition_candidate_synthesis_recheck_executor_ran
+                and exact_semantic_definition_candidate_synthesis_recheck_executor_output_rows
+                > 0
+            ),
             (
                 "recheck_queue_rows="
                 f"{payload.get('source_theorem_exact_semantic_definition_candidate_synthesis_n_proof_body_recheck_queue_rows')} "
                 "executor_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran')} "
                 "executor_results="
-                f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows')} "
+                f"{exact_semantic_definition_candidate_synthesis_recheck_executor_results} "
                 "source_kernel="
-                f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified')} "
+                f"{exact_semantic_definition_candidate_synthesis_recheck_executor_source_kernel} "
+                "executor_output_rows="
+                f"{exact_semantic_definition_candidate_synthesis_recheck_executor_output_rows} "
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_skipped_reason')}"
             ),
             (
                 "exact semantic-definition candidate synthesis produced "
                 "proof-body recheck rows but the same-run proof-body executor "
-                "did not run"
+                "did not run with result or source-kernel rows"
             ),
         ),
         _scorecard_row(
@@ -15350,15 +15428,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped",
             (
                 primary_typechecked_review_recheck_rows <= 0
-                or primary_typechecked_review_recheck_executor_ran
+                or (
+                    primary_typechecked_review_recheck_executor_ran
+                    and primary_typechecked_review_recheck_executor_output_rows > 0
+                )
             )
             and (
                 materialized_typechecked_review_recheck_rows <= 0
-                or materialized_typechecked_review_recheck_executor_ran
+                or (
+                    materialized_typechecked_review_recheck_executor_ran
+                    and materialized_typechecked_review_recheck_executor_output_rows
+                    > 0
+                )
             )
             and (
                 late_typechecked_review_recheck_rows <= 0
-                or late_typechecked_review_recheck_executor_ran
+                or (
+                    late_typechecked_review_recheck_executor_ran
+                    and late_typechecked_review_recheck_executor_output_rows > 0
+                )
             ),
             (
                 "primary_queue_ran="
@@ -15375,6 +15463,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows')} "
                 "primary_executor_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_ran')} "
+                "primary_result_rows="
+                f"{primary_typechecked_review_recheck_executor_results} "
+                "primary_source_kernel_verified="
+                f"{primary_typechecked_review_recheck_executor_source_kernel} "
+                "primary_output_rows="
+                f"{primary_typechecked_review_recheck_executor_output_rows} "
                 "materialized_queue_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_ran')} "
                 "materialized_llm_approved="
@@ -15385,8 +15479,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows')} "
                 "materialized_executor_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran')} "
+                "materialized_result_rows="
+                f"{materialized_typechecked_review_recheck_executor_results} "
                 "materialized_source_kernel_verified="
-                f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified')} "
+                f"{materialized_typechecked_review_recheck_executor_source_kernel} "
+                "materialized_output_rows="
+                f"{materialized_typechecked_review_recheck_executor_output_rows} "
                 "late_queue_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_ran')} "
                 "late_approved="
@@ -15400,11 +15498,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "late_execution_rows="
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows')} "
                 "late_executor_ran="
-                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')}"
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')} "
+                "late_result_rows="
+                f"{late_typechecked_review_recheck_executor_results} "
+                "late_source_kernel_verified="
+                f"{late_typechecked_review_recheck_executor_source_kernel} "
+                "late_output_rows="
+                f"{late_typechecked_review_recheck_executor_output_rows}"
             ),
             (
                 "approved exact semantic-definition review packets produced "
-                "proof-body recheck rows but the exact proof-body executor did not run"
+                "proof-body recheck rows but the exact proof-body executor did "
+                "not run with result or source-kernel rows"
             ),
         ),
         _scorecard_row(
