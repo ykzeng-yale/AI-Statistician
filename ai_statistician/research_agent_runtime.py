@@ -341,6 +341,10 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...]
     "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_checked",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
 )
 SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
@@ -366,6 +370,14 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers",
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
@@ -27134,9 +27146,33 @@ def run_research_agent_runtime(
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
     )
     manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked"
+    ] = sum(
+        int(row.get("n_local_lean_checked", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled"
+    ] = sum(
+        int(row.get("n_local_lean_compiled", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = sum(
         int(row.get("n_source_theorem_kernel_verified", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
+    ] = sum(
+        int(row.get("n_proof_body_goal_reached", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = sum(
+        int(row.get("n_proof_body_goal_reached_with_semantic_blockers", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
     )
     manifest[
@@ -28195,8 +28231,44 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_checked"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_checked", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_compiled", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = primary_typechecked_review_recheck_executor_n_source_theorem_kernel_verified
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached_with_semantic_blockers", 0)
+        or 0
+    )
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_runtime_learning_rows"
     ] = len(
@@ -28756,12 +28828,48 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_checked"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_checked", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_compiled", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = int(
         (
             source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached_with_semantic_blockers", 0)
         or 0
     )
     manifest[
@@ -29234,12 +29342,39 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_compiled"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_compiled", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = int(
         (
             source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached_with_semantic_blockers", 0)
         or 0
     )
     manifest[

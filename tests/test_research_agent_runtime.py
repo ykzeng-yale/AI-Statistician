@@ -62475,6 +62475,85 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
     assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
 
 
+def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_compiled": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 3,
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 4,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 3,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 2,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 5,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 6,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 4,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 3,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 7,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 8,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked"
+        ]
+        == 4
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+        ]
+        == 10
+    )
+    assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 36
+    assert local_lean_row["passed"] is True
+    assert "local_lean_checked=10" in local_lean_row["evidence"]
+    assert proof_body_row["passed"] is True
+    assert "proof_body_goal_reached_evidence=36" in proof_body_row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
