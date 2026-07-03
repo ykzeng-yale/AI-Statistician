@@ -7911,10 +7911,7 @@ def _runtime_architect_initial_routing_required(payload: Mapping[str, Any]) -> b
         return False
     if str(payload.get("runtime_resume_policy", "") or "") == "architect_resume_review":
         return False
-    return (
-        "n_results_with_architect_initial_routing" in payload
-        or "n_architect_initial_routing_decisions" in payload
-    )
+    return True
 
 
 def _runtime_architect_initial_routing_audited(payload: Mapping[str, Any]) -> bool:

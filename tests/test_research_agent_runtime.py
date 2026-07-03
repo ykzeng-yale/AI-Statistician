@@ -3919,6 +3919,14 @@ def _scorecard_architect_executed_payload() -> dict[str, object]:
         "architect_coordinator_enabled": True,
         "runtime_architect_coordinator_executed": True,
         "n_runtime_architect_coordinator_traces": 1,
+        "n_results_with_architect_initial_routing": 1,
+        "n_architect_initial_routing_decisions": 1,
+        "architect_initial_routing_selected_subsystems": {
+            "TheoryDeveloper": 1,
+        },
+        "architect_initial_routing_requested_subsystems": {
+            "TheoryDeveloper": 1,
+        },
     }
 
 
@@ -11449,6 +11457,27 @@ def test_capability_scorecard_requires_architect_initial_routing_audit() -> None
         "architect_coordinator_enabled": True,
         "runtime_architect_coordinator_executed": True,
         "n_runtime_architect_coordinator_traces": 1,
+    }
+    missing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+    missing_ladder_rows = {
+        row["level"]: row for row in _runtime_capability_ladder(payload)["levels"]
+    }
+
+    assert missing_rows["architect_orchestrated"]["passed"] is True
+    assert missing_rows["architect_initial_routing_audited"]["passed"] is False
+    assert "initial routing decision" in missing_rows[
+        "architect_initial_routing_audited"
+    ]["blocker"]
+    assert missing_ladder_rows[2]["passed"] is False
+    assert "n_results_with_architect_initial_routing=None" in missing_ladder_rows[
+        2
+    ]["evidence"]
+
+    payload = {
+        **payload,
         "n_results_with_architect_initial_routing": 0,
         "n_architect_initial_routing_decisions": 0,
         "n_architect_initial_routing_prerequisite_theory": 0,
