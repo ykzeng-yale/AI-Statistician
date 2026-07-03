@@ -4931,6 +4931,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": str(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
@@ -5034,6 +5048,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers",
                 0,
             )
             or 0
@@ -6353,6 +6381,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers",
                 0,
             )
             or 0

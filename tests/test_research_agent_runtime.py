@@ -62334,6 +62334,74 @@ def test_runtime_audit_aggregates_adapter_feedback_exact_repair_local_lean_check
     assert "local_lean_checked=6" in local_lean_row["evidence"]
 
 
+def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": 2,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers": 3,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached": 4,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers": 5,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached"
+        ]
+        == 4
+    )
+    assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 16
+    assert proof_body_row["passed"] is True
+    assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

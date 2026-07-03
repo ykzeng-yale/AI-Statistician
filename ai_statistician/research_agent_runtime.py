@@ -356,6 +356,10 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers",
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
@@ -26569,6 +26573,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_executor_manifest.get(
+            "n_proof_body_goal_reached",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_executor_manifest.get(
+            "n_proof_body_goal_reached_with_semantic_blockers",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_executor_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_learning_rows"
     ] = len(source_theorem_exact_proof_body_repair_from_adapter_executor_learning_rows)
     manifest[
@@ -26669,6 +26693,26 @@ def run_research_agent_runtime(
     ] = int(
         source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
             "n_source_theorem_kernel_verified",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+            "n_proof_body_goal_reached",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+            "n_proof_body_goal_reached_with_semantic_blockers",
             0,
         )
         if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
