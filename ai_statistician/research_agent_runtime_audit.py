@@ -190,9 +190,6 @@ def _payload_cross_task_full_theorem_family_count(
 
 
 def _payload_integrated_lean_lsp_mcp_live_calls(payload: Mapping[str, Any]) -> int:
-    explicit_integrated = payload.get("n_integrated_lean_lsp_mcp_live_calls")
-    if explicit_integrated not in (None, ""):
-        return int(explicit_integrated or 0)
     total_calls = int(payload.get("n_lean_lsp_mcp_live_calls", 0) or 0)
     attached_calls = int(
         payload.get(
@@ -221,6 +218,23 @@ def _payload_integrated_lean_lsp_mcp_live_calls(payload: Mapping[str, Any]) -> i
             )
         )
     )
+    explicit_integrated = payload.get("n_integrated_lean_lsp_mcp_live_calls")
+    if explicit_integrated not in (None, ""):
+        explicit_count = max(int(explicit_integrated or 0), 0)
+        bound_formalizer_calls = int(
+            payload.get(
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
+                0,
+            )
+            or 0
+        )
+        if (
+            attached_live_component
+            and attached_calls > 0
+            and bound_formalizer_calls <= 0
+        ):
+            return 0
+        return min(explicit_count, max(total_calls, 0))
     if attached_live_component and attached_calls > 0:
         return max(total_calls - attached_calls, 0)
     return total_calls

@@ -61489,6 +61489,19 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
     assert "n_integrated_lean_lsp_mcp_live_calls=0" in rows[
         "live_lean_lsp_mcp_called"
     ]["evidence"]
+    stale_integrated_payload = dict(payload)
+    stale_integrated_payload["n_integrated_lean_lsp_mcp_live_calls"] = 3
+    stale_integrated_scorecard = _runtime_capability_scorecard(
+        stale_integrated_payload
+    )
+    stale_integrated_rows = {
+        row["requirement_id"]: row
+        for row in stale_integrated_scorecard["rows"]
+    }
+    assert stale_integrated_rows["live_lean_lsp_mcp_called"]["passed"] is False
+    assert "n_integrated_lean_lsp_mcp_live_calls=0" in stale_integrated_rows[
+        "live_lean_lsp_mcp_called"
+    ]["evidence"]
     static_backend_payload = dict(payload)
     static_backend_payload[
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
