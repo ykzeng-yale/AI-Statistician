@@ -11101,14 +11101,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_pending_task_handoff_lineage_required = (
         payload.get("runtime_pending_task_handoff_lineage_required") is True
     )
-    raw_pending_task_handoff_lineage_complete = payload.get(
-        "runtime_pending_task_handoff_lineage_complete"
-    )
     runtime_pending_task_handoff_lineage_complete = (
-        True
-        if raw_pending_task_handoff_lineage_complete is None
-        and not runtime_pending_task_handoff_lineage_required
-        else raw_pending_task_handoff_lineage_complete is True
+        _runtime_pending_task_handoff_lineage_scorecard_passed(payload)
     )
     runtime_observation_export_complete = (
         _runtime_observation_export_scorecard_passed(payload)
@@ -11119,14 +11113,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_resume_prior_ledger_continuity_required = (
         payload.get("runtime_resume_prior_ledger_continuity_required") is True
     )
-    raw_resume_prior_ledger_continuity_complete = payload.get(
-        "runtime_resume_prior_ledger_continuity_complete"
-    )
     runtime_resume_prior_ledger_continuity_complete = (
-        True
-        if raw_resume_prior_ledger_continuity_complete is None
-        and not runtime_resume_prior_ledger_continuity_required
-        else raw_resume_prior_ledger_continuity_complete is True
+        _runtime_resume_prior_ledger_continuity_scorecard_passed(payload)
     )
     runtime_route_missing_target_ids_count = int(
         payload.get("n_runtime_route_critical_rows_missing_target_ids", 0) or 0
@@ -13284,7 +13272,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "runtime_pending_task_handoff_lineage_complete=true with "
                     "matching pending source_handoff_id, source_handoff row, "
-                    "and architect_context.runtime_resume_source_handoff"
+                    "architect_context.runtime_resume_source_handoff, zero "
+                    "missing/mismatched lineage counters, and an empty "
+                    "runtime_pending_task_handoff_lineage_issues list"
                 ),
             ),
         ),
@@ -13323,7 +13313,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "runtime_resume_prior_ledger_continuity_complete=true with "
                     "prior evidence and handoff ledger artifacts carrying explicit "
-                    "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE boundaries"
+                    "PRIOR_RUNTIME_LEDGER_NOT_CURRENT_EVIDENCE boundaries, "
+                    "positive prior ledger rows when required, and an empty "
+                    "runtime_resume_prior_ledger_continuity_issues list"
                 ),
             ),
         ),
@@ -14350,6 +14342,86 @@ def _runtime_task_handoff_ledger_scorecard_passed(payload: Mapping[str, Any]) ->
         return False
     return all(_safe_int(payload.get(key)) == 0 for key in count_keys[4:11]) and all(
         _safe_int(payload.get(key)) == 0 for key in count_keys[12:]
+    )
+
+
+def _runtime_pending_task_handoff_lineage_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_pending_task_expected_source_handoffs",
+        "n_runtime_pending_task_handoff_lineage_missing_fields",
+        "n_runtime_pending_task_handoff_lineage_mismatched_fields",
+    )
+    required_value = payload.get("runtime_pending_task_handoff_lineage_required")
+    if required_value not in {True, False}:
+        return False
+    if payload.get("runtime_pending_task_handoff_lineage_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_pending_task_handoff_lineage_issues",
+    ):
+        return False
+    if any(_safe_int(payload.get(key)) != 0 for key in count_keys[1:]):
+        return False
+    if required_value is False:
+        return True
+    source_handoff_id = str(payload.get("pending_task_source_handoff_id", "") or "")
+    context_handoff_id = str(
+        payload.get("pending_task_context_source_handoff_id", "") or ""
+    )
+    expected_ids = payload.get("runtime_pending_task_expected_source_handoff_ids")
+    if not isinstance(expected_ids, Sequence) or isinstance(expected_ids, (str, bytes)):
+        return False
+    expected_id_set = {
+        str(item).strip()
+        for item in expected_ids
+        if str(item).strip()
+    }
+    if _safe_int(payload.get("n_runtime_pending_task_expected_source_handoffs")) != len(
+        expected_id_set
+    ):
+        return False
+    return bool(
+        source_handoff_id
+        and context_handoff_id
+        and source_handoff_id == context_handoff_id
+        and source_handoff_id in expected_id_set
+    )
+
+
+def _runtime_resume_prior_ledger_continuity_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_resume_prior_evidence_ledger_artifacts",
+        "n_runtime_resume_prior_handoff_ledger_artifacts",
+        "n_runtime_resume_prior_evidence_ledger_rows",
+        "n_runtime_resume_prior_handoff_ledger_rows",
+    )
+    required_value = payload.get("runtime_resume_prior_ledger_continuity_required")
+    if required_value not in {True, False}:
+        return False
+    if payload.get("runtime_resume_prior_ledger_continuity_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_resume_prior_ledger_continuity_issues",
+    ):
+        return False
+    if required_value is False:
+        return True
+    return bool(
+        _safe_int(payload.get("n_runtime_resume_prior_evidence_ledger_artifacts")) > 0
+        and _safe_int(payload.get("n_runtime_resume_prior_handoff_ledger_artifacts"))
+        > 0
+        and _safe_int(payload.get("n_runtime_resume_prior_evidence_ledger_rows")) > 0
+        and _safe_int(payload.get("n_runtime_resume_prior_handoff_ledger_rows")) > 0
     )
 
 

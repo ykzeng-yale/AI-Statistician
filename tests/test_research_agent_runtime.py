@@ -4934,6 +4934,78 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     ]
     assert "handoff:architect-default-only" in stale_default_row["evidence"]
 
+    lineage_not_required_payload = dict(clean_payload)
+    lineage_not_required_payload.update(
+        {
+            "runtime_pending_task_handoff_lineage_required": False,
+            "runtime_pending_task_handoff_lineage_complete": True,
+            "pending_next_task_id": "",
+            "pending_task_source_handoff_id": "",
+            "pending_task_context_source_handoff_id": "",
+            "runtime_pending_task_expected_source_handoff_ids": [],
+            "n_runtime_pending_task_expected_source_handoffs": 0,
+            "n_runtime_pending_task_handoff_lineage_missing_fields": 0,
+            "n_runtime_pending_task_handoff_lineage_mismatched_fields": 0,
+            "runtime_pending_task_handoff_lineage_issues": [],
+        }
+    )
+    lineage_not_required_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(lineage_not_required_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        lineage_not_required_rows[
+            "runtime_pending_task_handoff_lineage_complete"
+        ]["passed"]
+        is True
+    )
+
+    lineage_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_pending_task_handoff_lineage_complete": True}
+        )["rows"]
+    }
+    assert (
+        lineage_boolean_only_rows[
+            "runtime_pending_task_handoff_lineage_complete"
+        ]["passed"]
+        is False
+    )
+    assert "required=None" in lineage_boolean_only_rows[
+        "runtime_pending_task_handoff_lineage_complete"
+    ]["evidence"]
+
+    lineage_success_payload = dict(lineage_not_required_payload)
+    lineage_success_payload.update(
+        {
+            "runtime_pending_task_handoff_lineage_required": True,
+            "pending_next_task_id": "simulate:q1",
+            "pending_task_source_handoff_id": "handoff:1:theory:q1->simulate:q1",
+            "pending_task_context_source_handoff_id": (
+                "handoff:1:theory:q1->simulate:q1"
+            ),
+            "runtime_pending_task_expected_source_handoff_ids": [
+                "handoff:1:theory:q1->simulate:q1"
+            ],
+            "n_runtime_pending_task_expected_source_handoffs": 1,
+        }
+    )
+    lineage_success_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(lineage_success_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        lineage_success_rows[
+            "runtime_pending_task_handoff_lineage_complete"
+        ]["passed"]
+        is True
+    )
+
     lineage_payload = dict(clean_payload)
     lineage_payload.update(
         {
@@ -4965,6 +5037,70 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "missing_fields=3" in lineage_row["evidence"]
     assert "pending task did not preserve the source" in lineage_row["blocker"]
     assert lineage_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+
+    prior_ledger_not_required_payload = dict(clean_payload)
+    prior_ledger_not_required_payload.update(
+        {
+            "runtime_resume_prior_ledger_continuity_required": False,
+            "runtime_resume_prior_ledger_continuity_complete": True,
+            "n_runtime_resume_prior_evidence_ledger_artifacts": 0,
+            "n_runtime_resume_prior_handoff_ledger_artifacts": 0,
+            "n_runtime_resume_prior_evidence_ledger_rows": 0,
+            "n_runtime_resume_prior_handoff_ledger_rows": 0,
+            "runtime_resume_prior_ledger_continuity_issues": [],
+        }
+    )
+    prior_ledger_not_required_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(prior_ledger_not_required_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        prior_ledger_not_required_rows[
+            "runtime_resume_prior_ledger_continuity_complete"
+        ]["passed"]
+        is True
+    )
+
+    prior_ledger_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_resume_prior_ledger_continuity_complete": True}
+        )["rows"]
+    }
+    assert (
+        prior_ledger_boolean_only_rows[
+            "runtime_resume_prior_ledger_continuity_complete"
+        ]["passed"]
+        is False
+    )
+    assert "required=None" in prior_ledger_boolean_only_rows[
+        "runtime_resume_prior_ledger_continuity_complete"
+    ]["evidence"]
+
+    prior_ledger_success_payload = dict(prior_ledger_not_required_payload)
+    prior_ledger_success_payload.update(
+        {
+            "runtime_resume_prior_ledger_continuity_required": True,
+            "n_runtime_resume_prior_evidence_ledger_artifacts": 1,
+            "n_runtime_resume_prior_handoff_ledger_artifacts": 1,
+            "n_runtime_resume_prior_evidence_ledger_rows": 3,
+            "n_runtime_resume_prior_handoff_ledger_rows": 2,
+        }
+    )
+    prior_ledger_success_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(prior_ledger_success_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        prior_ledger_success_rows[
+            "runtime_resume_prior_ledger_continuity_complete"
+        ]["passed"]
+        is True
+    )
 
     prior_ledger_payload = dict(clean_payload)
     prior_ledger_payload.update(
