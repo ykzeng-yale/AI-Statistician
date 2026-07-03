@@ -61766,6 +61766,67 @@ def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_ha
     )
 
 
+@pytest.mark.parametrize(
+    (
+        "required_key",
+        "upstream_key",
+        "ran_key",
+        "requirement_id",
+    ),
+    [
+        (
+            "source_theorem_exact_semantic_definition_source_lookup_required",
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+            "source_theorem_exact_semantic_definition_source_lookup_ran",
+            "exact_semantic_definition_source_lookup_handoff_not_dropped",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_required",
+            "source_theorem_exact_semantic_definition_n_closure_review_packets",
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_ran",
+            "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_required",
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_lean_repair_executor_ran",
+            "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
+        ),
+    ],
+)
+@pytest.mark.parametrize("required_value", [None, False])
+def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_telemetry_gap(
+    required_value: bool | None,
+    required_key: str,
+    upstream_key: str,
+    ran_key: str,
+    requirement_id: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        upstream_key: 1,
+        ran_key: True,
+    }
+    if required_value is not None:
+        payload[required_key] = required_value
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[requirement_id]["passed"] is False
+    assert "explicit handoff telemetry" in rows[requirement_id]["blocker"]
+
+
 @pytest.mark.parametrize("requested_value", [None, False])
 def test_runtime_capability_scorecard_flags_post_adapter_exact_executor_request_telemetry_gap(
     requested_value: bool | None,

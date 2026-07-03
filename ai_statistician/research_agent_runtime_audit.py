@@ -11740,6 +11740,78 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
         is True
     )
+    exact_semantic_source_lookup_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_required_value = payload.get(
+        "source_theorem_exact_semantic_definition_source_lookup_required"
+    )
+    exact_semantic_source_lookup_required_present = (
+        exact_semantic_source_lookup_required_value is True
+        or exact_semantic_source_lookup_required_value is False
+    )
+    exact_semantic_source_lookup_required = (
+        exact_semantic_source_lookup_required_value is True
+    )
+    exact_semantic_source_lookup_ran = (
+        payload.get("source_theorem_exact_semantic_definition_source_lookup_ran")
+        is True
+    )
+    exact_semantic_source_lookup_handoff_required = (
+        exact_semantic_source_lookup_work_orders > 0
+    )
+    exact_semantic_bridge_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_n_closure_review_packets",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_required_value = payload.get(
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
+    )
+    exact_semantic_bridge_required_present = (
+        exact_semantic_bridge_required_value is True
+        or exact_semantic_bridge_required_value is False
+    )
+    exact_semantic_bridge_required = exact_semantic_bridge_required_value is True
+    exact_semantic_bridge_ran = (
+        payload.get("source_theorem_exact_semantic_definition_proofengineer_bridge_ran")
+        is True
+    )
+    exact_semantic_bridge_handoff_required = (
+        exact_semantic_bridge_review_packets > 0
+    )
+    exact_semantic_lean_repair_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_required_value = payload.get(
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+    )
+    exact_semantic_lean_repair_required_present = (
+        exact_semantic_lean_repair_required_value is True
+        or exact_semantic_lean_repair_required_value is False
+    )
+    exact_semantic_lean_repair_required = (
+        exact_semantic_lean_repair_required_value is True
+    )
+    exact_semantic_lean_repair_ran = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_ran"
+        )
+        is True
+    )
+    exact_semantic_lean_repair_handoff_required = (
+        exact_semantic_lean_repair_tasks > 0
+    )
     post_adapter_exact_repair_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback",
@@ -13699,17 +13771,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "exact_semantic_definition_source_lookup_handoff_not_dropped",
-            (
-                payload.get("source_theorem_exact_semantic_definition_source_lookup_required")
-                is not True
-            )
+            (not exact_semantic_source_lookup_handoff_required)
             or (
-                payload.get("source_theorem_exact_semantic_definition_source_lookup_ran")
-                is True
+                exact_semantic_source_lookup_required_present
+                and exact_semantic_source_lookup_required
+                and exact_semantic_source_lookup_ran
             ),
             (
                 "work_orders="
                 f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
+                "handoff_required="
+                f"{exact_semantic_source_lookup_handoff_required} "
+                "required_telemetry_present="
+                f"{exact_semantic_source_lookup_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
                 "ran="
@@ -13717,25 +13791,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}"
             ),
-            "exact semantic-definition work orders were generated but source lookup did not run",
+            (
+                "exact semantic-definition work orders were generated but source "
+                "lookup did not run with explicit handoff telemetry"
+            ),
         ),
         _scorecard_row(
             "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
-            (
-                payload.get(
-                    "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
-                )
-                is not True
-            )
+            (not exact_semantic_bridge_handoff_required)
             or (
-                payload.get(
-                    "source_theorem_exact_semantic_definition_proofengineer_bridge_ran"
-                )
-                is True
+                exact_semantic_bridge_required_present
+                and exact_semantic_bridge_required
+                and exact_semantic_bridge_ran
             ),
             (
                 "review_packets="
                 f"{payload.get('source_theorem_exact_semantic_definition_n_closure_review_packets')} "
+                "handoff_required="
+                f"{exact_semantic_bridge_handoff_required} "
+                "required_telemetry_present="
+                f"{exact_semantic_bridge_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_required')} "
                 "ran="
@@ -13743,25 +13818,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason')}"
             ),
-            "source lookup produced exact semantic-definition review packets but the ProofEngineer bridge did not run",
+            (
+                "source lookup produced exact semantic-definition review packets "
+                "but the ProofEngineer bridge did not run with explicit handoff "
+                "telemetry"
+            ),
         ),
         _scorecard_row(
             "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
-            (
-                payload.get(
-                    "source_theorem_exact_semantic_definition_lean_repair_executor_required"
-                )
-                is not True
-            )
+            (not exact_semantic_lean_repair_handoff_required)
             or (
-                payload.get(
-                    "source_theorem_exact_semantic_definition_lean_repair_executor_ran"
-                )
-                is True
+                exact_semantic_lean_repair_required_present
+                and exact_semantic_lean_repair_required
+                and exact_semantic_lean_repair_ran
             ),
             (
                 "lean_tasks="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks')} "
+                "handoff_required="
+                f"{exact_semantic_lean_repair_handoff_required} "
+                "required_telemetry_present="
+                f"{exact_semantic_lean_repair_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_required')} "
                 "ran="
@@ -13771,7 +13848,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "local_lean_requested="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')}"
             ),
-            "ProofEngineer bridge produced exact semantic-definition Lean repair tasks but the Lean repair executor did not run",
+            (
+                "ProofEngineer bridge produced exact semantic-definition Lean "
+                "repair tasks but the Lean repair executor did not run with "
+                "explicit handoff telemetry"
+            ),
         ),
         _scorecard_row(
             "exact_semantic_definition_authoring_worker_handoff_not_dropped",
