@@ -937,6 +937,20 @@ recorded in
 This is still non-proof repair feedback; the source theorem and exact semantic
 definitions remain unproved.
 
+The follow-up patch connects that feedback to the actual local Lean project
+rather than a prompt-only warning. Exact semantic-definition authoring now scans
+the configured Lake project's compiled `.olean` cache and reports a bounded
+`project_verified_import_inventory` in each prompt packet. The repaired `C_n`
+handoff now preserves `candidate_lean_project_hint=legacy_sources/emperical_process_lean`,
+so the prompt can say which candidate imports are compiled locally and which
+are not. A live repair using this context avoided the unverified
+`Mathlib.Algebra.Order.Archimedean` import and failed one layer deeper on the
+real unknown identifier `Int.ceil`; the next dry-run prompt records
+`unknown_identifiers_from_last_check=[Int.ceil]` with no unavailable imports.
+This is the desired direction: compiler and project-inventory facts drive the
+repair loop, while source theorem proof remains gated until local Lean/AXLE
+verifies an exact reviewed definition.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

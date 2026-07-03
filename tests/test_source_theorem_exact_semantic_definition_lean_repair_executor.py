@@ -988,6 +988,8 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
     tmp_path: Path,
 ) -> None:
     tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    lean_project = tmp_path / "LeanProject"
+    lean_project.mkdir()
     definition_only_candidate = tmp_path / "candidate_defs_only.lean"
     definition_only_candidate.write_text(
         "import Mathlib.Data.Real.Basic\n\n"
@@ -1018,6 +1020,7 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
         out_dir=tmp_path / "executor",
         tasks_jsonl=tasks_path,
         local_lean=True,
+        lean_project=lean_project,
         lean_command=(
             sys.executable,
             "-c",
@@ -1038,6 +1041,7 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LEAN_IMPORT_ENVIRONMENT_MISSING"
     )
     assert results[0]["failure_classification"] == "lean_import_environment_missing"
+    assert results[0]["candidate_lean_project_hint"] == str(lean_project)
     assert "Lake project" in results[0]["recommended_next_action"]
     assert "proof-body search" in results[0]["recommended_next_action"]
     assert results[0]["source_theorem_kernel_verified"] is False
@@ -1077,6 +1081,7 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
     assert authoring_tasks[0]["failure_classification"] == (
         "lean_import_environment_missing"
     )
+    assert authoring_tasks[0]["candidate_lean_project_hint"] == str(lean_project)
     assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
         definition_only_candidate
     )
@@ -1089,6 +1094,9 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
     assert authoring_tasks[0]["candidate_repair_feedback"][
         "failure_classification"
     ] == "lean_import_environment_missing"
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "candidate_lean_project_hint"
+    ] == str(lean_project)
     assert "unknown module prefix" in "\n".join(
         authoring_tasks[0]["candidate_repair_feedback"]["local_lean_diagnostics"]
     )

@@ -585,6 +585,9 @@ def _execution_result(
     ):
         effective_lean_project = candidate_lean_project_hint
         effective_lean_command = _lean_command(candidate_lean_project_hint)
+    reported_candidate_lean_project_hint = (
+        candidate_lean_project_hint or effective_lean_project
+    )
     checked = False
     compiled = False
     returncode = -1
@@ -794,7 +797,7 @@ def _execution_result(
         "semantic_import_blocker": semantic_import_blocker,
         "candidate_source_file": str(candidate_path) if candidate_raw_path else "",
         "candidate_source_file_resolved": source_file_resolved,
-        "candidate_lean_project_hint": str(candidate_lean_project_hint or ""),
+        "candidate_lean_project_hint": str(reported_candidate_lean_project_hint or ""),
         "source_theorem_exact_semantic_definition_typechecked_candidate": (
             typechecked_definition_candidate
         ),

@@ -366,6 +366,87 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     )
 
 
+def test_authoring_worker_prompt_contract_reports_project_verified_import_inventory(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    project = tmp_path / "LeanProject"
+    compiled_root = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+    )
+    for module in [
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Data.Int.Basic",
+        "Mathlib.Data.Real.Archimedean",
+    ]:
+        path = compiled_root / Path(*module.split(".")).with_suffix(".olean")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"")
+    candidate = tmp_path / "candidate_defs_only.lean"
+    candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n"
+        "import Mathlib.Data.Int.Order\n\n"
+        "def reviewedCovered : Nat := 0\n",
+        encoding="utf-8",
+    )
+    row = json.loads(tasks_path.read_text(encoding="utf-8"))
+    row["candidate_lean_project_hint"] = str(project)
+    row["definition_only_candidate_artifact_path"] = str(candidate)
+    row["candidate_artifact_path"] = str(candidate)
+    row["local_lean_diagnostics"] = [
+        (
+            f"{candidate}:2:0: error: object file "
+            f"'{compiled_root / 'Mathlib' / 'Data' / 'Int' / 'Order.olean'}' "
+            "of module Mathlib.Data.Int.Order does not exist"
+        )
+    ]
+    tasks_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"]).read_text().splitlines()
+    ]
+    contract = prompt_packets[0]["lean_authoring_environment_contract"]
+    inventory = contract["project_verified_import_inventory"]
+    assert inventory["project_import_inventory_status"] == "available"
+    assert inventory["compiled_import_module_count"] == 3
+    assert inventory["candidate_import_modules"] == [
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Data.Int.Order",
+    ]
+    assert inventory["verified_candidate_import_modules"] == [
+        "Mathlib.Data.Real.Basic"
+    ]
+    assert inventory["unverified_candidate_import_modules"] == [
+        "Mathlib.Data.Int.Order"
+    ]
+    nearest = inventory["nearby_verified_import_modules_by_unavailable_import"][0]
+    assert nearest["unavailable_import"] == "Mathlib.Data.Int.Order"
+    assert "Mathlib.Data.Int.Basic" in nearest["nearest_verified_modules"]
+    assert any(
+        "unverified_candidate_import_modules" in row
+        for row in contract["repair_policy"]
+    )
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    assert prompt_payload["lean_authoring_environment_contract"][
+        "project_verified_import_inventory"
+    ] == inventory
+
+
 def test_authoring_worker_preserves_review_decision_without_proof_body_readiness(
     tmp_path: Path,
 ) -> None:

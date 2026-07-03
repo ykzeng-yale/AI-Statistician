@@ -70,6 +70,7 @@ BOUNDARY = (
     "be materialized and checked by local Lean/AXLE before it can be used by "
     "source theorem proof-body execution."
 )
+LEAN_PROJECT_IMPORT_INVENTORY_LIMIT = 16
 SYSTEM_PROMPT = (
     "You are the AI Statistician Formalizer/ProofEngineer authoring worker. "
     "Your task is to propose exact Lean semantic definitions from the given "
@@ -1025,6 +1026,196 @@ def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _lean_project_import_inventory_contract(
+    task: Mapping[str, Any],
+    *,
+    lean_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    feedback = _candidate_repair_feedback(task)
+    project_raw = str(feedback.get("candidate_lean_project_hint", "") or "").strip()
+    project = Path(project_raw).expanduser() if project_raw else Path()
+    candidate_path = _first_existing_path(
+        [
+            feedback.get("definition_only_candidate_artifact_path", ""),
+            feedback.get("candidate_artifact_path", ""),
+            feedback.get("candidate_source_file", ""),
+            task.get("definition_only_candidate_artifact_path", ""),
+            task.get("candidate_artifact_path", ""),
+            task.get("candidate_source_file", ""),
+        ]
+    )
+    candidate_imports = _candidate_import_modules_from_path(candidate_path)
+    unavailable_imports = _string_list(
+        lean_feedback.get("unavailable_imports_from_last_check", [])
+    )
+    if not project_raw:
+        status = "no_project_hint"
+        compiled_modules: list[str] = []
+    elif not project.exists():
+        status = "project_missing"
+        compiled_modules = []
+    else:
+        compiled_modules = _compiled_import_modules_for_project(project)
+        status = "available" if compiled_modules else "compiled_import_cache_missing"
+    compiled_set = set(compiled_modules)
+    verified_candidate_imports = [
+        module for module in candidate_imports if module in compiled_set
+    ]
+    unverified_candidate_imports = [
+        module for module in candidate_imports if module not in compiled_set
+    ]
+    source_available_candidate_imports = [
+        module for module in candidate_imports if _lean_module_source_exists(project, module)
+    ]
+    source_available_unavailable_imports = [
+        module
+        for module in unavailable_imports
+        if _lean_module_source_exists(project, module)
+    ]
+    nearest_rows = [
+        {
+            "unavailable_import": module,
+            "nearest_verified_modules": _nearest_verified_import_modules(
+                module,
+                compiled_modules,
+                limit=LEAN_PROJECT_IMPORT_INVENTORY_LIMIT,
+            ),
+        }
+        for module in unavailable_imports
+    ]
+    return {
+        "project_import_inventory_status": status,
+        "project_path": str(project) if project_raw else "",
+        "candidate_file": str(candidate_path) if candidate_path is not None else "",
+        "compiled_import_module_count": len(compiled_modules),
+        "candidate_import_modules": candidate_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT],
+        "verified_candidate_import_modules": (
+            verified_candidate_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT]
+        ),
+        "unverified_candidate_import_modules": (
+            unverified_candidate_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT]
+        ),
+        "source_available_candidate_import_modules": (
+            source_available_candidate_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT]
+        ),
+        "source_available_unavailable_import_modules": (
+            source_available_unavailable_imports[:LEAN_PROJECT_IMPORT_INVENTORY_LIMIT]
+        ),
+        "nearby_verified_import_modules_by_unavailable_import": nearest_rows,
+        "inventory_scope": (
+            "bounded compiled .olean module inventory plus direct source-file "
+            "existence checks from the configured Lake project"
+        ),
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _first_existing_path(values: Sequence[Any]) -> Path | None:
+    fallback: Path | None = None
+    for value in values:
+        raw = str(value or "").strip()
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        if fallback is None:
+            fallback = path
+        if path.exists():
+            return path
+    return fallback
+
+
+def _candidate_import_modules_from_path(path: Path | None) -> list[str]:
+    if path is None or not path.exists() or not path.is_file():
+        return []
+    try:
+        return _split_leading_import_lines(path.read_text(encoding="utf-8"))[0]
+    except OSError:
+        return []
+    except UnicodeDecodeError:
+        return []
+
+
+def _compiled_import_modules_for_project(project: Path) -> list[str]:
+    roots = [
+        project / ".lake" / "build" / "lib" / "lean",
+        project / ".lake" / "packages" / "mathlib" / ".lake" / "build" / "lib" / "lean",
+    ]
+    modules: list[str] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.olean"):
+            module = _lean_module_from_path(root, path, suffix=".olean")
+            if module and module not in modules:
+                modules.append(module)
+    return sorted(modules)
+
+
+def _lean_module_source_exists(project: Path, module: str) -> bool:
+    if not str(project) or not project.exists() or not module:
+        return False
+    module_path = Path(*module.split(".")).with_suffix(".lean")
+    candidates = [
+        project / module_path,
+        project / ".lake" / "packages" / "mathlib" / module_path,
+    ]
+    return any(path.exists() for path in candidates)
+
+
+def _lean_module_from_path(root: Path, path: Path, *, suffix: str) -> str:
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return ""
+    raw = str(relative)
+    if suffix and raw.endswith(suffix):
+        raw = raw[: -len(suffix)]
+    return ".".join(part for part in Path(raw).parts if part)
+
+
+def _nearest_verified_import_modules(
+    module: str,
+    compiled_modules: Sequence[str],
+    *,
+    limit: int,
+) -> list[str]:
+    if limit <= 0 or not module or not compiled_modules:
+        return []
+    scored = [
+        (_lean_import_similarity_score(module, candidate), candidate)
+        for candidate in compiled_modules
+    ]
+    scored = [(score, candidate) for score, candidate in scored if score > 0]
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [candidate for _, candidate in scored[:limit]]
+
+
+def _lean_import_similarity_score(target: str, candidate: str) -> int:
+    target_parts = [part.lower() for part in target.split(".") if part]
+    candidate_parts = [part.lower() for part in candidate.split(".") if part]
+    if not target_parts or not candidate_parts:
+        return 0
+    score = 0
+    for left, right in zip(target_parts, candidate_parts):
+        if left != right:
+            break
+        score += 8
+    for left, right in zip(reversed(target_parts), reversed(candidate_parts)):
+        if left != right:
+            break
+        score += 10
+    overlap = set(target_parts) & set(candidate_parts)
+    score += 4 * len(overlap)
+    if target_parts[-1] == candidate_parts[-1]:
+        score += 16
+    if len(target_parts) >= 2 and len(candidate_parts) >= 2:
+        if target_parts[-2:] == candidate_parts[-2:]:
+            score += 12
+        if target_parts[:2] == candidate_parts[:2]:
+            score += 10
+    return score
+
+
 def _lean_unknown_identifiers_from_diagnostics(
     diagnostics: Sequence[str],
 ) -> list[str]:
@@ -1125,6 +1316,10 @@ def _lean_authoring_environment_contract(
 
     source_binders = list(task.get("exact_source_theorem_binders", []) or [])
     lean_feedback = _lean_feedback_contract(task)
+    import_inventory = _lean_project_import_inventory_contract(
+        task,
+        lean_feedback=lean_feedback,
+    )
     repair_policy = [
         (
             "Treat local Lean diagnostics as hard feedback about the configured "
@@ -1149,6 +1344,16 @@ def _lean_authoring_environment_contract(
                 "Imports reported unavailable by the last local Lean check must "
                 "not be reintroduced unless a later verified project inventory "
                 "shows the module exists."
+            )
+        )
+    if import_inventory["unverified_candidate_import_modules"]:
+        repair_policy.append(
+            (
+                "Imports listed in unverified_candidate_import_modules did not "
+                "appear in the compiled local project inventory. Do not treat "
+                "nearby_verified_import_modules_by_unavailable_import as API "
+                "evidence; use them only as lookup targets for source/RAG/local "
+                "Lean checks."
             )
         )
     required_anchor_names = [
@@ -1182,6 +1387,11 @@ def _lean_authoring_environment_contract(
                 "imports as unverified: prefer existing candidate imports, source "
                 "reference imports, or known_gaps over speculative import names."
             ),
+            (
+                "When project_verified_import_inventory is available, required_imports "
+                "should be limited to verified_candidate_import_modules unless "
+                "known_gaps explicitly records the missing import/API."
+            ),
         ],
         "binder_policy": [
             (
@@ -1207,7 +1417,8 @@ def _lean_authoring_environment_contract(
             ),
         ],
         "local_lean_feedback": lean_feedback,
-        "verified_local_project_import_inventory": [],
+        "project_verified_import_inventory": import_inventory,
+        "verified_local_project_import_inventory": import_inventory,
         "repair_policy": repair_policy,
     }
 
