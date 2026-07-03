@@ -12865,13 +12865,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         + source_theorem_formal_environment_bridge_proof_body_work_orders
         + source_theorem_formal_environment_bridge_proof_body_queue_rows
     )
-    formal_environment_proof_body_executor_result_rows = int(
-        payload.get(
-            "source_theorem_formal_environment_proof_body_executor_n_result_rows",
-            0,
-        )
-        or 0
-    )
     post_adapter_exact_repair_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback",
@@ -15129,14 +15122,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_proof_body_executor_ran",
-            payload.get("source_theorem_formal_environment_proof_body_executor_ran")
-            is True
-            and formal_environment_proof_body_executor_result_rows > 0,
+            proof_body_result_row_count > 0,
             (
-                "ran="
+                "formal_environment_ran="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_ran')} "
-                "n_rows="
-                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')}"
+                "formal_environment_rows="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')} "
+                "proof_body_result_rows="
+                f"{proof_body_result_row_count}"
             ),
             (
                 "exact source-theorem proof-body executor did not run inside the "
