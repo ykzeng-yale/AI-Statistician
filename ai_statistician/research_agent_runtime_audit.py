@@ -14600,11 +14600,24 @@ def _runtime_handoff_transition_summary_scorecard_passed(
         return False
     if not runtime_handoff_trace_alignment_ok:
         return False
-    if runtime_task_handoff_trace_rows <= 0:
-        return True
     if not runtime_handoff_transition_manifest_present:
         return False
     if not isinstance(runtime_handoff_transition_summary_payload, Mapping):
+        return False
+    required_keys = (
+        "n_transition_rows",
+        "n_trace_handoff_ids",
+        "n_handoff_ledger_rows",
+        "n_trace_handoff_ids_missing_from_ledger",
+        "n_ledger_handoff_ids_missing_from_traces",
+        "handoff_trace_alignment_ok",
+        "trace_handoff_ids_missing_from_ledger",
+        "ledger_handoff_ids_missing_from_traces",
+    )
+    if any(
+        key not in runtime_handoff_transition_summary_payload
+        for key in required_keys
+    ):
         return False
     n_transition_rows = _safe_int(
         runtime_handoff_transition_summary_payload.get("n_transition_rows")

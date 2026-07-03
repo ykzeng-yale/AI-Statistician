@@ -4707,6 +4707,59 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         is True
     )
 
+    clean_zero_transition_payload = {
+        "n_runtime_task_handoff_trace_rows": 0,
+        "runtime_handoff_transition_manifest_present": True,
+        "runtime_handoff_transition_manifest_stale": False,
+        "runtime_handoff_trace_alignment_ok": True,
+        "n_runtime_handoff_transition_rows": 0,
+        "n_runtime_task_handoff_ledger_rows": 0,
+        "runtime_handoff_transition_summary": {
+            "n_transition_rows": 0,
+            "n_trace_handoff_ids": 0,
+            "n_handoff_ledger_rows": 0,
+            "n_trace_handoff_ids_missing_from_ledger": 0,
+            "n_ledger_handoff_ids_missing_from_traces": 0,
+            "handoff_trace_alignment_ok": True,
+            "trace_handoff_ids_missing_from_ledger": [],
+            "ledger_handoff_ids_missing_from_traces": [],
+        },
+    }
+    clean_zero_transition_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            clean_zero_transition_payload
+        )["rows"]
+    }
+    assert (
+        clean_zero_transition_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is True
+    )
+
+    boolean_zero_transition_payload = {
+        "n_runtime_task_handoff_trace_rows": 0,
+        "runtime_handoff_transition_manifest_present": True,
+        "runtime_handoff_transition_manifest_stale": False,
+        "runtime_handoff_trace_alignment_ok": True,
+    }
+    boolean_zero_transition_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            boolean_zero_transition_payload
+        )["rows"]
+    }
+    assert (
+        boolean_zero_transition_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is False
+    )
+    assert "summary_rows=None" in boolean_zero_transition_rows[
+        "runtime_handoff_transition_summary_audited"
+    ]["evidence"]
+
     handoff_boolean_only_rows = {
         row["requirement_id"]: row
         for row in _runtime_capability_scorecard(
