@@ -11521,6 +11521,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "kernel_verified": bool(
                     local_lean_result.get("local_lean_compiled", False)
                 ),
+                **_formalizer_candidate_kernel_scope_fields(
+                    local_lean_compiled=local_lean_compiled
+                ),
                 "source_theorem_target_known": source_theorem_target_known,
                 "diagnostic_helper_not_source_theorem": (
                     diagnostic_helper_not_source_theorem
@@ -11633,6 +11636,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "n_live_proof_state_requests": len(live_proof_state_request_rows),
         "n_lean_lsp_mcp_ready_requests": len(lean_lsp_mcp_ready_rows),
         "kernel_verified": bool(local_compiled_rows),
+        "candidate_kernel_verified": bool(local_compiled_rows),
+        "local_lean_compiled_observed": bool(local_compiled_rows),
+        "kernel_verified_scope": "candidate_artifact_only",
+        "kernel_verified_boundary": FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY,
         "source_theorem_kernel_verified": False,
         "lean_project": str(lean_project or ""),
         "lean_timeout": lean_timeout,
@@ -11809,6 +11816,18 @@ def _formalizer_candidate_proof_boundary(
     )
 
 
+def _formalizer_candidate_kernel_scope_fields(
+    *,
+    local_lean_compiled: bool,
+) -> dict[str, Any]:
+    return {
+        "candidate_kernel_verified": bool(local_lean_compiled),
+        "local_lean_compiled_observed": bool(local_lean_compiled),
+        "kernel_verified_scope": "candidate_artifact_only",
+        "kernel_verified_boundary": FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY,
+    }
+
+
 def _formalizer_candidate_support_not_source_theorem(candidate_kind: str) -> bool:
     return candidate_kind in {
         "source_to_bridge_premise_derivation_candidate",
@@ -11860,6 +11879,11 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             source_theorem_candidate_evidence_eligible
         )
         candidate["kernel_verified"] = local_lean_compiled
+        candidate.update(
+            _formalizer_candidate_kernel_scope_fields(
+                local_lean_compiled=local_lean_compiled
+            )
+        )
         candidate["proof_evidence_status"] = _formalizer_candidate_proof_evidence_status(
             local_lean_compiled=local_lean_compiled,
             diagnostic_helper_not_source_theorem=(
@@ -11945,6 +11969,10 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         len(lean_lsp_mcp_ready_rows),
     )
     normalized["kernel_verified"] = bool(local_compiled_rows)
+    normalized["candidate_kernel_verified"] = bool(local_compiled_rows)
+    normalized["local_lean_compiled_observed"] = bool(local_compiled_rows)
+    normalized["kernel_verified_scope"] = "candidate_artifact_only"
+    normalized["kernel_verified_boundary"] = FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY
     normalized["source_theorem_kernel_verified"] = False
     normalized["proof_evidence_status"] = (
         "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
@@ -12542,6 +12570,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     ),
                 },
                 "kernel_verified": local_lean_compiled,
+                **_formalizer_candidate_kernel_scope_fields(
+                    local_lean_compiled=local_lean_compiled
+                ),
                 "proof_evidence_status": (
                     _formalizer_candidate_proof_evidence_status(
                         local_lean_compiled=local_lean_compiled,

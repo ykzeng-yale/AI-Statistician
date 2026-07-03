@@ -15574,6 +15574,8 @@ def test_formalization_materializes_llm_lean_candidate_artifacts(tmp_path: Path)
     assert materialization["n_candidate_sources"] == 1
     assert materialization["n_candidate_artifacts_written"] == 1
     assert materialization["kernel_verified"] is False
+    assert materialization["candidate_kernel_verified"] is False
+    assert materialization["kernel_verified_scope"] == "candidate_artifact_only"
     materialization_manifest_path = Path(materialization["manifest_path"])
     assert materialization_manifest_path.exists()
     materialization_manifest = json.loads(
@@ -15581,10 +15583,16 @@ def test_formalization_materializes_llm_lean_candidate_artifacts(tmp_path: Path)
     )
     assert materialization_manifest["manifest_id"] == materialization["manifest_id"]
     assert materialization_manifest["n_candidate_artifacts_written"] == 1
+    assert materialization_manifest["candidate_kernel_verified"] is False
+    assert materialization_manifest["kernel_verified_scope"] == (
+        "candidate_artifact_only"
+    )
     assert materialization_manifest["proof_evidence_status"] == (
         "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
     )
     assert candidate_row["local_lean_attempted"] is False
+    assert candidate_row["candidate_kernel_verified"] is False
+    assert candidate_row["kernel_verified_scope"] == "candidate_artifact_only"
     assert candidate_row["proof_evidence_status"] == (
         "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
     )
@@ -15609,6 +15617,8 @@ def test_formalization_materializes_llm_lean_candidate_artifacts(tmp_path: Path)
     )
     assert Path(learning_rows[0]["source_manifest_path"]) == materialization_manifest_path
     assert learning_rows[0]["kernel_verified"] is False
+    assert learning_rows[0]["candidate_kernel_verified"] is False
+    assert learning_rows[0]["kernel_verified_scope"] == "candidate_artifact_only"
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
 
 
@@ -15650,14 +15660,24 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     assert manifest["n_local_lean_checked"] == 1
     assert manifest["n_local_lean_compiled"] == 1
     assert manifest["kernel_verified"] is True
+    assert manifest["candidate_kernel_verified"] is True
+    assert manifest["local_lean_compiled_observed"] is True
+    assert manifest["kernel_verified_scope"] == "candidate_artifact_only"
+    assert "not source-theorem proof evidence" in manifest[
+        "kernel_verified_boundary"
+    ]
     manifest_path = Path(manifest["manifest_path"])
     assert manifest_path.exists()
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest_payload["n_local_lean_checked"] == 1
     assert manifest_payload["n_local_lean_compiled"] == 1
     assert manifest_payload["kernel_verified"] is True
+    assert manifest_payload["candidate_kernel_verified"] is True
+    assert manifest_payload["kernel_verified_scope"] == "candidate_artifact_only"
     assert row["local_lean_attempted"] is True
     assert row["local_lean_compiled"] is True
+    assert row["candidate_kernel_verified"] is True
+    assert row["kernel_verified_scope"] == "candidate_artifact_only"
     assert row["local_lean_exit_status"] == "0"
     assert row["proof_evidence_status"] == (
         "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
@@ -15669,6 +15689,8 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     assert len(learning_rows) == 1
     assert Path(learning_rows[0]["source_manifest_path"]) == manifest_path
     assert learning_rows[0]["kernel_verified"] is True
+    assert learning_rows[0]["candidate_kernel_verified"] is True
+    assert learning_rows[0]["kernel_verified_scope"] == "candidate_artifact_only"
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
     assert learning_rows[0]["local_lean_diagnostic_classes"] == []
     assert learning_rows[0]["local_lean_repair_contract"] == {}
@@ -15717,6 +15739,8 @@ def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
     assert row["candidate_kind"] == "source_to_bridge_premise_derivation_candidate"
     assert row["local_lean_compiled"] is True
     assert row["kernel_verified"] is True
+    assert row["candidate_kernel_verified"] is True
+    assert row["kernel_verified_scope"] == "candidate_artifact_only"
     assert row["support_candidate_not_source_theorem"] is True
     assert row["source_theorem_candidate_evidence_eligible"] is False
     assert row["proof_evidence_status"] == (
@@ -15727,6 +15751,8 @@ def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
         "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
     )
     assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["candidate_kernel_verified"] is True
+    assert manifest["kernel_verified_scope"] == "candidate_artifact_only"
     assert manifest["n_local_lean_compiled_support_candidates"] == 1
     assert manifest["n_local_lean_compiled_source_theorem_candidates"] == 0
     assert manifest["source_theorem_kernel_verified"] is False
@@ -15739,6 +15765,8 @@ def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
     )
 
     assert learning_rows[0]["support_candidate_not_source_theorem"] is True
+    assert learning_rows[0]["candidate_kernel_verified"] is True
+    assert learning_rows[0]["kernel_verified_scope"] == "candidate_artifact_only"
     assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is False
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
     assert learning_rows[0]["memory_status"] == (
@@ -15802,6 +15830,8 @@ def test_runtime_normalizes_stale_source_to_bridge_materialization_artifact() ->
     row = normalized["candidate_rows"][0]
 
     assert row["support_candidate_not_source_theorem"] is True
+    assert row["candidate_kernel_verified"] is True
+    assert row["kernel_verified_scope"] == "candidate_artifact_only"
     assert row["source_theorem_candidate_evidence_eligible"] is False
     assert row["proof_evidence_status"] == (
         "FORMALIZER_SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_"
@@ -15811,6 +15841,8 @@ def test_runtime_normalizes_stale_source_to_bridge_materialization_artifact() ->
         "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
     )
     assert normalized["n_local_lean_compiled_support_candidates"] == 1
+    assert normalized["candidate_kernel_verified"] is True
+    assert normalized["kernel_verified_scope"] == "candidate_artifact_only"
     assert normalized["n_local_lean_compiled_source_theorem_candidates"] == 0
     assert normalized["source_theorem_kernel_verified"] is False
     assert normalized["source_theorem_proof_evidence_status"] == (
@@ -15822,6 +15854,8 @@ def test_runtime_normalizes_stale_source_to_bridge_materialization_artifact() ->
     )
 
     assert learning_rows[0]["support_candidate_not_source_theorem"] is True
+    assert learning_rows[0]["candidate_kernel_verified"] is True
+    assert learning_rows[0]["kernel_verified_scope"] == "candidate_artifact_only"
     assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is False
     assert learning_rows[0]["source_theorem_proof_evidence_status"] == (
         "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
