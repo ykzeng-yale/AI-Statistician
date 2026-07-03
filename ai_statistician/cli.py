@@ -10938,6 +10938,9 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled"
     ] = int(attached["local_lean_compiled"])
     manifest[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows"
+    ] = int(attached["prior_feedback_proof_state_rows"])
+    manifest[
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls"
     ] = int(attached["prior_feedback_local_lean_tool_calls"])
     manifest[

@@ -29596,6 +29596,31 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
 
     assert audit["n_integrated_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_lean_lsp_mcp_live_calls"] == 0
+    assert audit["n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls"] == 0
+    assert (
+        audit[
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
+        ]
+        == 3
+    )
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is False
+
+    manifest["internal_formalizer_lean_candidate_repair_eval"][
+        "prior_feedback_proof_state_counts"
+    ]["rows"] = 1
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit_rows")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    assert audit["n_integrated_lean_lsp_mcp_live_calls"] == 0
+    assert audit["n_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls"] == 3
     assert (
         audit[
@@ -59350,6 +59375,25 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
     assert rows[
         "formalizer_live_prover_tool_component_calibration"
+    ]["passed"] is False
+    assert "attached_prior_feedback_proof_state_rows=0" in rows[
+        "formalizer_live_prover_tool_component_calibration"
+    ]["evidence"]
+
+    payload[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows"
+    ] = 1
+    payload[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls"
+    ] = 4
+    payload[
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls"
+    ] = 1
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert rows[
+        "formalizer_live_prover_tool_component_calibration"
     ]["passed"] is True
     assert "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls=3" in (
         rows["formalizer_live_prover_tool_call_observed"]["evidence"]
@@ -59693,7 +59737,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": 2,
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
         "n_real_kernel_verified_subclaims": 1,
@@ -61467,7 +61514,10 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": 1,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 3,
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": 4,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -66935,6 +66985,12 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest[
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
     ] is True
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows"
+        ]
+        == 1
+    )
     assert (
         manifest[
             "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"

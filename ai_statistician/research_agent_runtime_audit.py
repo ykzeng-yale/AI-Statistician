@@ -2886,6 +2886,13 @@ def audit_research_agent_runtime(
         )
         else {}
     )
+    attached_formalizer_prior_feedback_proof_state_rows = int(
+        attached_formalizer_repair_eval.get(
+            "prior_feedback_proof_state_rows",
+            attached_formalizer_proof_state_counts.get("rows", 0),
+        )
+        or 0
+    )
     attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls = int(
         attached_formalizer_repair_eval.get(
             "prior_feedback_lean_lsp_mcp_tool_calls",
@@ -2907,10 +2914,17 @@ def audit_research_agent_runtime(
         )
         or 0
     )
+    attached_formalizer_prior_feedback_lsp_trace_ready = (
+        bool(attached_formalizer_repair_summary["live_generator"])
+        and not bool(attached_formalizer_repair_summary["static_or_fixture_only"])
+        and attached_formalizer_prior_feedback_proof_state_rows > 0
+        and attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls > 0
+        and attached_formalizer_prior_feedback_executed_tool_calls
+        >= attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls
+    )
     attached_formalizer_prior_feedback_live_lsp_calls = (
         attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls
-        if bool(attached_formalizer_repair_summary["live_generator"])
-        and not bool(attached_formalizer_repair_summary["static_or_fixture_only"])
+        if attached_formalizer_prior_feedback_lsp_trace_ready
         else 0
     )
     payload: dict[str, Any] = {
@@ -4579,6 +4593,9 @@ def audit_research_agent_runtime(
         ),
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": int(
             attached_formalizer_repair_eval.get("local_lean_compiled", 0) or 0
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": (
+            attached_formalizer_prior_feedback_proof_state_rows
         ),
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": (
             attached_formalizer_prior_feedback_local_lean_tool_calls
@@ -11843,9 +11860,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_formalizer_prior_feedback_rows = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows",
+            0,
+        )
+        or 0
+    )
     attached_formalizer_lean_lsp_mcp_tool_calls = int(
         payload.get(
             "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_executed_tool_calls = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls",
             0,
         )
         or 0
@@ -11863,7 +11894,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     attached_formalizer_live_prover_tool_called = (
         attached_formalizer_live_gate_passed
+        and attached_formalizer_prior_feedback_rows > 0
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
+        and attached_formalizer_executed_tool_calls
+        >= attached_formalizer_lean_lsp_mcp_tool_calls
     )
     integrated_lean_lsp_mcp_live_calls = (
         _payload_integrated_lean_lsp_mcp_live_calls(payload)
@@ -14533,8 +14567,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "formalizer_live_prover_tool_component_calibration",
             attached_formalizer_live_prover_tool_called,
             (
+                "attached_formalizer_prior_feedback_proof_state_rows="
+                f"{attached_formalizer_prior_feedback_rows} "
                 "attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
                 f"{attached_formalizer_lean_lsp_mcp_tool_calls} "
+                "attached_formalizer_prior_feedback_executed_tool_calls="
+                f"{attached_formalizer_executed_tool_calls} "
                 "attached_formalizer_live_gate="
                 f"{attached_formalizer_live_gate_passed} "
                 "attached_provider="
@@ -14556,7 +14594,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "prover tool call."
                 ),
                 success_metric=(
-                    "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls>0"
+                    "prior_feedback_proof_state_rows>0, "
+                    "prior_feedback_lean_lsp_mcp_tool_calls>0, and "
+                    "prior_feedback_executed_tool_calls covers the LSP calls"
                 ),
             ),
         ),

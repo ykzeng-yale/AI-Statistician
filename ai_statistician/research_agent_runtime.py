@@ -621,6 +621,34 @@ def _runtime_attached_component_gate_source(
     return source
 
 
+def _runtime_attached_formalizer_prior_feedback_int(
+    payload: Mapping[str, Any],
+    field: str,
+) -> int:
+    nested = payload.get("internal_formalizer_lean_candidate_repair_eval", {})
+    flat_key = f"internal_formalizer_lean_candidate_repair_eval_{field}"
+    if flat_key in payload:
+        return _runtime_manifest_int(payload, flat_key)
+    if not isinstance(nested, Mapping):
+        return 0
+    if field in nested:
+        return int(nested.get(field, 0) or 0)
+    counts = (
+        nested.get("prior_feedback_proof_state_counts", {})
+        if isinstance(nested.get("prior_feedback_proof_state_counts", {}), Mapping)
+        else {}
+    )
+    count_fields = {
+        "prior_feedback_local_lean_tool_calls": "local_lean_tool_calls",
+        "prior_feedback_lean_lsp_mcp_tool_calls": "lean_lsp_mcp_tool_calls",
+        "prior_feedback_executed_tool_calls": "executed_tool_calls",
+    }
+    count_field = count_fields.get(field, "")
+    if count_field:
+        return int(counts.get(count_field, 0) or 0)
+    return 0
+
+
 def _runtime_learning_component_gate_source(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
@@ -1940,7 +1968,31 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
     )
-    attached_formalizer_lean_lsp_mcp_tool_calls = _runtime_manifest_int(
+    attached_formalizer_prior_feedback_rows = (
+        _runtime_attached_formalizer_prior_feedback_int(
+            payload,
+            "prior_feedback_proof_state_rows",
+        )
+    )
+    attached_formalizer_lean_lsp_mcp_tool_calls = (
+        _runtime_attached_formalizer_prior_feedback_int(
+            payload,
+            "prior_feedback_lean_lsp_mcp_tool_calls",
+        )
+    )
+    attached_formalizer_executed_tool_calls = (
+        _runtime_attached_formalizer_prior_feedback_int(
+            payload,
+            "prior_feedback_executed_tool_calls",
+        )
+    )
+    attached_formalizer_local_lean_tool_calls = (
+        _runtime_attached_formalizer_prior_feedback_int(
+            payload,
+            "prior_feedback_local_lean_tool_calls",
+        )
+    )
+    attached_formalizer_legacy_lean_lsp_mcp_tool_calls = _runtime_manifest_int(
         payload,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls",
     )
@@ -1966,7 +2018,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     )
     attached_formalizer_prover_tool_calibration = (
         attached_formalizer_live_gate
+        and attached_formalizer_prior_feedback_rows > 0
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
+        and attached_formalizer_executed_tool_calls
+        >= attached_formalizer_lean_lsp_mcp_tool_calls
     )
     rows = [
         {
@@ -2233,8 +2288,16 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{formalizer_bound_lean_lsp_mcp_live_calls}; "
                 "attached_component_prover_tool_calibration="
                 f"{attached_formalizer_prover_tool_calibration}; "
+                "attached_live_formalizer_prior_feedback_rows="
+                f"{attached_formalizer_prior_feedback_rows}; "
                 "attached_live_formalizer_prior_feedback_lean_lsp_mcp_tool_calls="
-                f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
+                f"{attached_formalizer_lean_lsp_mcp_tool_calls}; "
+                "attached_live_formalizer_prior_feedback_executed_tool_calls="
+                f"{attached_formalizer_executed_tool_calls}; "
+                "attached_live_formalizer_prior_feedback_local_lean_tool_calls="
+                f"{attached_formalizer_local_lean_tool_calls}; "
+                "attached_live_formalizer_legacy_flat_lean_lsp_mcp_tool_calls="
+                f"{attached_formalizer_legacy_lean_lsp_mcp_tool_calls}"
             ),
             "blocker": (
                 ""
@@ -2429,8 +2492,14 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                     f"{attached_formalizer_summary['provider_name']}; "
                     "attached_backend_provider="
                     f"{attached_formalizer_summary['backend_provider_name']}; "
+                    "attached_prior_feedback_proof_state_rows="
+                    f"{attached_formalizer_prior_feedback_rows}; "
                     "attached_prior_feedback_lean_lsp_mcp_tool_calls="
-                    f"{attached_formalizer_lean_lsp_mcp_tool_calls}"
+                    f"{attached_formalizer_lean_lsp_mcp_tool_calls}; "
+                    "attached_prior_feedback_executed_tool_calls="
+                    f"{attached_formalizer_executed_tool_calls}; "
+                    "attached_prior_feedback_local_lean_tool_calls="
+                    f"{attached_formalizer_local_lean_tool_calls}"
                 ),
                 "blocker": (
                     ""
