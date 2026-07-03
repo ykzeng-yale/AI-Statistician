@@ -58,6 +58,7 @@ from .research_agent_runtime import (
     _runtime_llm_topology_model_tier_counts_from_agent_rows,
     _runtime_llm_topology_provider_counts_from_agent_rows,
     _runtime_manifest_int_sum,
+    _runtime_manifest_nonempty_entry_count,
     _runtime_research_path_execution_summary,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
     _runtime_source_theorem_formal_environment_work_order_rows,
@@ -8627,7 +8628,7 @@ def _payload_source_theorem_proof_body_goal_reached_count(
     ) + _runtime_manifest_int_sum(
         payload,
         SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
-    ) + _runtime_manifest_int_sum(
+    ) + _runtime_manifest_nonempty_entry_count(
         payload,
         SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
     )

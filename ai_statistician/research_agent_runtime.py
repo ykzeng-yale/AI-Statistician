@@ -506,6 +506,26 @@ def _runtime_manifest_int_sum(payload: Mapping[str, Any], keys: tuple[str, ...])
     return sum(_runtime_manifest_int(payload, key) for key in keys)
 
 
+def _runtime_manifest_nonempty_entry_count(
+    payload: Mapping[str, Any],
+    keys: tuple[str, ...],
+) -> int:
+    count = 0
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str):
+            if value.strip():
+                count += 1
+            continue
+        try:
+            values = list(value or [])
+        except TypeError:
+            values = [value]
+        if any(str(item).strip() for item in values):
+            count += 1
+    return count
+
+
 def _runtime_manifest_first_nonempty(
     payload: Mapping[str, Any],
     keys: tuple[str, ...],
@@ -1042,10 +1062,14 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
     )
+    proof_body_goal_excerpt_evidence_count = _runtime_manifest_nonempty_entry_count(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
+    )
     proof_body_goal_evidence_count = (
         proof_body_goal_reached
         + proof_body_goal_excerpt_rows
-        + (1 if proof_body_goal_excerpt else 0)
+        + proof_body_goal_excerpt_evidence_count
     )
     bridge_helper_count = _runtime_manifest_int(payload, "n_kernel_verified_subclaims")
     bridge_helper_count += _runtime_manifest_int(

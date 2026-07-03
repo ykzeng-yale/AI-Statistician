@@ -62234,6 +62234,41 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_recheck_proof_body_
     assert rows["real_kernel_subclaim_verified"]["passed"] is False
 
 
+def test_runtime_capability_scorecard_counts_proof_body_goal_excerpt_as_lane_evidence() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt": [
+            "hGoodCovered : {omega | rank omega in GoodRanks} <= covered",
+            "|- P {omega | s (Fin.last m) omega <= q_hat omega} >= ENNReal.ofReal (1 - alpha)",
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = scorecard_rows["source_theorem_signature_probe_reached_proof_body"]
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert proof_body_row["passed"] is True
+    assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_REACHED_OPEN"
+    )
+    assert truth_rows["exact_source_proof_body_attempt"]["count"] == 1
+    assert truth_rows["exact_source_proof_body_attempt"]["proof_evidence"] is False
+    assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
+
+
 def test_runtime_capability_scorecard_flags_source_theorem_proof_body_local_lean_request_without_check() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
