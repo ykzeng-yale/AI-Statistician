@@ -4710,6 +4710,26 @@ def audit_research_agent_runtime(
             )
             or ""
         ),
+        "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": bool(
+            manifest.get(
+                "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready",
+                False,
+            )
+        ),
+        "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": int(
+            manifest.get(
+                "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_proof_evidence_status": str(
+            manifest.get(
+                "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_proof_evidence_status",
+                "",
+            )
+            or ""
+        ),
         "n_source_theorem_raw_kernel_verified": int(
             source_theorem_target_binding["n_source_theorem_raw_kernel_verified"]
         ),
@@ -11995,25 +12015,65 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    source_semantic_adapter_instantiation_required = (
-        source_semantic_adapter_instantiation_queue_ready
-        or source_semantic_adapter_instantiation_queue_rows > 0
+    source_semantic_post_executor_adapter_instantiation_queue_ready = (
+        payload.get(
+            "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready"
+        )
+        is True
     )
-    source_semantic_adapter_instantiation_consumed = (
+    source_semantic_post_executor_adapter_instantiation_queue_rows = int(
+        payload.get(
+            "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows",
+            0,
+        )
+        or 0
+    )
+    source_semantic_adapter_instantiation_sources = {
+        "source_semantic_proofengineer_bridge": (
+            source_semantic_adapter_instantiation_queue_ready,
+            source_semantic_adapter_instantiation_queue_rows,
+        ),
+        "source_semantic_post_executor_proofengineer_bridge": (
+            source_semantic_post_executor_adapter_instantiation_queue_ready,
+            source_semantic_post_executor_adapter_instantiation_queue_rows,
+        ),
+    }
+    required_source_semantic_adapter_instantiation_sources = [
+        source
+        for source, (ready, rows_count) in (
+            source_semantic_adapter_instantiation_sources.items()
+        )
+        if ready or rows_count > 0
+    ]
+    expected_source_semantic_adapter_instantiation_queue_source = (
+        "source_semantic_post_executor_proofengineer_bridge"
+        if (
+            source_semantic_post_executor_adapter_instantiation_queue_ready
+            or source_semantic_post_executor_adapter_instantiation_queue_rows > 0
+        )
+        else "source_semantic_proofengineer_bridge"
+        if (
+            source_semantic_adapter_instantiation_queue_ready
+            or source_semantic_adapter_instantiation_queue_rows > 0
+        )
+        else ""
+    )
+    consumed_adapter_instantiation_queue_source = str(
+        payload.get(
+            "source_theorem_proof_body_adapter_instantiation_bridge_queue_source",
+            "",
+        )
+        or ""
+    )
+    source_semantic_adapter_instantiation_consumed = bool(
         payload.get(
             "source_theorem_proof_body_adapter_instantiation_bridge_requested"
         )
         is True
         and payload.get("source_theorem_proof_body_adapter_instantiation_bridge_ran")
         is True
-        and str(
-            payload.get(
-                "source_theorem_proof_body_adapter_instantiation_bridge_queue_source",
-                "",
-            )
-            or ""
-        )
-        == "source_semantic_proofengineer_bridge"
+        and consumed_adapter_instantiation_queue_source
+        == expected_source_semantic_adapter_instantiation_queue_source
         and int(
             payload.get(
                 "source_theorem_proof_body_adapter_instantiation_bridge_n_rows",
@@ -13984,13 +14044,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_semantic_adapter_instantiation_queue_consumed",
-            (not source_semantic_adapter_instantiation_required)
+            (not required_source_semantic_adapter_instantiation_sources)
             or source_semantic_adapter_instantiation_consumed,
             (
                 "source_semantic_adapter_queue_ready="
                 f"{payload.get('source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready')} "
                 "source_semantic_adapter_queue_rows="
                 f"{payload.get('source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows')} "
+                "post_executor_adapter_queue_ready="
+                f"{payload.get('source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready')} "
+                "post_executor_adapter_queue_rows="
+                f"{payload.get('source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows')} "
+                "required_queue_sources="
+                f"{required_source_semantic_adapter_instantiation_sources} "
+                "expected_queue_source="
+                f"{expected_source_semantic_adapter_instantiation_queue_source} "
                 "adapter_instantiation_requested="
                 f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_requested')} "
                 "adapter_instantiation_ran="
@@ -14005,7 +14073,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "source-semantic ProofEngineer bridge emitted a source-to-bridge "
                 "adapter-instantiation queue, but the same-run source-theorem "
-                "adapter-instantiation bridge did not explicitly consume it"
+                "adapter-instantiation bridge did not explicitly consume the "
+                "emitting queue source"
             ),
         ),
         _scorecard_row(

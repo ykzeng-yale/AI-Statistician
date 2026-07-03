@@ -62016,28 +62016,59 @@ def test_runtime_capability_scorecard_accepts_semantic_reroute_next_action_hando
 
 
 @pytest.mark.parametrize(
-    "consumer_updates",
+    ("producer_updates", "expected_queue_source", "consumer_updates"),
     [
-        {},
-        {
-            "source_theorem_proof_body_adapter_instantiation_bridge_requested": False,
-            "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
-            "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
-                "source_semantic_proofengineer_bridge"
-            ),
-            "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
-        },
-        {
-            "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
-            "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
-            "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
-                "unrelated_queue"
-            ),
-            "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
-        },
+        (
+            {
+                "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_proofengineer_bridge",
+            {},
+        ),
+        (
+            {
+                "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_post_executor_proofengineer_bridge",
+            {},
+        ),
+        (
+            {
+                "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_proofengineer_bridge",
+            {
+                "source_theorem_proof_body_adapter_instantiation_bridge_requested": False,
+                "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
+                "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
+                    "source_semantic_proofengineer_bridge"
+                ),
+                "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
+            },
+        ),
+        (
+            {
+                "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_post_executor_proofengineer_bridge",
+            {
+                "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
+                "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
+                "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
+                    "source_semantic_proofengineer_bridge"
+                ),
+                "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
+            },
+        ),
     ],
 )
 def test_runtime_capability_scorecard_flags_unconsumed_source_semantic_adapter_instantiation_queue(
+    producer_updates: dict[str, Any],
+    expected_queue_source: str,
     consumer_updates: dict[str, Any],
 ) -> None:
     payload = {
@@ -62052,9 +62083,61 @@ def test_runtime_capability_scorecard_flags_unconsumed_source_semantic_adapter_i
         "n_unsafe_generated_code_rejected": 0,
         "n_runtime_progress_events": 12,
         "n_runtime_traces": 6,
-        "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
-        "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+        **producer_updates,
         **consumer_updates,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_semantic_adapter_instantiation_queue_consumed"]
+
+    assert row["passed"] is False
+    assert "adapter-instantiation queue" in row["blocker"]
+    assert expected_queue_source in row["evidence"]
+
+
+@pytest.mark.parametrize(
+    ("producer_updates", "queue_source"),
+    [
+        (
+            {
+                "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_proofengineer_bridge",
+        ),
+        (
+            {
+                "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+                "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+            },
+            "source_semantic_post_executor_proofengineer_bridge",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_accepts_consumed_source_semantic_adapter_instantiation_queue(
+    producer_updates: dict[str, Any],
+    queue_source: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        **producer_updates,
+        "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
+            queue_source
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -62062,16 +62145,10 @@ def test_runtime_capability_scorecard_flags_unconsumed_source_semantic_adapter_i
 
     assert rows[
         "source_semantic_adapter_instantiation_queue_consumed"
-    ]["passed"] is False
-    assert (
-        "adapter-instantiation queue"
-        in rows[
-            "source_semantic_adapter_instantiation_queue_consumed"
-        ]["blocker"]
-    )
+    ]["passed"] is True
 
 
-def test_runtime_capability_scorecard_accepts_consumed_source_semantic_adapter_instantiation_queue() -> None:
+def test_runtime_capability_scorecard_prioritizes_post_executor_source_semantic_adapter_instantiation_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
         "n_results": 1,
@@ -62086,6 +62163,41 @@ def test_runtime_capability_scorecard_accepts_consumed_source_semantic_adapter_i
         "n_runtime_traces": 6,
         "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
         "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+        "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+        "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+        "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
+            "source_semantic_post_executor_proofengineer_bridge"
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "source_semantic_adapter_instantiation_queue_consumed"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_unmatched_post_executor_priority_adapter_instantiation_queue() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+        "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
+        "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": True,
+        "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": 1,
         "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
         "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
         "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": (
@@ -62099,7 +62211,10 @@ def test_runtime_capability_scorecard_accepts_consumed_source_semantic_adapter_i
 
     assert rows[
         "source_semantic_adapter_instantiation_queue_consumed"
-    ]["passed"] is True
+    ]["passed"] is False
+    assert "source_semantic_post_executor_proofengineer_bridge" in rows[
+        "source_semantic_adapter_instantiation_queue_consumed"
+    ]["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
