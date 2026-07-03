@@ -654,6 +654,18 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         payload,
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests",
     )
+    post_runtime_attached = bool(
+        payload.get(
+            "post_runtime_exact_semantic_definition_authoring_worker_attached",
+            False,
+        )
+    )
+    post_runtime_lineage_ok = bool(
+        payload.get(
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            False,
+        )
+    )
     primary_required = (
         bool(
             payload.get(
@@ -705,6 +717,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             payload,
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
         )
+        + _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
+        )
     )
     generic_attempts = (
         _runtime_manifest_int(
@@ -719,6 +735,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             payload,
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted",
         )
+        + _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted",
+        )
     )
     live_attempts = (
         _runtime_manifest_int(
@@ -732,6 +752,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         + _runtime_manifest_int(
             payload,
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
+        )
+        + _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
         )
     )
     provider_names = [
@@ -750,6 +774,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
                     "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
                     [],
                 )
+            ),
+            payload.get(
+                "post_runtime_exact_semantic_definition_authoring_worker_provider_name",
+                "",
             ),
         )
         if str(value or "").strip()
@@ -770,6 +798,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
                     "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
                     [],
                 )
+            ),
+            payload.get(
+                "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name",
+                "",
             ),
         )
         if str(value or "").strip()
@@ -798,12 +830,18 @@ def _runtime_exact_semantic_definition_authoring_provenance(
                 "source_theorem_exact_semantic_definition_late_authoring_worker_ran"
             )
             is True
+            or payload.get(
+                "post_runtime_exact_semantic_definition_authoring_worker_ran"
+            )
+            is True
         ),
         "n_prompt_packets": prompt_packets,
         "n_llm_attempted": generic_attempts,
         "n_live_llm_attempted": live_attempts,
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
+        "post_runtime_attached": post_runtime_attached,
+        "post_runtime_lineage_ok": post_runtime_lineage_ok,
     }
 
 
@@ -1138,6 +1176,12 @@ def _runtime_evidence_truth_table_from_manifest(
         ),
         "exact_semantic_definition_authoring_late_required": bool(
             exact_semantic_authoring["late_required"]
+        ),
+        "exact_semantic_definition_authoring_post_runtime_attached": bool(
+            exact_semantic_authoring["post_runtime_attached"]
+        ),
+        "exact_semantic_definition_authoring_post_runtime_lineage_ok": bool(
+            exact_semantic_authoring["post_runtime_lineage_ok"]
         ),
         "formal_gaps_open": _runtime_manifest_int(payload, "n_formal_gaps") > 0,
         "current_exact_proof_body_blocker": proof_body_blocker,
@@ -1836,6 +1880,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring['provider_names']}; "
                 "backend_provider="
                 f"{exact_semantic_authoring['backend_provider_names']}; "
+                "post_runtime_attached="
+                f"{exact_semantic_authoring['post_runtime_attached']}; "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
                 "n_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts}; "
                 "n_live_llm_attempted="

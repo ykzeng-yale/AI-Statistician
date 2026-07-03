@@ -60638,6 +60638,220 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
     ]["passed"] is True
 
 
+def test_runtime_capability_scorecard_accepts_lineage_checked_post_runtime_exact_semantic_authoring() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        "post_runtime_exact_semantic_definition_authoring_worker_attached": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_provider_name": (
+            "anthropic"
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name": (
+            "anthropic"
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_ran": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert "post_runtime_attached=True" in rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+
+
+def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_authoring_only_for_live_backend(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "q_runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "blackboard": {"project_id": "runtime:q", "artifacts": {}},
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    retry_tasks_path = runtime_dir / "runtime_authoring_retry_tasks.jsonl"
+    retry_task = {
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+        "authoring_task_id": "source_theorem_exact_semantic_definition_retry_authoring_task:test",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "C_n",
+    }
+    retry_tasks_path.write_text(json.dumps(retry_task) + "\n", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_evaluation_mode": "capability_eval",
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 1,
+        "question_ids": ["q"],
+        "status_counts": {"MAX_ITERATIONS_REACHED": 1},
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl": str(
+                retry_tasks_path
+            ),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    live_worker_manifest_path = tmp_path / "live_authoring_worker_manifest.json"
+    live_worker_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringWorkerManifest",
+        "source_authoring_tasks_jsonl": str(retry_tasks_path),
+        "provider_requested": True,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "dry_run": False,
+        "external_export_mode": "full",
+        "n_prompt_packets": 1,
+        "n_llm_attempted": 1,
+        "n_live_llm_attempted": 1,
+    }
+    live_worker_manifest_path.write_text(
+        json.dumps(live_worker_manifest),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_live_authoring",
+        post_runtime_exact_semantic_definition_authoring_worker_manifest=live_worker_manifest_path,
+    )
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+
+    assert audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok"
+    ] is True
+    assert audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] == 1
+    assert rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+
+    static_worker_manifest_path = tmp_path / "static_authoring_worker_manifest.json"
+    static_worker_manifest = dict(live_worker_manifest)
+    static_worker_manifest["backend_provider_name"] = "static"
+    static_worker_manifest_path.write_text(
+        json.dumps(static_worker_manifest),
+        encoding="utf-8",
+    )
+    static_audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_static_authoring",
+        post_runtime_exact_semantic_definition_authoring_worker_manifest=static_worker_manifest_path,
+    )
+    static_rows = {
+        row["requirement_id"]: row
+        for row in static_audit["capability_scorecard"]["rows"]
+    }
+
+    assert static_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok"
+    ] is True
+    assert static_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] == 0
+    assert static_rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is True
+    assert static_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+
+    mismatched_tasks_path = tmp_path / "mismatched_authoring_tasks.jsonl"
+    mismatched_task = dict(retry_task)
+    mismatched_task["authoring_task_id"] = (
+        "source_theorem_exact_semantic_definition_retry_authoring_task:other"
+    )
+    mismatched_task["placeholder_symbol"] = "not_C_n"
+    mismatched_tasks_path.write_text(
+        json.dumps(mismatched_task) + "\n",
+        encoding="utf-8",
+    )
+    mismatched_worker_manifest_path = tmp_path / "mismatched_authoring_manifest.json"
+    mismatched_worker_manifest = dict(live_worker_manifest)
+    mismatched_worker_manifest["source_authoring_tasks_jsonl"] = str(
+        mismatched_tasks_path
+    )
+    mismatched_worker_manifest_path.write_text(
+        json.dumps(mismatched_worker_manifest),
+        encoding="utf-8",
+    )
+    mismatched_audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_mismatched_authoring",
+        post_runtime_exact_semantic_definition_authoring_worker_manifest=mismatched_worker_manifest_path,
+    )
+    mismatched_rows = {
+        row["requirement_id"]: row
+        for row in mismatched_audit["capability_scorecard"]["rows"]
+    }
+
+    assert mismatched_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok"
+    ] is False
+    assert mismatched_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] == 0
+    assert mismatched_rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is False
+    assert mismatched_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+
+
 def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

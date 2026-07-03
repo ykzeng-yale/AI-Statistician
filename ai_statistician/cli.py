@@ -11710,7 +11710,23 @@ def _research_agent_runtime_capability_config_errors(
 
 
 def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
-    payload = audit_research_agent_runtime(Path(args.runtime_dir), Path(args.out))
+    post_runtime_authoring_manifest = str(
+        getattr(
+            args,
+            "post_runtime_exact_semantic_definition_authoring_worker_manifest",
+            "",
+        )
+        or ""
+    ).strip()
+    payload = audit_research_agent_runtime(
+        Path(args.runtime_dir),
+        Path(args.out),
+        post_runtime_exact_semantic_definition_authoring_worker_manifest=(
+            Path(post_runtime_authoring_manifest)
+            if post_runtime_authoring_manifest
+            else None
+        ),
+    )
     print("\nAI Statistician Agent Runtime Audit")
     print("=" * 72)
     print(
@@ -18682,6 +18698,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime_audit.add_argument("--runtime-dir", default="runs/research_agent_runtime")
     research_agent_runtime_audit.add_argument("--out", default="runs/research_agent_runtime_audit")
+    research_agent_runtime_audit.add_argument(
+        "--post-runtime-exact-semantic-definition-authoring-worker-manifest",
+        default="",
+        help=(
+            "optional SourceTheoremExactSemanticDefinitionAuthoringWorkerManifest "
+            "from a post-runtime live authoring probe. The audit uses it only as "
+            "lineage-checked authoring handoff/attempt evidence, not theorem proof."
+        ),
+    )
     research_agent_runtime_audit.set_defaults(func=_research_agent_runtime_audit)
 
     algorithm_engineer_generated_code_repair_eval = sub.add_parser(

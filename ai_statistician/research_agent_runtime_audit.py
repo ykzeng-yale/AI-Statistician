@@ -13,6 +13,7 @@ from .model_backend import (
     SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS as MODEL_SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
+    is_live_generator_backend,
 )
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
@@ -2375,6 +2376,8 @@ class RuntimeAuditRow:
 def audit_research_agent_runtime(
     runtime_dir: Path,
     out_dir: Path | None = None,
+    *,
+    post_runtime_exact_semantic_definition_authoring_worker_manifest: Path | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
@@ -2494,6 +2497,23 @@ def audit_research_agent_runtime(
         _runtime_exact_semantic_definition_authoring_task_rows(
             runtime_dir=runtime_dir,
             artifacts=artifacts,
+            errors=errors,
+        )
+    )
+    exact_semantic_definition_authoring_retry_task_rows = (
+        _runtime_exact_semantic_definition_authoring_retry_task_rows(
+            runtime_dir=runtime_dir,
+            artifacts=artifacts,
+            errors=errors,
+        )
+    )
+    post_runtime_exact_semantic_definition_authoring_worker = (
+        _post_runtime_exact_semantic_definition_authoring_worker_summary(
+            manifest_path=post_runtime_exact_semantic_definition_authoring_worker_manifest,
+            runtime_authoring_task_rows=[
+                *exact_semantic_definition_authoring_task_rows,
+                *exact_semantic_definition_authoring_retry_task_rows,
+            ],
             errors=errors,
         )
     )
@@ -5193,6 +5213,75 @@ def audit_research_agent_runtime(
                 0,
             )
             or 0
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_attached": bool(
+            post_runtime_exact_semantic_definition_authoring_worker["attached"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": bool(
+            post_runtime_exact_semantic_definition_authoring_worker["lineage_ok"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_match": str(
+            post_runtime_exact_semantic_definition_authoring_worker["lineage_match"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_manifest_path": str(
+            post_runtime_exact_semantic_definition_authoring_worker["manifest_path"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_source_authoring_tasks_jsonl": str(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "source_authoring_tasks_jsonl"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_source_repair_executor_manifest": str(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "source_repair_executor_manifest"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_provider_name": str(
+            post_runtime_exact_semantic_definition_authoring_worker["provider_name"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name": str(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "backend_provider_name"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_ran": bool(
+            post_runtime_exact_semantic_definition_authoring_worker["ran"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_dry_run": bool(
+            post_runtime_exact_semantic_definition_authoring_worker["dry_run"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_external_export_mode": str(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "external_export_mode"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_source_authoring_tasks": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_source_authoring_tasks"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_matched_source_authoring_tasks": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_matched_source_authoring_tasks"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_prompt_packets"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_llm_attempted"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_live_llm_attempted"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_worker_boundary": str(
+            post_runtime_exact_semantic_definition_authoring_worker["boundary"]
         ),
         "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran": bool(
             manifest.get(
@@ -13193,6 +13282,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['ran']} "
                 "prompt_packets="
                 f"{exact_semantic_definition_authoring['n_prompt_packets']} "
+                "post_runtime_attached="
+                f"{exact_semantic_definition_authoring['post_runtime_attached']} "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_skipped_reason')}"
             ),
@@ -13224,6 +13317,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_dry_run')} "
                 "external_export_mode="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_external_export_mode')} "
+                "post_runtime_attached="
+                f"{exact_semantic_definition_authoring['post_runtime_attached']} "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
                 "llm_attempted="
                 f"{exact_semantic_definition_authoring['n_llm_attempted']} "
                 "live_llm_attempted="
@@ -13243,7 +13340,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "candidates through materialization and local Lean/AXLE."
                 ),
                 success_metric=(
-                    "sum(primary/retry/late exact semantic-definition authoring "
+                    "sum(primary/retry/late/post-runtime exact semantic-definition authoring "
                     "n_live_llm_attempted)>0"
                 ),
             ),
@@ -14324,6 +14421,238 @@ def _runtime_exact_semantic_definition_authoring_task_rows(
         return []
     tasks_path = _resolve_path(executor_manifest_path.parent, raw_tasks_path)
     return _load_jsonl(tasks_path, errors, required=True)
+
+
+def _runtime_exact_semantic_definition_authoring_retry_task_rows(
+    *,
+    runtime_dir: Path,
+    artifacts: Mapping[str, Any],
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    raw_tasks_path = str(
+        artifacts.get(
+            "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl",
+            "",
+        )
+        or ""
+    )
+    if not raw_tasks_path.strip():
+        return []
+    tasks_path = _resolve_path(runtime_dir, raw_tasks_path)
+    return _load_jsonl(tasks_path, errors, required=True)
+
+
+def _post_runtime_exact_semantic_definition_authoring_worker_empty_summary(
+    *,
+    attached: bool = False,
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    return {
+        "attached": attached,
+        "lineage_ok": False,
+        "lineage_match": "",
+        "manifest_path": str(manifest_path or ""),
+        "source_authoring_tasks_jsonl": "",
+        "source_repair_executor_manifest": "",
+        "provider_name": "",
+        "backend_provider_name": "",
+        "ran": False,
+        "dry_run": True,
+        "external_export_mode": "",
+        "n_source_authoring_tasks": 0,
+        "n_matched_source_authoring_tasks": 0,
+        "n_prompt_packets": 0,
+        "n_llm_attempted": 0,
+        "n_live_llm_attempted": 0,
+        "boundary": (
+            "Post-runtime exact semantic-definition authoring worker attachments "
+            "are lineage-checked live handoff/attempt evidence only. They are "
+            "not local Lean typecheck evidence, source theorem proof, or full "
+            "frontier theorem evidence."
+        ),
+    }
+
+
+def _exact_semantic_definition_authoring_task_ids(
+    rows: list[Mapping[str, Any]],
+) -> set[str]:
+    keys = (
+        "authoring_task_id",
+        "source_authoring_task_id",
+        "retry_authoring_task_id",
+    )
+    values: set[str] = set()
+    for row in rows:
+        for key in keys:
+            value = str(row.get(key, "") or "").strip()
+            if value:
+                values.add(value)
+    return values
+
+
+def _exact_semantic_definition_authoring_target_keys(
+    rows: list[Mapping[str, Any]],
+) -> set[tuple[str, str]]:
+    keys: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        nested_sources: list[Mapping[str, Any]] = [row]
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            nested_sources.append(input_summary)
+            request = input_summary.get("candidate_definition_request", {})
+            if isinstance(request, Mapping):
+                nested_sources.append(request)
+        request = row.get("candidate_definition_request", {})
+        if isinstance(request, Mapping):
+            nested_sources.append(request)
+        target_name = ""
+        placeholder = ""
+        for source in nested_sources:
+            if not target_name:
+                target_name = str(source.get("target_theorem_name", "") or "").strip()
+            if not placeholder:
+                placeholder = str(source.get("placeholder_symbol", "") or "").strip()
+            if target_name and placeholder:
+                break
+        if target_name and placeholder:
+            keys.add((target_name, placeholder))
+    return keys
+
+
+def _post_runtime_exact_semantic_definition_authoring_lineage(
+    *,
+    runtime_authoring_task_rows: list[dict[str, Any]],
+    source_authoring_task_rows: list[dict[str, Any]],
+) -> tuple[bool, str, int]:
+    runtime_ids = _exact_semantic_definition_authoring_task_ids(
+        runtime_authoring_task_rows
+    )
+    source_ids = _exact_semantic_definition_authoring_task_ids(
+        source_authoring_task_rows
+    )
+    matching_ids = sorted(runtime_ids & source_ids)
+    if matching_ids:
+        return True, f"authoring_task_id:{matching_ids[0]}", len(matching_ids)
+    runtime_targets = _exact_semantic_definition_authoring_target_keys(
+        runtime_authoring_task_rows
+    )
+    source_targets = _exact_semantic_definition_authoring_target_keys(
+        source_authoring_task_rows
+    )
+    matching_targets = sorted(runtime_targets & source_targets)
+    if matching_targets:
+        target, placeholder = matching_targets[0]
+        return True, f"target_placeholder:{target}:{placeholder}", len(matching_targets)
+    return False, "", 0
+
+
+def _post_runtime_exact_semantic_definition_authoring_worker_summary(
+    *,
+    manifest_path: Path | None,
+    runtime_authoring_task_rows: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    if manifest_path is None:
+        return _post_runtime_exact_semantic_definition_authoring_worker_empty_summary()
+    summary = _post_runtime_exact_semantic_definition_authoring_worker_empty_summary(
+        attached=True,
+        manifest_path=manifest_path,
+    )
+    manifest = _load_json(manifest_path, errors)
+    if not manifest:
+        return summary
+    artifact_kind = str(manifest.get("artifact_kind", "") or "")
+    if artifact_kind != "SourceTheoremExactSemanticDefinitionAuthoringWorkerManifest":
+        errors.append(
+            "post-runtime exact semantic-definition authoring worker manifest "
+            f"has artifact_kind={artifact_kind!r}; expected "
+            "'SourceTheoremExactSemanticDefinitionAuthoringWorkerManifest': "
+            f"{manifest_path}"
+        )
+        return summary
+    source_authoring_tasks_jsonl = str(
+        manifest.get("source_authoring_tasks_jsonl", "") or ""
+    )
+    if not source_authoring_tasks_jsonl.strip():
+        artifacts = (
+            manifest.get("artifacts", {})
+            if isinstance(manifest.get("artifacts", {}), Mapping)
+            else {}
+        )
+        source_authoring_tasks_jsonl = str(
+            artifacts.get("source_authoring_tasks_jsonl", "") or ""
+        )
+    if not source_authoring_tasks_jsonl.strip():
+        errors.append(
+            "post-runtime exact semantic-definition authoring worker manifest "
+            f"does not name source_authoring_tasks_jsonl: {manifest_path}"
+        )
+        return summary
+    source_authoring_tasks_path = _resolve_path(
+        manifest_path.parent,
+        source_authoring_tasks_jsonl,
+    )
+    source_authoring_task_rows = _load_jsonl(
+        source_authoring_tasks_path,
+        errors,
+        required=True,
+    )
+    lineage_ok, lineage_match, n_matched = (
+        _post_runtime_exact_semantic_definition_authoring_lineage(
+            runtime_authoring_task_rows=runtime_authoring_task_rows,
+            source_authoring_task_rows=source_authoring_task_rows,
+        )
+    )
+    if not runtime_authoring_task_rows:
+        errors.append(
+            "post-runtime exact semantic-definition authoring worker manifest "
+            "was attached, but the audited runtime has no exact authoring tasks"
+        )
+    elif not lineage_ok:
+        errors.append(
+            "post-runtime exact semantic-definition authoring worker manifest "
+            "source_authoring_tasks_jsonl does not match the audited runtime "
+            f"authoring/retry tasks: {source_authoring_tasks_path}"
+        )
+    provider_name = str(manifest.get("provider_name", "") or "")
+    backend_provider_name = str(manifest.get("backend_provider_name", "") or "")
+    raw_prompt_packets = _safe_int(manifest.get("n_prompt_packets", 0))
+    raw_llm_attempted = _safe_int(manifest.get("n_llm_attempted", 0))
+    raw_live_llm_attempted = _safe_int(manifest.get("n_live_llm_attempted", 0))
+    live_backend_pair = is_live_generator_backend(provider_name, backend_provider_name)
+    trusted_counts = lineage_ok
+    summary.update(
+        {
+            "lineage_ok": bool(lineage_ok),
+            "lineage_match": lineage_match,
+            "source_authoring_tasks_jsonl": str(source_authoring_tasks_path),
+            "source_repair_executor_manifest": str(
+                manifest.get("source_repair_executor_manifest", "") or ""
+            ),
+            "provider_name": provider_name,
+            "backend_provider_name": backend_provider_name,
+            "ran": bool(
+                trusted_counts
+                and (
+                    raw_prompt_packets > 0
+                    or raw_llm_attempted > 0
+                    or manifest.get("provider_requested") is True
+                )
+            ),
+            "dry_run": bool(manifest.get("dry_run", True)),
+            "external_export_mode": str(manifest.get("external_export_mode", "") or ""),
+            "n_source_authoring_tasks": len(source_authoring_task_rows),
+            "n_matched_source_authoring_tasks": n_matched if trusted_counts else 0,
+            "n_prompt_packets": raw_prompt_packets if trusted_counts else 0,
+            "n_llm_attempted": raw_llm_attempted if trusted_counts else 0,
+            "n_live_llm_attempted": (
+                raw_live_llm_attempted if trusted_counts and live_backend_pair else 0
+            ),
+        }
+    )
+    return summary
 
 
 def _resolve_path(base: Path, raw: object) -> Path:
