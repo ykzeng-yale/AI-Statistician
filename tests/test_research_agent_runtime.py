@@ -22850,7 +22850,20 @@ def test_runtime_manifest_exposes_formalizer_local_lean_candidate_counts(
         == 1
     )
     assert manifest["formalizer_lean_candidate_local_check_attempted"] is True
+    assert (
+        manifest["formalizer_lean_candidate_local_lean_compiled_observed"]
+        is False
+    )
     assert manifest["formalizer_lean_candidate_kernel_verified"] is False
+    assert manifest["formalizer_lean_candidate_kernel_verified_scope"] == (
+        "source_theorem_target_bound"
+    )
+    assert (
+        manifest[
+            "formalizer_lean_candidate_compiled_but_not_source_theorem_kernel_verified"
+        ]
+        is False
+    )
     materialization_paths = [
         Path(path)
         for path in manifest[
@@ -61364,6 +61377,58 @@ def test_runtime_evidence_truth_table_requires_source_kernel_target_binding() ->
         "TARGET_BINDING_MISSING"
     )
     assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
+
+
+def test_formalizer_candidate_kernel_boundary_separates_compile_from_source_proof() -> None:
+    compile_only = (
+        runtime_module._runtime_formalizer_lean_candidate_kernel_boundary_fields(
+            {
+                "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                "target_theorem_name": "split_conformal_coverage",
+            }
+        )
+    )
+
+    assert (
+        compile_only["formalizer_lean_candidate_local_lean_compiled_observed"]
+        is True
+    )
+    assert compile_only["formalizer_lean_candidate_kernel_verified"] is False
+    assert (
+        compile_only[
+            "formalizer_lean_candidate_compiled_but_not_source_theorem_kernel_verified"
+        ]
+        is True
+    )
+    assert "not source-theorem proof evidence" in compile_only[
+        "formalizer_lean_candidate_kernel_verified_boundary"
+    ]
+
+    source_kernel_key = (
+        "source_theorem_formal_environment_proof_body_executor"
+        "_n_source_theorem_kernel_verified"
+    )
+    source_bound = (
+        runtime_module._runtime_formalizer_lean_candidate_kernel_boundary_fields(
+            {
+                "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                source_kernel_key: 1,
+                **_target_bound_source_theorem_payload(),
+            }
+        )
+    )
+
+    assert (
+        source_bound["formalizer_lean_candidate_local_lean_compiled_observed"]
+        is True
+    )
+    assert source_bound["formalizer_lean_candidate_kernel_verified"] is True
+    assert (
+        source_bound[
+            "formalizer_lean_candidate_compiled_but_not_source_theorem_kernel_verified"
+        ]
+        is False
+    )
 
 
 def test_runtime_audit_truth_table_tracks_typechecked_review_recheck_attempt() -> None:

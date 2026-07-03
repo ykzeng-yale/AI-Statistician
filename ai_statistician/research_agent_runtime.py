@@ -213,6 +213,14 @@ SIMULATION_NOT_PROOF_BOUNDARY = (
     "environment observations. They can falsify or support a proposal, but "
     "they are not theorem proof evidence."
 )
+FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY = (
+    "Formalizer Lean candidate local compilation is verifier feedback for a "
+    "generated candidate. It is not source-theorem proof evidence unless the "
+    "candidate is promoted to exact source-theorem kernel verification bound "
+    "to the current target; use "
+    "formalizer_lean_candidate_local_lean_compiled_observed for the raw "
+    "candidate compile signal."
+)
 RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE = (
     "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
 )
@@ -504,6 +512,47 @@ def _runtime_manifest_int(payload: Mapping[str, Any], key: str) -> int:
 
 def _runtime_manifest_int_sum(payload: Mapping[str, Any], keys: tuple[str, ...]) -> int:
     return sum(_runtime_manifest_int(payload, key) for key in keys)
+
+
+def _runtime_formalizer_lean_candidate_kernel_boundary_fields(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Expose candidate compile feedback without overstating proof evidence."""
+
+    candidate_compiled = _runtime_manifest_int(
+        payload,
+        "n_formalizer_lean_candidate_local_lean_compiled",
+    )
+    truth_table = payload.get("runtime_evidence_truth_table", {})
+    truth_table_payload = truth_table if isinstance(truth_table, Mapping) else {}
+    target_bound_count = _runtime_manifest_int(
+        truth_table_payload,
+        "n_source_theorem_target_bound_kernel_verified",
+    )
+    if target_bound_count <= 0:
+        target_bound_count = int(
+            _runtime_source_theorem_target_bound_kernel_evidence_summary(payload)[
+                "n_source_theorem_target_bound_kernel_verified"
+            ]
+        )
+    source_theorem_verified = bool(
+        truth_table_payload.get("source_theorem_kernel_verified", False)
+    ) or target_bound_count > 0
+    return {
+        "formalizer_lean_candidate_local_lean_compiled_observed": (
+            candidate_compiled > 0
+        ),
+        "formalizer_lean_candidate_kernel_verified": source_theorem_verified,
+        "formalizer_lean_candidate_kernel_verified_scope": (
+            "source_theorem_target_bound"
+        ),
+        "formalizer_lean_candidate_compiled_but_not_source_theorem_kernel_verified": (
+            candidate_compiled > 0 and not source_theorem_verified
+        ),
+        "formalizer_lean_candidate_kernel_verified_boundary": (
+            FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY
+        ),
+    }
 
 
 def _runtime_manifest_nonempty_entry_count(
@@ -19227,10 +19276,14 @@ def run_research_agent_runtime(
                 "n_formalizer_lean_candidate_local_lean_checked"
             ]
         ),
-        "formalizer_lean_candidate_kernel_verified": bool(
-            evidence_summary["proof"][
-                "n_formalizer_lean_candidate_local_lean_compiled"
-            ]
+        **_runtime_formalizer_lean_candidate_kernel_boundary_fields(
+            {
+                "n_formalizer_lean_candidate_local_lean_compiled": (
+                    evidence_summary["proof"][
+                        "n_formalizer_lean_candidate_local_lean_compiled"
+                    ]
+                )
+            }
         ),
         "formalizer_lean_candidate_materialization_manifest_paths": list(
             evidence_summary["proof"].get(
@@ -31276,6 +31329,9 @@ def run_research_agent_runtime(
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
+    manifest.update(
+        _runtime_formalizer_lean_candidate_kernel_boundary_fields(manifest)
+    )
     manifest["runtime_coding_agent_capability"] = (
         _runtime_coding_agent_capability_table(manifest)
     )
@@ -31361,6 +31417,9 @@ def run_research_agent_runtime(
     ]["produced_artifact_ids_missing_from_blackboard"]
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
+    )
+    manifest.update(
+        _runtime_formalizer_lean_candidate_kernel_boundary_fields(manifest)
     )
     (
         architect_orchestration_feedback_learning_rows,
