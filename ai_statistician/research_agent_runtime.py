@@ -164,6 +164,7 @@ from .theory_derivation_trace import (
     theory_trace_alignment_contract,
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    placeholder_symbols_from_semantic_alignment_feedback as _policy_placeholder_symbols_from_semantic_alignment_feedback,
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
     registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
@@ -60260,29 +60261,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
 def _placeholder_symbols_from_semantic_alignment_blockers(
     blockers: list[str],
 ) -> tuple[str, ...]:
-    symbols: list[str] = []
-    for blocker in blockers:
-        text = blocker.lower()
-        if "exchangeable" in text or "exchangeability" in text:
-            symbols.append("Exchangeable")
-        if (
-            "orderstat" in text
-            or "order-statistic" in text
-            or "order statistic" in text
-            or "rank k" in text
-            or "ignores rank" in text
-        ):
-            symbols.append("orderStat")
-        if (
-            "covered" in text
-            or "coverage event" in text
-            or "coverage-set" in text
-            or "coverage set" in text
-            or "using hc" in text
-            or " hC" in blocker
-        ):
-            symbols.append("covered")
-    return tuple(dict.fromkeys(symbols))
+    return _policy_placeholder_symbols_from_semantic_alignment_feedback(
+        semantic_alignment_blockers=blockers,
+        include_executor_feedback_signals=False,
+    )
 
 
 def _runtime_source_theorem_exact_semantic_definition_learning_rows(

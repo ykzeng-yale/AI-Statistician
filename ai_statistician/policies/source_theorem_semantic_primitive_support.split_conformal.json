@@ -34,6 +34,45 @@
       "split_conformal_good_rank_set_inclusion_bridge"
     ]
   },
+  "placeholder_symbol_text_signals": {
+    "Exchangeable": {
+      "runtime_blocker_contains": [
+        "exchangeable",
+        "exchangeability"
+      ],
+      "executor_feedback_contains": [
+        "exchange",
+        "permutation",
+        "uniform rank"
+      ]
+    },
+    "orderStat": {
+      "runtime_blocker_contains": [
+        "orderstat",
+        "order-statistic",
+        "order statistic",
+        "rank k",
+        "ignores rank"
+      ],
+      "executor_feedback_contains": [
+        "quantile",
+        "tie"
+      ]
+    },
+    "covered": {
+      "runtime_blocker_contains": [
+        "covered",
+        "coverage event",
+        "coverage-set",
+        "coverage set",
+        "using hc"
+      ],
+      "runtime_blocker_case_sensitive_contains": [
+        " hC"
+      ],
+      "executor_feedback_contains": []
+    }
+  },
   "exact_goal_shape_to_registered_support": {
     "real_probability_lower_bound_from_ennreal_adapter": [
       "split_conformal_good_rank_coverage_bridge"

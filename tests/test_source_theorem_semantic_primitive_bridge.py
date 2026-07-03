@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge import (
+    placeholder_symbols_from_semantic_alignment_feedback,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
 
@@ -73,6 +74,10 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
         manifest["semantic_support_policy"]["n_placeholder_symbol_support_routes"]
         >= 1
     )
+    assert (
+        manifest["semantic_support_policy"]["n_placeholder_symbol_text_signal_routes"]
+        >= 1
+    )
     assert manifest["runtime_learning_ready"] is False
     assert manifest["proof_evidence_status"] == (
         "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
@@ -89,6 +94,31 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
         "preserve marginal coverage target"
     ]
     assert check["formal_environment_typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
+
+
+def test_semantic_placeholder_text_signals_are_policy_driven() -> None:
+    assert placeholder_symbols_from_semantic_alignment_feedback(
+        semantic_alignment_blockers=[
+            "Candidate ignores rank k in the order-statistic argument.",
+            "The proof must define covered from the exact source coverage event using hC.",
+            "Needs exchangeability before the rank lemma applies.",
+        ],
+    ) == ("Exchangeable", "orderStat", "covered")
+
+    assert placeholder_symbols_from_semantic_alignment_feedback(
+        semantic_alignment_constraints=[
+            "Use the quantile/tie policy from the executor feedback.",
+            "Permutation invariance gives the uniform rank step.",
+        ],
+        include_executor_feedback_signals=True,
+    ) == ("Exchangeable", "orderStat")
+
+    assert placeholder_symbols_from_semantic_alignment_feedback(
+        semantic_alignment_blockers=["semantic prose mentions quantile only"],
+        explicit_placeholder_symbols=["ExternalSymbol"],
+        failure_classification="formal_environment_placeholder_primitives",
+        include_executor_feedback_signals=True,
+    ) == ("ExternalSymbol",)
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(

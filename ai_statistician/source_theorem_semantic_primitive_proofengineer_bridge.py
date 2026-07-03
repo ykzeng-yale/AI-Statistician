@@ -4,7 +4,7 @@ import asyncio
 from functools import lru_cache
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .proof_audit import audit_proof_bank
@@ -70,6 +70,9 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     placeholder_support = _normalize_policy_support_map(
         payload.get("placeholder_symbol_to_registered_support", {})
     )
+    placeholder_text_signals = _normalize_placeholder_text_signal_map(
+        payload.get("placeholder_symbol_text_signals", {})
+    )
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
         "schema_version": int(payload.get("schema_version", 1) or 1),
@@ -77,6 +80,7 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "path": str(path),
         "primitive_to_registered_support": primitive_support,
         "placeholder_symbol_to_registered_support": placeholder_support,
+        "placeholder_symbol_text_signals": placeholder_text_signals,
         "exact_goal_shape_to_registered_support": exact_goal_shape_support,
     }
 
@@ -99,10 +103,38 @@ def _normalize_policy_support_map(value: Any) -> dict[str, tuple[str, ...]]:
     return rows
 
 
+def _normalize_placeholder_text_signal_map(
+    value: Any,
+) -> dict[str, dict[str, tuple[str, ...]]]:
+    if not isinstance(value, Mapping):
+        return {}
+    normalized: dict[str, dict[str, tuple[str, ...]]] = {}
+    for symbol, raw_signals in value.items():
+        placeholder_symbol = str(symbol).strip()
+        if not placeholder_symbol or not isinstance(raw_signals, Mapping):
+            continue
+        signal_row: dict[str, tuple[str, ...]] = {}
+        for key, raw_items in raw_signals.items():
+            signal_key = str(key).strip()
+            if not signal_key:
+                continue
+            signal_row[signal_key] = tuple(
+                dict.fromkeys(
+                    str(item).strip()
+                    for item in raw_items or []
+                    if str(item).strip()
+                )
+            )
+        if signal_row:
+            normalized[placeholder_symbol] = signal_row
+    return normalized
+
+
 def _semantic_support_policy_summary() -> dict[str, Any]:
     policy = _semantic_support_policy()
     primitive_support = policy["primitive_to_registered_support"]
     placeholder_support = policy["placeholder_symbol_to_registered_support"]
+    placeholder_text_signals = policy["placeholder_symbol_text_signals"]
     exact_goal_shape_support = policy["exact_goal_shape_to_registered_support"]
     return {
         "policy_id": policy["policy_id"],
@@ -111,6 +143,7 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "path": policy["path"],
         "n_primitive_support_routes": len(primitive_support),
         "n_placeholder_symbol_support_routes": len(placeholder_support),
+        "n_placeholder_symbol_text_signal_routes": len(placeholder_text_signals),
         "n_exact_goal_shape_support_routes": len(exact_goal_shape_support),
         "boundary": (
             "Semantic-support policy routes task-family primitive IDs to registered "
@@ -137,6 +170,54 @@ def registered_support_for_exact_goal_shape_obligation(
 ) -> tuple[str, ...]:
     policy = _semantic_support_policy()
     return policy["exact_goal_shape_to_registered_support"].get(obligation_id, ())
+
+
+def placeholder_symbols_from_semantic_alignment_feedback(
+    *,
+    semantic_alignment_blockers: Sequence[str] = (),
+    semantic_alignment_constraints: Sequence[str] = (),
+    explicit_placeholder_symbols: Sequence[str] = (),
+    failure_classification: str = "",
+    include_executor_feedback_signals: bool = False,
+) -> tuple[str, ...]:
+    explicit_symbols = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for value in explicit_placeholder_symbols
+            if str(value).strip()
+        )
+    )
+    if failure_classification == "formal_environment_placeholder_primitives":
+        return explicit_symbols
+    policy = _semantic_support_policy()
+    text_signals = policy["placeholder_symbol_text_signals"]
+    lower_text = " ".join(
+        str(value).strip()
+        for value in [*semantic_alignment_blockers, *semantic_alignment_constraints]
+        if str(value).strip()
+    ).lower()
+    exact_text = "\n".join(
+        str(value).strip()
+        for value in [*semantic_alignment_blockers, *semantic_alignment_constraints]
+        if str(value).strip()
+    )
+    inferred: list[str] = []
+    for symbol, signals in text_signals.items():
+        contains = list(signals.get("runtime_blocker_contains", ()))
+        case_sensitive_contains = list(
+            signals.get("runtime_blocker_case_sensitive_contains", ())
+        )
+        if include_executor_feedback_signals:
+            contains.extend(signals.get("executor_feedback_contains", ()))
+            case_sensitive_contains.extend(
+                signals.get("executor_feedback_case_sensitive_contains", ())
+            )
+        if any(signal.lower() in lower_text for signal in contains) or any(
+            signal in exact_text for signal in case_sensitive_contains
+        ):
+            inferred.append(symbol)
+    inferred.extend(explicit_symbols)
+    return tuple(dict.fromkeys(inferred))
 
 
 def resolve_source_semantic_primitive_queue_path(
@@ -659,28 +740,22 @@ def _semantic_primitive_symbols_from_executor_feedback(
     semantic_alignment_constraints: list[str],
     failure_classification: str,
 ) -> list[str]:
-    symbols = [
-        str(value).strip()
-        for value in input_summary.get("formal_environment_placeholder_symbols", []) or []
-        if str(value).strip()
-    ]
-    if failure_classification == "formal_environment_placeholder_primitives":
-        return symbols
-    inferred: list[str] = []
-    text = " ".join([*semantic_alignment_blockers, *semantic_alignment_constraints]).lower()
-    if "exchange" in text or "permutation" in text or "uniform rank" in text:
-        inferred.append("Exchangeable")
-    if (
-        "orderstat" in text
-        or "order statistic" in text
-        or "order-statistic" in text
-        or "quantile" in text
-        or "tie" in text
-    ):
-        inferred.append("orderStat")
-    if symbols:
-        inferred.extend(symbols)
-    return list(dict.fromkeys(inferred))
+    return list(
+        placeholder_symbols_from_semantic_alignment_feedback(
+            semantic_alignment_blockers=semantic_alignment_blockers,
+            semantic_alignment_constraints=semantic_alignment_constraints,
+            explicit_placeholder_symbols=[
+                str(value).strip()
+                for value in (
+                    input_summary.get("formal_environment_placeholder_symbols", [])
+                    or []
+                )
+                if str(value).strip()
+            ],
+            failure_classification=failure_classification,
+            include_executor_feedback_signals=True,
+        )
+    )
 
 
 def _semantic_primitive_for_placeholder_symbol(
