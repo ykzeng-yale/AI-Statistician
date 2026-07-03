@@ -10328,9 +10328,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         and integrated_formalizer_bound_local_lean_tool_calls > 0
         and integrated_formalizer_bound_lean_lsp_mcp_live_calls > 0
     )
-    helper_kernel_evidence_ready = (
-        int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
-        or int(payload.get("n_runtime_memory_kernel_verified_proof_obligation_ids", 0) or 0)
+    runtime_memory_kernel_evidence_ready = (
+        int(payload.get("n_runtime_memory_kernel_verified_proof_obligation_ids", 0) or 0)
         > 0
         or int(
             payload.get(
@@ -10348,6 +10347,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             or 0
         )
         > 0
+    )
+    current_helper_kernel_evidence_ready = (
+        int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
         or int(
             payload.get("n_real_kernel_verified_source_theorem_semantic_primitive_subclaims", 0)
             or 0
@@ -10356,6 +10358,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         or full_frontier_target_bound_kernel_count > 0
         or source_theorem_kernel_count > 0
     )
+    helper_kernel_evidence_ready = current_helper_kernel_evidence_ready
     source_theorem_kernel_ready = (
         (
             full_frontier_target_bound_kernel_count > 0
@@ -10572,6 +10575,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids')} "
                 "runtime_semantic_primitives="
                 f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')} "
+                "current_helper_kernel_evidence_ready="
+                f"{current_helper_kernel_evidence_ready} "
+                "runtime_memory_kernel_evidence_ready="
+                f"{runtime_memory_kernel_evidence_ready} "
                 "source_theorem_kernel="
                 f"{source_theorem_kernel_count} "
                 "target_bound_source_theorem_kernel="
@@ -10579,7 +10586,11 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "target_bound_full_frontier_kernel="
                 f"{full_frontier_target_bound_kernel_count} "
             ),
-            "no local Lean/AXLE kernel-verified helper or bridge subclaim was available",
+            (
+                "no current-run local Lean/AXLE kernel-verified helper or bridge "
+                "subclaim was available; runtime-memory kernel rows are reusable "
+                "context, not current-run helper capability"
+            ),
         ),
         _ladder_level(
             8,

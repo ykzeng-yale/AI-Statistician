@@ -56908,22 +56908,34 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
 
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
     assert ladder["scale"] == "L0-L9"
-    assert ladder["max_contiguous_level"] == 7
+    assert ladder["max_contiguous_level"] == 6
     assert ladder["max_contiguous_level_label"] == (
-        "helper_or_bridge_subclaim_kernel_verified"
+        "proofengineer_verifier_trace_repair_observed"
     )
-    assert ladder["max_evidence_level"] == 7
+    assert ladder["max_evidence_level"] == 6
     assert ladder["max_evidence_level_label"] == (
-        "helper_or_bridge_subclaim_kernel_verified"
+        "proofengineer_verifier_trace_repair_observed"
     )
     assert ladder["noncontiguous_evidence_observed"] is False
     assert rows[3]["passed"] is True
     assert rows[4]["passed"] is True
     assert rows[5]["passed"] is True
     assert rows[6]["passed"] is True
-    assert rows[7]["passed"] is True
+    assert rows[7]["passed"] is False
+    assert "runtime_memory_kernel_evidence_ready=True" in rows[7]["evidence"]
+    assert "reusable context" in rows[7]["blocker"]
     assert rows[8]["passed"] is False
     assert "no full source/frontier theorem" in rows[8]["blocker"]
+
+    payload["n_real_kernel_verified_subclaims"] = 1
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[7]["passed"] is True
+    assert ladder["max_contiguous_level"] == 7
+    assert ladder["max_contiguous_level_label"] == (
+        "helper_or_bridge_subclaim_kernel_verified"
+    )
 
 
 def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
@@ -57046,6 +57058,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_live_llm_formalizer_proof_engineer_proposals": 1,
+        "n_real_kernel_verified_subclaims": 1,
         "n_runtime_memory_kernel_verified_proof_obligation_ids": 1,
         "n_formal_gaps": 1,
         "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
@@ -57303,9 +57316,9 @@ def test_runtime_capability_ladder_labels_noncontiguous_resume_evidence() -> Non
     assert ladder["max_contiguous_level"] == -1
     assert ladder["current_level_label"] == "no_runtime_contract"
     assert ladder["max_contiguous_level_label"] == "no_contiguous_runtime_contract"
-    assert ladder["max_evidence_level"] == 7
+    assert ladder["max_evidence_level"] == 5
     assert ladder["max_evidence_level_label"] == (
-        "helper_or_bridge_subclaim_kernel_verified"
+        "formalizer_candidate_local_lean_checked"
     )
     assert ladder["noncontiguous_evidence_observed"] is True
     assert "diagnostic progress only" in ladder["noncontiguous_evidence_warning"]
