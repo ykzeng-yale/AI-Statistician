@@ -171,21 +171,12 @@ def _payload_cross_task_full_theorem_family_count(
     raw_proved_families = _compact_string_list(
         payload.get(
             "task_families_with_full_frontier_target_bound_kernel_verified",
-            payload.get("task_families_with_full_frontier_theorem_proved", []),
+            [],
         )
     )
     proved_families = explicit_task_family_list(raw_proved_families)
     if raw_proved_families:
         return len(proved_families)
-    explicit_count = int(
-        payload.get(
-            "n_task_families_with_full_frontier_target_bound_kernel_verified",
-            payload.get("n_task_families_with_full_frontier_theorem_proved", 0),
-        )
-        or 0
-    )
-    if explicit_count > 0:
-        return explicit_count
     return 0
 
 
@@ -10666,7 +10657,11 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "proved_question_ids="
                 f"{payload.get('question_ids_with_full_frontier_theorem_proved')} "
                 "proved_task_families="
-                f"{payload.get('task_families_with_full_frontier_theorem_proved')}"
+                f"{payload.get('task_families_with_full_frontier_theorem_proved')} "
+                "target_bound_proved_task_families="
+                f"{payload.get('task_families_with_full_frontier_target_bound_kernel_verified')} "
+                "n_target_bound_proved_task_families="
+                f"{payload.get('n_task_families_with_full_frontier_target_bound_kernel_verified')}"
             ),
             (
                 "no multi-family kernel-verified theorem generalization was "
@@ -14052,13 +14047,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "n_task_families_with_full_frontier_theorem_proved="
                 f"{payload.get('n_task_families_with_full_frontier_theorem_proved')} "
                 "task_families_with_full_frontier_theorem_proved="
-                f"{payload.get('task_families_with_full_frontier_theorem_proved')}"
+                f"{payload.get('task_families_with_full_frontier_theorem_proved')} "
+                "n_task_families_with_full_frontier_target_bound_kernel_verified="
+                f"{payload.get('n_task_families_with_full_frontier_target_bound_kernel_verified')} "
+                "task_families_with_full_frontier_target_bound_kernel_verified="
+                f"{payload.get('task_families_with_full_frontier_target_bound_kernel_verified')}"
             ),
             (
                 "capability eval has not kernel-verified full source/frontier "
-                "theorems across at least two distinct statistics task families; "
-                "two question ids inside one family cannot establish general "
-                "AI Statistician readiness"
+                "theorems across at least two explicitly target-bound statistics "
+                "task families; two question ids inside one family cannot establish "
+                "general AI Statistician readiness"
             ),
             **_cross_task_generalization_scorecard_routing(payload),
         ),
@@ -14408,9 +14407,9 @@ def _cross_task_generalization_scorecard_routing(
         "recommended_capability_eval_command": command,
         "success_metric": (
             "n_distinct_task_families>=2 and "
-            "n_task_families_with_full_frontier_theorem_proved>=2 with "
-            "local Lean/AXLE kernel verification for the full source/frontier "
-            "theorem in each family"
+            "n_task_families_with_full_frontier_target_bound_kernel_verified>=2 "
+            "with explicit family ids and local Lean/AXLE kernel verification "
+            "for the full source/frontier theorem in each family"
         ),
         "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
         "routing_boundary": (

@@ -59578,6 +59578,24 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
         "conformal",
     ]
     payload["n_task_families_with_full_frontier_theorem_proved"] = 2
+    payload["n_task_families_with_full_frontier_target_bound_kernel_verified"] = 2
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert "task_families_with_full_frontier_target_bound_kernel_verified=None" in rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["evidence"]
+    assert ladder_rows[9]["passed"] is False
+
+    payload["task_families_with_full_frontier_target_bound_kernel_verified"] = [
+        "causal",
+        "conformal",
+    ]
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     ladder = _runtime_capability_ladder(payload)
