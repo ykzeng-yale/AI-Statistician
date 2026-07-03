@@ -25,7 +25,10 @@ from .formalization_gap_planner_primitive_action_queue import (
     QUEUE_ACTION_KINDS,
     validate_primitive_action_queue_row,
 )
-from .formalization_gap_planner_target_summary import target_prover_family_summary
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_family_summary,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ACTION_RESOURCE_PLAN_SCHEMA_VERSION = 1
@@ -508,7 +511,11 @@ def validate_action_resource_plan_row(
         declaration_target = _target_prover_key(
             declaration_row.get("target_prover_family", "")
         )
-        if row_target and declaration_target and declaration_target != row_target:
+        if (
+            row_target
+            and declaration_target
+            and not target_prover_family_compatible(row_target, declaration_target)
+        ):
             errors.append(
                 "candidate_declaration_rows"
                 f"[{index}].target_prover_family must match row target_prover_family"
@@ -831,9 +838,10 @@ def _resource_supports_target(
     supported_targets = _str_tuple(resource_row.get("target_prover_families", []))
     if not supported_targets:
         return True
-    supported_keys = {_target_prover_key(target) for target in supported_targets}
-    supported_keys.discard("")
-    return not supported_keys or target_key in supported_keys
+    return any(
+        target_prover_family_compatible(target_key, supported_target)
+        for supported_target in supported_targets
+    )
 
 
 def _schema_property_errors(

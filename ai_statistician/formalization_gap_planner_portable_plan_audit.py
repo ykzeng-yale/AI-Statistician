@@ -19,6 +19,10 @@ from .formalization_gap_planner_contract import (
     validate_portable_gap_plan_payload,
     write_route_alignment_edge_schema,
 )
+from .formalization_gap_planner_target_summary import (
+    is_lean_target_prover,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_PORTABLE_PLAN_AUDIT_SCHEMA_VERSION = 1
@@ -646,7 +650,7 @@ def _formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, Any], ...]
 
 def _non_lean_legacy_realization_alias_errors(row: dict[str, Any]) -> tuple[str, ...]:
     target_key = _target_prover_key(row.get("target_prover_family", ""))
-    if not target_key or target_key == "lean4":
+    if not target_key or _is_lean_target_prover(target_key):
         return tuple()
     errors: list[str] = []
     if _nonempty_legacy_field_value(row.get("lean_realization_dag_nodes")):
@@ -730,22 +734,11 @@ def _declaration_evidence_target_errors(row: dict[str, Any]) -> tuple[str, ...]:
 
 
 def _is_lean_target_prover(value: object) -> bool:
-    return _target_prover_key(value) == "lean4"
+    return is_lean_target_prover(value)
 
 
 def _target_prover_key(value: object) -> str:
-    key = str(value).strip().lower().replace("-", "_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "coq_8": "rocq",
-        "coq_rocq": "rocq",
-        "rocq_coq": "rocq",
-        "isabelle_hol": "isabelle",
-        "lean": "lean4",
-        "lean_4": "lean4",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(value)
 
 
 def _iter_alignment_edges(rows: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:

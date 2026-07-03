@@ -12,6 +12,9 @@ from ai_statistician.formalization_gap_planner_portable_plan_audit import (
 from ai_statistician.formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
 )
+from ai_statistician.goal_conditioned_minimal_formalization_plan import (
+    export_goal_conditioned_minimal_formalization_plan,
+)
 
 
 def test_portable_plan_audit_accepts_standalone_plan() -> None:
@@ -101,6 +104,77 @@ def test_portable_plan_audit_accepts_standalone_plan() -> None:
     assert (
         audit_dir / "formalization_gap_planner_route_alignment_edge.schema.json"
     ).exists()
+
+
+def test_portable_plan_audit_accepts_default_lean_adapter_realization_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_portable_plan_audit_lean_adapter")
+    delta_dir = root / "delta"
+    queue_dir = root / "queue"
+    plan_dir = root / "plan"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    (delta_dir / "formalization_delta_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "rows": [{"primitive": "adapter_bridge"}],
+                "theorem_formalization_routes": [
+                    {
+                        "route_id": "route:adapter_bridge",
+                        "task_id": "task:adapter_bridge",
+                        "display_name": "Lean adapter bridge target",
+                        "theorem_skeleton": "theorem adapter_bridge : True := by trivial",
+                        "theorem_statement": "The Lean adapter bridge target is true.",
+                        "route_class": "bridge_or_wrapper",
+                        "total_estimated_cost": 3,
+                        "actions": [
+                            {
+                                "primitive": "adapter_bridge",
+                                "action_id": "action:adapter_bridge",
+                                "action_class": "reuse_exact_proof_bank_obligation",
+                                "total_cost": 3,
+                                "candidate_declarations": ["True.intro"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (queue_dir / "formal_verifier_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "route_id": "route:adapter_bridge",
+                        "import_cone_size": 0,
+                        "dependency_graph_depth": 0,
+                        "blocker_count": 0,
+                        "source_trust_level": "proof_bank_and_local_candidates",
+                        "recommended_action": "reuse the Lean adapter bridge",
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    plan_payload = export_goal_conditioned_minimal_formalization_plan(
+        delta_dir,
+        queue_dir,
+        plan_dir,
+    )
+    assert plan_payload["target_prover_family"] == "lean4_adapter_with_portable_gap_schema"
+    assert plan_payload["n_lean_realization_dag_nodes"] > 0
+
+    payload = audit_formalization_gap_planner_portable_plan(plan_dir, audit_dir)
+
+    assert payload["all_ok"]
+    assert payload["n_rows_without_non_lean_legacy_realization_aliases"] == 1
 
 
 def test_portable_plan_audit_checks_route_option_cost_graph_scope() -> None:
