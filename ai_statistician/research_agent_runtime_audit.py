@@ -11236,6 +11236,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_formalizer_candidate_checked = int(
         payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
     )
+    integrated_formalizer_candidate_compiled = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_compiled", 0) or 0
+    )
     integrated_formalizer_proof_state_feedback_rows = int(
         payload.get("n_formalizer_lean_candidate_proof_state_feedback_rows", 0) or 0
     )
@@ -11349,6 +11352,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_formalizer_agentic_repair_ready = (
         integrated_llm_formalizer_proposals > 0
         and integrated_formalizer_repair_sequences > 0
+        and integrated_formalizer_candidate_compiled > 0
+        and integrated_formalizer_bound_proof_state_feedback_rows > 0
+        and integrated_formalizer_bound_local_lean_tool_calls > 0
     )
     live_generator_artifact_or_attempt_count = (
         integrated_algorithm_code_executed
@@ -11552,6 +11558,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_generic_llm_formalizer_proposals} "
                 "formalizer_candidate_checked="
                 f"{integrated_formalizer_candidate_checked} "
+                "formalizer_candidate_compiled="
+                f"{integrated_formalizer_candidate_compiled} "
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
                 "formalizer_local_lean_check_observed="
@@ -11603,6 +11611,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
+                "formalizer_candidate_checked="
+                f"{integrated_formalizer_candidate_checked} "
+                "formalizer_candidate_compiled="
+                f"{integrated_formalizer_candidate_compiled} "
                 "proof_state_feedback_rows="
                 f"{integrated_formalizer_proof_state_feedback_rows} "
                 "bound_proof_state_feedback_rows="
@@ -11944,6 +11956,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_formalizer_candidate_checked = int(
         payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
     )
+    integrated_formalizer_candidate_compiled = int(
+        payload.get("n_formalizer_lean_candidate_local_lean_compiled", 0) or 0
+    )
     integrated_formalizer_live_proof_state_requests = int(
         payload.get("n_formalizer_lean_candidate_live_proof_state_requests", 0)
         or 0
@@ -12100,6 +12115,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_formalizer_agentic_repair_ready = (
         integrated_llm_formalizer_proposals > 0
         and integrated_formalizer_repair_sequences > 0
+        and integrated_formalizer_candidate_compiled > 0
+        and integrated_formalizer_bound_proof_state_feedback_rows > 0
+        and integrated_formalizer_bound_local_lean_tool_calls > 0
     )
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
@@ -14700,13 +14718,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_llm_formalizer_proposals} "
                 "integrated_generic_llm_formalizer_proposals="
                 f"{integrated_generic_llm_formalizer_proposals} "
+                "integrated_formalizer_candidate_checked="
+                f"{integrated_formalizer_candidate_checked} "
+                "integrated_formalizer_candidate_compiled="
+                f"{integrated_formalizer_candidate_compiled} "
+                "bound_proof_state_feedback_rows="
+                f"{integrated_formalizer_bound_proof_state_feedback_rows} "
+                "bound_local_lean_tool_calls="
+                f"{integrated_formalizer_bound_local_lean_tool_calls} "
                 "attached_formalizer_live_gate="
                 f"{attached_formalizer_live_gate_passed}"
             ),
             (
                 "no integrated live Formalizer/ProofEngineer fail-then-pass Lean "
-                "candidate repair loop was observed; attached component repair "
-                "calibration is diagnostic evidence only"
+                "candidate repair loop was observed with a live LLM repair "
+                "proposal, compiled repaired candidate, bound proof-state "
+                "feedback, and bound local Lean tool-call diagnostics; attached "
+                "component repair calibration is diagnostic evidence only"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -14718,7 +14746,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_live_llm_formalizer_proof_engineer_proposals>0 and "
-                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0, "
+                    "n_formalizer_lean_candidate_local_lean_compiled>0, "
+                    "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows>0, "
+                    "and n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls>0 "
                     "in the integrated runtime manifest"
                 ),
             ),

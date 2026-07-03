@@ -1898,6 +1898,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_formalizer_lean_candidate_local_lean_checked",
     )
+    formalizer_compiled = _runtime_manifest_int(
+        payload,
+        "n_formalizer_lean_candidate_local_lean_compiled",
+    )
     formalizer_live_proof_state_requests = _runtime_manifest_int(
         payload,
         "n_formalizer_lean_candidate_live_proof_state_requests",
@@ -2111,6 +2115,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
         and attached_formalizer_executed_tool_calls
         >= attached_formalizer_lean_lsp_mcp_tool_calls
+    )
+    integrated_formalizer_repair_loop_ready = (
+        live_llm_formalizer_proposals > 0
+        and formalizer_repair_sequences > 0
+        and formalizer_compiled > 0
+        and formalizer_bound_proof_state_feedback_rows > 0
+        and formalizer_bound_local_lean_tool_calls > 0
     )
     rows = [
         {
@@ -2401,20 +2412,32 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "formalizer_lean_candidate_repair_loop_observed",
-            "passed": formalizer_repair_sequences > 0,
+            "passed": integrated_formalizer_repair_loop_ready,
             "count": formalizer_repair_sequences,
             "evidence": (
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences="
                 f"{formalizer_repair_sequences}; "
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
+                "n_formalizer_lean_candidate_local_lean_checked="
+                f"{formalizer_checked}; "
+                "n_formalizer_lean_candidate_local_lean_compiled="
+                f"{formalizer_compiled}; "
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows="
+                f"{formalizer_bound_proof_state_feedback_rows}; "
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls="
+                f"{formalizer_bound_local_lean_tool_calls}; "
                 "attached_component_formalizer_repair_calibration="
                 f"{attached_formalizer_repair_calibration}"
             ),
             "blocker": (
                 ""
-                if formalizer_repair_sequences > 0
+                if integrated_formalizer_repair_loop_ready
                 else (
-                    "no generated Lean candidate failure inside the integrated "
-                    "runtime was followed by a local-kernel-checked repair; "
+                    "no live integrated Formalizer/ProofEngineer repair loop "
+                    "showed a failed generated Lean candidate, a live LLM "
+                    "repair proposal, bound proof-state feedback, bound local "
+                    "Lean diagnostics, and a locally compiled repaired candidate; "
                     "attached component calibration is reported separately"
                 )
             ),
@@ -2904,7 +2927,11 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0 "
+                "n_live_llm_formalizer_proof_engineer_proposals>0, "
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences>0, "
+                "n_formalizer_lean_candidate_local_lean_compiled>0, "
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows>0, "
+                "and n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls>0 "
                 "in the integrated runtime; standalone Formalizer repair evals "
                 "are component calibration until consumed by the AgentRuntime loop"
             )

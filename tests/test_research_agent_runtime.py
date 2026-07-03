@@ -28868,6 +28868,9 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
         "n_formalizer_lean_candidate_local_lean_checked": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_local_lean_checked"],
+        "n_formalizer_lean_candidate_local_lean_compiled": evidence_summary[
+            "proof"
+        ]["n_formalizer_lean_candidate_local_lean_compiled"],
         "n_formalizer_lean_candidate_live_proof_state_requests": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_live_proof_state_requests"],
@@ -29476,7 +29479,10 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
     assert repair_sequences == 1
     assert rows[
         "formalizer_lean_candidate_integrated_repair_loop_observed"
-    ]["passed"] is True
+    ]["passed"] is False
+    assert "bound_proof_state_feedback_rows=0" in rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]["evidence"]
     assert "integrated_formalizer_repair_sequences=1" in rows[
         "formalizer_lean_candidate_integrated_repair_loop_observed"
     ]["evidence"]
@@ -57848,6 +57854,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57911,6 +57918,7 @@ def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58025,6 +58033,7 @@ def test_runtime_capability_ladder_requires_explicit_formalizer_local_lean_check
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 0,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58068,6 +58077,7 @@ def test_runtime_capability_ladder_requires_bound_prover_tool_trace() -> None:
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
         "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
@@ -58118,6 +58128,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58211,6 +58222,7 @@ def test_runtime_readiness_surfaces_include_retry_semantic_authoring_provenance(
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58408,6 +58420,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58459,6 +58472,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58520,6 +58534,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58581,6 +58596,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58642,6 +58658,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -59069,13 +59086,16 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ]["passed"] is False
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
-    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert "n_formalizer_lean_candidate_local_lean_compiled=0" in rows[
+        "formalizer_lean_candidate_repair_loop_observed"
+    ]["evidence"]
     assert table["coding_agent_capability_ready"] is False
     learning_rows = _runtime_coding_agent_capability_learning_rows(
         manifest=payload,
         capability_table=table,
     )
-    assert len(learning_rows) == 7
+    assert len(learning_rows) == 8
     learning_rows_by_id = {
         row["capability_id"]: row for row in learning_rows
     }
@@ -59087,6 +59107,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "formalizer_lean_candidate_proof_state_feedback_recorded",
         "formalizer_local_lean_tool_call_observed",
         "formalizer_live_prover_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
     }
     algorithm_learning_row = learning_rows_by_id[
         "generated_algorithm_repair_loop_observed"
@@ -59132,6 +59153,16 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert (
         "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
         in simulation_metric_learning_row["success_metric"]
+    )
+    formalizer_repair_learning_row = learning_rows_by_id[
+        "formalizer_lean_candidate_repair_loop_observed"
+    ]
+    assert formalizer_repair_learning_row["next_owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    assert (
+        "n_formalizer_lean_candidate_local_lean_compiled>0"
+        in formalizer_repair_learning_row["success_metric"]
     )
     proof_state_learning_row = learning_rows_by_id[
         "formalizer_lean_candidate_proof_state_request_routed"
@@ -59188,7 +59219,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         manifest=payload,
         capability_table=table,
     )
-    assert len(learning_rows) == 6
+    assert len(learning_rows) == 7
     assert {
         row["capability_id"] for row in learning_rows
     } == {
@@ -59198,6 +59229,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "formalizer_lean_candidate_proof_state_feedback_recorded",
         "formalizer_local_lean_tool_call_observed",
         "formalizer_live_prover_tool_call_observed",
+        "formalizer_lean_candidate_repair_loop_observed",
     }
     payload["n_formalizer_lean_candidate_live_proof_state_requests"] = 1
     payload["n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests"] = 1
@@ -59230,6 +59262,13 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows[
         "generated_simulation_metric_repair_loop_observed"
     ]["passed"] is False
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert table["coding_agent_capability_ready"] is False
+
+    payload["n_formalizer_lean_candidate_local_lean_compiled"] = 1
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
     assert table["coding_agent_capability_ready"] is False
 
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
@@ -59501,6 +59540,35 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert table["component_calibration"][
         "attached_formalizer_repair_calibration"
     ] is True
+
+    integrated_formalizer_repair_payload = dict(formalizer_calibrated_payload)
+    integrated_formalizer_repair_payload.update(
+        {
+            "n_live_llm_formalizer_proof_engineer_proposals": 1,
+            "n_llm_formalizer_proof_engineer_proposals": 1,
+            "n_formalizer_lean_candidate_local_lean_checked": 1,
+            "n_formalizer_lean_candidate_local_lean_compiled": 0,
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
+            "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        }
+    )
+    table = _runtime_coding_agent_capability_table(
+        integrated_formalizer_repair_payload
+    )
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert "n_formalizer_lean_candidate_local_lean_compiled=0" in rows[
+        "formalizer_lean_candidate_repair_loop_observed"
+    ]["evidence"]
+    integrated_formalizer_repair_payload[
+        "n_formalizer_lean_candidate_local_lean_compiled"
+    ] = 1
+    table = _runtime_coding_agent_capability_table(
+        integrated_formalizer_repair_payload
+    )
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
 
     static_component_payload = dict(payload)
     static_component_payload[
@@ -59870,7 +59938,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_unsafe_generated_simulation_code_rejected": 0,
         "n_live_unsafe_generated_simulation_code_rejected": 0,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
-        "n_formalizer_lean_candidate_local_lean_compiled": 0,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
@@ -59962,6 +60030,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+
+    uncompiled_repair_payload = dict(payload)
+    uncompiled_repair_payload["n_formalizer_lean_candidate_local_lean_compiled"] = 0
+    scorecard = _runtime_capability_scorecard(uncompiled_repair_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    integrated_repair_row = rows[
+        "formalizer_lean_candidate_integrated_repair_loop_observed"
+    ]
+    assert integrated_repair_row["passed"] is False
+    assert "integrated_formalizer_candidate_compiled=0" in integrated_repair_row[
+        "evidence"
+    ]
 
     manifest_fallback_payload = dict(payload)
     manifest_fallback_payload[
@@ -67550,7 +67630,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert coding_rows[
         "formalizer_lean_candidate_repair_loop_observed"
     ]["passed"] is False
-    assert "no generated Lean candidate failure" in coding_rows[
+    assert "no live integrated Formalizer/ProofEngineer repair loop" in coding_rows[
         "formalizer_lean_candidate_repair_loop_observed"
     ]["blocker"]
     output_learning_path = Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
