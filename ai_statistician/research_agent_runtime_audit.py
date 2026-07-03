@@ -10295,6 +10295,35 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         integrated_llm_formalizer_proposals > 0
         and integrated_formalizer_repair_sequences > 0
     )
+    live_generator_artifact_or_attempt_count = (
+        integrated_algorithm_code_executed
+        + integrated_simulation_code_executed
+        + integrated_algorithm_repair_sequences
+        + integrated_simulation_repair_sequences
+        + integrated_algorithm_metric_repair_sequences
+        + integrated_simulation_metric_repair_sequences
+        + int(
+            payload.get(
+                "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        + int(
+            payload.get(
+                "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+                0,
+            )
+            or 0
+        )
+        + integrated_llm_formalizer_proposals
+        + exact_semantic_authoring_live_attempts
+        + int(payload.get("live_llm_invoked") is True)
+    )
+    live_llm_generator_packets_ready = (
+        int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0
+        and live_generator_artifact_or_attempt_count > 0
+    )
     generated_code_execution_ready = (
         integrated_algorithm_code_executed > 0
         and integrated_simulation_code_executed > 0
@@ -10383,12 +10412,18 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             1,
             "live_llm_generator_packets_valid",
             payload.get("all_ok") is True
-            and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0,
+            and live_llm_generator_packets_ready,
             (
                 f"all_ok={payload.get('all_ok')} "
-                f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')}"
+                f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')} "
+                "live_generator_artifact_or_attempt_count="
+                f"{live_generator_artifact_or_attempt_count}"
             ),
-            "no completed audited run used Anthropic/OpenAI generator-backed agents",
+            (
+                "no completed audited run produced a live Anthropic/OpenAI "
+                "generator-backed artifact or attempt; enabled-agent topology "
+                "alone is configuration evidence, not a live LLM packet"
+            ),
         ),
         _ladder_level(
             2,
