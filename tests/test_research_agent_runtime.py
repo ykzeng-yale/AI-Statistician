@@ -56961,6 +56961,22 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
     ladder = _runtime_capability_ladder(payload)
     rows = {row["level"]: row for row in ladder["levels"]}
 
+    assert rows[5]["passed"] is False
+    assert rows[6]["passed"] is False
+    assert "exact_semantic_authoring_candidate_packets=0" in rows[5]["evidence"]
+    assert ladder["max_contiguous_level"] == 4
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        }
+    )
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
     assert rows[5]["passed"] is True
     assert rows[6]["passed"] is True
     assert rows[7]["passed"] is True
@@ -57067,9 +57083,43 @@ def test_runtime_readiness_surfaces_include_retry_semantic_authoring_provenance(
     assert capability_rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is True
-    assert ladder_rows[5]["passed"] is True
+    assert capability_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "candidate_packets=0" in capability_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+    assert ladder_rows[5]["passed"] is False
     assert scorecard_rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        }
+    )
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert capability_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is True
+    assert ladder_rows[5]["passed"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["passed"] is True
 
 
@@ -57913,6 +57963,36 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "candidate_packets=0" in rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+    assert table["coding_agent_capability_ready"] is False
+    learning_rows = _runtime_coding_agent_capability_learning_rows(
+        manifest=payload,
+        capability_table=table,
+    )
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["capability_id"] == (
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    )
+    assert learning_rows[0]["next_owner_subsystem"] == "Formalizer/ProofEngineer"
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        }
+    )
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["passed"] is True
     assert table["coding_agent_capability_ready"] is True
 
@@ -60636,6 +60716,33 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
     assert rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "candidate_packets=0" in rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["evidence"]
+    assert (
+        "not materialized and checked"
+        in rows[
+            "exact_semantic_definition_authoring_candidate_verifier_checked"
+        ]["blocker"]
+    )
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        }
+    )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is True
 
 
 def test_runtime_capability_scorecard_accepts_lineage_checked_post_runtime_exact_semantic_authoring() -> None:
@@ -60686,6 +60793,12 @@ def test_runtime_capability_scorecard_accepts_lineage_checked_post_runtime_exact
     ]["passed"] is True
     assert "post_runtime_attached=True" in rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
+    assert "post_runtime_attached=True" in rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["evidence"]
 
 
@@ -60753,6 +60866,7 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
         "n_prompt_packets": 1,
         "n_llm_attempted": 1,
         "n_live_llm_attempted": 1,
+        "n_candidate_packets": 1,
     }
     live_worker_manifest_path.write_text(
         json.dumps(live_worker_manifest),
@@ -60772,12 +60886,18 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
     assert audit[
         "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
     ] == 1
+    assert audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets"
+    ] == 1
     assert rows[
         "exact_semantic_definition_authoring_worker_handoff_not_dropped"
     ]["passed"] is True
     assert rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["passed"] is False
 
     static_worker_manifest_path = tmp_path / "static_authoring_worker_manifest.json"
     static_worker_manifest = dict(live_worker_manifest)
@@ -60802,6 +60922,9 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
     assert static_audit[
         "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
     ] == 0
+    assert static_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets"
+    ] == 1
     assert static_rows[
         "exact_semantic_definition_authoring_worker_handoff_not_dropped"
     ]["passed"] is True
@@ -60843,6 +60966,9 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
     ] is False
     assert mismatched_audit[
         "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] == 0
+    assert mismatched_audit[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets"
     ] == 0
     assert mismatched_rows[
         "exact_semantic_definition_authoring_worker_handoff_not_dropped"

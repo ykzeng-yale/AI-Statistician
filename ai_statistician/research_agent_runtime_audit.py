@@ -5102,6 +5102,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
@@ -5162,6 +5169,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_late_authoring_worker_ran": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_authoring_worker_ran",
@@ -5196,6 +5210,13 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
                 0,
             )
             or 0
@@ -5280,6 +5301,11 @@ def audit_research_agent_runtime(
                 "n_live_llm_attempted"
             ]
         ),
+        "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets": int(
+            post_runtime_exact_semantic_definition_authoring_worker[
+                "n_candidate_packets"
+            ]
+        ),
         "post_runtime_exact_semantic_definition_authoring_worker_boundary": str(
             post_runtime_exact_semantic_definition_authoring_worker["boundary"]
         ),
@@ -5299,6 +5325,55 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
                 0,
             )
             or 0
@@ -5574,6 +5649,13 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
                 0,
             )
             or 0
@@ -10151,6 +10233,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_authoring_live_ready = bool(
         exact_semantic_authoring["live_ready"]
     )
+    exact_semantic_authoring_candidate_verifier_ready = bool(
+        exact_semantic_authoring["candidate_verifier_ready"]
+    )
     integrated_generic_llm_formalizer_proposals = int(
         payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
     )
@@ -10203,6 +10288,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     formalizer_local_check_ready = (
         integrated_llm_formalizer_proposals > 0
         and exact_semantic_authoring_live_ready
+        and exact_semantic_authoring_candidate_verifier_ready
         and (
             integrated_formalizer_candidate_checked > 0
             or integrated_formalizer_repair_sequences > 0
@@ -10211,6 +10297,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     proofengineer_feedback_repair_ready = (
         integrated_formalizer_agentic_repair_ready
         and exact_semantic_authoring_live_ready
+        and exact_semantic_authoring_candidate_verifier_ready
         and (
             integrated_formalizer_bound_proof_state_feedback_rows > 0
             or integrated_formalizer_bound_local_lean_tool_calls > 0
@@ -10356,6 +10443,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_authoring_live_attempts} "
                 "exact_semantic_authoring_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts} "
+                "exact_semantic_authoring_candidate_verifier_required="
+                f"{exact_semantic_authoring['candidate_verifier_required']} "
+                "exact_semantic_authoring_candidate_packets="
+                f"{exact_semantic_authoring['n_candidate_packets']} "
+                "exact_semantic_authoring_materialized_tasks="
+                f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']} "
+                "exact_semantic_authoring_materialized_local_lean_checked="
+                f"{exact_semantic_authoring['n_materialized_local_lean_checked']} "
                 "exact_semantic_authoring_provider="
                 f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
@@ -10367,7 +10462,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "no live Formalizer/ProofEngineer Lean candidate was "
                 "materialized and checked by local Lean, or exact semantic-"
                 "definition authoring required by the repair loop was not "
-                "attempted with a live Claude/OpenAI backend"
+                "attempted with a live Claude/OpenAI backend and routed "
+                "through materialized local Lean/AXLE verification"
             ),
         ),
         _ladder_level(
@@ -10401,6 +10497,14 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_authoring_live_attempts} "
                 "exact_semantic_authoring_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts} "
+                "exact_semantic_authoring_candidate_verifier_required="
+                f"{exact_semantic_authoring['candidate_verifier_required']} "
+                "exact_semantic_authoring_candidate_packets="
+                f"{exact_semantic_authoring['n_candidate_packets']} "
+                "exact_semantic_authoring_materialized_tasks="
+                f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']} "
+                "exact_semantic_authoring_materialized_local_lean_checked="
+                f"{exact_semantic_authoring['n_materialized_local_lean_checked']} "
                 "exact_semantic_authoring_provider="
                 f"{exact_semantic_authoring['provider_names']} "
                 "exact_semantic_authoring_backend_provider="
@@ -10412,7 +10516,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "no ProofEngineer repair loop consumed verifier/proof-state "
                 "tool traces and produced a repaired Lean candidate, or exact "
                 "semantic-definition authoring required by the repair loop was "
-                "not attempted with a live Claude/OpenAI backend"
+                "not attempted with a live Claude/OpenAI backend and routed "
+                "through materialized local Lean/AXLE verification"
             ),
         ),
         _ladder_level(
@@ -11279,6 +11384,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     exact_semantic_definition_authoring_worker_live_llm_attempted = int(
         exact_semantic_definition_authoring["n_live_llm_attempted"]
+    )
+    exact_semantic_definition_authoring_candidate_verifier_ready = bool(
+        exact_semantic_definition_authoring["candidate_verifier_ready"]
     )
     primary_typechecked_review_verifier_gate_work_orders = int(
         payload.get(
@@ -13346,6 +13454,53 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "exact_semantic_definition_authoring_candidate_verifier_checked",
+            exact_semantic_definition_authoring_candidate_verifier_ready,
+            (
+                "candidate_verifier_required="
+                f"{exact_semantic_definition_authoring['candidate_verifier_required']} "
+                "required="
+                f"{exact_semantic_definition_authoring['required']} "
+                "live_llm_attempted="
+                f"{exact_semantic_definition_authoring['n_live_llm_attempted']} "
+                "candidate_packets="
+                f"{exact_semantic_definition_authoring['n_candidate_packets']} "
+                "worker_candidate_packets="
+                f"{exact_semantic_definition_authoring['n_worker_candidate_packets']} "
+                "materializer_candidate_packets="
+                f"{exact_semantic_definition_authoring['n_materializer_candidate_packets']} "
+                "materialized_lean_repair_tasks="
+                f"{exact_semantic_definition_authoring['n_materialized_lean_repair_tasks']} "
+                "materialized_local_lean_checked="
+                f"{exact_semantic_definition_authoring['n_materialized_local_lean_checked']} "
+                "post_runtime_attached="
+                f"{exact_semantic_definition_authoring['post_runtime_attached']} "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']}"
+            ),
+            (
+                "live exact semantic-definition authoring was recorded, but "
+                "its definition candidates were not materialized and checked "
+                "by local Lean/AXLE in the integrated feedback loop"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="Formalizer/ProofEngineer",
+                target_behavior=(
+                    "Treat exact semantic-definition authoring output as a "
+                    "first-class inter-agent artifact: emit definition-only "
+                    "candidate packets, materialize them into Lean repair "
+                    "tasks, and feed local Lean/AXLE diagnostics back to the "
+                    "repair loop."
+                ),
+                success_metric=(
+                    "after live exact semantic-definition authoring, "
+                    "candidate_packets>0, materialized_lean_repair_tasks>0, "
+                    "and materialized_local_lean_checked>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped",
             exact_semantic_definition_candidate_synthesis_recheck_rows <= 0
             or exact_semantic_definition_candidate_synthesis_recheck_executor_ran,
@@ -14464,6 +14619,7 @@ def _post_runtime_exact_semantic_definition_authoring_worker_empty_summary(
         "n_prompt_packets": 0,
         "n_llm_attempted": 0,
         "n_live_llm_attempted": 0,
+        "n_candidate_packets": 0,
         "boundary": (
             "Post-runtime exact semantic-definition authoring worker attachments "
             "are lineage-checked live handoff/attempt evidence only. They are "
@@ -14621,6 +14777,7 @@ def _post_runtime_exact_semantic_definition_authoring_worker_summary(
     raw_prompt_packets = _safe_int(manifest.get("n_prompt_packets", 0))
     raw_llm_attempted = _safe_int(manifest.get("n_llm_attempted", 0))
     raw_live_llm_attempted = _safe_int(manifest.get("n_live_llm_attempted", 0))
+    raw_candidate_packets = _safe_int(manifest.get("n_candidate_packets", 0))
     live_backend_pair = is_live_generator_backend(provider_name, backend_provider_name)
     trusted_counts = lineage_ok
     summary.update(
@@ -14650,6 +14807,7 @@ def _post_runtime_exact_semantic_definition_authoring_worker_summary(
             "n_live_llm_attempted": (
                 raw_live_llm_attempted if trusted_counts and live_backend_pair else 0
             ),
+            "n_candidate_packets": raw_candidate_packets if trusted_counts else 0,
         }
     )
     return summary

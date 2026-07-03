@@ -758,6 +758,57 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
         )
     )
+    candidate_packets_from_workers = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
+        ),
+    )
+    candidate_packets_from_materializers = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
+        ),
+    )
+    materialized_lean_repair_tasks = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+        ),
+    )
+    materialized_local_lean_checked = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+        ),
+    )
+    candidate_packets = max(
+        candidate_packets_from_workers,
+        candidate_packets_from_materializers,
+        materialized_lean_repair_tasks,
+    )
+    candidate_verifier_required = (
+        (primary_required or retry_required or late_required)
+        and live_attempts > 0
+    )
+    candidate_verifier_ready = (
+        not candidate_verifier_required
+        or (
+            candidate_packets > 0
+            and materialized_lean_repair_tasks > 0
+            and materialized_local_lean_checked > 0
+        )
+    )
     provider_names = [
         str(value or "").strip()
         for value in (
@@ -838,6 +889,13 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_prompt_packets": prompt_packets,
         "n_llm_attempted": generic_attempts,
         "n_live_llm_attempted": live_attempts,
+        "candidate_verifier_required": candidate_verifier_required,
+        "candidate_verifier_ready": candidate_verifier_ready,
+        "n_candidate_packets": candidate_packets,
+        "n_worker_candidate_packets": candidate_packets_from_workers,
+        "n_materializer_candidate_packets": candidate_packets_from_materializers,
+        "n_materialized_lean_repair_tasks": materialized_lean_repair_tasks,
+        "n_materialized_local_lean_checked": materialized_local_lean_checked,
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
         "post_runtime_attached": post_runtime_attached,
@@ -1531,6 +1589,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     exact_semantic_authoring_generic_attempts = int(
         exact_semantic_authoring["n_llm_attempted"]
     )
+    exact_semantic_authoring_candidate_verifier_ready = bool(
+        exact_semantic_authoring["candidate_verifier_ready"]
+    )
     llm_formalizer_proposals = _runtime_manifest_int(
         payload,
         "n_llm_formalizer_proof_engineer_proposals",
@@ -1901,6 +1962,40 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 )
             ),
         },
+        {
+            "capability_id": "exact_semantic_definition_authoring_candidate_verifier_checked",
+            "passed": exact_semantic_authoring_candidate_verifier_ready,
+            "count": int(
+                exact_semantic_authoring["n_materialized_local_lean_checked"]
+            ),
+            "evidence": (
+                "candidate_verifier_required="
+                f"{exact_semantic_authoring['candidate_verifier_required']}; "
+                "required="
+                f"{exact_semantic_authoring_required}; "
+                "n_live_llm_attempted="
+                f"{exact_semantic_authoring_live_attempts}; "
+                "candidate_packets="
+                f"{exact_semantic_authoring['n_candidate_packets']}; "
+                "worker_candidate_packets="
+                f"{exact_semantic_authoring['n_worker_candidate_packets']}; "
+                "materializer_candidate_packets="
+                f"{exact_semantic_authoring['n_materializer_candidate_packets']}; "
+                "materialized_lean_repair_tasks="
+                f"{exact_semantic_authoring['n_materialized_lean_repair_tasks']}; "
+                "materialized_local_lean_checked="
+                f"{exact_semantic_authoring['n_materialized_local_lean_checked']}"
+            ),
+            "blocker": (
+                ""
+                if exact_semantic_authoring_candidate_verifier_ready
+                else (
+                    "live exact semantic-definition authoring produced or should "
+                    "have produced definition candidates, but no materialized "
+                    "candidate was routed through local Lean/AXLE diagnostics"
+                )
+            ),
+        },
     ]
     for row in rows:
         row.setdefault("scope", "integrated_runtime")
@@ -2253,6 +2348,25 @@ def _runtime_coding_agent_capability_learning_rows(
                 "n_live_llm_attempted)>0 in the integrated AgentRuntime "
                 "manifest; generic n_llm_attempted or static/replay backend "
                 "provenance does not satisfy this capability"
+            )
+        elif (
+            capability_id
+            == "exact_semantic_definition_authoring_candidate_verifier_checked"
+        ):
+            next_owner = "Formalizer/ProofEngineer"
+            target_behavior = (
+                "Consume live exact semantic-definition authoring output as a "
+                "real inter-agent artifact: emit definition-only candidate "
+                "packets, materialize them into Lean repair tasks, and run "
+                "local Lean/AXLE so verifier diagnostics return to the repair loop."
+            )
+            recommended_eval = integrated_eval_command
+            success_metric = (
+                "after live exact semantic-definition authoring, "
+                "n_candidate_packets>0, "
+                "n_materialized_lean_repair_tasks>0, and "
+                "n_materialized_local_lean_checked>0 in the integrated "
+                "AgentRuntime manifest"
             )
         else:
             next_owner = "ArchitectCoordinator"
@@ -27992,6 +28106,15 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_authoring_worker_manifest
             or {}
         ).get("n_live_llm_attempted", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_authoring_worker_manifest
+            or {}
+        ).get("n_candidate_packets", 0)
         or 0
     )
     manifest[
