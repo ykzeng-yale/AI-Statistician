@@ -73,6 +73,9 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     placeholder_text_signals = _normalize_placeholder_text_signal_map(
         payload.get("placeholder_symbol_text_signals", {})
     )
+    theorem_closure_strategies = _normalize_theorem_closure_reduction_strategies(
+        payload.get("theorem_closure_reduction_strategies", {})
+    )
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
         "schema_version": int(payload.get("schema_version", 1) or 1),
@@ -81,6 +84,7 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "primitive_to_registered_support": primitive_support,
         "placeholder_symbol_to_registered_support": placeholder_support,
         "placeholder_symbol_text_signals": placeholder_text_signals,
+        "theorem_closure_reduction_strategies": theorem_closure_strategies,
         "exact_goal_shape_to_registered_support": exact_goal_shape_support,
     }
 
@@ -130,11 +134,43 @@ def _normalize_placeholder_text_signal_map(
     return normalized
 
 
+def _normalize_theorem_closure_reduction_strategies(
+    value: Any,
+) -> dict[str, tuple[dict[str, str], ...]]:
+    if not isinstance(value, Mapping):
+        return {}
+    normalized: dict[str, tuple[dict[str, str], ...]] = {}
+    required_keys = (
+        "proof_obligation_id",
+        "source_theorem_name",
+        "closure_theorem_name",
+        "reduction_description",
+    )
+    for goal_id, raw_strategies in value.items():
+        normalized_goal_id = str(goal_id).strip()
+        if not normalized_goal_id:
+            continue
+        strategies: list[dict[str, str]] = []
+        for raw_strategy in raw_strategies or []:
+            if not isinstance(raw_strategy, Mapping):
+                continue
+            strategy = {
+                key: str(raw_strategy.get(key, "") or "").strip()
+                for key in required_keys
+            }
+            if all(strategy.values()):
+                strategies.append(strategy)
+        if strategies:
+            normalized[normalized_goal_id] = tuple(strategies)
+    return normalized
+
+
 def _semantic_support_policy_summary() -> dict[str, Any]:
     policy = _semantic_support_policy()
     primitive_support = policy["primitive_to_registered_support"]
     placeholder_support = policy["placeholder_symbol_to_registered_support"]
     placeholder_text_signals = policy["placeholder_symbol_text_signals"]
+    theorem_closure_strategies = policy["theorem_closure_reduction_strategies"]
     exact_goal_shape_support = policy["exact_goal_shape_to_registered_support"]
     return {
         "policy_id": policy["policy_id"],
@@ -144,10 +180,12 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "n_primitive_support_routes": len(primitive_support),
         "n_placeholder_symbol_support_routes": len(placeholder_support),
         "n_placeholder_symbol_text_signal_routes": len(placeholder_text_signals),
+        "n_theorem_closure_reduction_goal_routes": len(theorem_closure_strategies),
         "n_exact_goal_shape_support_routes": len(exact_goal_shape_support),
         "boundary": (
-            "Semantic-support policy routes task-family primitive IDs to registered "
-            "support obligations. It is routing metadata only; proof evidence still "
+            "Semantic-support policy routes task-family primitive IDs, placeholder "
+            "signals, and theorem-closure strategies to registered support "
+            "obligations. It is routing metadata only; proof evidence still "
             "requires kernel_verified=true rows in the proof audit manifest."
         ),
     }
@@ -191,6 +229,27 @@ def registered_support_for_exact_goal_shape_obligation(
 ) -> tuple[str, ...]:
     policy = _semantic_support_policy()
     return policy["exact_goal_shape_to_registered_support"].get(obligation_id, ())
+
+
+def theorem_closure_reduction_strategy_for_goal(
+    *,
+    goal_id: str,
+    verified_bridge_ids: Sequence[str],
+) -> dict[str, str]:
+    policy = _semantic_support_policy()
+    strategies = policy["theorem_closure_reduction_strategies"].get(
+        str(goal_id).strip(),
+        (),
+    )
+    verified = {
+        str(value).strip()
+        for value in verified_bridge_ids
+        if str(value).strip()
+    }
+    for strategy in strategies:
+        if strategy["proof_obligation_id"] in verified:
+            return dict(strategy)
+    return {}
 
 
 def placeholder_symbols_from_semantic_alignment_feedback(

@@ -92,5 +92,21 @@
     "conjunctive_source_theorem_split": [
       "source_theorem_conjunction_from_components"
     ]
+  },
+  "theorem_closure_reduction_strategies": {
+    "split_conformal_finite_sample_coverage": [
+      {
+        "proof_obligation_id": "split_conformal_good_rank_coverage_bridge",
+        "source_theorem_name": "splitConformalCoverage_of_goodRankCoverage",
+        "closure_theorem_name": "splitConformalFiniteSampleCoverage_reductionClosure",
+        "reduction_description": "good-rank-containment-to-coverage"
+      },
+      {
+        "proof_obligation_id": "split_conformal_bad_rank_reduction_bridge",
+        "source_theorem_name": "splitConformalCoverage_of_badRankBudget",
+        "closure_theorem_name": "splitConformalFiniteSampleCoverage_reductionClosure",
+        "reduction_description": "bad-rank-budget-to-coverage"
+      }
+    ]
   }
 }

@@ -168,6 +168,7 @@ from .source_theorem_semantic_primitive_proofengineer_bridge import (
     placeholder_symbols_for_registered_support_ids as _policy_placeholder_symbols_for_registered_support_ids,
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
     registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
+    theorem_closure_reduction_strategy_for_goal as _policy_theorem_closure_reduction_strategy_for_goal,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
 from .source_theorem_proof_body_adapter_proofengineer_bridge import (
@@ -48051,23 +48052,19 @@ def _deterministic_theorem_closure_lean_statement_sketch(
     goal_id: str,
     verified_bridge_ids: list[str],
 ) -> str:
-    verified_bridge_set = set(verified_bridge_ids)
-    if goal_id == "split_conformal_finite_sample_coverage" and (
-        "split_conformal_good_rank_coverage_bridge" in verified_bridge_set
-        or "split_conformal_bad_rank_reduction_bridge" in verified_bridge_set
-    ):
-        if "split_conformal_good_rank_coverage_bridge" in verified_bridge_set:
-            obligation_id = "split_conformal_good_rank_coverage_bridge"
-            source_theorem_name = "splitConformalCoverage_of_goodRankCoverage"
-            reduction_description = "good-rank-containment-to-coverage"
-        else:
-            obligation_id = "split_conformal_bad_rank_reduction_bridge"
-            source_theorem_name = "splitConformalCoverage_of_badRankBudget"
-            reduction_description = "bad-rank-budget-to-coverage"
+    closure_strategy = _policy_theorem_closure_reduction_strategy_for_goal(
+        goal_id=goal_id,
+        verified_bridge_ids=verified_bridge_ids,
+    )
+    if closure_strategy:
+        obligation_id = closure_strategy["proof_obligation_id"]
+        source_theorem_name = closure_strategy["source_theorem_name"]
+        closure_theorem_name = closure_strategy["closure_theorem_name"]
+        reduction_description = closure_strategy["reduction_description"]
         obligation = get_obligation(obligation_id)
         statement = obligation.formal_statement.strip().replace(
             f"theorem {source_theorem_name}",
-            "theorem splitConformalFiniteSampleCoverage_reductionClosure",
+            f"theorem {closure_theorem_name}",
             1,
         )
         candidate = re.sub(

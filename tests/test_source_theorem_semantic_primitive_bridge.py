@@ -7,6 +7,7 @@ from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge impo
     placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
+    theorem_closure_reduction_strategy_for_goal,
 )
 
 
@@ -79,6 +80,10 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
         manifest["semantic_support_policy"]["n_placeholder_symbol_text_signal_routes"]
         >= 1
     )
+    assert (
+        manifest["semantic_support_policy"]["n_theorem_closure_reduction_goal_routes"]
+        >= 1
+    )
     assert manifest["runtime_learning_ready"] is False
     assert manifest["proof_evidence_status"] == (
         "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
@@ -132,6 +137,33 @@ def test_registered_support_reverse_placeholder_lookup_is_policy_driven() -> Non
             "split_conformal_good_rank_set_inclusion_bridge",
         ]
     ) == ("orderStat", "Exchangeable", "MeasureProbability")
+
+
+def test_theorem_closure_reduction_strategy_is_policy_driven() -> None:
+    assert theorem_closure_reduction_strategy_for_goal(
+        goal_id="split_conformal_finite_sample_coverage",
+        verified_bridge_ids=[
+            "split_conformal_good_rank_coverage_bridge",
+            "split_conformal_bad_rank_reduction_bridge",
+        ],
+    ) == {
+        "proof_obligation_id": "split_conformal_good_rank_coverage_bridge",
+        "source_theorem_name": "splitConformalCoverage_of_goodRankCoverage",
+        "closure_theorem_name": (
+            "splitConformalFiniteSampleCoverage_reductionClosure"
+        ),
+        "reduction_description": "good-rank-containment-to-coverage",
+    }
+
+    assert theorem_closure_reduction_strategy_for_goal(
+        goal_id="split_conformal_finite_sample_coverage",
+        verified_bridge_ids=["split_conformal_bad_rank_reduction_bridge"],
+    )["reduction_description"] == "bad-rank-budget-to-coverage"
+
+    assert theorem_closure_reduction_strategy_for_goal(
+        goal_id="unregistered_goal",
+        verified_bridge_ids=["split_conformal_good_rank_coverage_bridge"],
+    ) == {}
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(
