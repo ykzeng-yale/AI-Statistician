@@ -11499,6 +11499,33 @@ def test_capability_scorecard_requires_architect_initial_routing_audit() -> None
     assert ladder_rows[2]["passed"] is False
     assert "initial routing decision" in ladder_rows[2]["blocker"]
 
+    count_only_payload = {
+        **payload,
+        "n_results_with_architect_initial_routing": 1,
+        "n_architect_initial_routing_decisions": 1,
+        "architect_initial_routing_selected_subsystems": {},
+        "architect_initial_routing_requested_subsystems": {
+            "not-a-runtime-subsystem": 1,
+        },
+    }
+    count_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(count_only_payload)["rows"]
+    }
+    count_only_ladder_rows = {
+        row["level"]: row
+        for row in _runtime_capability_ladder(count_only_payload)["levels"]
+    }
+
+    assert count_only_rows["architect_initial_routing_audited"]["passed"] is False
+    assert "selected={}" in count_only_rows[
+        "architect_initial_routing_audited"
+    ]["evidence"]
+    assert "requested={'not-a-runtime-subsystem': 1}" in count_only_rows[
+        "architect_initial_routing_audited"
+    ]["evidence"]
+    assert count_only_ladder_rows[2]["passed"] is False
+
     routed_payload = {
         **payload,
         "n_results_with_architect_initial_routing": 1,

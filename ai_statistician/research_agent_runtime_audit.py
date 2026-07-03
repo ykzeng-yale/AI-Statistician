@@ -7914,6 +7914,28 @@ def _runtime_architect_initial_routing_required(payload: Mapping[str, Any]) -> b
     return True
 
 
+def _runtime_architect_initial_routing_subsystem_count(
+    payload: Mapping[str, Any],
+    key: str,
+) -> int:
+    raw_subsystems = payload.get(key, {})
+    if isinstance(raw_subsystems, Mapping):
+        total = 0
+        for subsystem, count in raw_subsystems.items():
+            if str(subsystem or "").strip() not in ROUTEABLE_RUNTIME_SUBSYSTEMS:
+                continue
+            try:
+                total += int(count or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+    return sum(
+        1
+        for subsystem in _compact_string_list(raw_subsystems)
+        if subsystem in ROUTEABLE_RUNTIME_SUBSYSTEMS
+    )
+
+
 def _runtime_architect_initial_routing_audited(payload: Mapping[str, Any]) -> bool:
     if not _runtime_architect_initial_routing_required(payload):
         return True
@@ -7922,6 +7944,16 @@ def _runtime_architect_initial_routing_audited(payload: Mapping[str, Any]) -> bo
         int(payload.get("n_results_with_architect_initial_routing", 0) or 0)
         >= n_results
         and int(payload.get("n_architect_initial_routing_decisions", 0) or 0)
+        >= n_results
+        and _runtime_architect_initial_routing_subsystem_count(
+            payload,
+            "architect_initial_routing_selected_subsystems",
+        )
+        >= n_results
+        and _runtime_architect_initial_routing_subsystem_count(
+            payload,
+            "architect_initial_routing_requested_subsystems",
+        )
         >= n_results
     )
 
