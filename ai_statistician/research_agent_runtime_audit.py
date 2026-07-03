@@ -15667,6 +15667,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['n_materialized_local_lean_checked']} "
                 "materialized_feedback_rows="
                 f"{exact_semantic_definition_authoring['n_materialized_feedback_rows']} "
+                "verifier_ready_channels="
+                f"{exact_semantic_definition_authoring['candidate_verifier_ready_channels']} "
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="

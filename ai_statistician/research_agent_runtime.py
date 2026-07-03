@@ -756,59 +756,71 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         )
         > 0
     )
+    primary_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+    )
+    retry_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
+    )
+    late_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+    )
+    post_runtime_prompt_packets = _runtime_manifest_int(
+        payload,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
+    )
     prompt_packets = (
-        _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
-        )
+        primary_prompt_packets
+        + retry_prompt_packets
+        + late_prompt_packets
+        + post_runtime_prompt_packets
+    )
+    primary_generic_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+    )
+    retry_generic_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted",
+    )
+    late_generic_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted",
+    )
+    post_runtime_generic_attempts = _runtime_manifest_int(
+        payload,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted",
     )
     generic_attempts = (
-        _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted",
-        )
+        primary_generic_attempts
+        + retry_generic_attempts
+        + late_generic_attempts
+        + post_runtime_generic_attempts
+    )
+    primary_live_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+    )
+    retry_live_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted",
+    )
+    late_live_attempts = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
+    )
+    post_runtime_live_attempts = _runtime_manifest_int(
+        payload,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
     )
     live_attempts = (
-        _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
-        )
-        + _runtime_manifest_int(
-            payload,
-            "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
-        )
+        primary_live_attempts
+        + retry_live_attempts
+        + late_live_attempts
+        + post_runtime_live_attempts
     )
     candidate_packets_from_workers = _runtime_manifest_int_sum(
         payload,
@@ -852,23 +864,140 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
         ),
     )
+    primary_candidate_packets = max(
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+        ),
+    )
+    retry_candidate_packets = max(
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
+        ),
+    )
+    late_candidate_packets = max(
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+        ),
+    )
+    primary_materialized_lean_repair_tasks = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+    )
+    retry_materialized_lean_repair_tasks = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
+    )
+    late_materialized_lean_repair_tasks = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+    )
+    primary_materialized_local_lean_checked = _runtime_manifest_int_sum(
+        payload,
+        (
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+        ),
+    )
+    retry_materialized_local_lean_checked = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
+    )
+    late_materialized_local_lean_checked = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+    )
+    primary_materialized_feedback_rows = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+    )
+    retry_materialized_feedback_rows = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows",
+    )
+    late_materialized_feedback_rows = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
+    )
     candidate_packets = max(
         candidate_packets_from_workers,
         candidate_packets_from_materializers,
         materialized_lean_repair_tasks,
     )
+    verifier_ready_channels = [
+        channel_name
+        for (
+            channel_name,
+            channel_live_attempts,
+            channel_candidate_packets,
+            channel_materialized_lean_repair_tasks,
+            channel_local_lean_checked,
+            channel_feedback_rows,
+        ) in (
+            (
+                "primary",
+                primary_live_attempts,
+                primary_candidate_packets,
+                primary_materialized_lean_repair_tasks,
+                primary_materialized_local_lean_checked,
+                primary_materialized_feedback_rows,
+            ),
+            (
+                "retry",
+                retry_live_attempts,
+                retry_candidate_packets,
+                retry_materialized_lean_repair_tasks,
+                retry_materialized_local_lean_checked,
+                retry_materialized_feedback_rows,
+            ),
+            (
+                "late",
+                late_live_attempts,
+                late_candidate_packets,
+                late_materialized_lean_repair_tasks,
+                late_materialized_local_lean_checked,
+                late_materialized_feedback_rows,
+            ),
+        )
+        if channel_live_attempts > 0
+        and channel_candidate_packets > 0
+        and channel_materialized_lean_repair_tasks > 0
+        and channel_local_lean_checked > 0
+        and channel_feedback_rows > 0
+    ]
     candidate_verifier_required = (
         (primary_required or retry_required or late_required)
         and live_attempts > 0
     )
     candidate_verifier_ready = (
         not candidate_verifier_required
-        or (
-            candidate_packets > 0
-            and materialized_lean_repair_tasks > 0
-            and materialized_local_lean_checked > 0
-            and materialized_feedback_rows > 0
-        )
+        or bool(verifier_ready_channels)
     )
     provider_names = [
         str(value or "").strip()
@@ -958,6 +1087,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_materialized_lean_repair_tasks": materialized_lean_repair_tasks,
         "n_materialized_local_lean_checked": materialized_local_lean_checked,
         "n_materialized_feedback_rows": materialized_feedback_rows,
+        "candidate_verifier_ready_channels": verifier_ready_channels,
+        "n_candidate_verifier_ready_channels": len(verifier_ready_channels),
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
         "post_runtime_attached": post_runtime_attached,
