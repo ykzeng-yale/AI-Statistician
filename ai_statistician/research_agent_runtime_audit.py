@@ -2960,6 +2960,12 @@ def audit_research_agent_runtime(
         )
         or 0
     )
+    attached_formalizer_proofengineer_repair_task_observed = bool(
+        attached_formalizer_repair_eval.get(
+            "proofengineer_repair_task_observed",
+            False,
+        )
+    )
     attached_formalizer_prior_feedback_lsp_trace_ready = (
         bool(attached_formalizer_repair_summary["live_generator"])
         and not bool(attached_formalizer_repair_summary["static_or_fixture_only"])
@@ -4663,6 +4669,9 @@ def audit_research_agent_runtime(
         ),
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": int(
             attached_formalizer_repair_eval.get("local_lean_compiled", 0) or 0
+        ),
+        "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed": bool(
+            attached_formalizer_proofengineer_repair_task_observed
         ),
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": (
             attached_formalizer_prior_feedback_proof_state_rows
@@ -11287,24 +11296,55 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "internal_formalizer_lean_candidate_repair_eval",
         )
     )
+    attached_formalizer_repair_sequences = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_local_lean_checked = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_local_lean_compiled = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_proofengineer_repair_task_observed = bool(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed",
+            False,
+        )
+    )
+    attached_formalizer_prior_feedback_rows = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_prior_feedback_local_lean_tool_calls = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls",
+            0,
+        )
+        or 0
+    )
     attached_formalizer_repair_ready = (
         bool(attached_formalizer_summary["capability_evidence_ok"])
-        and int(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
-                0,
-            )
-            or 0
-        )
-        > 0
-        and int(
-            payload.get(
-                "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
-                0,
-            )
-            or 0
-        )
-        > 0
+        and attached_formalizer_repair_sequences > 0
+        and attached_formalizer_local_lean_checked > 0
+        and attached_formalizer_local_lean_compiled > 0
+        and attached_formalizer_proofengineer_repair_task_observed
+        and attached_formalizer_prior_feedback_rows > 0
+        and attached_formalizer_prior_feedback_local_lean_tool_calls > 0
     )
     integrated_formalizer_agentic_repair_ready = (
         integrated_llm_formalizer_proposals > 0
@@ -11978,9 +12018,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_formalizer_local_lean_compiled = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_proofengineer_repair_task_observed = bool(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed",
+            False,
+        )
+    )
     attached_formalizer_prior_feedback_rows = int(
         payload.get(
             "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows",
+            0,
+        )
+        or 0
+    )
+    attached_formalizer_local_lean_tool_calls = int(
+        payload.get(
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls",
             0,
         )
         or 0
@@ -12005,13 +12065,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "internal_formalizer_lean_candidate_repair_eval",
         )
     )
+    attached_formalizer_live_component_gate_passed = bool(
+        attached_formalizer_summary["capability_evidence_ok"]
+    )
     attached_formalizer_live_gate_passed = (
-        bool(attached_formalizer_summary["capability_evidence_ok"])
+        attached_formalizer_live_component_gate_passed
         and attached_formalizer_repair_sequences > 0
         and attached_formalizer_local_lean_checked > 0
+        and attached_formalizer_local_lean_compiled > 0
+        and attached_formalizer_proofengineer_repair_task_observed
+        and attached_formalizer_prior_feedback_rows > 0
+        and attached_formalizer_local_lean_tool_calls > 0
     )
     attached_formalizer_live_prover_tool_called = (
-        attached_formalizer_live_gate_passed
+        attached_formalizer_live_component_gate_passed
         and attached_formalizer_prior_feedback_rows > 0
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
         and attached_formalizer_executed_tool_calls
@@ -14679,13 +14746,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "attached_repair_sequences="
                 f"{attached_formalizer_repair_sequences} "
                 "attached_local_lean_checked="
-                f"{attached_formalizer_local_lean_checked}"
+                f"{attached_formalizer_local_lean_checked} "
+                "attached_local_lean_compiled="
+                f"{attached_formalizer_local_lean_compiled} "
+                "attached_proofengineer_repair_task_observed="
+                f"{attached_formalizer_proofengineer_repair_task_observed} "
+                "attached_prior_feedback_proof_state_rows="
+                f"{attached_formalizer_prior_feedback_rows} "
+                "attached_prior_feedback_local_lean_tool_calls="
+                f"{attached_formalizer_local_lean_tool_calls}"
             ),
             (
                 "attached live Formalizer Lean-candidate repair calibration did "
-                "not show fail-then-pass generated Lean repair with local Lean "
-                "diagnostics; static fixtures and proof packets do not demonstrate "
-                "this component capacity"
+                "not show a ProofEngineer repair task with prior proof-state "
+                "feedback, local Lean diagnostics, and compiled fail-then-pass "
+                "generated Lean repair; static fixtures and proof packets do "
+                "not demonstrate this component capacity"
             ),
             scope="component_calibration",
         ),
@@ -14699,6 +14775,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{attached_formalizer_lean_lsp_mcp_tool_calls} "
                 "attached_formalizer_prior_feedback_executed_tool_calls="
                 f"{attached_formalizer_executed_tool_calls} "
+                "attached_formalizer_live_component_gate="
+                f"{attached_formalizer_live_component_gate_passed} "
                 "attached_formalizer_live_gate="
                 f"{attached_formalizer_live_gate_passed} "
                 "attached_provider="

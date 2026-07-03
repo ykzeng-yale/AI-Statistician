@@ -59473,10 +59473,31 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
     assert rows[
         "formalizer_lean_candidate_repair_component_calibration"
-    ]["passed"] is True
+    ]["passed"] is False
+    assert "attached_proofengineer_repair_task_observed=False" in rows[
+        "formalizer_lean_candidate_repair_component_calibration"
+    ]["evidence"]
     assert table["coding_agent_capability_ready"] is False
     assert table["integrated_capability_ready"] is False
     assert table["component_calibration"]["attached_coding_repair_calibration"] is True
+    assert table["component_calibration"][
+        "attached_formalizer_repair_calibration"
+    ] is False
+
+    formalizer_calibrated_payload = dict(payload)
+    formalizer_calibrated_payload.update(
+        {
+            "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": 1,
+            "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed": True,
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": 1,
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
+        }
+    )
+    table = _runtime_coding_agent_capability_table(formalizer_calibrated_payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "formalizer_lean_candidate_repair_component_calibration"
+    ]["passed"] is True
     assert table["component_calibration"][
         "attached_formalizer_repair_calibration"
     ] is True
@@ -59879,6 +59900,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": 1,
+        "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed": True,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 1,
@@ -61689,6 +61711,8 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         "internal_formalizer_lean_candidate_repair_eval_static_or_fixture_only": False,
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_local_lean_checked": 1,
+        "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": 1,
+        "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed": True,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 3,
@@ -67236,6 +67260,12 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest[
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
     ] is True
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed"
+        ]
+        is True
+    )
     assert (
         manifest[
             "internal_formalizer_lean_candidate_repair_eval_prior_feedback_proof_state_rows"

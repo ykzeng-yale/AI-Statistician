@@ -2024,9 +2024,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     attached_formalizer_live_gate = bool(
         attached_formalizer_summary["capability_evidence_ok"]
     )
-    attached_formalizer_checked = _runtime_manifest_int(
+    attached_formalizer_checked = _runtime_attached_component_int(
         payload,
-        "internal_formalizer_lean_candidate_repair_eval_local_lean_checked",
+        "internal_formalizer_lean_candidate_repair_eval",
+        "local_lean_checked",
+    )
+    attached_formalizer_compiled = _runtime_attached_component_int(
+        payload,
+        "internal_formalizer_lean_candidate_repair_eval",
+        "local_lean_compiled",
     )
     attached_formalizer_prior_feedback_rows = (
         _runtime_attached_formalizer_prior_feedback_int(
@@ -2056,9 +2062,18 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls",
     )
-    attached_formalizer_repair_sequences = _runtime_manifest_int(
+    attached_formalizer_repair_sequences = _runtime_attached_component_int(
         payload,
-        "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
+        "internal_formalizer_lean_candidate_repair_eval",
+        "repair_sequences",
+    )
+    attached_formalizer_proofengineer_repair_task_observed = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_lean_candidate_repair_eval",
+            "proofengineer_repair_task_observed",
+            False,
+        )
     )
     attached_coding_algorithm_calibration = (
         attached_coding_live_gate
@@ -2082,7 +2097,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         attached_formalizer_live_gate and attached_formalizer_checked > 0
     )
     attached_formalizer_repair_calibration = (
-        attached_formalizer_live_gate and attached_formalizer_repair_sequences > 0
+        attached_formalizer_live_gate
+        and attached_formalizer_repair_sequences > 0
+        and attached_formalizer_checked > 0
+        and attached_formalizer_compiled > 0
+        and attached_formalizer_proofengineer_repair_task_observed
+        and attached_formalizer_prior_feedback_rows > 0
+        and attached_formalizer_local_lean_tool_calls > 0
     )
     attached_formalizer_prover_tool_calibration = (
         attached_formalizer_live_gate
@@ -2547,7 +2568,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                     "attached_repair_sequences="
                     f"{attached_formalizer_repair_sequences}; "
                     "attached_local_lean_checked="
-                    f"{attached_formalizer_checked}"
+                    f"{attached_formalizer_checked}; "
+                    "attached_local_lean_compiled="
+                    f"{attached_formalizer_compiled}; "
+                    "attached_proofengineer_repair_task_observed="
+                    f"{attached_formalizer_proofengineer_repair_task_observed}; "
+                    "attached_prior_feedback_proof_state_rows="
+                    f"{attached_formalizer_prior_feedback_rows}; "
+                    "attached_prior_feedback_local_lean_tool_calls="
+                    f"{attached_formalizer_local_lean_tool_calls}"
                 ),
                 "blocker": (
                     ""
@@ -2555,8 +2584,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                     and attached_formalizer_local_check_calibration
                     else (
                         "attached live Formalizer component calibration did "
-                        "not show fail-then-pass Lean repair with local Lean "
-                        "diagnostics"
+                        "not show a ProofEngineer repair task with prior "
+                        "proof-state feedback, local Lean diagnostics, and "
+                        "compiled fail-then-pass Lean repair"
                     )
                 ),
             },
