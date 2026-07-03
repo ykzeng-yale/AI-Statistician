@@ -4435,6 +4435,40 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         is True
     )
 
+    evidence_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_evidence_ledger_export_complete": True}
+        )["rows"]
+    }
+    assert (
+        evidence_boolean_only_rows[
+            "runtime_evidence_ledger_export_complete"
+        ]["passed"]
+        is False
+    )
+    assert "blackboard_rows=None" in evidence_boolean_only_rows[
+        "runtime_evidence_ledger_export_complete"
+    ]["evidence"]
+
+    stale_evidence_count_payload = dict(clean_evidence_payload)
+    stale_evidence_count_payload["n_runtime_evidence_ledger_export_rows"] = 1
+    stale_evidence_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_evidence_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_evidence_count_rows[
+            "runtime_evidence_ledger_export_complete"
+        ]["passed"]
+        is False
+    )
+    assert "blackboard_rows=2 export_rows=1" in stale_evidence_count_rows[
+        "runtime_evidence_ledger_export_complete"
+    ]["evidence"]
+
     evidence_payload = dict(clean_evidence_payload)
     evidence_payload.update(
         {
@@ -4478,6 +4512,40 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         is True
     )
 
+    observation_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_observation_export_complete": True}
+        )["rows"]
+    }
+    assert (
+        observation_boolean_only_rows[
+            "runtime_observation_export_complete"
+        ]["passed"]
+        is False
+    )
+    assert "trace_observations=None" in observation_boolean_only_rows[
+        "runtime_observation_export_complete"
+    ]["evidence"]
+
+    stale_observation_count_payload = dict(clean_observation_payload)
+    stale_observation_count_payload["n_runtime_observation_export_rows"] = 1
+    stale_observation_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_observation_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_observation_count_rows[
+            "runtime_observation_export_complete"
+        ]["passed"]
+        is False
+    )
+    assert "trace_observations=2 export_rows=1" in stale_observation_count_rows[
+        "runtime_observation_export_complete"
+    ]["evidence"]
+
     observation_payload = dict(clean_observation_payload)
     observation_payload.update(
         {
@@ -4515,6 +4583,36 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         for row in _runtime_capability_scorecard(clean_tool_payload)["rows"]
     }
     assert clean_tool_rows["runtime_tool_call_export_complete"]["passed"] is True
+
+    tool_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_tool_call_export_complete": True}
+        )["rows"]
+    }
+    assert (
+        tool_boolean_only_rows["runtime_tool_call_export_complete"]["passed"]
+        is False
+    )
+    assert "trace_tool_calls=None" in tool_boolean_only_rows[
+        "runtime_tool_call_export_complete"
+    ]["evidence"]
+
+    stale_tool_count_payload = dict(clean_tool_payload)
+    stale_tool_count_payload["n_runtime_tool_call_export_rows"] = 1
+    stale_tool_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_tool_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_tool_count_rows["runtime_tool_call_export_complete"]["passed"]
+        is False
+    )
+    assert "trace_tool_calls=2 export_rows=1" in stale_tool_count_rows[
+        "runtime_tool_call_export_complete"
+    ]["evidence"]
 
     tool_payload = dict(clean_tool_payload)
     tool_payload.update(
@@ -4608,6 +4706,43 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         ]["passed"]
         is True
     )
+
+    handoff_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_task_handoff_ledger_complete": True}
+        )["rows"]
+    }
+    assert (
+        handoff_boolean_only_rows[
+            "runtime_task_handoff_ledger_complete"
+        ]["passed"]
+        is False
+    )
+    assert "trace_handoffs=None" in handoff_boolean_only_rows[
+        "runtime_task_handoff_ledger_complete"
+    ]["evidence"]
+
+    stale_handoff_count_payload = dict(clean_payload)
+    stale_handoff_count_payload["n_runtime_task_handoff_export_rows"] = 1
+    stale_handoff_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_handoff_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_handoff_count_rows[
+            "runtime_task_handoff_ledger_complete"
+        ]["passed"]
+        is False
+    )
+    assert "trace_handoffs=2" in stale_handoff_count_rows[
+        "runtime_task_handoff_ledger_complete"
+    ]["evidence"]
+    assert "export_rows=1" in stale_handoff_count_rows[
+        "runtime_task_handoff_ledger_complete"
+    ]["evidence"]
 
     payload = dict(clean_payload)
     payload.update(

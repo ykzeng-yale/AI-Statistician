@@ -11016,24 +11016,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_task_handoff_trace_rows = int(
         payload.get("n_runtime_task_handoff_trace_rows", 0) or 0
     )
-    raw_evidence_ledger_export_complete = payload.get(
-        "runtime_evidence_ledger_export_complete"
-    )
     runtime_evidence_ledger_export_complete = (
-        True
-        if raw_evidence_ledger_export_complete is None
-        and int(payload.get("n_runtime_blackboard_evidence_ledger_rows", 0) or 0)
-        <= 0
-        else raw_evidence_ledger_export_complete is True
-    )
-    raw_task_handoff_ledger_complete = payload.get(
-        "runtime_task_handoff_ledger_complete"
+        _runtime_evidence_ledger_export_scorecard_passed(payload)
     )
     runtime_task_handoff_ledger_complete = (
-        True
-        if raw_task_handoff_ledger_complete is None
-        and runtime_task_handoff_trace_rows <= 0
-        else raw_task_handoff_ledger_complete is True
+        _runtime_task_handoff_ledger_scorecard_passed(payload)
     )
     runtime_handoff_transition_manifest_present = (
         payload.get("runtime_handoff_transition_manifest_present") is True
@@ -11123,21 +11110,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and not runtime_pending_task_handoff_lineage_required
         else raw_pending_task_handoff_lineage_complete is True
     )
-    raw_observation_export_complete = payload.get(
-        "runtime_observation_export_complete"
-    )
     runtime_observation_export_complete = (
-        True
-        if raw_observation_export_complete is None
-        and int(payload.get("n_runtime_trace_observation_rows", 0) or 0) <= 0
-        else raw_observation_export_complete is True
+        _runtime_observation_export_scorecard_passed(payload)
     )
-    raw_tool_call_export_complete = payload.get("runtime_tool_call_export_complete")
     runtime_tool_call_export_complete = (
-        True
-        if raw_tool_call_export_complete is None
-        and int(payload.get("n_runtime_trace_tool_call_rows", 0) or 0) <= 0
-        else raw_tool_call_export_complete is True
+        _runtime_tool_call_export_scorecard_passed(payload)
     )
     runtime_resume_prior_ledger_continuity_required = (
         payload.get("runtime_resume_prior_ledger_continuity_required") is True
@@ -12991,7 +12968,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "runtime_evidence_ledger_export_complete=true with export "
                     "rows matching every blackboard.evidence_ledger row and "
-                    "zero missing boundaries"
+                    "zero missing/unknown/mismatched rows, zero missing "
+                    "boundaries, and an empty runtime_evidence_ledger_export_issues "
+                    "list"
                 ),
             ),
         ),
@@ -13028,7 +13007,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "runtime_observation_export_complete=true with export rows "
                     "matching every trace observation and zero unknown or "
-                    "mismatched rows"
+                    "mismatched rows, zero missing rows, and an empty "
+                    "runtime_observation_export_issues list"
                 ),
             ),
         ),
@@ -13069,7 +13049,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "runtime_tool_call_export_complete=true with export rows "
                     "matching every trace tool_call and zero missing safety "
-                    "boundaries"
+                    "boundaries, zero missing/unknown/mismatched rows, and an "
+                    "empty runtime_tool_call_export_issues list"
                 ),
             ),
         ),
@@ -13126,7 +13107,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "runtime_task_handoff_ledger_complete=true, with validated "
                     "handoff ledger rows matching every trace next_task, "
                     "runtime_task_handoffs.jsonl export row, and progress "
-                    "finish handoff_id"
+                    "finish handoff_id, zero missing/unknown/mismatched rows, "
+                    "and an empty runtime_task_handoff_ledger_issues list"
                 ),
             ),
         ),
@@ -14250,6 +14232,124 @@ def _runtime_progress_export_scorecard_passed(payload: Mapping[str, Any]) -> boo
             "n_runtime_progress_unknown_start_finish_rows",
             "n_runtime_progress_mismatched_start_finish_rows",
         )
+    )
+
+
+def _runtime_evidence_ledger_export_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_blackboard_evidence_ledger_rows",
+        "n_runtime_evidence_ledger_export_rows",
+        "n_runtime_evidence_ledger_export_missing_rows",
+        "n_runtime_evidence_ledger_export_unknown_rows",
+        "n_runtime_evidence_ledger_export_mismatched_rows",
+        "n_runtime_blackboard_evidence_ledger_rows_missing_boundary",
+        "n_runtime_evidence_ledger_export_rows_missing_boundary",
+    )
+    if payload.get("runtime_evidence_ledger_export_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_evidence_ledger_export_issues",
+    ):
+        return False
+    blackboard_rows = _safe_int(
+        payload.get("n_runtime_blackboard_evidence_ledger_rows")
+    )
+    export_rows = _safe_int(payload.get("n_runtime_evidence_ledger_export_rows"))
+    if export_rows != blackboard_rows:
+        return False
+    return all(_safe_int(payload.get(key)) == 0 for key in count_keys[2:])
+
+
+def _runtime_observation_export_scorecard_passed(payload: Mapping[str, Any]) -> bool:
+    count_keys = (
+        "n_runtime_trace_observation_rows",
+        "n_runtime_observation_export_rows",
+        "n_runtime_observation_export_missing_rows",
+        "n_runtime_observation_export_unknown_rows",
+        "n_runtime_observation_export_mismatched_rows",
+    )
+    if payload.get("runtime_observation_export_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_observation_export_issues",
+    ):
+        return False
+    trace_rows = _safe_int(payload.get("n_runtime_trace_observation_rows"))
+    export_rows = _safe_int(payload.get("n_runtime_observation_export_rows"))
+    if export_rows != trace_rows:
+        return False
+    return all(_safe_int(payload.get(key)) == 0 for key in count_keys[2:])
+
+
+def _runtime_tool_call_export_scorecard_passed(payload: Mapping[str, Any]) -> bool:
+    count_keys = (
+        "n_runtime_trace_tool_call_rows",
+        "n_runtime_tool_call_export_rows",
+        "n_runtime_tool_call_export_missing_rows",
+        "n_runtime_tool_call_export_unknown_rows",
+        "n_runtime_tool_call_export_mismatched_rows",
+        "n_runtime_trace_tool_call_rows_missing_safety_boundary",
+        "n_runtime_tool_call_export_rows_missing_safety_boundary",
+    )
+    if payload.get("runtime_tool_call_export_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(payload, "runtime_tool_call_export_issues"):
+        return False
+    trace_rows = _safe_int(payload.get("n_runtime_trace_tool_call_rows"))
+    export_rows = _safe_int(payload.get("n_runtime_tool_call_export_rows"))
+    if export_rows != trace_rows:
+        return False
+    return all(_safe_int(payload.get(key)) == 0 for key in count_keys[2:])
+
+
+def _runtime_task_handoff_ledger_scorecard_passed(payload: Mapping[str, Any]) -> bool:
+    count_keys = (
+        "n_runtime_task_handoff_trace_rows",
+        "n_runtime_task_handoff_ledger_rows",
+        "n_runtime_task_handoff_ledger_rows_validated",
+        "n_runtime_task_handoff_export_rows",
+        "n_runtime_task_handoff_export_missing_rows",
+        "n_runtime_task_handoff_export_unknown_rows",
+        "n_runtime_task_handoff_export_mismatched_rows",
+        "n_runtime_task_handoff_trace_rows_missing_handoff_id",
+        "n_runtime_task_handoff_ledger_missing_rows",
+        "n_runtime_task_handoff_ledger_mismatched_rows",
+        "n_runtime_task_handoff_ledger_extra_rows",
+        "n_runtime_task_handoff_progress_finish_rows",
+        "n_runtime_task_handoff_progress_rows_missing_handoff_id",
+        "n_runtime_task_handoff_progress_rows_unknown_handoff_id",
+    )
+    if payload.get("runtime_task_handoff_ledger_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_task_handoff_ledger_issues",
+    ):
+        return False
+    trace_rows = _safe_int(payload.get("n_runtime_task_handoff_trace_rows"))
+    if not (
+        _safe_int(payload.get("n_runtime_task_handoff_ledger_rows")) == trace_rows
+        and _safe_int(payload.get("n_runtime_task_handoff_ledger_rows_validated"))
+        == trace_rows
+        and _safe_int(payload.get("n_runtime_task_handoff_export_rows")) == trace_rows
+        and _safe_int(payload.get("n_runtime_task_handoff_progress_finish_rows"))
+        == trace_rows
+    ):
+        return False
+    return all(_safe_int(payload.get(key)) == 0 for key in count_keys[4:11]) and all(
+        _safe_int(payload.get(key)) == 0 for key in count_keys[12:]
     )
 
 
