@@ -1107,6 +1107,30 @@ def test_interactive_session_keeps_rocq_declaration_hits_portable() -> None:
         coq_alias_row,
         interactive_session_row_json_schema(),
     ) == ()
+    lean_adapter_row = dict(row)
+    lean_adapter_row["target_prover_families"] = (
+        "lean4_adapter_with_portable_gap_schema",
+    )
+    lean_adapter_row["formal_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Mathlib.Conformal.rankBridge",
+            "target_prover_family": "lean4",
+            "source_field": "formal_declaration_hits",
+        }
+    ]
+    lean_adapter_row["lean_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Mathlib.Conformal.rankBridge",
+            "target_prover_family": "lean4",
+            "source_field": "lean_declaration_hits",
+        }
+    ]
+    assert validate_interactive_session_row(
+        lean_adapter_row,
+        interactive_session_row_json_schema(),
+    ) == ()
 
 
 def test_interactive_session_rejects_rocq_legacy_lean_alias_input() -> None:

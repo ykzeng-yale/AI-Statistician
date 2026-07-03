@@ -490,6 +490,85 @@ def test_refinement_evidence_rejects_response_target_prover_mismatch() -> None:
     ) in row["errors"]
 
 
+def test_refinement_evidence_accepts_lean_adapter_proof_state_feedback() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_evidence_lean_adapter_feedback"
+    )
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    response_jsonl = root / "responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:proof",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "lean-adapter:rank_uniformity",
+        "hook_kind": "proof_state_feedback",
+        "refinement_stage": "leaf_prover_attempts",
+        "owner_agent": "formal_verifier",
+        "target_prover_family": "lean4_adapter_with_portable_gap_schema",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:proof",
+                "route_id": "route:test",
+                "display_name": "lean-adapter:rank_uniformity",
+                "evidence_kind": "prover_feedback",
+                "tool_name": "local_lean_proof_state_adapter",
+                "target_prover_family": "lean4",
+                "prover_diagnostics": [
+                    "FORMAL_GAP placeholder blocked before Lean replay"
+                ],
+                "residual_goals": [
+                    "rank_uniformity: formal-gap placeholder scaffold"
+                ],
+                "attempt_status": "formal_gap_scaffold_blocked",
+                "prover_attempt_class": "formal_gap_scaffold_blocked",
+                "route_revision_recommended": True,
+                "route_revision_reasons": [
+                    "replace FORMAL_GAP scaffold with non-placeholder Lean theorem"
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_rejected"] == 0
+    assert payload["n_target_prover_family_mismatch_rows"] == 0
+    assert payload["n_route_revision_proposals"] == 1
+    row = payload["rows"][0]
+    assert row["response_contract_ok"]
+    assert row["target_prover_family"] == "lean4_adapter_with_portable_gap_schema"
+    assert row["prover_attempt_status"] == "formal_gap_scaffold_blocked"
+    assert row["prover_attempt_class"] == "formal_gap_scaffold_blocked"
+    assert row["errors"] == ()
+
+
 def test_refinement_evidence_accepts_cross_prover_adapter_feedback() -> None:
     root = Path("runs/test_formalization_gap_planner_refinement_evidence_cross_prover")
     queue_dir = root / "queue"

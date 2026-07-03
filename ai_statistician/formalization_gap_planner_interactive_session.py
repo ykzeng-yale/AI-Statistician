@@ -23,6 +23,10 @@ from .formalization_gap_planner_component_resource_registry import (
 from .formalization_gap_planner_resource_request_queue import (
     RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_INTERACTIVE_SESSION_SCHEMA_VERSION = 1
@@ -2486,7 +2490,9 @@ def _declaration_hit_target_mismatch_errors(
     for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
         for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
             hit_family = str(hit.get("target_prover_family", "") or "").strip()
-            if hit_family and _target_prover_key(hit_family) != target_key:
+            if hit_family and not target_prover_family_compatible(
+                target_key, hit_family
+            ):
                 errors.append(
                     f"{field_name}[{index}].target_prover_family must match "
                     f"{target_label}"
@@ -2495,7 +2501,9 @@ def _declaration_hit_target_mismatch_errors(
             if (
                 not hit_family
                 and source_type_family
-                and source_type_family != target_key
+                and not target_prover_family_compatible(
+                    target_key, source_type_family
+                )
             ):
                 errors.append(
                     f"{field_name}[{index}].source_type implies "
@@ -2518,19 +2526,7 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(target_prover_family: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(target_prover_family).strip().lower(),
-    ).strip("_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(target_prover_family)
 
 
 def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:

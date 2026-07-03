@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_SCHEMA_VERSION = 2
@@ -216,8 +220,10 @@ def export_formalization_gap_planner_refinement_evidence(
             1
             for row in rows
             if row.source_target_prover_family
-            and _target_prover_key(row.source_target_prover_family)
-            != _target_prover_key(row.target_prover_family)
+            and not target_prover_family_compatible(
+                row.source_target_prover_family,
+                row.target_prover_family,
+            )
         ),
         "n_declaration_hit_target_mismatch_rows": sum(
             1 for count in declaration_hit_target_error_counts if count
@@ -742,7 +748,10 @@ def _evidence_row(
     if (
         queue_target_key
         and response_target_key
-        and queue_target_key != response_target_key
+        and not target_prover_family_compatible(
+            queue_target_key,
+            response_target_key,
+        )
         and not cross_prover_feedback
     ):
         errors.append(
@@ -1142,7 +1151,11 @@ def _is_cross_prover_feedback_response(
         return False
     if tool_name != "target_prover_adapter_feedback_adapter":
         return False
-    return bool(queue_target_key and response_target_key and queue_target_key != response_target_key)
+    return bool(
+        queue_target_key
+        and response_target_key
+        and not target_prover_family_compatible(queue_target_key, response_target_key)
+    )
 
 
 def _declaration_hit_target_errors(
@@ -1160,7 +1173,9 @@ def _declaration_hit_target_errors(
             or declaration_row.get("target_prover", "")
         )
         source_type_target = _declaration_hit_source_type_target_key(declaration_row)
-        if explicit_target and explicit_target != row_target:
+        if explicit_target and not target_prover_family_compatible(
+            row_target, explicit_target
+        ):
             errors.append(
                 f"{field_name}[{index}].target_prover_family must match "
                 "row target_prover_family"
@@ -1168,7 +1183,7 @@ def _declaration_hit_target_errors(
         if (
             not explicit_target
             and source_type_target
-            and source_type_target != row_target
+            and not target_prover_family_compatible(row_target, source_type_target)
         ):
             errors.append(
                 f"{field_name}[{index}].source_type implies {source_type_target} "
@@ -1220,19 +1235,7 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(value: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(value).strip().lower(),
-    ).strip("_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(value)
 
 
 def _match_responses_to_queue_rows(

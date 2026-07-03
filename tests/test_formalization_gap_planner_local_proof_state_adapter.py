@@ -377,6 +377,52 @@ def test_local_proof_state_adapter_defers_formal_attempt_prerequisites(
     ] == "local_lean_scaffold_accepted"
 
 
+def test_local_proof_state_adapter_accepts_lean_adapter_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_local_proof_state_adapter_lean_adapter"
+    )
+    queue_dir = root / "queue"
+    adapter_dir = root / "adapter"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_rows = [
+        {
+            "refinement_item_id": "refinement:lean-adapter-proof",
+            "goal_plan_id": "goal:lean-adapter",
+            "route_id": "route:lean-adapter",
+            "display_name": "lean adapter proof route",
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_prover_family": "lean4_adapter_with_portable_gap_schema",
+            "target_primitives": ["rank_uniformity"],
+            "theorem_skeleton": "skeleton",
+            "queries": ["probe rank uniformity in Lean adapter route"],
+        },
+    ]
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps({"rows": queue_rows}, indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_proof_state_adapter_responses(
+        queue_dir,
+        adapter_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_proof_state_feedback_rows"] == 1
+    assert payload["n_target_proof_state_feedback_rows"] == 1
+    assert payload["n_skipped_non_target_proof_state_feedback_rows"] == 0
+    assert payload["skipped_non_target_proof_state_feedback_rows"] == []
+    assert payload["n_local_proof_state_responses"] == 1
+    assert payload["n_local_response_schema_valid"] == 1
+    response = payload["responses"][0]
+    assert response["target_prover_family"] == "lean4"
+    assert response["attempt_status"] == "non_lean_skeleton"
+    assert response["prover_attempt_class"] == "non_target_prover_skeleton"
+
+
 def test_local_proof_state_adapter_skips_non_lean_targets() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_local_proof_state_adapter_non_lean"

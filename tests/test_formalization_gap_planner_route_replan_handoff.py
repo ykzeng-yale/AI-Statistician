@@ -1004,6 +1004,40 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
         coq_alias_row,
         route_replan_handoff_row_json_schema(),
     ) == ()
+    lean_adapter_row = dict(row)
+    lean_adapter_row["target_prover_family"] = (
+        "lean4_adapter_with_portable_gap_schema"
+    )
+    lean_adapter_standalone_route = dict(row["standalone_route"])
+    lean_adapter_standalone_route["target_prover_family"] = (
+        "lean4_adapter_with_portable_gap_schema"
+    )
+    lean_adapter_metadata = dict(
+        lean_adapter_standalone_route.get("replan_metadata", {})
+    )
+    lean_adapter_metadata["target_prover_family"] = (
+        "lean4_adapter_with_portable_gap_schema"
+    )
+    lean_adapter_standalone_route["replan_metadata"] = lean_adapter_metadata
+    lean_adapter_row["standalone_route"] = lean_adapter_standalone_route
+    lean_adapter_row["formal_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Mathlib.Conformal.rankBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    lean_adapter_row["lean_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Mathlib.Conformal.rankBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    assert validate_route_replan_handoff_row(
+        lean_adapter_row,
+        route_replan_handoff_row_json_schema(),
+    ) == ()
 
     next_plan = export_formalization_gap_planner_standalone_plan(
         seed_path,

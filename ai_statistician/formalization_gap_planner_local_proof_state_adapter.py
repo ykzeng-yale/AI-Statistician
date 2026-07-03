@@ -16,6 +16,9 @@ from .formalization_gap_planner_refinement_evidence import (
     refinement_tool_response_json_schema,
     validate_refinement_tool_response_row,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+)
 
 
 FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_SCHEMA_VERSION = 1
@@ -480,8 +483,8 @@ def _attach_formal_attempt_dependency_fields(
 
 
 def _row_targets_local_lean(row: dict[str, Any]) -> bool:
-    target = _target_prover_key(_row_target_prover_family(row))
-    return target in {"", "lean4"}
+    target = _row_target_prover_family(row)
+    return not target or target_prover_family_compatible(TARGET_PROVER_FAMILY, target)
 
 
 def _row_target_prover_family(row: dict[str, Any]) -> str:
@@ -496,22 +499,6 @@ def _row_target_prover_family(row: dict[str, Any]) -> str:
             if text:
                 return text
     return ""
-
-
-def _target_prover_key(value: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(value or "").strip().lower(),
-    ).strip("_")
-    return {
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "coq": "rocq",
-        "coq_rocq": "rocq",
-        "rocq_coq": "rocq",
-        "isabelle_hol": "isabelle",
-    }.get(key, key)
 
 
 def _run_local_lean(

@@ -785,3 +785,63 @@ def test_route_replan_handoff_audit_rejects_non_lean_legacy_declaration_alias() 
     ]["observed"]
     assert "target_prover_families=rocq" in observed
     assert "lean_declaration_hits=" in observed
+
+    lean_handoff_dir = root / "lean_handoff"
+    lean_audit_dir = root / "lean_audit"
+    lean_handoff_dir.mkdir(parents=True, exist_ok=True)
+    lean_hits = [
+        {
+            "primitive": "rank_uniformity",
+            "declaration": "Mathlib.Conformal.rankUniformityBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    lean_seed = json.loads(json.dumps(seed))
+    lean_row = json.loads(json.dumps(row))
+    lean_seed["target_prover_family"] = "lean4_adapter_with_portable_gap_schema"
+    lean_seed["library_snapshot_ref"] = "mathlib4:replan-audit-fixture"
+    lean_seed_route = lean_seed["routes"][0]
+    lean_seed_route["target_prover_family"] = (
+        "lean4_adapter_with_portable_gap_schema"
+    )
+    lean_seed_route["replan_metadata"]["target_prover_family"] = (
+        "lean4_adapter_with_portable_gap_schema"
+    )
+    lean_seed_route["replan_metadata"]["lean_declaration_hits"] = lean_hits
+    lean_row["target_prover_family"] = "lean4_adapter_with_portable_gap_schema"
+    lean_row["lean_declaration_hits"] = lean_hits
+    lean_row["standalone_route"] = lean_seed_route
+    lean_manifest = dict(manifest)
+    lean_manifest["rows"] = [lean_row]
+    (
+        lean_handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    ).write_text(json.dumps(lean_manifest, indent=2), encoding="utf-8")
+    (
+        lean_handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.json"
+    ).write_text(json.dumps(lean_seed, indent=2), encoding="utf-8")
+    (
+        lean_handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.schema.json"
+    ).write_text(
+        json.dumps(standalone_input_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        lean_handoff_dir / "formalization_gap_planner_route_replan_handoff.jsonl"
+    ).write_text(json.dumps(lean_row, sort_keys=True) + "\n", encoding="utf-8")
+    (lean_handoff_dir / "formalization_gap_planner_route_replan_handoff.md").write_text(
+        "# handoff\nnot theorem proof evidence\n",
+        encoding="utf-8",
+    )
+
+    lean_payload = audit_formalization_gap_planner_route_replan_handoff(
+        lean_handoff_dir,
+        lean_audit_dir,
+        run_roundtrip=False,
+    )
+    lean_failed = {
+        check["check_name"] for check in lean_payload["checks"] if not check["ok"]
+    }
+    assert "row_0_non_lean_no_lean_declaration_alias" not in lean_failed

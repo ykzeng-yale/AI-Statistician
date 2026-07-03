@@ -21,6 +21,10 @@ from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
     standalone_input_json_schema,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REPLAN_HANDOFF_SCHEMA_VERSION = 1
@@ -591,8 +595,10 @@ def _target_theorem_context_packet_consistency_errors(
         if (
             packet_target
             and target_prover_family
-            and _target_prover_key(packet_target)
-            != _target_prover_key(target_prover_family)
+            and not target_prover_family_compatible(
+                packet_target,
+                target_prover_family,
+            )
         ):
             errors.append("target_theorem_context_packet.target_prover_family mismatch")
     elif route_packet and metadata_packet and route_packet != metadata_packet:
@@ -891,8 +897,10 @@ def _handoff_row(
     if (
         target_context_target
         and target_prover_family
-        and _target_prover_key(target_context_target)
-        != _target_prover_key(target_prover_family)
+        and not target_prover_family_compatible(
+            target_context_target,
+            target_prover_family,
+        )
     ):
         errors.append("target_theorem_context_packet target_prover_family mismatch")
     requires_replan = _requires_replan(
@@ -1747,7 +1755,14 @@ def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
     for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
         for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
             hit_family = str(hit.get("target_prover_family", "") or "").strip()
-            if hit_family and target_keys and _target_prover_key(hit_family) not in target_keys:
+            if (
+                hit_family
+                and target_keys
+                and not any(
+                    target_prover_family_compatible(target_key, hit_family)
+                    for target_key in target_keys
+                )
+            ):
                 errors.append(
                     f"{field_name}[{index}].target_prover_family must match "
                     "row target_prover_family"
@@ -1757,7 +1772,10 @@ def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
                 not hit_family
                 and source_type_family
                 and target_keys
-                and source_type_family not in target_keys
+                and not any(
+                    target_prover_family_compatible(target_key, source_type_family)
+                    for target_key in target_keys
+                )
             ):
                 errors.append(
                     f"{field_name}[{index}].source_type implies "
@@ -1791,19 +1809,7 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(target_prover_family: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(target_prover_family).strip().lower(),
-    ).strip("_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(target_prover_family)
 
 
 def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:

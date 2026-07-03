@@ -539,6 +539,28 @@ def test_route_revision_overlay_accepts_generic_formal_realization_nodes() -> No
         coq_alias_row,
         route_revision_overlay_row_json_schema(),
     ) == ()
+    lean_adapter_row = dict(row)
+    lean_adapter_row["target_prover_families"] = (
+        "lean4_adapter_with_portable_gap_schema",
+    )
+    lean_adapter_row["formal_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Mathlib.Conformal.genericRankBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    lean_adapter_row["lean_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Mathlib.Conformal.genericRankBridge",
+            "target_prover_family": "lean4",
+        }
+    ]
+    assert validate_route_revision_overlay_row(
+        lean_adapter_row,
+        route_revision_overlay_row_json_schema(),
+    ) == ()
 
 
 def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:

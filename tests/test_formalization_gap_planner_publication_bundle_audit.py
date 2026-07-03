@@ -224,6 +224,58 @@ def test_handoff_seed_provenance_rejects_non_lean_legacy_declaration_alias() -> 
     )
     assert "declaration_hit_target_mismatches=0" in coq_alias_observed
 
+    lean_adapter_row = {
+        "standalone_route_id": "replan_route:lean_adapter_rank",
+        "standalone_route": {
+            "target_prover_family": "lean4_adapter_with_portable_gap_schema",
+            "replan_metadata": {
+                "target_prover_family": "lean4_adapter_with_portable_gap_schema"
+            },
+        },
+        "formal_declaration_hits": [
+            {
+                "primitive": "rank_bridge",
+                "declaration": "Mathlib.Conformal.rankBridge",
+                "target_prover_family": "lean4",
+            }
+        ],
+        "lean_declaration_hits": [
+            {
+                "primitive": "rank_bridge",
+                "declaration": "Mathlib.Conformal.rankBridge",
+                "target_prover_family": "lean4",
+            }
+        ],
+    }
+    lean_adapter_seed = {
+        "target_prover_family": "lean4_adapter_with_portable_gap_schema",
+        "routes": [
+            {
+                "route_id": "replan_route:lean_adapter_rank",
+                "target_prover_family": "lean4_adapter_with_portable_gap_schema",
+                "replan_metadata": {
+                    "target_prover_family": (
+                        "lean4_adapter_with_portable_gap_schema"
+                    ),
+                    "formal_declaration_hits": list(
+                        lean_adapter_row["formal_declaration_hits"]
+                    ),
+                    "lean_declaration_hits": list(
+                        lean_adapter_row["lean_declaration_hits"]
+                    ),
+                },
+            }
+        ],
+    }
+
+    assert _handoff_seed_provenance_ok([lean_adapter_row], lean_adapter_seed)
+    lean_adapter_observed = _handoff_seed_provenance_observed(
+        [lean_adapter_row],
+        lean_adapter_seed,
+    )
+    assert "non_lean_legacy_lean_declaration_hits=0" in lean_adapter_observed
+    assert "declaration_hit_target_mismatches=0" in lean_adapter_observed
+
 
 def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> None:
     root = Path("runs/test_publication_bundle_audit_runtime_handoff_registry")

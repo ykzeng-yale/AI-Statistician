@@ -19,6 +19,10 @@ from .formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
     validate_standalone_input_payload,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REPLAN_HANDOFF_AUDIT_SCHEMA_VERSION = 1
@@ -1661,7 +1665,10 @@ def _has_non_lean_only_target(
         for family in _target_prover_families(row, seed_route, seed)
         if _target_prover_key(family)
     }
-    return bool(target_keys) and "lean4" not in target_keys
+    return bool(target_keys) and not any(
+        target_prover_family_compatible("lean4", target_key)
+        for target_key in target_keys
+    )
 
 
 def _target_prover_families(
@@ -2013,19 +2020,7 @@ def _object_hashes(values: Any) -> set[str]:
 
 
 def _target_prover_key(target_prover_family: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(target_prover_family).strip().lower(),
-    ).strip("_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(target_prover_family)
 
 
 def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:

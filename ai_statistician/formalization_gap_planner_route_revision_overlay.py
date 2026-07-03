@@ -12,6 +12,10 @@ from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION = 2
@@ -1597,7 +1601,14 @@ def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
     for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
         for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
             hit_family = str(hit.get("target_prover_family", "") or "").strip()
-            if hit_family and target_keys and _target_prover_key(hit_family) not in target_keys:
+            if (
+                hit_family
+                and target_keys
+                and not any(
+                    target_prover_family_compatible(target_key, hit_family)
+                    for target_key in target_keys
+                )
+            ):
                 errors.append(
                     f"{field_name}[{index}].target_prover_family must match "
                     "row target_prover_families"
@@ -1607,7 +1618,10 @@ def _declaration_hit_scope_errors(row: dict[str, Any]) -> tuple[str, ...]:
                 not hit_family
                 and source_type_family
                 and target_keys
-                and source_type_family not in target_keys
+                and not any(
+                    target_prover_family_compatible(target_key, source_type_family)
+                    for target_key in target_keys
+                )
             ):
                 errors.append(
                     f"{field_name}[{index}].source_type implies "
@@ -1680,19 +1694,7 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(target_prover_family: object) -> str:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(target_prover_family).strip().lower(),
-    ).strip("_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(target_prover_family)
 
 
 def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:

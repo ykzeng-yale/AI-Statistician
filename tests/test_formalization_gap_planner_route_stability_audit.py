@@ -306,6 +306,14 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
         "target_prover_scaffold_accepted",
     )
     assert by_route["route:stable"]["target_prover_families"] == ("lean4",)
+    lean_adapter_row = dict(by_route["route:stable"])
+    lean_adapter_row["target_prover_families"] = (
+        "lean4_adapter_with_portable_gap_schema",
+    )
+    assert validate_route_stability_audit_row(
+        lean_adapter_row,
+        route_stability_audit_row_json_schema(),
+    ) == []
     assert (
         by_route["route:revise"]["stability_decision"]
         == "APPLY_ROUTE_REVISION_AND_REPLAN"

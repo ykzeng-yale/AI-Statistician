@@ -171,6 +171,10 @@ from .formalization_gap_planner_target_intake import (
     normalize_formalization_gap_planner_target_intake,
     validate_target_intake_row,
 )
+from .formalization_gap_planner_target_summary import (
+    target_prover_family_compatible,
+    target_prover_key,
+)
 from .model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
@@ -9735,7 +9739,7 @@ def _llm_row_target_prover_consistency_errors(
         value = str(raw_value or "").strip()
         if not value:
             continue
-        if _target_prover_key(value) != expected:
+        if not target_prover_family_compatible(expected, value):
             errors.append(
                 f"{location} {value} does not match request target_prover_family "
                 f"{expected_raw}"
@@ -19184,7 +19188,9 @@ def _handoff_seed_declaration_target_mismatches(
         for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
             for index, hit in enumerate(_dict_tuple(container.get(field_name, []))):
                 hit_family = str(hit.get("target_prover_family", "") or "").strip()
-                if hit_family and _target_prover_key(hit_family) != target_key:
+                if hit_family and not target_prover_family_compatible(
+                    target_key, hit_family
+                ):
                     mismatches.append(
                         f"{container_name}.{field_name}[{index}] target_prover_family"
                     )
@@ -19193,7 +19199,9 @@ def _handoff_seed_declaration_target_mismatches(
                 if (
                     not hit_family
                     and source_type_family
-                    and source_type_family != target_key
+                    and not target_prover_family_compatible(
+                        target_key, source_type_family
+                    )
                 ):
                     mismatches.append(
                         f"{container_name}.{field_name}[{index}] source_type"
@@ -19257,7 +19265,9 @@ def _lean_declaration_hits_for_target(
 
 def _is_non_lean_target_prover(target_prover_family: str) -> bool:
     target_key = _target_prover_key(target_prover_family)
-    return bool(target_key) and target_key != "lean4"
+    return bool(target_key) and not target_prover_family_compatible(
+        "lean4", target_key
+    )
 
 
 def _standalone_seed_schema_replan_metadata_ok(schema: dict[str, Any]) -> bool:
@@ -19626,8 +19636,10 @@ def _handoff_seed_target_context_errors(
     if (
         packet_target
         and target_prover_family
-        and _target_prover_key(packet_target)
-        != _target_prover_key(target_prover_family)
+        and not target_prover_family_compatible(
+            packet_target,
+            target_prover_family,
+        )
     ):
         errors.append("target_theorem_context_packet target_prover_family mismatch")
     return tuple(errors)
@@ -20396,15 +20408,7 @@ def _declaration_key(value: object) -> str:
 
 
 def _target_prover_key(value: object) -> str:
-    key = str(value).strip().lower().replace("-", "_")
-    aliases = {
-        "coq": "rocq",
-        "coq8": "rocq",
-        "lean": "lean4",
-        "lean_4": "lean4",
-        "isabelle_hol": "isabelle",
-    }
-    return aliases.get(key, key)
+    return target_prover_key(value)
 
 
 def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
