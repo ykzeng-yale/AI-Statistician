@@ -17,6 +17,10 @@ from .model_backend import (
     is_live_generator_backend,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
 )
@@ -105,18 +109,6 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
 FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
 FULL_LIVE_RERUN_MIN_ITERATIONS = 16
-PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER = "PSEUDO_FORMAL_WORK_ORDER_READY"
-PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK = "pseudo_formal_block_routing_feedback"
-PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME = "pseudo_formal_work_orders_from_formalizer"
-PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES = frozenset(
-    (
-        "formal_targets",
-        "lean_rag",
-        "source_to_bridge",
-        "source_theorem_exact_semantic_definition",
-        "formal_gap",
-    )
-)
 FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES = {
     "handoff_id": (
         "handoff_id",

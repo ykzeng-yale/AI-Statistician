@@ -328,6 +328,10 @@ from .proof_search_kernel_rerun_queue import export_proof_search_kernel_rerun_qu
 from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
+from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+)
 from .rag_collaboration_export import export_rag_collaboration_manifest
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
@@ -1489,7 +1493,7 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
-    if learning_task == "pseudo_formal_block_routing_feedback":
+    if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
         return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
@@ -1747,7 +1751,7 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + str(row.get("source_materialization_manifest_id", "") or "")
         )
-    if learning_task == "pseudo_formal_block_routing_feedback":
+    if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
         work_order_id = str(
             row.get("source_pseudo_formal_work_order_id", "")
             or input_summary.get("work_order_id", "")
@@ -1764,10 +1768,11 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             or ""
         ).strip()
         return (
-            "pseudo_formal_block_routing_feedback:"
+            PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+            + ":"
             + (target_scope or target or "global")
             + ":"
-            + (target_lane or "formal_gap")
+            + (target_lane or PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP)
             + ":"
             + (source_block_id or work_order_id)
         )

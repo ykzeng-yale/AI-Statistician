@@ -26,6 +26,53 @@ PSEUDO_FORMALIZATION_PROOF_BOUNDARY = (
     "proof evidence. Source theorem proof requires target-prover kernel replay."
 )
 PSEUDO_FORMALIZATION_PROMOTION_GATE = "requires_target_prover_kernel_replay"
+PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK = "pseudo_formal_block_routing_feedback"
+PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER = "PSEUDO_FORMAL_WORK_ORDER_READY"
+PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME = "pseudo_formal_work_orders_from_formalizer"
+PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS = "PSEUDO_FORMAL_ROUTING_MEMORY"
+PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS = "formal_targets"
+PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG = "lean_rag"
+PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE = "source_to_bridge"
+PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION = (
+    "source_theorem_exact_semantic_definition"
+)
+PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP = "formal_gap"
+PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES = (
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+)
+PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES = (
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+)
+PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE = {
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: (
+        "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+    ),
+    PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG: (
+        "PENDING_FORMAL_LIBRARY_GROUNDING_FROM_PSEUDO_FORMAL_BLOCK"
+    ),
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE: (
+        "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
+    ),
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION: (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
+    ),
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP: (
+        "PENDING_FORMAL_GAP_REVIEW_FROM_PSEUDO_FORMAL_BLOCK"
+    ),
+}
+PSEUDO_FORMAL_LEAN_FEASIBILITY_TARGET_LANES = {
+    "lean_now": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    "needs_rag": PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    "needs_library": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+    "needs_semantic_definition": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    "pseudo_only": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+}
 
 VALID_BLOCK_TYPES = (
     "theorem",
@@ -84,6 +131,16 @@ def pseudo_formalizer_output_contract() -> dict[str, Any]:
         "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
         "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
         "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        "work_order_routing_contract": {
+            "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+            "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+            "target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            "queue_status_by_target_lane": dict(
+                PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE
+            ),
+        },
     }
 
 
@@ -113,6 +170,9 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
         "source_theorem_kernel_verified": False,
         "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
         "boundary": "not theorem proof evidence; route residual blocks to existing work-order lanes",
+        "work_order_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+        "work_order_trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+        "work_order_learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     }
 
 
@@ -342,7 +402,10 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "source_packet_id": {"type": "string", "minLength": 1},
             "source_block_id": {"type": "string", "minLength": 1},
             "row_kind": {"type": "string", "minLength": 1},
-            "target_lane": {"type": "string", "minLength": 1},
+            "target_lane": {
+                "type": "string",
+                "enum": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            },
             "proof_evidence_status": {
                 "type": "string",
                 "const": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -407,7 +470,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_faithfulness_review",
-                target_lane="formal_gap",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 reason=f"faithfulness_status={faithfulness}",
             )
         )
@@ -417,7 +480,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_block_verification_failure",
-                target_lane="formal_gap",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 reason=str(
                     block.get("block_verification", {}).get(
                         "reason", "block verifier rejected local proof"
@@ -431,7 +494,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_lean_candidate_seed",
-                target_lane="formal_targets",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
                 reason="block is triaged as Lean-feasible",
             )
         )
@@ -441,7 +504,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_formal_library_grounding_query",
-                target_lane="lean_rag",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
                 reason="block needs target-prover library grounding",
             )
         )
@@ -451,7 +514,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_library_gap",
-                target_lane="formal_gap",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 reason="block requires unavailable formal library support",
             )
         )
@@ -461,7 +524,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_exact_semantic_definition_request",
-                target_lane="source_theorem_exact_semantic_definition",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
                 reason="block requires exact semantic definitions before Lean replay",
             )
         )
@@ -471,7 +534,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_nonlean_residual_gap",
-                target_lane="formal_gap",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 reason="block is not currently Lean-realizable",
             )
         )
@@ -481,7 +544,7 @@ def _work_order_rows_for_block(
                 packet,
                 block,
                 row_kind="pseudo_formal_semantic_primitive_request",
-                target_lane="source_to_bridge",
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
                 reason=f"semantic primitive required: {primitive}",
                 extra={"semantic_primitive": primitive},
             )

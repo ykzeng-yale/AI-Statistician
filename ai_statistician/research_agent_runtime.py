@@ -137,6 +137,17 @@ from .proof_state_feedback import (
     proof_state_feedback_row_to_json,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES,
+    PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     pseudo_formal_block_work_order_rows,
@@ -32247,7 +32258,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "formalizer_runtime_capability_contract_feedback",
-        "pseudo_formal_block_routing_feedback",
+        PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
         "coding_agent_generated_code_component_gate_feedback",
         "coding_agent_generated_code_capability_feedback",
         "theory_derivation_trace_feedback",
@@ -32263,7 +32274,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = frozenset(
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
-        "PSEUDO_FORMAL_WORK_ORDER_READY",
+        PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
         "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
         "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
@@ -33105,7 +33116,7 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
-    if learning_task == "pseudo_formal_block_routing_feedback":
+    if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
         return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
@@ -33482,7 +33493,7 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + (missing_flags or failure_classification or source_failure_id)
         )
-    if learning_task == "pseudo_formal_block_routing_feedback":
+    if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
         work_order_id = str(
             row.get("source_pseudo_formal_work_order_id", "")
             or input_summary.get("work_order_id", "")
@@ -33499,10 +33510,11 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             or ""
         ).strip()
         return (
-            "pseudo_formal_block_routing_feedback:"
+            PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+            + ":"
             + (target_scope or target or "global")
             + ":"
-            + (target_lane or "formal_gap")
+            + (target_lane or PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP)
             + ":"
             + (source_block_id or work_order_id)
         )
@@ -43798,7 +43810,7 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
             else {}
         )
         if _runtime_learning_row_task(row, input_summary) != (
-            "pseudo_formal_block_routing_feedback"
+            PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
         ):
             continue
         work_order_id = str(
@@ -43844,7 +43856,7 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
         )
         feedback_rows.append(
             {
-                "learning_task": "pseudo_formal_block_routing_feedback",
+                "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
                 "question_id": str(
                     row.get("question_id", "")
                     or input_summary.get("question_id", "")
@@ -48539,15 +48551,12 @@ def _formalizer_pseudo_formal_work_order_rows(
 
 def _pseudo_formal_runtime_queue_status(row: Mapping[str, Any]) -> str:
     target_lane = str(row.get("target_lane", "") or "")
-    if target_lane == "formal_targets":
-        return "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
-    if target_lane == "lean_rag":
-        return "PENDING_FORMAL_LIBRARY_GROUNDING_FROM_PSEUDO_FORMAL_BLOCK"
-    if target_lane == "source_to_bridge":
-        return "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
-    if target_lane == "source_theorem_exact_semantic_definition":
-        return "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
-    return "PENDING_FORMAL_GAP_REVIEW_FROM_PSEUDO_FORMAL_BLOCK"
+    return PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE.get(
+        target_lane,
+        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+            PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP
+        ],
+    )
 
 
 def _formalizer_theorem_reduction_closure_work_orders(
@@ -55096,24 +55105,20 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "artifact_kind": "RuntimeNextActionAgendaRow",
                 "id": (
                     "pseudo_formal:"
-                    + (target_lane or "formal_gap")
+                    + (target_lane or PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP)
                     + ":"
                     + stable_hash(work_order_id)[:12]
                 ),
                 "question_id": str(work_order.get("question_id", "") or ""),
                 "question_title": str(work_order.get("question_title", "") or ""),
                 "owner_subsystem": owner_subsystem,
-                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
                 "action": action,
                 "acceptance_gate": acceptance_gate,
                 "priority": (
                     "high"
                     if target_lane
-                    in {
-                        "formal_targets",
-                        "source_to_bridge",
-                        "source_theorem_exact_semantic_definition",
-                    }
+                    in PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES
                     else "medium"
                 ),
                 "target_ids": target_ids,
@@ -55121,7 +55126,7 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "semantic_primitive_id": semantic_primitive,
                 "placeholder_symbol": (
                     semantic_primitive
-                    if target_lane == "source_to_bridge"
+                    if target_lane == PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE
                     else source_block_id
                 ),
                 "work_order_id": work_order_id,
@@ -55157,7 +55162,7 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                     or _pseudo_formal_runtime_queue_status(work_order)
                 ),
                 "runtime_generated_queue_name": (
-                    "pseudo_formal_work_orders_from_formalizer"
+                    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
                 ),
                 "runtime_queue_boundary": str(
                     work_order.get("runtime_queue_boundary", "") or ""
@@ -55201,13 +55206,13 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "artifact_kind": "RuntimeLearningRow",
                     "question_id": str(agenda.get("question_id", "") or ""),
                     "question_title": str(agenda.get("question_title", "") or ""),
-                    "learning_task": "pseudo_formal_block_routing_feedback",
+                    "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
                     "target_theorem_name": target_theorem_name,
                     "target_ids": target_ids,
                     "next_owner_subsystem": str(
                         agenda.get("owner_subsystem", "") or ""
                     ),
-                    "memory_status": "PSEUDO_FORMAL_ROUTING_MEMORY",
+                    "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
                     "source_agenda_id": str(agenda.get("id", "") or ""),
                     "source_pseudo_formal_work_order_id": work_order_id,
                     "source_formalizer_proposal_id": str(
@@ -55315,13 +55320,13 @@ def _pseudo_formal_next_action_target_ids(
 
 
 def _pseudo_formal_next_action_owner(target_lane: str) -> str:
-    if target_lane == "formal_targets":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return "Formalizer/ProofEngineer/LeanProver"
-    if target_lane == "lean_rag":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG:
         return "FormalSourceRetriever/FormalizationGapPlanner"
     if target_lane in {
-        "source_to_bridge",
-        "source_theorem_exact_semantic_definition",
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     }:
         return "TheoryDeveloper/Formalizer/ProofEngineer"
     return "FormalizationGapPlanner"
@@ -55338,21 +55343,21 @@ def _pseudo_formal_next_action_action(
     target_text = f" `{block_label}`"
     if conclusion:
         target_text += f" ({conclusion[:160]})"
-    if target_lane == "formal_targets":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return (
             "materialize pseudo-formal block"
             + target_text
             + " as a concrete Lean candidate, run local Lean/AXLE, and keep "
             "pseudo-formal verification separate from proof evidence"
         )
-    if target_lane == "lean_rag":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG:
         return (
             "ground pseudo-formal block"
             + target_text
             + " against the Lean library/RAG index, recording exact declarations "
             "or a formal-library gap before attempting proof replay"
         )
-    if target_lane == "source_to_bridge":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE:
         primitive = str(row.get("semantic_primitive", "") or "").strip()
         return (
             "derive or request the source-to-bridge semantic primitive"
@@ -55361,7 +55366,7 @@ def _pseudo_formal_next_action_action(
             + target_text
             + ", then rerun a bounded Lean/AXLE premise check"
         )
-    if target_lane == "source_theorem_exact_semantic_definition":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION:
         return (
             "author exact source-theorem semantic definitions for pseudo-formal "
             "block"
@@ -55377,25 +55382,25 @@ def _pseudo_formal_next_action_action(
 
 
 def _pseudo_formal_next_action_acceptance_gate(target_lane: str) -> str:
-    if target_lane == "formal_targets":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return (
             "A concrete Lean candidate for the block is generated and checked by "
             "local Lean/AXLE; pseudo-formal block verification remains non-proof "
             "until the target prover kernel verifies the candidate."
         )
-    if target_lane == "lean_rag":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG:
         return (
             "Formal library grounding returns exact Lean declarations or a "
             "documented formal-library gap, and no theorem proof claim is made "
             "without later target-prover kernel replay."
         )
-    if target_lane == "source_to_bridge":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE:
         return (
             "TheoryDeveloper/Formalizer records a source-backed semantic primitive "
             "or premise derivation candidate and AXLE/local Lean verifies that "
             "bounded premise before any source-theorem proof promotion."
         )
-    if target_lane == "source_theorem_exact_semantic_definition":
+    if target_lane == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION:
         return (
             "Exact semantic definitions are source-anchored and Lean typechecked "
             "before proof-body search; pseudo-formal blocks alone never satisfy "

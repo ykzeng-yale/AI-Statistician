@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from ai_statistician.pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMALIZATION_SCHEMA_ID,
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_packet_json_schema,
+    pseudo_formal_work_order_row_json_schema,
     pseudo_formalizer_output_contract,
     validate_pseudo_formal_packet,
 )
@@ -187,11 +192,27 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     assert contract["proof_evidence_status"] == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     assert contract["promotion_gate"] == PSEUDO_FORMALIZATION_PROMOTION_GATE
     assert "source_anchors" in contract["block_contract"]
+    assert contract["work_order_routing_contract"]["learning_task"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    )
+    assert contract["work_order_routing_contract"]["trigger"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER
+    )
+    assert contract["work_order_routing_contract"]["runtime_generated_queue_name"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
+    )
+    assert set(contract["work_order_routing_contract"]["target_lanes"]) == set(
+        PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES
+    )
     assert schema["properties"]["kernel_verified"]["const"] is False
     assert schema["properties"]["source_theorem_kernel_verified"]["const"] is False
     assert (
         schema["properties"]["proof_evidence_status"]["const"]
         == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    )
+    work_order_schema = pseudo_formal_work_order_row_json_schema()
+    assert set(work_order_schema["properties"]["target_lane"]["enum"]) == set(
+        PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES
     )
 
 

@@ -97,6 +97,15 @@ from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_repair_policy,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+)
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
     validate_standalone_input_payload,
@@ -4161,11 +4170,37 @@ def test_runtime_learning_rows_contract_accepts_compact_formal_gap_feedback() ->
 
 
 def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_boundaries() -> None:
+    assert (
+        set(audit_module.PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES)
+        == set(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES)
+    )
+    assert (
+        PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+        in runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS
+    )
+    assert (
+        PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER
+        in runtime_module.RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS
+    )
+    assert (
+        cli_module.PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+        == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    )
+    for lane, queue_status in (
+        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE.items()
+    ):
+        assert (
+            runtime_module._pseudo_formal_runtime_queue_status(
+                {"target_lane": lane}
+            )
+            == queue_status
+        )
+
     agenda_row = {
         "schema_version": 1,
         "artifact_kind": "RuntimeNextActionAgendaRow",
         "id": "pseudo_formal:formal_targets:rank",
-        "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+        "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
         "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
         "action": "materialize block b_rank as a concrete Lean candidate",
         "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
@@ -4173,7 +4208,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             "split_conformal_finite_sample_coverage",
             "b_rank_uniform",
         ],
-        "target_lane": "formal_targets",
+        "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
         "work_order_id": "pseudo_formal_work_order:rank",
         "pseudo_formal_work_order_id": "pseudo_formal_work_order:rank",
         "source_theorem_id": "split_conformal_finite_sample_coverage",
@@ -4182,9 +4217,11 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             {"kind": "theory_trace", "id": "equation:rank_uniformity"}
         ],
         "runtime_queue_status": (
-            "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+            PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+            ]
         ),
-        "runtime_generated_queue_name": "pseudo_formal_work_orders_from_formalizer",
+        "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
         "proof_evidence_status": (
             runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
         ),
@@ -4195,7 +4232,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     compact_learning_row = {
         "schema_version": 1,
         "artifact_kind": "RuntimeLearningRow",
-        "learning_task": "pseudo_formal_block_routing_feedback",
+        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
         "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
         "target_behavior": "consume compact PF/BV block work order",
         "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
@@ -4204,8 +4241,8 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         ),
         "proof_evidence_boundary": runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
         "input_summary": {
-            "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
-            "target_lane": "formal_targets",
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
             "work_order_id": "pseudo_formal_work_order:rank",
             "source_block_id": "b_rank_uniform",
             "source_theorem_id": "split_conformal_finite_sample_coverage",
@@ -4217,7 +4254,9 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
                 "b_rank_uniform",
             ],
             "runtime_queue_status": (
-                "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+                ]
             ),
         },
     }
@@ -4235,7 +4274,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     assert summary["n_runtime_pseudo_formal_block_routing_pending_memory_rows"] == 1
     assert summary["runtime_pseudo_formal_block_routing_contract_issues"] == []
     assert summary["runtime_pseudo_formal_block_routing_target_lanes"] == {
-        "formal_targets": 3
+        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: 3
     }
     assert summary["runtime_pseudo_formal_block_routing_work_order_ids"] == [
         "pseudo_formal_work_order:rank"
@@ -4258,7 +4297,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             {
                 "schema_version": 1,
                 "artifact_kind": "RuntimeLearningRow",
-                "learning_task": "pseudo_formal_block_routing_feedback",
+                "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
                 "target_ids": ["split_conformal_finite_sample_coverage"],
                 "source_pseudo_formal_work_order_id": (
                     "pseudo_formal_work_order:rank"
@@ -4268,12 +4307,14 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
                 "target_behavior": "consume malformed PF/BV row",
                 "acceptance_gate": "local Lean/AXLE checks the concrete block",
                 "runtime_queue_status": (
-                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+                    ]
                 ),
                 "proof_evidence_status": "KERNEL_VERIFIED",
                 "kernel_verified": True,
                 "input_summary": {
-                    "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                    "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
                 },
             }
         ],
@@ -9075,18 +9116,20 @@ def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
             "source_materialization_manifest_id": "materialization:coverage",
         },
         {
-            "learning_task": "pseudo_formal_block_routing_feedback",
+            "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
             "target_ids": ["split_conformal_finite_sample_coverage", "pf:block:b1"],
             "target_theorem_name": "split_conformal_finite_sample_coverage",
             "source_pseudo_formal_work_order_id": (
                 "pseudo_formal_work_order:rank_uniform"
             ),
             "source_block_id": "b1",
-            "target_lane": "formal_targets",
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
             "input_summary": {
-                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
                 "runtime_queue_status": (
-                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+                    ]
                 ),
             },
         },
@@ -21348,10 +21391,10 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert len(agenda_rows) == len(exported_rows)
     assert len(learning_rows) == len(agenda_rows)
     assert {row["runtime_generated_queue_name"] for row in agenda_rows} == {
-        "pseudo_formal_work_orders_from_formalizer"
+        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
     }
     assert {row["trigger"] for row in agenda_rows} == {
-        "PSEUDO_FORMAL_WORK_ORDER_READY"
+        PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER
     }
     assert all(row["target_ids"] for row in agenda_rows)
     assert all(row["kernel_verified"] is False for row in agenda_rows)
@@ -21375,10 +21418,10 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
         for row in agenda_rows
     )
     assert {row["learning_task"] for row in learning_rows} == {
-        "pseudo_formal_block_routing_feedback"
+        PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
     }
     assert {row["memory_status"] for row in learning_rows} == {
-        "PSEUDO_FORMAL_ROUTING_MEMORY"
+        PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS
     }
     assert all(row["target_ids"] for row in learning_rows)
     assert all(
@@ -21833,14 +21876,14 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             "schema_version": 1,
             "artifact_kind": "RuntimeLearningRow",
             "question_id": question.id,
-            "learning_task": "pseudo_formal_block_routing_feedback",
+            "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
             "target_theorem_name": "split_conformal_finite_sample_coverage",
             "target_ids": [
                 "split_conformal_finite_sample_coverage",
                 "b_rank_uniform",
             ],
             "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
-            "memory_status": "PSEUDO_FORMAL_ROUTING_MEMORY",
+            "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
             "source_agenda_id": "pseudo_formal:formal_targets:rank_uniform",
             "source_pseudo_formal_work_order_id": (
                 "pseudo_formal_work_order:rank_uniform"
@@ -21860,17 +21903,19 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             ],
             "semantic_primitive_id": "rank_uniformity",
             "runtime_generated_queue_name": (
-                "pseudo_formal_work_orders_from_formalizer"
+                PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
             ),
             "runtime_queue_status": (
-                "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+                ]
             ),
             "input_summary": {
-                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
                 "agenda_id": "pseudo_formal:formal_targets:rank_uniform",
                 "work_order_id": "pseudo_formal_work_order:rank_uniform",
                 "row_kind": "pseudo_formal_lean_candidate_seed",
-                "target_lane": "formal_targets",
+                "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
                 "reason": "block is triaged as Lean-feasible",
                 "source_theorem_id": "split_conformal_finite_sample_coverage",
                 "source_block_id": "b_rank_uniform",
@@ -21884,7 +21929,9 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
                 ],
                 "semantic_primitive_id": "rank_uniformity",
                 "runtime_queue_status": (
-                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+                    ]
                 ),
             },
             "target_behavior": (
@@ -21922,13 +21969,13 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
     assert len(memory["rows"]) == 1
     retained = memory["rows"][0]
-    assert retained["learning_task"] == "pseudo_formal_block_routing_feedback"
+    assert retained["learning_task"] == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
     assert runtime_module._runtime_learning_memory_should_pin_context_row(retained)
     assert (
         runtime_module._runtime_learning_memory_context_pin_priority(retained)
         == 90
     )
-    assert "pseudo_formal_block_routing_feedback" in (
+    assert PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK in (
         runtime_module._runtime_learning_memory_context_pin_key(retained)
     )
 
@@ -21942,7 +21989,7 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
 
     assert summary["pseudo_formal_block_routing_active"] is True
     assert summary["pseudo_formal_block_routing_target_lanes"] == [
-        "formal_targets"
+        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
     ]
     assert "split_conformal_finite_sample_coverage" in summary[
         "pseudo_formal_block_routing_target_ids"
@@ -21955,7 +22002,7 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
         "pseudo_formal_work_order:rank_uniform"
     )
     assert pf_memory[0]["source_block_id"] == "b_rank_uniform"
-    assert pf_memory[0]["target_lane"] == "formal_targets"
+    assert pf_memory[0]["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
     assert pf_memory[0]["source_anchors"][0]["id"] == "equation:rank_uniformity"
 
     prompt = build_formalizer_prompt(
