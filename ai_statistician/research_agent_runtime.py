@@ -2317,10 +2317,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "formalizer_lean_candidate_proof_state_request_routed",
-            "passed": formalizer_live_proof_state_requests > 0
+            "passed": live_llm_formalizer_proposals > 0
+            and formalizer_live_proof_state_requests > 0
             and formalizer_lean_lsp_mcp_ready_requests > 0,
             "count": formalizer_live_proof_state_requests,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_live_proof_state_requests="
                 f"{formalizer_live_proof_state_requests}; "
                 "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests="
@@ -2328,19 +2331,24 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if formalizer_live_proof_state_requests > 0
+                if live_llm_formalizer_proposals > 0
+                and formalizer_live_proof_state_requests > 0
                 and formalizer_lean_lsp_mcp_ready_requests > 0
                 else (
-                    "Formalizer Lean failures were not routed into a Lean "
-                    "LSP/MCP-ready ProofEngineer proof-state request"
+                    "a live integrated Formalizer/ProofEngineer proposal did "
+                    "not route generated Lean failures into a Lean-LSP/MCP-ready "
+                    "ProofEngineer proof-state request"
                 )
             ),
         },
         {
             "capability_id": "formalizer_lean_candidate_proof_state_feedback_recorded",
-            "passed": formalizer_bound_proof_state_feedback_rows > 0,
+            "passed": live_llm_formalizer_proposals > 0
+            and formalizer_bound_proof_state_feedback_rows > 0,
             "count": formalizer_bound_proof_state_feedback_rows,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_proof_state_feedback_rows="
                 f"{formalizer_proof_state_feedback_rows}; "
                 "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows="
@@ -2348,20 +2356,24 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if formalizer_bound_proof_state_feedback_rows > 0
+                if live_llm_formalizer_proposals > 0
+                and formalizer_bound_proof_state_feedback_rows > 0
                 else (
-                    "failed generated Lean candidates did not produce structured "
-                    "ProofEngineer feedback bound to the exact materialized Lean "
-                    "candidate and carrying diagnostics/residual goals back to "
-                    "the LLM repair loop"
+                    "live integrated Formalizer Lean candidates did not produce "
+                    "structured ProofEngineer feedback bound to the exact "
+                    "materialized Lean candidate and carrying diagnostics/"
+                    "residual goals back to the LLM repair loop"
                 )
             ),
         },
         {
             "capability_id": "formalizer_local_lean_tool_call_observed",
-            "passed": formalizer_bound_local_lean_tool_calls > 0,
+            "passed": live_llm_formalizer_proposals > 0
+            and formalizer_bound_local_lean_tool_calls > 0,
             "count": formalizer_bound_local_lean_tool_calls,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_local_lean_tool_calls="
                 f"{formalizer_local_lean_tool_calls}; "
                 "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls="
@@ -2369,19 +2381,24 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if formalizer_bound_local_lean_tool_calls > 0
+                if live_llm_formalizer_proposals > 0
+                and formalizer_bound_local_lean_tool_calls > 0
                 else (
-                    "ProofEngineer feedback did not record an actual local Lean "
-                    "tool invocation bound to the materialized candidate; local "
-                    "candidate checks without bound tool-call trace are weaker diagnostics"
+                    "live integrated ProofEngineer feedback did not record an "
+                    "actual local Lean tool invocation bound to the materialized "
+                    "candidate; local candidate checks without bound tool-call "
+                    "trace are weaker diagnostics"
                 )
             ),
         },
         {
             "capability_id": "formalizer_live_prover_tool_call_observed",
-            "passed": formalizer_bound_lean_lsp_mcp_live_calls > 0,
+            "passed": live_llm_formalizer_proposals > 0
+            and formalizer_bound_lean_lsp_mcp_live_calls > 0,
             "count": formalizer_bound_lean_lsp_mcp_live_calls,
             "evidence": (
+                "n_live_llm_formalizer_proof_engineer_proposals="
+                f"{live_llm_formalizer_proposals}; "
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls="
                 f"{formalizer_lean_lsp_mcp_live_calls}; "
                 "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls="
@@ -2401,7 +2418,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if formalizer_bound_lean_lsp_mcp_live_calls > 0
+                if live_llm_formalizer_proposals > 0
+                and formalizer_bound_lean_lsp_mcp_live_calls > 0
                 else (
                     "LeanDojo/ReProver/Lean-LSP style tools are only requested "
                     "or calibrated by attached component probes; no integrated "

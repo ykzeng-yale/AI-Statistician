@@ -59508,7 +59508,10 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
-    ]["passed"] is True
+    ]["passed"] is False
+    assert "n_live_llm_formalizer_proof_engineer_proposals=0" in rows[
+        "formalizer_lean_candidate_proof_state_request_routed"
+    ]["evidence"]
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
     assert rows[
         "formalizer_lean_candidate_repair_component_calibration"
@@ -59541,6 +59544,27 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "attached_formalizer_repair_calibration"
     ] is True
 
+    orphan_integrated_feedback_payload = dict(formalizer_calibrated_payload)
+    orphan_integrated_feedback_payload.update(
+        {
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 1,
+        }
+    )
+    table = _runtime_coding_agent_capability_table(
+        orphan_integrated_feedback_payload
+    )
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["passed"] is False
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
+    assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
+    assert "n_live_llm_formalizer_proof_engineer_proposals=0" in rows[
+        "formalizer_live_prover_tool_call_observed"
+    ]["evidence"]
+
     integrated_formalizer_repair_payload = dict(formalizer_calibrated_payload)
     integrated_formalizer_repair_payload.update(
         {
@@ -59569,6 +59593,13 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
+    assert rows[
+        "formalizer_lean_candidate_proof_state_request_routed"
+    ]["passed"] is True
+    assert rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["passed"] is True
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
 
     static_component_payload = dict(payload)
     static_component_payload[
