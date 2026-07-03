@@ -51,6 +51,7 @@ from .research_agent_runtime import (
     _runtime_evidence_summary,
     _runtime_evidence_truth_table_from_manifest,
     _runtime_exact_semantic_definition_authoring_provenance,
+    _formalizer_proof_state_feedback_has_live_lean_lsp_mcp_call,
     _runtime_handoff_transition_summary,
     _runtime_full_frontier_theorem_target_bound_kernel_evidence_summary,
     _runtime_llm_topology_enabled_agent_rows,
@@ -8019,7 +8020,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         and row.get("runtime_reroute_decision", {}).get("reroute_to_theory_developer") is True
     )
     n_lean_lsp_mcp_live_calls = sum(
-        1 for row in proof_state_feedback if row.get("lean_lsp_mcp_live_called") is True
+        1
+        for row in proof_state_feedback
+        if _formalizer_proof_state_feedback_has_live_lean_lsp_mcp_call(row)
     )
     if not any(
         isinstance(row.get("runtime_reroute_decision"), Mapping)

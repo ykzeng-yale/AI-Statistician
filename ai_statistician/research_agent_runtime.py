@@ -53775,6 +53775,21 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                     )
                 )
                 continue
+            if (
+                artifact_kind
+                == "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+            ):
+                extracted_rows = (
+                    _formalizer_lean_candidate_proof_state_feedback_learning_rows(
+                        artifact
+                    )
+                )
+                if extracted_rows:
+                    rows.extend(
+                        _runtime_learning_row_with_surface_targets(item)
+                        for item in extracted_rows
+                    )
+                    continue
             for item in artifact.get("learning_rows", []) or []:
                 if isinstance(item, Mapping):
                     rows.append(_runtime_learning_row_with_surface_targets(item))
@@ -53795,6 +53810,9 @@ def _formalizer_lean_candidate_proof_state_feedback_learning_rows(
         else {}
     )
     first_row = rows[0]
+    lean_lsp_mcp_live_called = (
+        _formalizer_proof_state_feedback_has_live_lean_lsp_mcp_call(artifact)
+    )
     requested_tools: list[str] = []
     executed_tools: list[str] = []
     tool_call_trace: list[dict[str, Any]] = []
@@ -53848,9 +53866,7 @@ def _formalizer_lean_candidate_proof_state_feedback_learning_rows(
                 "executed_tools": sorted(set(executed_tools)),
                 "tool_call_trace": tool_call_trace[:4],
                 "attempt_status": str(first_row.get("attempt_status", "") or ""),
-                "lean_lsp_mcp_live_called": bool(
-                    artifact.get("lean_lsp_mcp_live_called", False)
-                ),
+                "lean_lsp_mcp_live_called": lean_lsp_mcp_live_called,
             },
             "target_behavior": (
                 "ProofEngineer should consume the exact materialized Lean candidate "
@@ -63356,6 +63372,45 @@ def _formalizer_proof_state_feedback_bound_to_materialization(
     )
 
 
+LEAN_LSP_MCP_EXECUTED_TOOL_STATUSES = frozenset(
+    {
+        "mcp_tool_call_failed",
+        "mcp_tool_call_succeeded",
+        "mcp_tool_call_timeout",
+    }
+)
+
+
+def _formalizer_proof_state_feedback_has_live_lean_lsp_mcp_call(
+    artifact: Mapping[str, Any],
+) -> bool:
+    rows = artifact.get("rows", [])
+    if not isinstance(rows, list):
+        return False
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if any(
+            str(tool).startswith("lean_lsp_mcp.")
+            for tool in (row.get("executed_tools", []) or [])
+        ):
+            return True
+        traces = row.get("tool_call_trace", [])
+        if not isinstance(traces, list):
+            continue
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            if not str(trace.get("tool", "") or "").startswith("lean_lsp_mcp."):
+                continue
+            if (
+                str(trace.get("status", "") or "")
+                in LEAN_LSP_MCP_EXECUTED_TOOL_STATUSES
+            ):
+                return True
+    return False
+
+
 def _generated_python_repair_sequences(
     manifests: Sequence[Mapping[str, Any]],
 ) -> int:
@@ -64707,7 +64762,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         )
                         or 0
                     ) + int(counts.get("local_lean_tool_calls", 0) or 0)
-                if bool(artifact.get("lean_lsp_mcp_live_called", False)):
+                if _formalizer_proof_state_feedback_has_live_lean_lsp_mcp_call(
+                    artifact
+                ):
                     proof[
                         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"
                     ] = int(

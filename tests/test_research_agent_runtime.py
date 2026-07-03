@@ -28832,6 +28832,16 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
                         "lean_state_search",
                         "lean_multi_attempt",
                     ],
+                    "executed_tools": [
+                        "local.lake_env_lean",
+                        "lean_lsp_mcp.lean_diagnostic_messages",
+                    ],
+                    "tool_call_trace": [
+                        {
+                            "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                            "status": "mcp_tool_call_succeeded",
+                        }
+                    ],
                     "residual_goals": ["repair exact candidate"],
                     "diagnostics": ["live prover feedback recorded"],
                 }
@@ -29188,6 +29198,159 @@ def test_formalizer_proof_state_feedback_must_bind_materialization() -> None:
     assert table["coding_agent_capability_ready"] is False
 
 
+def test_formalizer_proof_state_live_mcp_count_requires_executed_trace(
+    tmp_path: Path,
+) -> None:
+    materialization_id = "formalizer_lean_candidate_materialization:fail"
+    feedback_id = "formalizer_lean_candidate_proof_state_feedback_manifest:mcp"
+    artifacts = {
+        materialization_id: {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:01:00+00:00",
+            "manifest_id": materialization_id,
+            "task_id": "formalize:conformal_prediction_coverage:initial",
+            "question": {"id": "conformal_prediction_coverage"},
+            "n_candidate_sources": 1,
+            "n_candidate_artifacts_written": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "n_live_proof_state_requests": 1,
+            "n_lean_lsp_mcp_ready_requests": 1,
+            "candidate_rows": [
+                {
+                    "candidate_id": "bad_candidate",
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                }
+            ],
+        },
+        feedback_id: {
+            "artifact_kind": (
+                "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+            ),
+            "manifest_id": feedback_id,
+            "source_materialization_manifest_id": materialization_id,
+            "provider_name": "lean_lsp_mcp_proof_state_feedback",
+            "lean_lsp_mcp_live_called": True,
+            "counts": {
+                "executed_tool_calls": 2,
+                "local_lean_tool_calls": 1,
+                "lean_lsp_mcp_tool_calls": 0,
+            },
+            "rows": [
+                {
+                    "feedback_id": "proof_state_feedback:session_failed",
+                    "executed_tools": ["local.lake_env_lean"],
+                    "tool_call_trace": [
+                        {
+                            "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                            "status": "mcp_session_failed",
+                        }
+                    ],
+                    "residual_goals": ["restart Lean LSP MCP session"],
+                },
+                {
+                    "feedback_id": "proof_state_feedback:skipped",
+                    "executed_tools": [],
+                    "tool_call_trace": [
+                        {
+                            "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                            "status": "mcp_tool_call_skipped",
+                        }
+                    ],
+                    "residual_goals": ["configure lean project"],
+                },
+            ],
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    proof_summary = evidence_summary["proof"]
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+    feedback_learning_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalizer_lean_candidate_proof_state_feedback"
+    ]
+    result_path = tmp_path / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "project_id": "runtime:conformal_prediction_coverage",
+                    "artifacts": artifacts,
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    audit_row = _audit_result_path(result_path)
+
+    assert proof_summary["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] == 0
+    assert (
+        proof_summary[
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+        ]
+        == 0
+    )
+    assert feedback_learning_rows[0]["input_summary"][
+        "lean_lsp_mcp_live_called"
+    ] is False
+    assert audit_row.n_lean_lsp_mcp_live_calls == 0
+
+    live_artifacts = json.loads(json.dumps(artifacts))
+    live_artifacts[feedback_id]["rows"][0]["tool_call_trace"][0][
+        "status"
+    ] = "mcp_tool_call_timeout"
+    live_evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": live_artifacts}}]
+    )
+    live_learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": live_artifacts}}]
+    )
+    live_feedback_learning_rows = [
+        row
+        for row in live_learning_rows
+        if row.get("learning_task")
+        == "formalizer_lean_candidate_proof_state_feedback"
+    ]
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "project_id": "runtime:conformal_prediction_coverage",
+                    "artifacts": live_artifacts,
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_audit_row = _audit_result_path(result_path)
+
+    assert live_evidence_summary["proof"][
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"
+    ] == 1
+    assert (
+        live_evidence_summary["proof"][
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+        ]
+        == 1
+    )
+    assert live_feedback_learning_rows[0]["input_summary"][
+        "lean_lsp_mcp_live_called"
+    ] is True
+    assert live_audit_row.n_lean_lsp_mcp_live_calls == 1
+
+
 def test_exact_semantic_definition_lean_repair_tool_calls_do_not_satisfy_bound_formalizer_capability() -> None:
     artifacts = {
         "exact_semantic_definition_lean_repair_executor:covered": {
@@ -29347,6 +29510,23 @@ def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
                                 "lean_lsp_mcp_tool_calls": 3,
                                 "local_lean_tool_calls": 1,
                             },
+                            "rows": [
+                                {
+                                    "executed_tools": [
+                                        "local.lake_env_lean",
+                                        "lean_lsp_mcp.lean_diagnostic_messages",
+                                    ],
+                                    "tool_call_trace": [
+                                        {
+                                            "tool": (
+                                                "lean_lsp_mcp."
+                                                "lean_diagnostic_messages"
+                                            ),
+                                            "status": "mcp_tool_call_succeeded",
+                                        }
+                                    ],
+                                }
+                            ],
                         },
                     },
                 },
