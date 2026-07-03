@@ -10324,11 +10324,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         integrated_formalizer_agentic_repair_ready
         and exact_semantic_authoring_live_ready
         and exact_semantic_authoring_candidate_verifier_ready
-        and (
-            integrated_formalizer_bound_proof_state_feedback_rows > 0
-            or integrated_formalizer_bound_local_lean_tool_calls > 0
-            or integrated_formalizer_bound_lean_lsp_mcp_live_calls > 0
-        )
+        and integrated_formalizer_bound_proof_state_feedback_rows > 0
+        and integrated_formalizer_bound_local_lean_tool_calls > 0
+        and integrated_formalizer_bound_lean_lsp_mcp_live_calls > 0
     )
     helper_kernel_evidence_ready = (
         int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0

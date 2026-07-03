@@ -56976,6 +56976,60 @@ def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
     assert rows[4]["passed"] is True
 
 
+def test_runtime_capability_ladder_requires_bound_prover_tool_trace() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        **_scorecard_architect_executed_payload(),
+        "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 1,
+        "n_formal_gaps": 1,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[5]["passed"] is True
+    assert rows[6]["passed"] is False
+    assert "bound_proof_state_feedback_rows=1" in rows[6]["evidence"]
+    assert "bound_local_lean_tool_calls=0" in rows[6]["evidence"]
+    assert "bound_lean_lsp_mcp_live_calls=0" in rows[6]["evidence"]
+    assert ladder["max_contiguous_level"] == 5
+
+    payload[
+        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+    ] = 1
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+    assert rows[6]["passed"] is False
+    assert "bound_lean_lsp_mcp_live_calls=0" in rows[6]["evidence"]
+
+    payload[
+        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+    ] = 1
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+    assert rows[6]["passed"] is True
+
+
 def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_needed() -> None:
     payload = {
         "all_ok": True,
