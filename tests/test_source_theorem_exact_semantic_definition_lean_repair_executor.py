@@ -1083,6 +1083,15 @@ def test_definition_candidate_import_environment_failure_recommends_lake_project
     assert "unknown module prefix" in "\n".join(
         authoring_tasks[0]["local_lean_diagnostics"]
     )
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "definition_only_candidate_artifact_path"
+    ] == str(definition_only_candidate)
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "lean_import_environment_missing"
+    assert "unknown module prefix" in "\n".join(
+        authoring_tasks[0]["candidate_repair_feedback"]["local_lean_diagnostics"]
+    )
 
 
 def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
@@ -1152,11 +1161,29 @@ def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
     assert authoring_tasks[0]["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     )
+    assert (
+        authoring_tasks[0]["semantic_review_required_before_proof_body"] is True
+    )
+    assert authoring_tasks[0]["semantic_review_contract"][
+        "semantic_review_required_before_proof_body"
+    ] is True
+    assert "proof-body" in authoring_tasks[0]["semantic_review_contract"][
+        "proof_body_promotion_gate"
+    ]
     assert authoring_tasks[0]["definition_only_candidate_artifact_path"] == str(
         definition_only_candidate
     )
     assert "application type mismatch" in "\n".join(
         authoring_tasks[0]["local_lean_diagnostics"]
+    )
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "definition_only_candidate_artifact_path"
+    ] == str(definition_only_candidate)
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "failure_classification"
+    ] == "local_lean_failed_unclassified"
+    assert "application type mismatch" in "\n".join(
+        authoring_tasks[0]["candidate_repair_feedback"]["local_lean_diagnostics"]
     )
     assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
     assert authoring_tasks[0]["semantic_definition_kernel_verified"] is False

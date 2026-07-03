@@ -787,6 +787,9 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         candidate_definition_request=request,
         export_mode=export_mode,
     )
+    lean_authoring_environment_contract = dict(
+        prompt_payload.get("lean_authoring_environment_contract", {}) or {}
+    )
     prompt_packet_id = (
         "source_theorem_exact_semantic_definition_authoring_prompt:"
         + stable_hash(
@@ -856,6 +859,7 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         "external_export_mode": export_mode,
         "export_redaction_applied": export_mode == "redacted",
         "system_prompt": SYSTEM_PROMPT,
+        "lean_authoring_environment_contract": lean_authoring_environment_contract,
         "user_prompt": json.dumps(prompt_payload, indent=2, sort_keys=True, default=str),
         "response_schema": AUTHORING_RESPONSE_JSON_SCHEMA,
         "runtime_queue_status": "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
@@ -996,6 +1000,78 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
+    feedback = _candidate_repair_feedback(task)
+    diagnostics = _string_list(feedback.get("local_lean_diagnostics", []))[:12]
+    local_lean_checked = bool(feedback.get("local_lean_checked", False))
+    local_lean_compiled = bool(feedback.get("local_lean_compiled", False))
+    return {
+        "local_lean_feedback_available": bool(local_lean_checked or diagnostics),
+        "local_lean_checked": local_lean_checked,
+        "local_lean_compiled": local_lean_compiled,
+        "failure_classification": str(
+            feedback.get("failure_classification", "") or ""
+        ),
+        "recommended_next_action": str(
+            feedback.get("recommended_next_action", "") or ""
+        ),
+        "unknown_identifiers_from_last_check": (
+            _lean_unknown_identifiers_from_diagnostics(diagnostics)
+        ),
+        "unavailable_imports_from_last_check": (
+            _lean_unavailable_imports_from_diagnostics(diagnostics)
+        ),
+        "diagnostics_excerpt": diagnostics[:6],
+    }
+
+
+def _lean_unknown_identifiers_from_diagnostics(
+    diagnostics: Sequence[str],
+) -> list[str]:
+    identifiers: list[str] = []
+    patterns = (
+        re.compile(
+            r"\bUnknown constant\s+[`']?"
+            r"([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bunknown identifier\s+[`']?"
+            r"([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+            re.IGNORECASE,
+        ),
+    )
+    for diagnostic in diagnostics:
+        for pattern in patterns:
+            for match in pattern.finditer(str(diagnostic or "")):
+                identifier = _lean_diagnostic_token(match.group(1))
+                if identifier and identifier not in identifiers:
+                    identifiers.append(identifier)
+    return identifiers
+
+
+def _lean_unavailable_imports_from_diagnostics(
+    diagnostics: Sequence[str],
+) -> list[str]:
+    modules: list[str] = []
+    pattern = re.compile(
+        r"\bmodule\s+"
+        r"([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)"
+        r"\s+does not exist",
+        re.IGNORECASE,
+    )
+    for diagnostic in diagnostics:
+        for match in pattern.finditer(str(diagnostic or "")):
+            module = _lean_diagnostic_token(match.group(1))
+            if module and module not in modules:
+                modules.append(module)
+    return modules
+
+
+def _lean_diagnostic_token(value: str) -> str:
+    return str(value or "").strip().strip("`'\".,;:()[]{}")
+
+
 def _semantic_review_contract(task: Mapping[str, Any]) -> dict[str, Any]:
     raw_contract = task.get("semantic_review_contract")
     contract = dict(raw_contract) if isinstance(raw_contract, Mapping) else {}
@@ -1048,6 +1124,33 @@ def _lean_authoring_environment_contract(
     """Return local Lean constraints that keep generated definitions checkable."""
 
     source_binders = list(task.get("exact_source_theorem_binders", []) or [])
+    lean_feedback = _lean_feedback_contract(task)
+    repair_policy = [
+        (
+            "Treat local Lean diagnostics as hard feedback about the configured "
+            "Lake project, not as a prompt to guess adjacent APIs."
+        ),
+        (
+            "Do not introduce a new import, namespace, theorem, or API swap "
+            "solely by analogy. Use only identifiers/imports grounded in the "
+            "source references, previous candidate, explicit binders, or a "
+            "verified local project inventory; otherwise simplify the definition "
+            "or list the need in known_gaps."
+        ),
+        (
+            "For unknown identifiers, prefer removing the dependency, adding an "
+            "explicit parameter, or returning blocked_or_insufficient_context "
+            "over replacing it with another unverified identifier/import."
+        ),
+    ]
+    if lean_feedback["unavailable_imports_from_last_check"]:
+        repair_policy.append(
+            (
+                "Imports reported unavailable by the last local Lean check must "
+                "not be reintroduced unless a later verified project inventory "
+                "shows the module exists."
+            )
+        )
     required_anchor_names = [
         str(value).strip()
         for value in candidate_definition_request.get("required_anchor_names", [])
@@ -1074,6 +1177,11 @@ def _lean_authoring_environment_contract(
                 "required_imports must contain module names such as "
                 "Mathlib.Data.Set.Basic, not strings starting with `import`."
             ),
+            (
+                "When no project-verified import inventory is present, treat new "
+                "imports as unverified: prefer existing candidate imports, source "
+                "reference imports, or known_gaps over speculative import names."
+            ),
         ],
         "binder_policy": [
             (
@@ -1098,6 +1206,9 @@ def _lean_authoring_environment_contract(
                 "imports or unproved order-statistic infrastructure."
             ),
         ],
+        "local_lean_feedback": lean_feedback,
+        "verified_local_project_import_inventory": [],
+        "repair_policy": repair_policy,
     }
 
 

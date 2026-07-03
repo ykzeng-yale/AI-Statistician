@@ -1583,9 +1583,7 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
     )
     authoring_trigger = _author_definition_trigger(row)
     authoring_mode = _author_definition_mode(execution_status)
-    semantic_review_required_before_proof_body = (
-        execution_status == TYPECHECKED_CANDIDATE_REVIEW_REQUIRED_STATUS
-    )
+    semantic_review_required_before_proof_body = True
     task_id = (
         "source_theorem_exact_semantic_definition_authoring_task:"
         + stable_hash(
@@ -1682,9 +1680,7 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
-        "candidate_repair_feedback": dict(
-            row.get("candidate_repair_feedback", {}) or {}
-        ),
+        "candidate_repair_feedback": _current_candidate_repair_feedback(row),
         **_exact_semantic_definition_context(row),
         "candidate_definition_request": candidate_definition_request,
         "required_output_artifacts": [
@@ -1717,6 +1713,48 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
+
+
+def _current_candidate_repair_feedback(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Return feedback for the current local Lean result, preserving prior notes."""
+
+    feedback = dict(row.get("candidate_repair_feedback", {}) or {})
+    diagnostics = list(row.get("local_lean_diagnostics", []) or [])[:12]
+    checked = bool(row.get("local_lean_checked", False))
+    failure_classification = str(row.get("failure_classification", "") or "")
+    recommended_next_action = str(row.get("recommended_next_action", "") or "")
+    feedback.update(
+        {
+            "definition_only_candidate_artifact_path": str(
+                row.get("definition_only_candidate_artifact_path", "") or ""
+            ),
+            "candidate_artifact_path": str(
+                row.get("candidate_artifact_path", "") or ""
+            ),
+            "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
+            "candidate_lean_project_hint": str(
+                row.get("candidate_lean_project_hint", "") or ""
+            ),
+            "local_definition_lean_checked": bool(
+                row.get("local_definition_lean_checked", False)
+            ),
+            "local_definition_lean_compiled": bool(
+                row.get("local_definition_lean_compiled", False)
+            ),
+            "local_lean_checked": checked,
+            "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+            "local_lean_returncode": int(row.get("local_lean_returncode", 0) or 0),
+            "source_execution_status": str(row.get("execution_status", "") or ""),
+            "source_execution_result_id": str(row.get("execution_result_id", "") or ""),
+        }
+    )
+    if checked or diagnostics:
+        feedback["local_lean_diagnostics"] = diagnostics
+    if failure_classification:
+        feedback["failure_classification"] = failure_classification
+    if recommended_next_action:
+        feedback["recommended_next_action"] = recommended_next_action
+    return feedback
 
 
 def _author_definition_semantic_review_contract(

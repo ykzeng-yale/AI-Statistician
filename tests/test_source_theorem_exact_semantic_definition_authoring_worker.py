@@ -103,7 +103,15 @@ def _write_authoring_tasks(path: Path) -> None:
         "local_lean_checked": True,
         "local_lean_compiled": False,
         "local_lean_returncode": 1,
-        "local_lean_diagnostics": ["application type mismatch"],
+        "local_lean_diagnostics": [
+            "application type mismatch",
+            "Unknown constant Nat.ceil",
+            (
+                "object file ./lake/.lake/packages/mathlib/.lake/build/lib/lean/"
+                "Mathlib/Data/Int/Order.olean of module "
+                "Mathlib.Data.Int.Order does not exist"
+            ),
+        ],
         "failure_classification": "local_lean_failed_unclassified",
         "recommended_next_action": "repair the definition-only candidate Lean errors",
         "source_definition_closure_work_order_id": (
@@ -265,7 +273,13 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
     )
     assert prompt_payload["candidate_repair_feedback"]["local_lean_diagnostics"] == [
-        "application type mismatch"
+        "application type mismatch",
+        "Unknown constant Nat.ceil",
+        (
+            "object file ./lake/.lake/packages/mathlib/.lake/build/lib/lean/"
+            "Mathlib/Data/Int/Order.olean of module "
+            "Mathlib.Data.Int.Order does not exist"
+        ),
     ]
     assert prompt_payload["candidate_repair_feedback"]["recommended_next_action"] == (
         "repair the definition-only candidate Lean errors"
@@ -290,6 +304,26 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
         "not proof evidence" in row
         for row in environment_contract["local_lean_policy"]
     )
+    assert environment_contract["local_lean_feedback"][
+        "unknown_identifiers_from_last_check"
+    ] == ["Nat.ceil"]
+    assert environment_contract["local_lean_feedback"][
+        "unavailable_imports_from_last_check"
+    ] == ["Mathlib.Data.Int.Order"]
+    assert any(
+        "Do not introduce a new import" in row
+        for row in environment_contract["repair_policy"]
+    )
+    assert any(
+        "unverified identifier/import" in row
+        for row in environment_contract["repair_policy"]
+    )
+    assert prompt_packets[0]["lean_authoring_environment_contract"][
+        "local_lean_feedback"
+    ] == environment_contract["local_lean_feedback"]
+    assert prompt_packets[0]["lean_authoring_environment_contract"][
+        "repair_policy"
+    ] == environment_contract["repair_policy"]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()

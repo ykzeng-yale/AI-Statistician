@@ -923,6 +923,20 @@ without pretending that a full cold-start subsystem chain was replayed. This is
 the path future capability resumes should use when the claim is
 Architect-controlled runtime continuation.
 
+The exact semantic-definition repair loop now has a sharper feedback contract.
+The live `C_n` repair confirmed a systemic design risk: prompt-only instructions
+can still lead the LLM to replace an unknown Lean identifier with a new guessed
+API/import. The authoring prompt packet now exposes a structured
+`lean_authoring_environment_contract` with parsed unknown identifiers and
+unavailable imports from the last local Lean run, and the Lean repair executor
+rewrites nested `candidate_repair_feedback` to the current failed artifact
+instead of carrying stale diagnostics. The latest concrete blocker is
+`Mathlib.Algebra.Order.Archimedean` missing in the configured Lake project,
+recorded in
+`runs/main_worker_exact_semantic_authoring_live_probe_c_n_repair_after_feedback_plumbing_patch_prompt_dry_run`.
+This is still non-proof repair feedback; the source theorem and exact semantic
+definitions remain unproved.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
