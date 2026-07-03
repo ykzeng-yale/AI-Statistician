@@ -240,6 +240,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
     _runtime_learning_rows_contract_audit_summary,
+    _runtime_pseudo_formal_block_routing_contract_audit_summary,
     _architect_initial_routing_record_errors,
     _runtime_audit_expected_subsystem_sequence,
     _runtime_trace_sequence_has_control_contract,
@@ -4157,6 +4158,149 @@ def test_runtime_learning_rows_contract_accepts_compact_formal_gap_feedback() ->
         "formalization_gap_planner_live_route_planner_contract_feedback": 1
     }
     assert summary["runtime_learning_rows_contract_issues"] == []
+
+
+def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_boundaries() -> None:
+    agenda_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeNextActionAgendaRow",
+        "id": "pseudo_formal:formal_targets:rank",
+        "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+        "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+        "action": "materialize block b_rank as a concrete Lean candidate",
+        "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
+        "target_ids": [
+            "split_conformal_finite_sample_coverage",
+            "b_rank_uniform",
+        ],
+        "target_lane": "formal_targets",
+        "work_order_id": "pseudo_formal_work_order:rank",
+        "pseudo_formal_work_order_id": "pseudo_formal_work_order:rank",
+        "source_theorem_id": "split_conformal_finite_sample_coverage",
+        "source_block_id": "b_rank_uniform",
+        "source_anchors": [
+            {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+        ],
+        "runtime_queue_status": (
+            "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+        ),
+        "runtime_generated_queue_name": "pseudo_formal_work_orders_from_formalizer",
+        "proof_evidence_status": (
+            runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+    }
+    compact_learning_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "learning_task": "pseudo_formal_block_routing_feedback",
+        "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+        "target_behavior": "consume compact PF/BV block work order",
+        "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
+        "proof_evidence_status": (
+            runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        "input_summary": {
+            "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+            "target_lane": "formal_targets",
+            "work_order_id": "pseudo_formal_work_order:rank",
+            "source_block_id": "b_rank_uniform",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_anchors": [
+                {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+            ],
+            "target_ids": [
+                "split_conformal_finite_sample_coverage",
+                "b_rank_uniform",
+            ],
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+            ),
+        },
+    }
+
+    summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[agenda_row],
+        learning_rows=[compact_learning_row],
+        pending_memory_rows=[compact_learning_row],
+    )
+
+    assert summary["runtime_pseudo_formal_block_routing_contract_complete"] is True
+    assert summary["n_runtime_pseudo_formal_block_routing_rows"] == 3
+    assert summary["n_runtime_pseudo_formal_block_routing_agenda_rows"] == 1
+    assert summary["n_runtime_pseudo_formal_block_routing_learning_rows"] == 1
+    assert summary["n_runtime_pseudo_formal_block_routing_pending_memory_rows"] == 1
+    assert summary["runtime_pseudo_formal_block_routing_contract_issues"] == []
+    assert summary["runtime_pseudo_formal_block_routing_target_lanes"] == {
+        "formal_targets": 3
+    }
+    assert summary["runtime_pseudo_formal_block_routing_work_order_ids"] == [
+        "pseudo_formal_work_order:rank"
+    ]
+
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(summary)["rows"]
+    }
+    assert (
+        scorecard_rows[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]["passed"]
+        is True
+    )
+
+    broken_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[],
+        learning_rows=[
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "pseudo_formal_block_routing_feedback",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "source_pseudo_formal_work_order_id": (
+                    "pseudo_formal_work_order:rank"
+                ),
+                "source_block_id": "b_rank_uniform",
+                "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+                "target_behavior": "consume malformed PF/BV row",
+                "acceptance_gate": "local Lean/AXLE checks the concrete block",
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                ),
+                "proof_evidence_status": "KERNEL_VERIFIED",
+                "kernel_verified": True,
+                "input_summary": {
+                    "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                },
+            }
+        ],
+    )
+
+    assert (
+        broken_summary["runtime_pseudo_formal_block_routing_contract_complete"]
+        is False
+    )
+    assert broken_summary[
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane"
+    ] == 1
+    assert broken_summary[
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors"
+    ] == 1
+    assert broken_summary[
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+    ] == 1
+    broken_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(broken_summary)["rows"]
+    }
+    broken_row = broken_scorecard_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]
+    assert broken_row["passed"] is False
+    assert "source-anchored" in broken_row["blocker"]
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:

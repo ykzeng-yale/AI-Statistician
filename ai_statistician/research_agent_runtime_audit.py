@@ -16,6 +16,10 @@ from .model_backend import (
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS as MODEL_SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     is_live_generator_backend,
 )
+from .pseudo_formalization import (
+    PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+)
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
@@ -101,6 +105,18 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
 FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
 FULL_LIVE_RERUN_MIN_ITERATIONS = 16
+PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER = "PSEUDO_FORMAL_WORK_ORDER_READY"
+PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK = "pseudo_formal_block_routing_feedback"
+PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME = "pseudo_formal_work_orders_from_formalizer"
+PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES = frozenset(
+    (
+        "formal_targets",
+        "lean_rag",
+        "source_to_bridge",
+        "source_theorem_exact_semantic_definition",
+        "formal_gap",
+    )
+)
 FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES = {
     "handoff_id": (
         "handoff_id",
@@ -2855,6 +2871,17 @@ def audit_research_agent_runtime(
             learning_rows=learning_rows,
         )
     )
+    runtime_pseudo_formal_block_routing_contract_summary = (
+        _runtime_pseudo_formal_block_routing_contract_audit_summary(
+            pending_memory_rows=(
+                runtime_pending_task_memory_rows
+                if str(pending_task_raw_path or "").strip()
+                else None
+            ),
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
+        )
+    )
     runtime_progress_export_summary = _runtime_progress_export_audit_summary(
         result_paths=result_paths,
         progress_rows=progress_rows,
@@ -3915,6 +3942,109 @@ def audit_research_agent_runtime(
         "runtime_learning_rows_contract_issues": list(
             runtime_learning_rows_contract_summary[
                 "runtime_learning_rows_contract_issues"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_contract_audit_summary": (
+            runtime_pseudo_formal_block_routing_contract_summary
+        ),
+        "runtime_pseudo_formal_block_routing_contract_complete": bool(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_contract_complete"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_agenda_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_agenda_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_learning_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_learning_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_pending_memory_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_pending_memory_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_lane"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_lane": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_invalid_lane"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_routing": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_routing"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_channels": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_channels"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_target_lanes": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_target_lanes"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_work_order_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_work_order_ids"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_source_block_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_source_block_ids"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_target_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_target_ids"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_contract_issues": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_contract_issues"
             ]
         ),
         "n_runtime_pending_task_memory_rows": len(runtime_pending_task_memory_rows),
@@ -10946,6 +11076,317 @@ def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
     return list(rows) if isinstance(rows, list) else []
 
 
+def _runtime_pseudo_formal_block_routing_contract_audit_summary(
+    *,
+    agenda_rows: list[Any],
+    learning_rows: list[Any] | None = None,
+    pending_memory_rows: list[Any] | None = None,
+) -> dict[str, Any]:
+    row_sources: list[tuple[str, list[Any]]] = [
+        ("runtime_next_action_agenda", agenda_rows),
+        ("runtime_learning_rows", learning_rows or []),
+    ]
+    if pending_memory_rows is not None:
+        row_sources.append(("runtime_pending_task_memory", pending_memory_rows))
+
+    channel_counts: Counter[str] = Counter()
+    lane_counts: Counter[str] = Counter()
+    work_order_ids: set[str] = set()
+    source_block_ids: set[str] = set()
+    target_ids: set[str] = set()
+    missing_lane = 0
+    invalid_lane = 0
+    missing_work_order_id = 0
+    missing_source_block_id = 0
+    missing_source_anchors = 0
+    missing_target_identity = 0
+    missing_routing = 0
+    missing_queue_status = 0
+    missing_or_wrong_nonproof_boundary = 0
+    issues: list[dict[str, Any]] = []
+
+    for channel, rows in row_sources:
+        for index, row in enumerate(rows):
+            if not _runtime_pseudo_formal_block_routing_row(row):
+                continue
+            channel_counts[channel] += 1
+            missing_fields = _runtime_pseudo_formal_block_routing_missing_fields(row)
+            lane = _runtime_route_row_field(row, "target_lane")
+            if lane:
+                lane_counts[lane] += 1
+            work_order_id = _runtime_pseudo_formal_block_routing_work_order_id(row)
+            if work_order_id:
+                work_order_ids.add(work_order_id)
+            source_block_id = _runtime_route_row_field(
+                row,
+                "source_block_id",
+                "placeholder_symbol",
+            )
+            if source_block_id:
+                source_block_ids.add(source_block_id)
+            target_ids.update(_runtime_pseudo_formal_block_routing_target_ids(row))
+
+            if "target_lane" in missing_fields:
+                missing_lane += 1
+            if "target_lane_not_supported" in missing_fields:
+                invalid_lane += 1
+            if "source_pseudo_formal_work_order_id" in missing_fields:
+                missing_work_order_id += 1
+            if "source_block_id" in missing_fields:
+                missing_source_block_id += 1
+            if "source_anchors" in missing_fields:
+                missing_source_anchors += 1
+            if "target_ids" in missing_fields:
+                missing_target_identity += 1
+            if any(
+                field in missing_fields
+                for field in (
+                    "owner_or_next_owner_subsystem",
+                    "target_behavior_or_action",
+                    "acceptance_gate",
+                )
+            ):
+                missing_routing += 1
+            if "runtime_queue_status" in missing_fields:
+                missing_queue_status += 1
+            if any(
+                field in missing_fields
+                for field in (
+                    "proof_evidence_status_not_pseudo_formal_boundary",
+                    "proof_evidence_boundary_not_pseudo_formal_boundary",
+                    "kernel_verified_must_be_false",
+                    "source_theorem_kernel_verified_must_be_false",
+                )
+            ):
+                missing_or_wrong_nonproof_boundary += 1
+            if missing_fields:
+                issues.append(
+                    {
+                        "channel": channel,
+                        "index": str(index),
+                        "row_id": _runtime_route_row_identifier(row),
+                        "learning_task": _runtime_route_row_field(
+                            row,
+                            "learning_task",
+                        ),
+                        "trigger": _runtime_route_row_trigger_value(row),
+                        "target_lane": lane,
+                        "work_order_id": work_order_id,
+                        "source_block_id": source_block_id,
+                        "missing_fields": missing_fields,
+                    }
+                )
+
+    total_rows = sum(channel_counts.values())
+    complete = (
+        missing_lane == 0
+        and invalid_lane == 0
+        and missing_work_order_id == 0
+        and missing_source_block_id == 0
+        and missing_source_anchors == 0
+        and missing_target_identity == 0
+        and missing_routing == 0
+        and missing_queue_status == 0
+        and missing_or_wrong_nonproof_boundary == 0
+    )
+    return {
+        "artifact_kind": "RuntimePseudoFormalBlockRoutingContractAudit",
+        "runtime_pseudo_formal_block_routing_contract_complete": complete,
+        "n_runtime_pseudo_formal_block_routing_rows": total_rows,
+        "n_runtime_pseudo_formal_block_routing_agenda_rows": channel_counts[
+            "runtime_next_action_agenda"
+        ],
+        "n_runtime_pseudo_formal_block_routing_learning_rows": channel_counts[
+            "runtime_learning_rows"
+        ],
+        "n_runtime_pseudo_formal_block_routing_pending_memory_rows": channel_counts[
+            "runtime_pending_task_memory"
+        ],
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane": missing_lane,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_lane": invalid_lane,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id": (
+            missing_work_order_id
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id": (
+            missing_source_block_id
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors": (
+            missing_source_anchors
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity": (
+            missing_target_identity
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_routing": (
+            missing_routing
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": (
+            missing_queue_status
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": (
+            missing_or_wrong_nonproof_boundary
+        ),
+        "runtime_pseudo_formal_block_routing_channels": dict(
+            sorted(channel_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_target_lanes": dict(
+            sorted(lane_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_work_order_ids": sorted(
+            work_order_ids
+        ),
+        "runtime_pseudo_formal_block_routing_source_block_ids": sorted(
+            source_block_ids
+        ),
+        "runtime_pseudo_formal_block_routing_target_ids": sorted(target_ids),
+        "runtime_pseudo_formal_block_routing_contract_issues": issues[:50],
+        "runtime_pseudo_formal_block_routing_boundary": (
+            "Pseudo-formal/block-verification routing rows are decomposition "
+            "and repair-planning memory only. They must preserve lane, source "
+            "block, source anchors, work-order identity, queue status, and the "
+            "pseudo-formal non-proof boundary before AgentRuntime reuses them "
+            "as Formalizer/RAG/source-to-bridge work."
+        ),
+    }
+
+
+def _runtime_pseudo_formal_block_routing_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    if _runtime_route_row_field(row, "learning_task") == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    ):
+        return True
+    if _runtime_route_row_trigger_value(row) == PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER:
+        return True
+    if _runtime_route_row_field(row, "runtime_generated_queue_name") == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
+    ):
+        return True
+    if _runtime_route_row_field(row, "proof_evidence_status") == (
+        PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    ):
+        return bool(_runtime_pseudo_formal_block_routing_work_order_id(row))
+    row_id = _runtime_route_row_identifier(row)
+    return row_id.startswith("pseudo_formal:")
+
+
+def _runtime_pseudo_formal_block_routing_missing_fields(
+    row: Mapping[str, Any],
+) -> list[str]:
+    missing: list[str] = []
+    lane = _runtime_route_row_field(row, "target_lane")
+    if not lane:
+        missing.append("target_lane")
+    elif lane not in PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES:
+        missing.append("target_lane_not_supported")
+    if not _runtime_pseudo_formal_block_routing_work_order_id(row):
+        missing.append("source_pseudo_formal_work_order_id")
+    if not _runtime_route_row_field(row, "source_block_id", "placeholder_symbol"):
+        missing.append("source_block_id")
+    if not _runtime_pseudo_formal_block_routing_source_anchors(row):
+        missing.append("source_anchors")
+    if not _runtime_pseudo_formal_block_routing_target_ids(row):
+        missing.append("target_ids")
+    if not _runtime_route_row_field(
+        row,
+        "owner_subsystem",
+        "next_owner_subsystem",
+        "target_owner_subsystem",
+    ):
+        missing.append("owner_or_next_owner_subsystem")
+    if not _runtime_route_row_field(row, "target_behavior", "action"):
+        missing.append("target_behavior_or_action")
+    if not _runtime_route_row_field(row, "acceptance_gate"):
+        missing.append("acceptance_gate")
+    if not _runtime_route_row_field(row, "runtime_queue_status"):
+        missing.append("runtime_queue_status")
+    if _runtime_route_row_field(row, "proof_evidence_status") != (
+        PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    ):
+        missing.append("proof_evidence_status_not_pseudo_formal_boundary")
+    boundary = _runtime_route_row_field(
+        row,
+        "proof_evidence_boundary",
+        "boundary",
+        "runtime_queue_boundary",
+    )
+    if (
+        not boundary
+        or "not theorem proof evidence" not in boundary.lower()
+        or "target-prover kernel replay" not in boundary.lower()
+    ):
+        missing.append("proof_evidence_boundary_not_pseudo_formal_boundary")
+    if _runtime_route_row_bool(row, "kernel_verified"):
+        missing.append("kernel_verified_must_be_false")
+    if _runtime_route_row_bool(row, "source_theorem_kernel_verified"):
+        missing.append("source_theorem_kernel_verified_must_be_false")
+    return missing
+
+
+def _runtime_pseudo_formal_block_routing_work_order_id(row: Mapping[str, Any]) -> str:
+    return _runtime_route_row_field(
+        row,
+        "source_pseudo_formal_work_order_id",
+        "pseudo_formal_work_order_id",
+        "work_order_id",
+    )
+
+
+def _runtime_pseudo_formal_block_routing_target_ids(row: Mapping[str, Any]) -> set[str]:
+    values: set[str] = set()
+    input_summary = _runtime_row_input_summary(row)
+    for source in (row, input_summary):
+        for key in ("target_ids", "target_theorem_goal_ids"):
+            items = source.get(key, [])
+            if isinstance(items, list):
+                values.update(str(item).strip() for item in items if str(item).strip())
+        for key in (
+            "target_theorem_name",
+            "target_lean_declaration",
+            "source_theorem_id",
+            "source_block_id",
+            "semantic_primitive_id",
+        ):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                values.add(value)
+    return values
+
+
+def _runtime_pseudo_formal_block_routing_source_anchors(
+    row: Mapping[str, Any],
+) -> list[Any]:
+    input_summary = _runtime_row_input_summary(row)
+    for source in (row, input_summary):
+        anchors = source.get("source_anchors", [])
+        if isinstance(anchors, list):
+            present = [
+                anchor
+                for anchor in anchors
+                if isinstance(anchor, Mapping)
+                and (
+                    str(anchor.get("id", "") or "").strip()
+                    or str(anchor.get("excerpt", "") or "").strip()
+                )
+            ]
+            if present:
+                return present
+    return []
+
+
+def _runtime_route_row_bool(row: Mapping[str, Any], key: str) -> bool:
+    input_summary = _runtime_row_input_summary(row)
+    for source in (row, input_summary):
+        if key not in source:
+            continue
+        value = source.get(key)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes"}
+    return False
+
+
 def _runtime_route_row_requires_target_identity(row: Any) -> bool:
     if not isinstance(row, Mapping):
         return False
@@ -12280,6 +12721,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     runtime_learning_rows_contract_complete = (
         _runtime_learning_rows_contract_scorecard_passed(payload)
+    )
+    runtime_pseudo_formal_block_routing_contract_complete = (
+        _runtime_pseudo_formal_block_routing_contract_scorecard_passed(payload)
     )
     runtime_progress_export_complete = (
         _runtime_progress_export_scorecard_passed(payload)
@@ -15138,6 +15582,68 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "runtime_pseudo_formal_block_routing_contract_complete",
+            runtime_pseudo_formal_block_routing_contract_complete,
+            (
+                "pf_bv_rows="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows')} "
+                "agenda="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_agenda_rows')} "
+                "learning="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_learning_rows')} "
+                "pending_memory="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_pending_memory_rows')} "
+                "missing_lane="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_lane')} "
+                "invalid_lane="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_invalid_lane')} "
+                "missing_work_order="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id')} "
+                "missing_block="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id')} "
+                "missing_anchors="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors')} "
+                "missing_target="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_target_identity')} "
+                "missing_routing="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_routing')} "
+                "missing_queue="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_queue_status')} "
+                "bad_boundary="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary')} "
+                "lanes="
+                f"{payload.get('runtime_pseudo_formal_block_routing_target_lanes')} "
+                "work_orders="
+                f"{payload.get('runtime_pseudo_formal_block_routing_work_order_ids')} "
+                "issues="
+                f"{payload.get('runtime_pseudo_formal_block_routing_contract_issues')}"
+            ),
+            (
+                "pseudo-formal/block-verification routing rows were not "
+                "preserved as lane-specific, source-anchored, non-proof "
+                "work orders before entering Formalizer/RAG/source-to-bridge memory"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Regenerate or replay pseudo-formal/block-verification "
+                    "routing rows so every PF/BV agenda, learning, and pending "
+                    "memory row carries target_lane, source block id, source "
+                    "anchors, source_pseudo_formal_work_order_id or equivalent "
+                    "work_order_id, target identity, runtime_queue_status, "
+                    "owner/action/acceptance gate, and the pseudo-formal "
+                    "not-proof-evidence boundary."
+                ),
+                success_metric=(
+                    "runtime_pseudo_formal_block_routing_contract_complete=true "
+                    "with empty issues and zero missing/invalid lane, work order, "
+                    "source block, source anchor, target identity, routing, "
+                    "queue status, or non-proof boundary rows"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "runtime_evidence_ledger_export_complete",
             runtime_evidence_ledger_export_complete,
             (
@@ -17051,6 +17557,43 @@ def _runtime_learning_rows_contract_scorecard_passed(
     return all(
         _safe_int(payload.get(key)) == 0
         for key in count_keys[2:]
+    )
+
+
+def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_pseudo_formal_block_routing_rows",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane",
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_lane",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_routing",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
+    )
+    telemetry_keys = (
+        "runtime_pseudo_formal_block_routing_contract_complete",
+        "runtime_pseudo_formal_block_routing_contract_issues",
+        *count_keys,
+    )
+    if not any(key in payload for key in telemetry_keys):
+        return True
+    if payload.get("runtime_pseudo_formal_block_routing_contract_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_pseudo_formal_block_routing_contract_issues",
+    ):
+        return False
+    return all(
+        _safe_int(payload.get(key)) == 0
+        for key in count_keys[1:]
     )
 
 
