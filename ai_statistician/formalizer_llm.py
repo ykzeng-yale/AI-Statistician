@@ -12,6 +12,11 @@ from .formalizer_repair_policy import (
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .pseudo_formalization import (
+    normalize_pseudo_formal_packet,
+    pseudo_formalizer_prompt_contract,
+    validate_pseudo_formal_packet,
+)
 from .research_schema import OpenResearchQuestion
 from .source_to_bridge_metadata import (
     default_premise_candidate_declaration_name,
@@ -233,6 +238,10 @@ def build_formalizer_prompt(
     proof_memory_summary = _compact_proof_bank_runtime_memory_summary(
         proof_bank_runtime_memory_summary or {}
     )
+    pseudo_formalization_active = _feedback_suggests_pseudo_formalization(
+        environment_feedback or {},
+        proof_memory_summary,
+    )
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
@@ -304,6 +313,15 @@ def build_formalizer_prompt(
         ),
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
+        ),
+        "pseudo_formalization_contract": (
+            pseudo_formalizer_prompt_contract()
+            if pseudo_formalization_active
+            else {
+                "output_key": "pseudo_formal_proof_packets",
+                "activation": "use only when source proof repair is blocked",
+                "boundary": "not theorem proof evidence",
+            }
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
@@ -402,6 +420,16 @@ def build_formalizer_prompt(
             )
     else:
         lean_candidate_instruction = ""
+    pseudo_formalization_instruction = (
+        "When source theorem proof repair is blocked by missing semantic anchors, missing "
+        "library support, or an overlarge proof step, you may emit pseudo_formal_proof_packets "
+        "following pseudo_formalization_contract. Those packets are decomposition and routing "
+        "artifacts only: they do not satisfy the Lean-candidate gate, cannot claim kernel "
+        "verification, and must route residual blocks through formal_targets, retrieval_queries, "
+        "gap_taxonomy, source_to_bridge candidates/requests, or next_actions. "
+        if pseudo_formalization_active
+        else ""
+    )
     return (
         "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
         "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
@@ -413,6 +441,8 @@ def build_formalizer_prompt(
         "obligation_id values from registered_proof_bank_obligation_catalog when possible; these "
         "requests only prioritize AgentRuntime kernel-smoke work and may be filtered or rejected. "
         "Populate theory_trace_alignment with exact trace anchor ids/names. "
+        + pseudo_formalization_instruction
+        +
         "Do not use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
         "`sorry`, `admit`, `axiom`, `unsafe`, or `by?` in Lean statement sketches. Mark "
         "expected_status=NEEDS_KERNEL_CHECK on every generated Lean candidate; use "
@@ -533,6 +563,10 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
         }
     ],
+    "pseudo_formal_proof_packets": (
+        "optional list of pseudo-formal packets matching "
+        "pseudo_formalization_contract; planning only, not proof evidence"
+    ),
     "gap_taxonomy": [
         {"gap": "string", "kind": "formal_primitives|semantic_alignment|proof_search|source_theorem|other", "next_owner": "string"}
     ],
@@ -576,6 +610,7 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
         "source_to_bridge_premise_derivation_candidate_requests": {
             "type": "array"
         },
+        "pseudo_formal_proof_packets": {"type": "array"},
         "gap_taxonomy": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array", "minItems": 1},
         "next_actions": {"type": "array", "minItems": 1},
@@ -723,6 +758,12 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
                 "source_to_bridge_premise_derivation_candidates entry contains "
                 f"forbidden proof claim: {forbidden}"
             )
+    for index, row in enumerate(packet.get("pseudo_formal_proof_packets", []) or []):
+        if not isinstance(row, Mapping):
+            errors.append("pseudo_formal_proof_packets entries must be objects")
+            continue
+        for error in validate_pseudo_formal_packet(row):
+            errors.append(f"pseudo_formal_proof_packets[{index}] {error}")
     errors.extend(_phantom_source_to_bridge_next_action_errors(packet))
     forbidden_packet = _contains_forbidden_proof_claim(packet)
     if forbidden_packet:
@@ -974,6 +1015,30 @@ def _feedback_has_source_theorem_target_drift(
         for error in row.get("precheck_errors", []) or []
     ).lower()
     return "source-theorem target drift" in diagnostic_text
+
+
+def _feedback_suggests_pseudo_formalization(
+    *sources: Mapping[str, Any] | None,
+) -> bool:
+    for source in sources:
+        if not isinstance(source, Mapping) or not source:
+            continue
+        text = json.dumps(_compact_value(source), default=str).lower()
+        if any(
+            marker in text
+            for marker in (
+                "source_theorem_proof_body",
+                "proof_body_adapter",
+                "semantic_alignment_unreviewed",
+                "semantic anchor",
+                "semantic_definition",
+                "missing import",
+                "library support",
+                "overlarge proof",
+            )
+        ):
+            return True
+    return False
 
 
 def _has_explicit_source_theorem_formal_gap_target(
@@ -1653,6 +1718,7 @@ def _normalize_formalizer_packet(
         body,
         environment_feedback or {},
     )
+    _normalize_pseudo_formal_proof_packets(body)
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -1695,6 +1761,46 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _normalize_pseudo_formal_proof_packets(packet: dict[str, Any]) -> None:
+    rows = packet.get("pseudo_formal_proof_packets", [])
+    if rows in (None, "", [], {}):
+        packet["pseudo_formal_proof_packets"] = []
+        return
+    if not isinstance(rows, list | tuple):
+        packet["pseudo_formal_proof_packets"] = []
+        packet["pseudo_formal_proof_packets_normalizer_status"] = (
+            "dropped_non_list_container"
+        )
+        return
+    normalized_rows = [
+        normalize_pseudo_formal_packet(row)
+        for row in rows
+        if isinstance(row, Mapping)
+    ]
+    if len(normalized_rows) != len(rows):
+        packet["pseudo_formal_proof_packets_normalizer_status"] = (
+            "dropped_non_object_rows"
+        )
+    elif normalized_rows:
+        packet["pseudo_formal_proof_packets_normalizer_status"] = (
+            "normalized_non_proof_boundary"
+        )
+    packet["pseudo_formal_proof_packets"] = normalized_rows
+    validation_errors = []
+    for index, row in enumerate(normalized_rows):
+        errors = validate_pseudo_formal_packet(row)
+        if errors:
+            validation_errors.append(
+                {
+                    "index": index,
+                    "packet_id": row.get("packet_id", ""),
+                    "errors": errors,
+                }
+            )
+    if validation_errors:
+        packet["pseudo_formal_proof_packet_validation_errors"] = validation_errors
 
 
 def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) -> None:
