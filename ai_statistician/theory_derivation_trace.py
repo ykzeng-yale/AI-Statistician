@@ -150,6 +150,30 @@ def theory_trace_anchor_summary(
             "semantic_alignment_constraints",
         ):
             formalization_targets.extend(_string_values(formalization_handoff.get(key)))
+    for theorem_card in theory_packet.get("theorem_cards", []) or []:
+        if not isinstance(theorem_card, Mapping):
+            continue
+        for key in (
+            "id",
+            "informal_statement",
+            "conclusion",
+            "proof_strategy",
+            "semantic_risks",
+        ):
+            formalization_targets.extend(_string_values(theorem_card.get(key)))
+    for request in theory_packet.get("formalization_requests", []) or []:
+        if not isinstance(request, Mapping):
+            continue
+        for key in (
+            "id",
+            "target_theorem_card",
+            "lean_statement_sketch",
+            "semantic_alignment_constraints",
+        ):
+            formalization_targets.extend(_string_values(request.get(key)))
+        formalization_targets.extend(
+            _lean_declaration_names(request.get("lean_statement_sketch", ""))
+        )
     return {
         "derivation_step_ids": _unique_strings(
             row.get("id", "")
@@ -394,6 +418,8 @@ def _anchor_aliases(value: Any) -> set[str]:
     id_match = _ANCHOR_ID_PATTERN.match(normalized)
     if id_match:
         aliases.add(id_match.group("id"))
+    for declaration_name in _lean_declaration_names(value):
+        aliases.add(_normalize_anchor(declaration_name))
     return {alias for alias in aliases if alias}
 
 
@@ -460,7 +486,7 @@ def _anchor_token_overlap_supported(ref_norm: str, anchor_norm: str) -> bool:
 
 
 def _anchor_tokens(value: str) -> set[str]:
-    raw_tokens = re.findall(r"[a-z0-9_]+", value.lower())
+    raw_tokens = re.findall(r"[a-z0-9_]+", value.lower().replace("_", " "))
     tokens: set[str] = set()
     for token in raw_tokens:
         if token in _ANCHOR_TOKEN_STOPWORDS:
@@ -470,6 +496,25 @@ def _anchor_tokens(value: str) -> set[str]:
         if token:
             tokens.add(token)
     return tokens
+
+
+def _lean_declaration_names(value: Any) -> list[str]:
+    text = str(value or "")
+    if not text.strip():
+        return []
+    names: list[str] = []
+    seen: set[str] = set()
+    for match in re.finditer(
+        r"\b(?:theorem|lemma|def|abbrev|structure|class|inductive)\s+"
+        r"(?P<name>[A-Za-z_][A-Za-z0-9_'.]*)",
+        text,
+    ):
+        name = match.group("name").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
 
 
 def _compact_value(value: Any, *, text_limit: int) -> Any:

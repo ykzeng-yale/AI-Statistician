@@ -6057,6 +6057,95 @@ def test_theory_trace_alignment_matches_descriptive_anchor_references() -> None:
     assert contract["n_unsupported_anchor_references"] == 0
 
 
+def test_theory_trace_alignment_matches_formalization_request_declaration_alias() -> None:
+    theory_packet = {
+        "packet_id": "theory_derivation:conformal_alias",
+        "theory_derivation_packet": {
+            "derivation_steps": [
+                {
+                    "id": "D1",
+                    "claim": "Exchangeability gives uniform residual rank",
+                }
+            ],
+            "equation_chain": [
+                {
+                    "step_id": "E1",
+                    "lhs": "coverage",
+                    "rhs": "rank probability lower bound",
+                }
+            ],
+            "assumption_ledger": [
+                {
+                    "assumption": (
+                        "Exchangeability of "
+                        "(X_1,Y_1),...,(X_{n+1},Y_{n+1})."
+                    )
+                }
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "T1",
+                "semantic_alignment_constraints": [
+                    "Coverage statement is marginal, not conditional."
+                ],
+            },
+        },
+        "theorem_cards": [
+            {
+                "id": "T1",
+                "informal_statement": (
+                    "Under exchangeability, the split conformal interval C_n "
+                    "satisfies finite-sample marginal coverage."
+                ),
+            }
+        ],
+        "formalization_requests": [
+            {
+                "id": "F1",
+                "target_theorem_card": "T1",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage "
+                    "(covered : Prop) : covered := by sorry"
+                ),
+            }
+        ],
+    }
+
+    contract = theory_trace_alignment_contract(
+        theory_packet,
+        {
+            "referenced_derivation_steps": [
+                "D1: exchangeability gives uniform residual rank"
+            ],
+            "referenced_equation_steps": [
+                "E1: coverage follows from rank probability lower bound"
+            ],
+            "referenced_assumptions": [
+                "Exchangeability of (X_1,Y_1),...,(X_{n+1},Y_{n+1})."
+            ],
+            "referenced_formalization_targets": [
+                (
+                    "split_conformal_finite_sample_coverage with resolved "
+                    "definitions for good_rank_event, coverage_event, "
+                    "covered, C_n."
+                )
+            ],
+            "rationale": (
+                "Algorithm implementation targets the source theorem by its "
+                "Lean-style conformal coverage declaration name."
+            ),
+        },
+        consumer_subsystem="AlgorithmEngineer",
+    )
+
+    assert contract["structured_alignment_observed"] is True
+    assert contract["unsupported_formalization_targets"] == []
+    assert contract["n_unsupported_anchor_references"] == 0
+    assert (
+        "split_conformal_finite_sample_coverage with resolved definitions"
+        in contract["supported_formalization_targets"][0]
+    )
+
+
 def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_budget() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     blackboard = BlackboardState(project_id="critic-formalizer-routing-test")
