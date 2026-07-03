@@ -146,11 +146,16 @@ def _compact_string_list(values: Any) -> list[str]:
 def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
     raw_task_families = _compact_string_list(payload.get("task_families", []))
     task_families = explicit_task_family_list(raw_task_families)
-    if raw_task_families:
+    if task_families:
         return len(task_families)
-    explicit_count = int(payload.get("n_distinct_task_families", 0) or 0)
-    if explicit_count > 0:
-        return explicit_count
+    target_bound_families = explicit_task_family_list(
+        payload.get(
+            "task_families_with_full_frontier_target_bound_kernel_verified",
+            [],
+        )
+    )
+    if target_bound_families:
+        return len(target_bound_families)
     return 0
 
 
@@ -14411,7 +14416,7 @@ def _cross_task_generalization_scorecard_routing(
         ),
         "recommended_capability_eval_command": command,
         "success_metric": (
-            "n_distinct_task_families>=2 and "
+            "explicit target-bound task family ids>=2 and "
             "n_task_families_with_full_frontier_target_bound_kernel_verified>=2 "
             "with explicit family ids and local Lean/AXLE kernel verification "
             "for the full source/frontier theorem in each family"

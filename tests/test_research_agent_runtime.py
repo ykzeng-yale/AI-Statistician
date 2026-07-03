@@ -236,6 +236,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_audit_expected_subsystem_sequence,
     _runtime_trace_sequence_has_control_contract,
     _trace_architect_initial_routing_records,
+    _payload_distinct_task_family_count,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
     _runtime_component_calibration_gaps_from_scorecard,
@@ -59613,6 +59614,45 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     ]
     assert ladder["scale"] == "L0-L9"
     assert ladder_rows[9]["passed"] is True
+
+    payload.pop("task_families")
+    payload["n_distinct_task_families"] = 0
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is True
+    assert ladder_rows[9]["passed"] is True
+
+
+def test_runtime_distinct_task_family_count_uses_explicit_family_ids() -> None:
+    assert _payload_distinct_task_family_count(
+        {"n_distinct_task_families": 2}
+    ) == 0
+    assert _payload_distinct_task_family_count(
+        {
+            "task_families": ["unclassified", "question_id:legacy"],
+            "n_distinct_task_families": 2,
+        }
+    ) == 0
+    assert _payload_distinct_task_family_count(
+        {
+            "task_families": ["causal", "conformal"],
+            "n_distinct_task_families": 99,
+        }
+    ) == 2
+    assert _payload_distinct_task_family_count(
+        {
+            "n_distinct_task_families": 0,
+            "task_families_with_full_frontier_target_bound_kernel_verified": [
+                "causal",
+                "conformal",
+            ],
+        }
+    ) == 2
 
 
 def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
