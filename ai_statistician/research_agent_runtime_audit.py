@@ -1049,6 +1049,7 @@ def _runtime_next_action_agenda_contract_audit_summary(
     seen_ids: set[str] = set()
     owners: Counter[str] = Counter()
     triggers: Counter[str] = Counter()
+    generated_queue_names: Counter[str] = Counter()
     for row_index, row in enumerate(agenda_rows):
         if not isinstance(row, Mapping):
             _append_handoff_issue(
@@ -1113,6 +1114,11 @@ def _runtime_next_action_agenda_contract_audit_summary(
         trigger = str(row.get("trigger", "") or "").strip()
         if trigger:
             triggers[trigger] += 1
+        generated_queue_name = str(
+            row.get("runtime_generated_queue_name", "") or ""
+        ).strip()
+        if generated_queue_name:
+            generated_queue_names[generated_queue_name] += 1
         action = str(
             row.get("action", "")
             or row.get("recommended_next_action", "")
@@ -1200,6 +1206,9 @@ def _runtime_next_action_agenda_contract_audit_summary(
         ),
         "runtime_next_action_agenda_owner_subsystems": dict(sorted(owners.items())),
         "runtime_next_action_agenda_triggers": dict(sorted(triggers.items())),
+        "runtime_next_action_agenda_generated_queue_names": dict(
+            sorted(generated_queue_names.items())
+        ),
         "runtime_next_action_agenda_contract_issues": issues,
         "boundary": (
             "Runtime next-action agenda rows are orchestration and repair-routing "
@@ -3620,6 +3629,11 @@ def audit_research_agent_runtime(
         "runtime_next_action_agenda_triggers": dict(
             runtime_next_action_agenda_contract_summary[
                 "runtime_next_action_agenda_triggers"
+            ]
+        ),
+        "runtime_next_action_agenda_generated_queue_names": dict(
+            runtime_next_action_agenda_contract_summary[
+                "runtime_next_action_agenda_generated_queue_names"
             ]
         ),
         "runtime_next_action_agenda_contract_issues": list(
@@ -11844,6 +11858,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     post_adapter_exact_executor_required = (
         post_adapter_exact_repair_work_orders > 0 and post_adapter_exact_queue_ran
     )
+    post_adapter_semantic_work_orders = int(
+        payload.get(
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback",
+            0,
+        )
+        or 0
+    )
+    runtime_next_action_generated_queue_names = (
+        payload.get("runtime_next_action_agenda_generated_queue_names", {})
+        if isinstance(
+            payload.get("runtime_next_action_agenda_generated_queue_names", {}),
+            Mapping,
+        )
+        else {}
+    )
+    post_adapter_semantic_next_action_rows = int(
+        runtime_next_action_generated_queue_names.get(
+            "source_theorem_semantic_primitives_from_proof_body_adapter_feedback",
+            0,
+        )
+        or 0
+    )
+    post_adapter_semantic_reroute_handoff_present = (
+        post_adapter_semantic_work_orders > 0
+        and post_adapter_semantic_next_action_rows > 0
+    )
     adapter_premise_exact_repair_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback",
@@ -13760,14 +13800,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 )
                 or 0
             )
-            > 0,
+            > 0
+            and post_adapter_semantic_reroute_handoff_present,
             (
                 "post_adapter_source_kernel="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified')} "
                 "new_semantic_work_orders="
-                f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')}"
+                f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')} "
+                "semantic_next_action_rows="
+                f"{post_adapter_semantic_next_action_rows} "
+                "generated_queue_names="
+                f"{payload.get('runtime_next_action_agenda_generated_queue_names')}"
             ),
-            "post-adapter proof-body failure neither proved the source theorem nor rerouted to semantic primitive work",
+            (
+                "post-adapter proof-body failure neither proved the source theorem "
+                "nor rerouted to semantic primitive work with a generated "
+                "next-action handoff"
+            ),
         ),
         _scorecard_row(
             "exact_semantic_definition_source_lookup_handoff_not_dropped",

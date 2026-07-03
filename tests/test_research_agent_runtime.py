@@ -61871,6 +61871,52 @@ def test_runtime_capability_scorecard_flags_post_adapter_exact_executor_request_
     )
 
 
+@pytest.mark.parametrize(
+    "generated_queue_names",
+    [
+        None,
+        {},
+        {"unrelated_queue": 1},
+    ],
+)
+def test_runtime_capability_scorecard_flags_post_adapter_semantic_reroute_without_next_action_handoff(
+    generated_queue_names: dict[str, int] | None,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified": 0,
+        "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback": 1,
+    }
+    if generated_queue_names is not None:
+        payload[
+            "runtime_next_action_agenda_generated_queue_names"
+        ] = generated_queue_names
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "post_adapter_failure_rerouted_to_semantic_primitives_or_source_proved"
+    ]["passed"] is False
+    assert (
+        "generated next-action handoff"
+        in rows[
+            "post_adapter_failure_rerouted_to_semantic_primitives_or_source_proved"
+        ]["blocker"]
+    )
+
+
 def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
