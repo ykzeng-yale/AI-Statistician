@@ -32247,6 +32247,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "formalizer_runtime_capability_contract_feedback",
+        "pseudo_formal_block_routing_feedback",
         "coding_agent_generated_code_component_gate_feedback",
         "coding_agent_generated_code_capability_feedback",
         "theory_derivation_trace_feedback",
@@ -32262,6 +32263,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = frozenset(
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+        "PSEUDO_FORMAL_WORK_ORDER_READY",
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
         "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
         "RUNTIME_ARCHITECT_REGISTERED_WITHOUT_TRACE",
@@ -33103,6 +33105,8 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
+    if learning_task == "pseudo_formal_block_routing_feedback":
+        return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
     if learning_task == "runtime_handoff_artifact_missing_feedback":
@@ -33477,6 +33481,30 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + (target_scope or question_id or "global")
             + ":"
             + (missing_flags or failure_classification or source_failure_id)
+        )
+    if learning_task == "pseudo_formal_block_routing_feedback":
+        work_order_id = str(
+            row.get("source_pseudo_formal_work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or row.get("work_order_id", "")
+            or ""
+        ).strip()
+        target_lane = str(
+            row.get("target_lane", "") or input_summary.get("target_lane", "") or ""
+        ).strip()
+        source_block_id = str(
+            row.get("source_block_id", "")
+            or input_summary.get("source_block_id", "")
+            or placeholder
+            or ""
+        ).strip()
+        return (
+            "pseudo_formal_block_routing_feedback:"
+            + (target_scope or target or "global")
+            + ":"
+            + (target_lane or "formal_gap")
+            + ":"
+            + (source_block_id or work_order_id)
         )
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         component_manifest = str(
@@ -43743,6 +43771,183 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return pseudo-formal/block-verification routing rows from memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    feedback_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "pseudo_formal_block_routing_feedback"
+        ):
+            continue
+        work_order_id = str(
+            row.get("source_pseudo_formal_work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or row.get("work_order_id", "")
+            or ""
+        ).strip()
+        target_lane = str(
+            row.get("target_lane", "")
+            or input_summary.get("target_lane", "")
+            or ""
+        ).strip()
+        source_block_id = str(
+            row.get("source_block_id", "")
+            or input_summary.get("source_block_id", "")
+            or row.get("placeholder_symbol", "")
+            or input_summary.get("placeholder_symbol", "")
+            or ""
+        ).strip()
+        key = (work_order_id, target_lane, source_block_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        target_row = dict(input_summary)
+        target_row.update(dict(row))
+        target_row["input_summary"] = input_summary
+        target_ids = _source_theorem_target_ids_from_row(
+            target_row,
+            fallback_target_theorem_name=str(
+                row.get("target_theorem_name", "")
+                or input_summary.get("source_theorem_id", "")
+                or input_summary.get("target_theorem_name", "")
+                or ""
+            ),
+        )
+        source_anchors = (
+            row.get("source_anchors", [])
+            if isinstance(row.get("source_anchors", []), list)
+            else input_summary.get("source_anchors", [])
+            if isinstance(input_summary.get("source_anchors", []), list)
+            else []
+        )
+        feedback_rows.append(
+            {
+                "learning_task": "pseudo_formal_block_routing_feedback",
+                "question_id": str(
+                    row.get("question_id", "")
+                    or input_summary.get("question_id", "")
+                    or ""
+                ),
+                "target_ids": list(target_ids),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                    or input_summary.get("source_theorem_id", "")
+                    or ""
+                ),
+                "source_pseudo_formal_work_order_id": work_order_id,
+                "source_agenda_id": str(
+                    row.get("source_agenda_id", "")
+                    or input_summary.get("agenda_id", "")
+                    or ""
+                ),
+                "source_formalizer_proposal_id": str(
+                    row.get("source_formalizer_proposal_id", "")
+                    or input_summary.get("source_formalizer_proposal_id", "")
+                    or ""
+                ),
+                "source_formalization_manifest_id": str(
+                    row.get("source_formalization_manifest_id", "")
+                    or input_summary.get("source_formalization_manifest_id", "")
+                    or ""
+                ),
+                "source_packet_id": str(
+                    row.get("source_packet_id", "")
+                    or input_summary.get("source_packet_id", "")
+                    or ""
+                ),
+                "source_theorem_id": str(
+                    row.get("source_theorem_id", "")
+                    or input_summary.get("source_theorem_id", "")
+                    or ""
+                ),
+                "source_block_id": source_block_id,
+                "source_block_type": str(
+                    row.get("source_block_type", "")
+                    or input_summary.get("source_block_type", "")
+                    or ""
+                ),
+                "source_block_conclusion": str(
+                    row.get("source_block_conclusion", "")
+                    or input_summary.get("source_block_conclusion", "")
+                    or ""
+                )[:500],
+                "source_anchors": [
+                    dict(anchor)
+                    for anchor in source_anchors
+                    if isinstance(anchor, Mapping)
+                ][:6],
+                "row_kind": str(
+                    row.get("row_kind", "")
+                    or input_summary.get("row_kind", "")
+                    or ""
+                ),
+                "target_lane": target_lane,
+                "semantic_primitive_id": str(
+                    row.get("semantic_primitive_id", "")
+                    or input_summary.get("semantic_primitive_id", "")
+                    or ""
+                ),
+                "reason": str(
+                    row.get("reason", "") or input_summary.get("reason", "") or ""
+                ),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "")
+                    or input_summary.get("runtime_queue_status", "")
+                    or ""
+                ),
+                "runtime_generated_queue_name": str(
+                    row.get("runtime_generated_queue_name", "")
+                    or input_summary.get("runtime_generated_queue_name", "")
+                    or ""
+                ),
+                "target_behavior": str(
+                    row.get("target_behavior", "")
+                    or input_summary.get("target_behavior", "")
+                    or ""
+                ),
+                "acceptance_gate": str(
+                    row.get("acceptance_gate", "")
+                    or input_summary.get("acceptance_gate", "")
+                    or ""
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or ""
+                ),
+                "proof_evidence_boundary": str(
+                    row.get("proof_evidence_boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
+                    or row.get("boundary", "")
+                    or ""
+                )[:500],
+            }
+        )
+    return tuple(feedback_rows)
+
+
 def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -45015,6 +45220,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             context
         )
     )
+    pseudo_formal_block_routing_rows = (
+        _runtime_learning_memory_pseudo_formal_block_routing_feedback(context)
+    )
     formalizer_lean_candidate_component_gate_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
             context
@@ -45866,6 +46074,75 @@ def _formalizer_proof_bank_runtime_memory_summary(
         if formal_gap_next_action_routing_rows
         else {}
     )
+    pseudo_formal_block_routing_target_lanes = tuple(
+        dict.fromkeys(
+            str(row.get("target_lane", "") or "").strip()
+            for row in pseudo_formal_block_routing_rows
+            if str(row.get("target_lane", "") or "").strip()
+        )
+    )
+    pseudo_formal_block_routing_target_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in pseudo_formal_block_routing_rows
+            for value in row.get("target_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    pseudo_formal_block_routing_work_order_ids = tuple(
+        dict.fromkeys(
+            str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            for row in pseudo_formal_block_routing_rows
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        )
+    )
+    pseudo_formal_block_routing_contract = (
+        {
+            "contract_kind": "pseudo_formal_block_routing",
+            "target_lanes": list(pseudo_formal_block_routing_target_lanes),
+            "target_ids": list(pseudo_formal_block_routing_target_ids),
+            "work_order_ids": list(pseudo_formal_block_routing_work_order_ids),
+            "required_execution_order": [
+                "consume the source block id, conclusion, source anchors, and target lane",
+                "materialize only the bounded lane-specific artifact requested by the row",
+                "run the downstream Lean/RAG/source-to-bridge/semantic-definition gate",
+                "promote nothing until target-prover kernel replay verifies the concrete artifact",
+            ],
+            "lane_contract": {
+                "formal_targets": (
+                    "emit a concrete Lean candidate for the pseudo-formal block "
+                    "and queue local Lean/AXLE replay"
+                ),
+                "lean_rag": (
+                    "ground the block in exact Lean declarations or record a "
+                    "formal-library gap before proof replay"
+                ),
+                "source_to_bridge": (
+                    "derive or request the source-to-bridge semantic primitive "
+                    "needed by the block"
+                ),
+                "source_theorem_exact_semantic_definition": (
+                    "author and typecheck exact source-theorem semantic definitions "
+                    "before proof-body search resumes"
+                ),
+                "formal_gap": (
+                    "split, reroute, or escalate the residual block through the "
+                    "FormalizationGapPlanner"
+                ),
+            },
+            "forbidden_resolution": (
+                "Do not treat pseudo-formal/block-verification acceptance as "
+                "Lean kernel evidence or source theorem proof. Do not replace the "
+                "lane with broad hardcoded proof rules; emit a concrete candidate, "
+                "retrieval query, source-to-bridge request, semantic-definition "
+                "request, or formal gap."
+            ),
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        }
+        if pseudo_formal_block_routing_rows
+        else {}
+    )
     source_to_bridge_premise_derivation_all_required_verified = bool(
         known_source_to_bridge_premise_names
         and not pending_source_to_bridge_premise_names
@@ -46539,6 +46816,70 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
             }
             for row in formal_gap_next_action_routing_rows[:4]
+        ],
+        "pseudo_formal_block_routing_active": bool(
+            pseudo_formal_block_routing_rows
+        ),
+        "pseudo_formal_block_routing_target_lanes": list(
+            pseudo_formal_block_routing_target_lanes
+        ),
+        "pseudo_formal_block_routing_target_ids": list(
+            pseudo_formal_block_routing_target_ids
+        ),
+        "pseudo_formal_block_routing_work_order_ids": list(
+            pseudo_formal_block_routing_work_order_ids
+        ),
+        "pseudo_formal_block_routing_contract": (
+            pseudo_formal_block_routing_contract
+        ),
+        "pseudo_formal_block_routing_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "source_pseudo_formal_work_order_id": str(
+                    row.get("source_pseudo_formal_work_order_id", "") or ""
+                ),
+                "source_agenda_id": str(row.get("source_agenda_id", "") or ""),
+                "source_formalizer_proposal_id": str(
+                    row.get("source_formalizer_proposal_id", "") or ""
+                ),
+                "source_formalization_manifest_id": str(
+                    row.get("source_formalization_manifest_id", "") or ""
+                ),
+                "source_packet_id": str(row.get("source_packet_id", "") or ""),
+                "source_theorem_id": str(row.get("source_theorem_id", "") or ""),
+                "source_block_id": str(row.get("source_block_id", "") or ""),
+                "source_block_type": str(row.get("source_block_type", "") or ""),
+                "source_block_conclusion": str(
+                    row.get("source_block_conclusion", "") or ""
+                ),
+                "source_anchors": [
+                    dict(anchor)
+                    for anchor in row.get("source_anchors", []) or []
+                    if isinstance(anchor, Mapping)
+                ][:4],
+                "row_kind": str(row.get("row_kind", "") or ""),
+                "target_lane": str(row.get("target_lane", "") or ""),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "semantic_primitive_id": str(
+                    row.get("semantic_primitive_id", "") or ""
+                ),
+                "reason": str(row.get("reason", "") or ""),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "") or ""
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "proof_evidence_boundary": str(
+                    row.get("proof_evidence_boundary", "") or ""
+                ),
+            }
+            for row in pseudo_formal_block_routing_rows[:6]
         ],
         "source_to_bridge_metadata_authoring_candidate_requests": [
             {

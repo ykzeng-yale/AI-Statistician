@@ -8931,6 +8931,22 @@ def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
             "source_materialization_manifest_id": "materialization:coverage",
         },
         {
+            "learning_task": "pseudo_formal_block_routing_feedback",
+            "target_ids": ["split_conformal_finite_sample_coverage", "pf:block:b1"],
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "source_pseudo_formal_work_order_id": (
+                "pseudo_formal_work_order:rank_uniform"
+            ),
+            "source_block_id": "b1",
+            "target_lane": "formal_targets",
+            "input_summary": {
+                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                ),
+            },
+        },
+        {
             "learning_task": "theory_trace_downstream_alignment_feedback",
             "question_id": "conformal_prediction_coverage",
             "work_order_id": "theory-trace:coverage",
@@ -21661,6 +21677,163 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     assert "timeout after 60s" in prompt
     assert "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω}" in prompt
     assert "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_LEARNING_NOT_PROOF_EVIDENCE" in prompt
+
+
+def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": question.id,
+            "learning_task": "pseudo_formal_block_routing_feedback",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": [
+                "split_conformal_finite_sample_coverage",
+                "b_rank_uniform",
+            ],
+            "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+            "memory_status": "PSEUDO_FORMAL_ROUTING_MEMORY",
+            "source_agenda_id": "pseudo_formal:formal_targets:rank_uniform",
+            "source_pseudo_formal_work_order_id": (
+                "pseudo_formal_work_order:rank_uniform"
+            ),
+            "source_formalizer_proposal_id": "formalizer_proposal:pseudo",
+            "source_formalization_manifest_id": "formalization_manifest:pseudo",
+            "source_packet_id": "pseudo_formal_packet:coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "b_rank_uniform",
+            "source_block_type": "lemma",
+            "source_block_conclusion": "rank is uniform by exchangeability",
+            "source_anchors": [
+                {
+                    "kind": "theory_trace",
+                    "id": "equation:rank_uniformity",
+                }
+            ],
+            "semantic_primitive_id": "rank_uniformity",
+            "runtime_generated_queue_name": (
+                "pseudo_formal_work_orders_from_formalizer"
+            ),
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+            ),
+            "input_summary": {
+                "trigger": "PSEUDO_FORMAL_WORK_ORDER_READY",
+                "agenda_id": "pseudo_formal:formal_targets:rank_uniform",
+                "work_order_id": "pseudo_formal_work_order:rank_uniform",
+                "row_kind": "pseudo_formal_lean_candidate_seed",
+                "target_lane": "formal_targets",
+                "reason": "block is triaged as Lean-feasible",
+                "source_theorem_id": "split_conformal_finite_sample_coverage",
+                "source_block_id": "b_rank_uniform",
+                "source_block_type": "lemma",
+                "source_block_conclusion": "rank is uniform by exchangeability",
+                "source_anchors": [
+                    {
+                        "kind": "theory_trace",
+                        "id": "equation:rank_uniformity",
+                    }
+                ],
+                "semantic_primitive_id": "rank_uniformity",
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+                ),
+            },
+            "target_behavior": (
+                "materialize pseudo-formal block b_rank_uniform as a concrete "
+                "Lean candidate"
+            ),
+            "acceptance_gate": (
+                "A concrete Lean candidate for the block is generated and checked "
+                "by local Lean/AXLE; pseudo-formal block verification remains "
+                "non-proof until target prover kernel replay."
+            ),
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": (
+                "Pseudo-formalization and block-verification rows are not theorem "
+                "proof evidence. Source theorem proof requires target-prover "
+                "kernel replay."
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "filler",
+            "target_behavior": "newer but less important row",
+        },
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == "pseudo_formal_block_routing_feedback"
+    assert runtime_module._runtime_learning_memory_should_pin_context_row(retained)
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(retained)
+        == 90
+    )
+    assert "pseudo_formal_block_routing_feedback" in (
+        runtime_module._runtime_learning_memory_context_pin_key(retained)
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["pseudo_formal_block_routing_active"] is True
+    assert summary["pseudo_formal_block_routing_target_lanes"] == [
+        "formal_targets"
+    ]
+    assert "split_conformal_finite_sample_coverage" in summary[
+        "pseudo_formal_block_routing_target_ids"
+    ]
+    assert summary["pseudo_formal_block_routing_contract"][
+        "proof_evidence_status"
+    ] == "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    pf_memory = summary["pseudo_formal_block_routing_memory"]
+    assert pf_memory[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:rank_uniform"
+    )
+    assert pf_memory[0]["source_block_id"] == "b_rank_uniform"
+    assert pf_memory[0]["target_lane"] == "formal_targets"
+    assert pf_memory[0]["source_anchors"][0]["id"] == "equation:rank_uniformity"
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Pseudo-formal/block-verification routing memory is active" in prompt
+    assert "pseudo_formal_block_routing_memory" in prompt
+    assert "pseudo_formalization_contract" in prompt
+    assert "pseudo_formal_proof_packets" in prompt
+    assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
+    assert "b_rank_uniform" in prompt
+    assert "equation:rank_uniformity" in prompt
+    assert "target_lane=formal_targets" in prompt
+    assert "do not hardcode corner-case proof rules" in prompt
 
 
 def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_prompt(

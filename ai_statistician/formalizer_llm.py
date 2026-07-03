@@ -1035,6 +1035,9 @@ def _feedback_suggests_pseudo_formalization(
                 "missing import",
                 "library support",
                 "overlarge proof",
+                "pseudo_formal",
+                "pseudo-formal",
+                "block-verification",
             )
         ):
             return True
@@ -4177,6 +4180,82 @@ def _formalizer_mode_specific_instructions(
                 + "."
             )
         instructions.append(instruction)
+    pseudo_formal_memory = [
+        row
+        for row in proof_memory_summary.get("pseudo_formal_block_routing_memory", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if proof_memory_summary.get("pseudo_formal_block_routing_active") or pseudo_formal_memory:
+        target_lanes = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_block_routing_target_lanes",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        target_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_block_routing_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:5]
+        work_order_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_block_routing_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:5]
+        for row in pseudo_formal_memory:
+            lane = str(row.get("target_lane", "") or "").strip()
+            if lane:
+                target_lanes.append(lane)
+            target_ids.extend(
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            )
+            work_order_id = str(
+                row.get("source_pseudo_formal_work_order_id", "") or ""
+            ).strip()
+            if work_order_id:
+                work_order_ids.append(work_order_id)
+        target_lanes = list(dict.fromkeys(target_lanes))[:5]
+        target_ids = list(dict.fromkeys(target_ids))[:5]
+        work_order_ids = list(dict.fromkeys(work_order_ids))[:5]
+        instruction = (
+            "Pseudo-formal/block-verification routing memory is active: consume "
+            "proof_bank_runtime_memory_summary.pseudo_formal_block_routing_contract "
+            "and pseudo_formal_block_routing_memory before proposing new broad proof "
+            "work. These rows decompose blocked proof text into lane-specific tasks; "
+            "they are not Lean kernel evidence and do not prove the source theorem. "
+            "For target_lane=formal_targets, emit a bounded concrete Lean candidate "
+            "for the named block and require local Lean/AXLE replay. For "
+            "target_lane=lean_rag, emit retrieval_queries or formal-source grounding "
+            "requests for exact declarations. For target_lane=source_to_bridge, emit "
+            "a source-backed semantic primitive or premise-derivation request. For "
+            "target_lane=source_theorem_exact_semantic_definition, author or request "
+            "exact semantic definitions before proof-body search resumes. For "
+            "target_lane=formal_gap, split or reroute the residual block through "
+            "gap_taxonomy/next_actions or the FormalizationGapPlanner. Do not satisfy "
+            "the Lean-candidate gate with pseudo_formal_proof_packets alone, and do "
+            "not hardcode corner-case proof rules in place of the requested lane."
+        )
+        if target_lanes:
+            instruction += " Target lane(s): " + ", ".join(target_lanes) + "."
+        if target_ids:
+            instruction += " Target id(s): " + ", ".join(target_ids) + "."
+        if work_order_ids:
+            instruction += " PF/BV work order(s): " + ", ".join(work_order_ids) + "."
+        instructions.append(instruction)
     if source_theorem_candidate_materialization_required:
         targets = [
             str(value).strip()
@@ -6308,6 +6387,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formal_gap_route_planner_staged_assembly_error_preview",
         "formal_gap_next_action_contract",
         "formal_gap_next_action_diagnostics",
+        "pseudo_formal_block_routing_active",
+        "pseudo_formal_block_routing_target_lanes",
+        "pseudo_formal_block_routing_target_ids",
+        "pseudo_formal_block_routing_work_order_ids",
+        "pseudo_formal_block_routing_contract",
+        "pseudo_formal_block_routing_memory",
         "source_theorem_proof_body_adapter_diagnostics",
         "source_theorem_exact_proof_body_repair_target_names",
         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -6477,6 +6562,35 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_evidence_status",
             ),
             limit=4,
+        )
+    if isinstance(row.get("pseudo_formal_block_routing_memory"), list):
+        compact["pseudo_formal_block_routing_memory"] = _compact_rows(
+            row.get("pseudo_formal_block_routing_memory", []),
+            keys=(
+                "learning_task",
+                "source_pseudo_formal_work_order_id",
+                "source_agenda_id",
+                "source_formalizer_proposal_id",
+                "source_formalization_manifest_id",
+                "source_packet_id",
+                "source_theorem_id",
+                "source_block_id",
+                "source_block_type",
+                "source_block_conclusion",
+                "source_anchors",
+                "row_kind",
+                "target_lane",
+                "target_ids",
+                "target_theorem_name",
+                "semantic_primitive_id",
+                "reason",
+                "runtime_queue_status",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
+                "proof_evidence_boundary",
+            ),
+            limit=6,
         )
     if isinstance(row.get("source_to_bridge_metadata_authoring_candidate_requests"), list):
         compact["source_to_bridge_metadata_authoring_candidate_requests"] = (

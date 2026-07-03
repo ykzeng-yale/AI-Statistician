@@ -1489,6 +1489,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
+    if learning_task == "pseudo_formal_block_routing_feedback":
+        return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
     if learning_task == "coding_agent_generated_code_capability_feedback":
@@ -1744,6 +1746,30 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + str(row.get("source_manifest_id", "") or "")
             + ":"
             + str(row.get("source_materialization_manifest_id", "") or "")
+        )
+    if learning_task == "pseudo_formal_block_routing_feedback":
+        work_order_id = str(
+            row.get("source_pseudo_formal_work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or row.get("work_order_id", "")
+            or ""
+        ).strip()
+        target_lane = str(
+            row.get("target_lane", "") or input_summary.get("target_lane", "") or ""
+        ).strip()
+        source_block_id = str(
+            row.get("source_block_id", "")
+            or input_summary.get("source_block_id", "")
+            or placeholder
+            or ""
+        ).strip()
+        return (
+            "pseudo_formal_block_routing_feedback:"
+            + (target_scope or target or "global")
+            + ":"
+            + (target_lane or "formal_gap")
+            + ":"
+            + (source_block_id or work_order_id)
         )
     if _runtime_learning_memory_row_requires_candidate_materialization(row):
         return "candidate_materialization_required:" + (target_scope or target)
@@ -2384,6 +2410,16 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_manifest_path",
         "source_rows_path",
         "source_formalizer_packet_id",
+        "source_agenda_id",
+        "source_pseudo_formal_work_order_id",
+        "source_formalizer_proposal_id",
+        "source_formalization_manifest_id",
+        "source_packet_id",
+        "source_artifact_id",
+        "source_theorem_id",
+        "source_block_id",
+        "source_block_type",
+        "source_block_conclusion",
         "feedback_type",
         "algorithm_sandbox_manifest_id",
         "simulation_manifest_id",
@@ -2500,6 +2536,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "authoring_trigger",
         "authoring_mode",
         "runtime_queue_status",
+        "runtime_generated_queue_name",
         "environment_repair_status",
         "candidate_lean_project_hint",
         "candidate_source_file",
@@ -2585,6 +2622,9 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "candidate_materialization_required",
         "candidate_materialization_contract",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
+        "row_kind",
+        "target_lane",
+        "semantic_primitive_id",
         "capability_id",
         "recommended_capability_eval_command",
         "success_metric",
@@ -2698,6 +2738,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "route_revision_reasons",
         "route_revision_overlay_dirs",
         "route_revision_overlay_manifests",
+        "source_anchors",
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
@@ -2755,6 +2796,19 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
             "candidate_materialization_required",
             "candidate_materialization_contract",
+            "source_agenda_id",
+            "source_pseudo_formal_work_order_id",
+            "source_formalizer_proposal_id",
+            "source_formalization_manifest_id",
+            "source_packet_id",
+            "source_artifact_id",
+            "source_theorem_id",
+            "source_block_id",
+            "source_block_type",
+            "source_block_conclusion",
+            "row_kind",
+            "target_lane",
+            "runtime_generated_queue_name",
             "adapter_candidate_requires_unproven_bridge_premises",
             "unavailable_import",
             "premise_derivation_kernel_verified",
@@ -2805,6 +2859,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "route_revision_reasons",
             "route_revision_overlay_dirs",
             "route_revision_overlay_manifests",
+            "source_anchors",
         ):
             value = input_summary.get(key)
             if (
@@ -2879,6 +2934,18 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "next_owner_subsystem",
         "owner_subsystem",
         "agenda_id",
+        "source_agenda_id",
+        "source_pseudo_formal_work_order_id",
+        "source_formalizer_proposal_id",
+        "source_formalization_manifest_id",
+        "source_packet_id",
+        "source_artifact_id",
+        "source_theorem_id",
+        "source_block_id",
+        "source_block_type",
+        "source_block_conclusion",
+        "row_kind",
+        "target_lane",
         "formalization_gap_planner_bridge_id",
         "standalone_seed_artifact_id",
         "formalization_gap_planner_handoff_id",
@@ -2906,6 +2973,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "lookup_id",
         "lookup_status",
         "runtime_queue_status",
+        "runtime_generated_queue_name",
         "environment_repair_status",
         "candidate_lean_project_hint",
         "candidate_source_file",
@@ -3155,6 +3223,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "route_revision_reasons",
         "route_revision_overlay_dirs",
         "route_revision_overlay_manifests",
+        "source_anchors",
         "required_theory_trace_consumers",
         "theory_trace_consuming_subsystems",
         "structured_theory_trace_aligned_subsystems",
