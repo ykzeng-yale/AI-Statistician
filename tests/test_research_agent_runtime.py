@@ -61832,6 +61832,237 @@ def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_tele
     assert "explicit handoff telemetry" in rows[requirement_id]["blocker"]
 
 
+def test_runtime_capability_scorecard_flags_empty_exact_semantic_source_lookup_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 0,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_source_lookup_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "lookup_learning_rows=0" in row["evidence"]
+    assert "closure_review_packets=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_exact_semantic_source_lookup_review_packets() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_source_lookup_handoff_not_dropped"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_accepts_exact_semantic_source_lookup_learning_rows_without_review_packets() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_source_lookup_handoff_not_dropped"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_empty_exact_semantic_proofengineer_bridge_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "lean_repair_tasks=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_exact_semantic_proofengineer_bridge_lean_tasks() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_empty_exact_semantic_lean_repair_executor_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 0,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_lean_repair_executor_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "executor_results=0" in row["evidence"]
+    assert "local_lean_checked=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_flags_exact_semantic_lean_repair_without_local_lean_check() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": False,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_lean_repair_executor_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "executor_results=1" in row["evidence"]
+    assert "local_lean_requested=False" in row["evidence"]
+    assert "local_lean_checked=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_exact_semantic_lean_repair_local_lean_results() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_lean_repair_executor_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_empty_source_theorem_promotion_bridge_outputs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

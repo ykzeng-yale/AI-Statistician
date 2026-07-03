@@ -5121,6 +5121,20 @@ def audit_research_agent_runtime(
             )
             or ""
         ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_source_hits": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_source_hits",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_n_closure_review_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_n_closure_review_packets",
@@ -12290,6 +12304,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_source_lookup_handoff_required = (
         exact_semantic_source_lookup_work_orders > 0
     )
+    exact_semantic_source_lookup_source_hits = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_source_hits",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows",
+            0,
+        )
+        or 0
+    )
     exact_semantic_bridge_review_packets = int(
         payload.get(
             "source_theorem_exact_semantic_definition_n_closure_review_packets",
@@ -12334,6 +12362,33 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_theorem_exact_semantic_definition_lean_repair_executor_ran"
         )
         is True
+    )
+    exact_semantic_lean_repair_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_results",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_local_lean_requested = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested"
+        )
+        is True
+    )
+    exact_semantic_lean_repair_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_typechecked_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets",
+            0,
+        )
+        or 0
     )
     exact_semantic_lean_repair_handoff_required = (
         exact_semantic_lean_repair_tasks > 0
@@ -14864,10 +14919,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 exact_semantic_source_lookup_required_present
                 and exact_semantic_source_lookup_required
                 and exact_semantic_source_lookup_ran
+                and (
+                    exact_semantic_source_lookup_learning_rows > 0
+                    or exact_semantic_bridge_review_packets > 0
+                )
             ),
             (
                 "work_orders="
                 f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
+                "lookup_source_hits="
+                f"{exact_semantic_source_lookup_source_hits} "
+                "lookup_learning_rows="
+                f"{exact_semantic_source_lookup_learning_rows} "
+                "closure_review_packets="
+                f"{exact_semantic_bridge_review_packets} "
                 "handoff_required="
                 f"{exact_semantic_source_lookup_handoff_required} "
                 "required_telemetry_present="
@@ -14881,7 +14946,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "exact semantic-definition work orders were generated but source "
-                "lookup did not run with explicit handoff telemetry"
+                "lookup did not run with explicit handoff telemetry and produce "
+                "lookup learning rows or closure review packets"
             ),
         ),
         _scorecard_row(
@@ -14891,10 +14957,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 exact_semantic_bridge_required_present
                 and exact_semantic_bridge_required
                 and exact_semantic_bridge_ran
+                and exact_semantic_lean_repair_tasks > 0
             ),
             (
                 "review_packets="
                 f"{payload.get('source_theorem_exact_semantic_definition_n_closure_review_packets')} "
+                "lean_repair_tasks="
+                f"{exact_semantic_lean_repair_tasks} "
                 "handoff_required="
                 f"{exact_semantic_bridge_handoff_required} "
                 "required_telemetry_present="
@@ -14909,7 +14978,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "source lookup produced exact semantic-definition review packets "
                 "but the ProofEngineer bridge did not run with explicit handoff "
-                "telemetry"
+                "telemetry and produce Lean repair tasks"
             ),
         ),
         _scorecard_row(
@@ -14919,10 +14988,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 exact_semantic_lean_repair_required_present
                 and exact_semantic_lean_repair_required
                 and exact_semantic_lean_repair_ran
+                and exact_semantic_lean_repair_results > 0
+                and exact_semantic_lean_repair_local_lean_requested
+                and exact_semantic_lean_repair_local_lean_checked > 0
             ),
             (
                 "lean_tasks="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks')} "
+                "executor_results="
+                f"{exact_semantic_lean_repair_results} "
                 "handoff_required="
                 f"{exact_semantic_lean_repair_handoff_required} "
                 "required_telemetry_present="
@@ -14934,12 +15008,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason')} "
                 "local_lean_requested="
-                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')}"
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')} "
+                "local_lean_checked="
+                f"{exact_semantic_lean_repair_local_lean_checked} "
+                "typechecked_review_packets="
+                f"{exact_semantic_lean_repair_typechecked_review_packets}"
             ),
             (
                 "ProofEngineer bridge produced exact semantic-definition Lean "
                 "repair tasks but the Lean repair executor did not run with "
-                "explicit handoff telemetry"
+                "explicit handoff telemetry and local Lean result rows"
             ),
         ),
         _scorecard_row(
