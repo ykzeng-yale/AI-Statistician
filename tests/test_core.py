@@ -5021,6 +5021,16 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": [
                     "static"
                 ],
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 2,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_issues": [
+                    {
+                        "row_id": "pseudo_formal:broken",
+                        "missing_fields": ["pseudo_formal_method_contract_id"],
+                    }
+                ],
             },
             "artifacts": {
                 "research_benchmark": "runs/example/research_benchmark_manifest.json",
@@ -5088,6 +5098,10 @@ class SystemTests(unittest.TestCase):
             "no single live Architect-orchestrated AgentRuntime run",
             suites["S13_live_integrated_agent_runtime_capability"]["issues"][0],
         )
+        self.assertIn(
+            "without complete PF+BV method lineage",
+            suites["S13_live_integrated_agent_runtime_capability"]["issues"][1],
+        )
         self.assertEqual(
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
                 "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
@@ -5099,6 +5113,18 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names"
             ],
             ["static"],
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows"
+            ],
+            2,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+            ],
+            1,
         )
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertEqual(
@@ -5115,6 +5141,7 @@ class SystemTests(unittest.TestCase):
             s13_action["success_metric"],
         )
         self.assertIn("n_live_llm_attempted>0 when required", s13_action["success_metric"])
+        self.assertIn("PF+BV method-lineage", s13_action["success_metric"])
         self.assertTrue(
             Path(
                 "runs/test_evaluation_benchmark_guidance/"
@@ -7255,6 +7282,15 @@ class SystemTests(unittest.TestCase):
             "Passing S10, S11, and S12 separately does not imply S13 passes",
             suites["S13_live_integrated_agent_runtime_capability"]["honesty_boundary"],
         )
+        self.assertTrue(
+            any(
+                "pseudo-formal/block-verification routing rows preserve PF+BV method lineage"
+                in item
+                for item in suites["S13_live_integrated_agent_runtime_capability"][
+                    "release_floor"
+                ]
+            )
+        )
 
         doc = Path("docs/evaluation_benchmark_strategy.md").read_text(encoding="utf-8")
         self.assertIn(f"`proofs_kernel_verified={proof_bank_size}/{proof_bank_size}`", doc)
@@ -7265,6 +7301,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S11. Live Formalizer Lean-Candidate Repair Suite", doc)
         self.assertIn("S12. Live Architect Research-Path Policy Suite", doc)
         self.assertIn("S13. Live Integrated AgentRuntime Capability Suite", doc)
+        self.assertIn("PF+BV pseudo-formal", doc)
         self.assertIn("minimal-wrapper debt is now 2", doc)
         self.assertIn("compose-existing bridge-chain opportunities are now 51", doc)
         self.assertNotIn("79/79", doc)

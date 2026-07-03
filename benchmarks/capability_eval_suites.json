@@ -354,6 +354,7 @@
         "Formalizer/ProofEngineer generated Lean candidate is checked locally",
         "internal ProofEngineer handoffs run or are explicitly not required",
         "static replay, no-Architect routing, registered-template-only success, and manual path override do not count",
+        "pseudo-formal/block-verification routing rows preserve PF+BV method lineage and remain non-proof bridge-verification feedback",
         "source theorem proof is claimed only when exact local Lean/AXLE source-theorem verification succeeds"
       ],
       "current_status": "latest inspected runtime audit is a capacity gap: generated algorithm/simulation and Formalizer local Lean feedback are present, but ArchitectCoordinator is disabled in that audited run, no generated algorithm repair sequence was observed, formal gaps remain, and full source theorem proof is absent",

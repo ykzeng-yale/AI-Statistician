@@ -110,6 +110,10 @@ def build_evaluation_benchmark_guidance(
                         "proof_search_retrieval_no_registered_ablation_solved_delta",
                         "research_traces_ok",
                         "research_algorithms_ok",
+                        "research_agent_runtime_pseudo_formal_block_routing_contract_complete",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
                     }
                 },
                 "suite_rows": [asdict(row) for row in suite_rows],
@@ -161,6 +165,54 @@ def _suite_rows(
     proof_search_solved = _int(counts.get("proof_search_solved"))
     proof_search_obligations = _int(counts.get("proof_search_obligations"))
     algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
+    runtime_pf_bv_rows = _int(
+        counts.get("research_agent_runtime_pseudo_formal_block_routing_rows")
+    )
+    runtime_pf_bv_missing_method_lineage = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+        )
+    )
+    runtime_pf_bv_bad_nonproof_boundary = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+        )
+    )
+    runtime_pf_bv_contract_complete = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_contract_complete"
+        )
+    )
+    runtime_pf_bv_telemetry_present = any(
+        key in counts
+        for key in (
+            "research_agent_runtime_pseudo_formal_block_routing_contract_complete",
+            "research_agent_runtime_pseudo_formal_block_routing_rows",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
+        )
+    )
+    runtime_pf_bv_contract_ok = (
+        not runtime_pf_bv_telemetry_present
+        or runtime_pf_bv_rows == 0
+        or (
+            runtime_pf_bv_contract_complete
+            and runtime_pf_bv_missing_method_lineage == 0
+            and runtime_pf_bv_bad_nonproof_boundary == 0
+        )
+    )
+    s13_capability_ready = bool(
+        counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician")
+    )
+    s13_issues: list[str] = []
+    if not s13_capability_ready:
+        s13_issues.append(
+            "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard, including aggregate live exact semantic-definition authoring when required"
+        )
+    if not runtime_pf_bv_contract_ok:
+        s13_issues.append(
+            "integrated pseudo-formal/block-verification rows were emitted without complete PF+BV method lineage or non-proof boundary"
+        )
     rows = [
         BenchmarkSuiteGuidanceRow(
             suite_id="S0_release_sanity",
@@ -603,7 +655,7 @@ def _suite_rows(
             exercised=bool(counts.get("research_agent_runtime_audit_requested"))
             or bool(artifacts.get("research_agent_runtime_audit")),
             status="OK"
-            if bool(counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician"))
+            if s13_capability_ready and runtime_pf_bv_contract_ok
             else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("research_agent_runtime_audit", "")),
@@ -655,18 +707,32 @@ def _suite_rows(
                 "research_agent_runtime_capability_gaps": counts.get(
                     "research_agent_runtime_capability_gaps"
                 ),
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_contract_complete"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_issues": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_issues"
+                ),
             },
             honesty_boundary=(
                 "This is the integrated live AgentRuntime gate. Component gates "
                 "S10/S11/S12 do not imply this suite passes. Static/no-Architect/"
                 "template-only runs cannot count, and this suite still separates "
-                "runtime capability from full theorem proof."
+                "runtime capability from full theorem proof. Pseudo-formal/"
+                "block-verification rows are bridge-verification and routing "
+                "feedback only; when emitted, they must preserve PF+BV method "
+                "lineage and the non-proof boundary."
             ),
-            issues=()
-            if bool(counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician"))
-            else (
-                "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard, including aggregate live exact semantic-definition authoring when required",
-            ),
+            issues=tuple(s13_issues),
         ),
     ]
     return tuple(rows)
@@ -740,7 +806,7 @@ def _top_actions(
                 "owner_suite": "S13_live_integrated_agent_runtime_capability",
                 "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
                 "why": "S10/S11/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
-                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, aggregate primary/retry/late exact semantic-definition authoring n_live_llm_attempted>0 when required, ProofEngineer handoff feedback, and explicit theorem-proof boundary fields.",
+                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, aggregate primary/retry/late exact semantic-definition authoring n_live_llm_attempted>0 when required, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, and PF+BV method-lineage/non-proof contract complete for any pseudo-formal routing rows.",
             }
         )
     if (

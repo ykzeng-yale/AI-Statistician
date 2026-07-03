@@ -1207,7 +1207,9 @@ code execution cannot satisfy S13. S13 is still capability evidence, not theorem
 proof, unless exact local Lean/AXLE source-theorem verification succeeds. When
 exact semantic-definition authoring is required, static/replay authoring and
 prompt staging do not satisfy S13; the aggregate primary/retry/late authoring
-path must record a live Claude/OpenAI backend attempt.
+path must record a live Claude/OpenAI backend attempt. When PF+BV pseudo-formal
+rows are emitted, they must preserve method lineage and remain bridge-verifier
+routing feedback, not theorem proof evidence.
 
 ## Recommended Near-Term Gate
 

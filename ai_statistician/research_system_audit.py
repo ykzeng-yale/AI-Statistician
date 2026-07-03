@@ -3119,6 +3119,21 @@ async def run_research_system_audit(
             "research_agent_runtime_learning_memory_input_rows": research_agent_runtime_audit_manifest[
                 "n_runtime_learning_memory_input_rows"
             ],
+            "research_agent_runtime_pseudo_formal_block_routing_contract_complete": research_agent_runtime_audit_manifest[
+                "runtime_pseudo_formal_block_routing_contract_complete"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_issues": research_agent_runtime_audit_manifest[
+                "runtime_pseudo_formal_block_routing_contract_issues"
+            ],
             "research_agent_runtime_problem_analysis": research_agent_runtime_audit_manifest[
                 "n_results_with_problem_analysis"
             ],
@@ -9319,6 +9334,11 @@ def _research_agent_runtime_audit_overlay(
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_results_with_runtime_learning_memory_input": 0,
         "n_runtime_learning_memory_input_rows": 0,
+        "runtime_pseudo_formal_block_routing_contract_complete": False,
+        "n_runtime_pseudo_formal_block_routing_rows": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+        "runtime_pseudo_formal_block_routing_contract_issues": [],
         "n_results_with_problem_analysis": 0,
         "n_results_with_stat_knowledge_bank_plan": 0,
         "n_results_with_literature_fair_comparison_plan": 0,
