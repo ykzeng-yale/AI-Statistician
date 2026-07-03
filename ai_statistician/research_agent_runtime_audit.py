@@ -2784,11 +2784,20 @@ def audit_research_agent_runtime(
             "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
             False,
         )
+    ) or bool(
+        manifest.get(
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran",
+            False,
+        )
     )
     source_theorem_formal_environment_bridge_skipped_reason = str(
         manifest.get("source_theorem_formal_environment_proofengineer_bridge_skipped_reason", "")
         or manifest.get(
             "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
+            "",
+        )
+        or manifest.get(
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_skipped_reason",
             "",
         )
         or ""
@@ -4762,6 +4771,72 @@ def audit_research_agent_runtime(
         "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": (
             source_theorem_formal_environment_bridge_skipped_reason
         ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": max(
             int(
                 manifest.get(
@@ -4773,6 +4848,13 @@ def audit_research_agent_runtime(
             int(
                 manifest.get(
                     "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders",
+                    0,
+                )
+                or 0
+            ),
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders",
                     0,
                 )
                 or 0
@@ -6256,6 +6338,12 @@ def audit_research_agent_runtime(
                 False,
             )
         )
+        or bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran",
+                False,
+            )
+        )
         or bool(manifest.get("source_theorem_exact_proof_body_repair_executor_ran", False))
         or bool(
             manifest.get(
@@ -6268,6 +6356,58 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran",
                 False,
             )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
         ),
         "source_theorem_formal_environment_proof_body_executor_local_lean_requested": bool(
             manifest.get(
@@ -12120,6 +12260,118 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         adapter_premise_exact_repair_work_orders > 0
         and adapter_premise_exact_queue_ran
     )
+
+    def _promotion_formal_environment_handoff_rows(
+        *,
+        requirement_prefix: str,
+        source_label: str,
+        bridge_prefix: str,
+        executor_prefix: str,
+    ) -> list[dict[str, Any]]:
+        bridge_requested_value = payload.get(f"{bridge_prefix}_requested")
+        bridge_requested_present = (
+            bridge_requested_value is True or bridge_requested_value is False
+        )
+        bridge_requested = bridge_requested_value is True
+        bridge_ran = payload.get(f"{bridge_prefix}_ran") is True
+        bridge_work_orders = _safe_int(
+            payload.get(f"{bridge_prefix}_n_proof_body_work_orders")
+        )
+        bridge_queue_rows = _safe_int(
+            payload.get(f"{bridge_prefix}_n_proof_body_execution_queue_rows")
+        )
+        bridge_required = (
+            bridge_requested or bridge_work_orders > 0 or bridge_queue_rows > 0
+        )
+        bridge_complete = (
+            bridge_requested_present and bridge_requested and bridge_ran
+        )
+        executor_requested_value = payload.get(f"{executor_prefix}_requested")
+        executor_requested_present = (
+            executor_requested_value is True or executor_requested_value is False
+        )
+        executor_requested = executor_requested_value is True
+        executor_ran = payload.get(f"{executor_prefix}_ran") is True
+        executor_result_rows = _safe_int(
+            payload.get(f"{executor_prefix}_n_result_rows")
+        )
+        executor_kernel = _safe_int(
+            payload.get(f"{executor_prefix}_n_source_theorem_kernel_verified")
+        )
+        executor_required = bridge_queue_rows > 0
+
+        return [
+            _scorecard_row(
+                f"{requirement_prefix}_formal_environment_bridge_handoff_not_dropped",
+                (not bridge_required) or bridge_complete,
+                (
+                    f"source={source_label} "
+                    f"bridge_requested_present={bridge_requested_present} "
+                    f"bridge_requested={bridge_requested_value} "
+                    f"bridge_ran={payload.get(f'{bridge_prefix}_ran')} "
+                    "proof_body_work_orders="
+                    f"{bridge_work_orders} "
+                    "proof_body_execution_queue_rows="
+                    f"{bridge_queue_rows} "
+                    "skipped="
+                    f"{payload.get(f'{bridge_prefix}_skipped_reason')}"
+                ),
+                (
+                    f"{source_label} source-theorem promotion emitted or "
+                    "requested formal-environment work, but the same-run "
+                    "formal-environment bridge did not explicitly consume that "
+                    "promotion handoff"
+                ),
+            ),
+            _scorecard_row(
+                f"{requirement_prefix}_formal_environment_proof_body_executor_handoff_not_dropped",
+                (not executor_required)
+                or (
+                    executor_requested_present
+                    and executor_requested
+                    and executor_ran
+                    and executor_result_rows > 0
+                ),
+                (
+                    f"source={source_label} "
+                    "proof_body_execution_queue_rows="
+                    f"{bridge_queue_rows} "
+                    f"executor_requested_present={executor_requested_present} "
+                    f"executor_requested={executor_requested_value} "
+                    f"executor_ran={payload.get(f'{executor_prefix}_ran')} "
+                    f"executor_result_rows={executor_result_rows} "
+                    f"executor_source_kernel={executor_kernel}"
+                ),
+                (
+                    f"{source_label} formal-environment bridge emitted a "
+                    "proof-body execution queue, but the same-run proof-body "
+                    "executor did not explicitly consume it with result rows"
+                ),
+            ),
+        ]
+
+    promotion_formal_environment_handoff_rows = [
+        *_promotion_formal_environment_handoff_rows(
+            requirement_prefix="source_semantic_promotion",
+            source_label="source-semantic promotion",
+            bridge_prefix=(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge"
+            ),
+            executor_prefix=(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion"
+            ),
+        ),
+        *_promotion_formal_environment_handoff_rows(
+            requirement_prefix="post_executor_semantic_promotion",
+            source_label="post-executor semantic promotion",
+            bridge_prefix=(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge"
+            ),
+            executor_prefix=(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion"
+            ),
+        ),
+    ]
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -13922,6 +14174,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             "exact source-theorem proof-body executor did not run inside the runtime",
         ),
+        *promotion_formal_environment_handoff_rows,
         _scorecard_row(
             "post_adapter_exact_source_theorem_proof_body_retry_queued",
             int(

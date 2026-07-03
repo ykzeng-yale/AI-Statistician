@@ -62217,6 +62217,111 @@ def test_runtime_capability_scorecard_flags_unmatched_post_executor_priority_ada
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_flags_dropped_post_executor_semantic_promotion_formal_environment_bridge() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested": True,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran": False,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "post_executor_semantic_promotion_formal_environment_bridge_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "post-executor semantic promotion" in row["evidence"]
+    assert "formal-environment bridge" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_flags_dropped_post_executor_semantic_promotion_executor_queue() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested": True,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran": True,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders": 1,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested": False,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran": False,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "post_executor_semantic_promotion_formal_environment_proof_body_executor_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "proof_body_execution_queue_rows=1" in row["evidence"]
+    assert "proof-body executor" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_accepts_post_executor_semantic_promotion_formal_environment_followthrough() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested": True,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran": True,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders": 1,
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested": True,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "post_executor_semantic_promotion_formal_environment_bridge_handoff_not_dropped"
+    ]["passed"] is True
+    assert rows[
+        "post_executor_semantic_promotion_formal_environment_proof_body_executor_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",
