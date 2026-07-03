@@ -10356,7 +10356,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         > 0
         or full_frontier_target_bound_kernel_count > 0
-        or source_theorem_kernel_count > 0
+        or source_theorem_target_bound_kernel_count > 0
     )
     helper_kernel_evidence_ready = current_helper_kernel_evidence_ready
     source_theorem_kernel_ready = (

@@ -57872,7 +57872,9 @@ def test_runtime_capability_scorecard_requires_source_kernel_target_binding() ->
     assert "target_bound_source_kernel=0" in rows[
         "full_frontier_theorem_kernel_proved"
     ]["evidence"]
-    assert ladder_rows[7]["passed"] is True
+    assert ladder_rows[7]["passed"] is False
+    assert "source_theorem_kernel=1" in ladder_rows[7]["evidence"]
+    assert "target_bound_source_theorem_kernel=0" in ladder_rows[7]["evidence"]
     assert ladder_rows[8]["passed"] is False
 
 
