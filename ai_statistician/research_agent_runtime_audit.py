@@ -4690,6 +4690,26 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": bool(
+            manifest.get(
+                "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready",
+                False,
+            )
+        ),
+        "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows": int(
+            manifest.get(
+                "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_proof_evidence_status": str(
+            manifest.get(
+                "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_proof_evidence_status",
+                "",
+            )
+            or ""
+        ),
         "n_source_theorem_raw_kernel_verified": int(
             source_theorem_target_binding["n_source_theorem_raw_kernel_verified"]
         ),
@@ -6173,6 +6193,39 @@ def audit_research_agent_runtime(
                 )
                 else "adapter_bridge_not_run"
             )
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_requested": bool(
+            manifest.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_requested",
+                False,
+            )
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_queue_source": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_queue_source",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_ran": bool(
+            manifest.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_skipped_reason": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_n_rows",
+                0,
+            )
+            or 0
         ),
         "source_theorem_formal_environment_proof_body_executor_ran": bool(
             manifest.get("source_theorem_formal_environment_proof_body_executor_ran", False)
@@ -11929,6 +11982,47 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or post_executor_semantic_next_action_rows > 0
         )
     )
+    source_semantic_adapter_instantiation_queue_ready = (
+        payload.get(
+            "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready"
+        )
+        is True
+    )
+    source_semantic_adapter_instantiation_queue_rows = int(
+        payload.get(
+            "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows",
+            0,
+        )
+        or 0
+    )
+    source_semantic_adapter_instantiation_required = (
+        source_semantic_adapter_instantiation_queue_ready
+        or source_semantic_adapter_instantiation_queue_rows > 0
+    )
+    source_semantic_adapter_instantiation_consumed = (
+        payload.get(
+            "source_theorem_proof_body_adapter_instantiation_bridge_requested"
+        )
+        is True
+        and payload.get("source_theorem_proof_body_adapter_instantiation_bridge_ran")
+        is True
+        and str(
+            payload.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_queue_source",
+                "",
+            )
+            or ""
+        )
+        == "source_semantic_proofengineer_bridge"
+        and int(
+            payload.get(
+                "source_theorem_proof_body_adapter_instantiation_bridge_n_rows",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
     post_adapter_semantic_reroute_handoff_present = (
         post_adapter_semantic_work_orders > 0
         and post_adapter_semantic_next_action_rows > 0
@@ -13886,6 +13980,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "source-theorem semantic primitive reroute work orders were "
                 "emitted but not paired with generated next-action agenda "
                 "handoffs"
+            ),
+        ),
+        _scorecard_row(
+            "source_semantic_adapter_instantiation_queue_consumed",
+            (not source_semantic_adapter_instantiation_required)
+            or source_semantic_adapter_instantiation_consumed,
+            (
+                "source_semantic_adapter_queue_ready="
+                f"{payload.get('source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready')} "
+                "source_semantic_adapter_queue_rows="
+                f"{payload.get('source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows')} "
+                "adapter_instantiation_requested="
+                f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_requested')} "
+                "adapter_instantiation_ran="
+                f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_ran')} "
+                "adapter_instantiation_queue_source="
+                f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_queue_source')} "
+                "adapter_instantiation_rows="
+                f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_n_rows')} "
+                "skipped="
+                f"{payload.get('source_theorem_proof_body_adapter_instantiation_bridge_skipped_reason')}"
+            ),
+            (
+                "source-semantic ProofEngineer bridge emitted a source-to-bridge "
+                "adapter-instantiation queue, but the same-run source-theorem "
+                "adapter-instantiation bridge did not explicitly consume it"
             ),
         ),
         _scorecard_row(
