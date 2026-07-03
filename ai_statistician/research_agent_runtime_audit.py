@@ -8613,10 +8613,30 @@ def _payload_source_theorem_kernel_count(payload: Mapping[str, Any]) -> int:
     )
 
 
+def _payload_with_aggregate_formal_environment_leaf_counts_suppressed(
+    payload: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is not True
+    ):
+        return payload
+    normalized_payload = dict(payload)
+    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS[1:]:
+        normalized_payload[key] = 0
+    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS[1:]:
+        normalized_payload[key] = 0
+    return normalized_payload
+
+
 def _payload_source_theorem_target_bound_kernel_count(
     payload: Mapping[str, Any],
 ) -> int:
-    summary = _runtime_source_theorem_target_bound_kernel_evidence_summary(payload)
+    summary = _runtime_source_theorem_target_bound_kernel_evidence_summary(
+        _payload_with_aggregate_formal_environment_leaf_counts_suppressed(payload)
+    )
     return int(summary["n_source_theorem_target_bound_kernel_verified"])
 
 
@@ -17106,12 +17126,9 @@ def _runtime_evidence_truth_table(payload: Mapping[str, Any]) -> dict[str, Any]:
         is not True
     ):
         return _runtime_evidence_truth_table_from_manifest(payload)
-    normalized_payload = dict(payload)
-    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS[1:]:
-        normalized_payload[key] = 0
-    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS[1:]:
-        normalized_payload[key] = 0
-    return _runtime_evidence_truth_table_from_manifest(normalized_payload)
+    return _runtime_evidence_truth_table_from_manifest(
+        _payload_with_aggregate_formal_environment_leaf_counts_suppressed(payload)
+    )
 
 
 def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:

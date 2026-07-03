@@ -58611,6 +58611,37 @@ def test_runtime_capability_scorecard_accepts_target_bound_source_kernel_as_real
     assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
 
 
+def test_runtime_capability_scorecard_does_not_double_count_aggregate_source_kernel_targets() -> None:
+    payload = {
+        "source_theorem_formal_environment_proof_body_executor_counts_aggregate": True,
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified": 1,
+        "source_theorem_current_target_ids": [
+            "split_conformal_coverage",
+            "split_conformal_rank_bridge",
+        ],
+        "source_theorem_kernel_verified_target_ids": [
+            "split_conformal_coverage",
+            "split_conformal_rank_bridge",
+        ],
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert "target_bound_source_kernel=1" in rows[
+        "full_frontier_theorem_kernel_proved"
+    ]["evidence"]
+    assert "target_bound_source_kernel=1" in rows[
+        "real_kernel_subclaim_verified"
+    ]["evidence"]
+    assert "target_bound_source_theorem_kernel=1" in ladder_rows[7]["evidence"]
+
+
 def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
     payload = {
         "target_theorem_name": "split_conformal_coverage",
