@@ -1539,6 +1539,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
     )
+    algorithm_metric_repair_sequences = _runtime_manifest_int(
+        payload,
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+    )
     simulation_executed = _runtime_manifest_int(
         payload,
         "n_live_generated_simulation_sandbox_executed",
@@ -1546,6 +1550,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     simulation_repair_sequences = _runtime_manifest_int(
         payload,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
+    )
+    simulation_metric_repair_sequences = _runtime_manifest_int(
+        payload,
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
     )
     formalizer_checked = _runtime_manifest_int(
         payload,
@@ -1727,6 +1735,28 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
         },
         {
+            "capability_id": "generated_algorithm_metric_repair_loop_observed",
+            "passed": algorithm_metric_repair_sequences > 0,
+            "count": algorithm_metric_repair_sequences,
+            "evidence": (
+                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{algorithm_metric_repair_sequences}; "
+                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{_runtime_manifest_int(payload, 'n_generated_code_sandbox_metric_failed_then_passed_repair_sequences')}; "
+                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
+                f"{algorithm_repair_sequences}"
+            ),
+            "blocker": (
+                ""
+                if algorithm_metric_repair_sequences > 0
+                else (
+                    "generic generated algorithm fail-then-pass repair did not "
+                    "demonstrate a statistical metric-gate feedback repair inside "
+                    "the integrated AgentRuntime loop"
+                )
+            ),
+        },
+        {
             "capability_id": "generated_simulation_code_executed_locally",
             "passed": simulation_executed > 0,
             "count": simulation_executed,
@@ -1765,6 +1795,28 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 else (
                     "one-shot generated simulation execution and attached component "
                     "calibration are not evidence of integrated autonomous simulation repair"
+                )
+            ),
+        },
+        {
+            "capability_id": "generated_simulation_metric_repair_loop_observed",
+            "passed": simulation_metric_repair_sequences > 0,
+            "count": simulation_metric_repair_sequences,
+            "evidence": (
+                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{simulation_metric_repair_sequences}; "
+                "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{_runtime_manifest_int(payload, 'n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences')}; "
+                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences="
+                f"{simulation_repair_sequences}"
+            ),
+            "blocker": (
+                ""
+                if simulation_metric_repair_sequences > 0
+                else (
+                    "generic generated simulation fail-then-pass repair did not "
+                    "demonstrate a statistical metric-gate feedback repair inside "
+                    "the integrated AgentRuntime loop"
                 )
             ),
         },
@@ -2139,7 +2191,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
         },
         "algorithm_repair_loop_observed": algorithm_repair_sequences > 0,
+        "algorithm_metric_repair_loop_observed": (
+            algorithm_metric_repair_sequences > 0
+        ),
         "simulation_repair_loop_observed": simulation_repair_sequences > 0,
+        "simulation_metric_repair_loop_observed": (
+            simulation_metric_repair_sequences > 0
+        ),
         "formalizer_lean_repair_loop_observed": formalizer_repair_sequences > 0,
         "boundary": (
             "This table is capability evidence for the generated-code and "
@@ -2192,9 +2250,10 @@ def _runtime_coding_agent_capability_learning_rows(
             target_behavior = (
                 "Run a Claude/OpenAI-generated algorithm-code fail-then-pass "
                 "repair loop inside the integrated AgentRuntime: generated "
-                "Python executes locally, exposes the failure output, revises "
-                "from that feedback, and passes sandbox and metric gates in the "
-                "runtime manifest."
+                "Python executes locally, exposes sandbox failure output, revises "
+                "from that feedback, and passes the generated-code sandbox in the "
+                "runtime manifest. Metric-gate feedback repair is tracked by a "
+                "separate required capability row."
             )
             recommended_eval = integrated_eval_command
             success_metric = (
@@ -2202,20 +2261,55 @@ def _runtime_coding_agent_capability_learning_rows(
                 "in the integrated AgentRuntime manifest; static/replay drafts "
                 "and attached component calibration alone do not satisfy this row"
             )
+        elif capability_id == "generated_algorithm_metric_repair_loop_observed":
+            next_owner = "AlgorithmEngineer"
+            target_behavior = (
+                "Run a Claude/OpenAI-generated algorithm-code metric-gate "
+                "fail-then-pass repair loop inside the integrated AgentRuntime: "
+                "the first generated Python draft executes but fails the "
+                "statistical metric gate, the metric diagnostics are fed back "
+                "to the code agent, and the revised generated artifact passes "
+                "the metric gate."
+            )
+            recommended_eval = integrated_eval_command
+            success_metric = (
+                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; generic sandbox "
+                "fail-then-pass repair alone does not satisfy statistical "
+                "coding-agent capability"
+            )
         elif capability_id == "generated_simulation_repair_loop_observed":
             next_owner = "SimulationEvaluator"
             target_behavior = (
                 "Run a Claude/OpenAI-generated simulation-code fail-then-pass "
                 "repair loop inside the integrated AgentRuntime: generated "
                 "stress-test code executes locally, exposes the failure output, "
-                "revises from that feedback, and passes sandbox and metric gates "
-                "in the runtime manifest."
+                "revises from that feedback, and passes the sandbox in the "
+                "runtime manifest. Metric-gate feedback repair is tracked by a "
+                "separate required capability row."
             )
             recommended_eval = integrated_eval_command
             success_metric = (
                 "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0 "
                 "in the integrated AgentRuntime manifest; static/replay drafts "
                 "and attached component calibration alone do not satisfy this row"
+            )
+        elif capability_id == "generated_simulation_metric_repair_loop_observed":
+            next_owner = "SimulationEvaluator"
+            target_behavior = (
+                "Run a Claude/OpenAI-generated simulation-code metric-gate "
+                "fail-then-pass repair loop inside the integrated AgentRuntime: "
+                "the first generated stress-test draft executes but fails the "
+                "empirical/statistical metric gate, the diagnostics are fed back "
+                "to SimulationEvaluator, and the revised generated artifact "
+                "passes the metric gate."
+            )
+            recommended_eval = integrated_eval_command
+            success_metric = (
+                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0 "
+                "in the integrated AgentRuntime manifest; generic sandbox "
+                "fail-then-pass repair alone does not satisfy simulation-agent "
+                "metric capability"
             )
         elif capability_id == "generated_algorithm_code_executed_locally":
             next_owner = "AlgorithmEngineer"

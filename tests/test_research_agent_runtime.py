@@ -28224,10 +28224,14 @@ def test_formalizer_lean_candidate_repair_sequence_counts_fail_then_compiled() -
         "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_executed": 1,
         "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
         "n_formalizer_lean_candidate_local_lean_checked": evidence_summary[
             "proof"
         ]["n_formalizer_lean_candidate_local_lean_checked"],
@@ -56912,6 +56916,60 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
     assert "no full source/frontier theorem" in rows[8]["blocker"]
 
 
+def test_runtime_capability_ladder_requires_metric_repair_when_reported() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        **_scorecard_architect_executed_payload(),
+        "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 1,
+        "n_formal_gaps": 1,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[3]["passed"] is True
+    assert rows[4]["passed"] is False
+    assert "integrated_algorithm_metric_repair_sequences=0" in rows[4][
+        "evidence"
+    ]
+    assert "integrated_simulation_metric_repair_sequences=0" in rows[4][
+        "evidence"
+    ]
+    assert "metric-gate feedback loops" in rows[4]["blocker"]
+    assert ladder["max_contiguous_level"] == 3
+
+    payload[
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[4]["passed"] is True
+
+
 def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_needed() -> None:
     payload = {
         "all_ok": True,
@@ -57794,7 +57852,16 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert "one-shot generated algorithm execution" in rows[
         "generated_algorithm_repair_loop_observed"
     ]["blocker"]
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is False
+    assert "statistical metric-gate feedback repair" in rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["blocker"]
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is True
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is False
     assert rows[
         "llm_formalizer_proofengineer_proposal_observed"
     ]["passed"] is True
@@ -57813,12 +57880,14 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         manifest=payload,
         capability_table=table,
     )
-    assert len(learning_rows) == 5
+    assert len(learning_rows) == 7
     learning_rows_by_id = {
         row["capability_id"]: row for row in learning_rows
     }
     assert set(learning_rows_by_id) == {
         "generated_algorithm_repair_loop_observed",
+        "generated_algorithm_metric_repair_loop_observed",
+        "generated_simulation_metric_repair_loop_observed",
         "formalizer_lean_candidate_proof_state_request_routed",
         "formalizer_lean_candidate_proof_state_feedback_recorded",
         "formalizer_local_lean_tool_call_observed",
@@ -57847,6 +57916,28 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert "n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0" in algorithm_learning_row[
         "success_metric"
     ]
+    algorithm_metric_learning_row = learning_rows_by_id[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]
+    assert algorithm_metric_learning_row["next_owner_subsystem"] == (
+        "AlgorithmEngineer"
+    )
+    assert "metric-gate" in algorithm_metric_learning_row["target_behavior"]
+    assert (
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
+        in algorithm_metric_learning_row["success_metric"]
+    )
+    simulation_metric_learning_row = learning_rows_by_id[
+        "generated_simulation_metric_repair_loop_observed"
+    ]
+    assert simulation_metric_learning_row["next_owner_subsystem"] == (
+        "SimulationEvaluator"
+    )
+    assert "metric-gate" in simulation_metric_learning_row["target_behavior"]
+    assert (
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
+        in simulation_metric_learning_row["success_metric"]
+    )
     proof_state_learning_row = learning_rows_by_id[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]
@@ -57902,11 +57993,12 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         manifest=payload,
         capability_table=table,
     )
-    assert len(learning_rows) == 4
-    assert learning_rows[0]["next_owner_subsystem"] == "ProofEngineer"
+    assert len(learning_rows) == 6
     assert {
         row["capability_id"] for row in learning_rows
     } == {
+        "generated_algorithm_metric_repair_loop_observed",
+        "generated_simulation_metric_repair_loop_observed",
         "formalizer_lean_candidate_proof_state_request_routed",
         "formalizer_lean_candidate_proof_state_feedback_recorded",
         "formalizer_local_lean_tool_call_observed",
@@ -57935,6 +58027,26 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     ]["evidence"]
     assert table["coding_agent_capability_ready"] is False
     payload.update(_bound_formalizer_proof_state_feedback_payload())
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is False
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is False
+    assert table["coding_agent_capability_ready"] is False
+
+    payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
+    payload[
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
+    payload[
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+    ] = 1
     table = _runtime_coding_agent_capability_table(payload)
     assert table["coding_agent_capability_ready"] is True
     assert (
@@ -58551,9 +58663,15 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows["generated_algorithm_code_executed"]["passed"] is True
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is True
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is True
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is True
     assert rows["generated_simulation_code_executed"]["passed"] is True
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is True
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is True
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is True
     assert rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["passed"] is True
@@ -58911,6 +59029,16 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "integrated_algorithm_metric_repair_sequences=0" in rows[
         "generated_algorithm_metric_gate_clean"
     ]["evidence"]
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is False
+    assert "generic sandbox recovery" in rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["blocker"]
+    assert (
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences=0"
+        in rows["generated_algorithm_metric_repair_loop_observed"]["evidence"]
+    )
     assert rows["generated_simulation_sandbox_clean"]["passed"] is False
     assert "same-question unsafe-code repair" in rows[
         "generated_simulation_sandbox_clean"
@@ -58918,6 +59046,12 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is False
     assert "same-question metric-gate repair" in rows[
         "generated_simulation_metric_gate_clean"
+    ]["blocker"]
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is False
+    assert "generic sandbox recovery" in rows[
+        "generated_simulation_metric_repair_loop_observed"
     ]["blocker"]
 
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
@@ -58945,8 +59079,14 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
 
     assert rows["generated_algorithm_sandbox_clean"]["passed"] is True
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is True
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is True
     assert rows["generated_simulation_sandbox_clean"]["passed"] is True
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is True
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is True
 
     payload["n_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
     payload["n_live_generated_code_sandbox_failed_then_passed_repair_sequences"] = 0
@@ -58985,6 +59125,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "statistical metric gate" in rows[
         "generated_algorithm_metric_gate_clean"
     ]["blocker"]
+    assert rows[
+        "generated_algorithm_metric_repair_loop_observed"
+    ]["passed"] is False
     assert rows["generated_simulation_sandbox_clean"]["passed"] is False
     assert "no later same-question unsafe-code repair loop passed" in rows[
         "generated_simulation_sandbox_clean"
@@ -58993,6 +59136,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "statistical metric gate" in rows[
         "generated_simulation_metric_gate_clean"
     ]["blocker"]
+    assert rows[
+        "generated_simulation_metric_repair_loop_observed"
+    ]["passed"] is False
 
 
 def test_runtime_audit_recomputes_stale_research_path_control(

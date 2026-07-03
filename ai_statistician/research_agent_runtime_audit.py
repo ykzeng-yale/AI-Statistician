@@ -10161,6 +10161,13 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_algorithm_metric_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ),
+        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+    )
     integrated_algorithm_code_executed = int(
         payload.get("n_live_generated_code_sandbox_executed", 0) or 0
     )
@@ -10170,6 +10177,15 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    integrated_simulation_metric_repair_sequences = _payload_specific_or_total_count(
+        payload,
+        specific_key=(
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ),
+        total_key=(
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ),
     )
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
@@ -10305,6 +10321,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     generated_code_repair_ready = (
         integrated_algorithm_repair_sequences > 0
         and integrated_simulation_repair_sequences > 0
+        and integrated_algorithm_metric_repair_sequences > 0
+        and integrated_simulation_metric_repair_sequences > 0
     )
     formalizer_local_check_ready = (
         integrated_llm_formalizer_proposals > 0
@@ -10413,6 +10431,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_algorithm_repair_sequences} "
                 "live_integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
+                "live_integrated_algorithm_metric_repair_sequences="
+                f"{integrated_algorithm_metric_repair_sequences} "
+                "live_integrated_simulation_metric_repair_sequences="
+                f"{integrated_simulation_metric_repair_sequences} "
                 "attached_coding_repair_ready="
                 f"{attached_coding_repair_ready}"
             ),
@@ -10431,12 +10453,17 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_algorithm_repair_sequences} "
                 "integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
+                "integrated_algorithm_metric_repair_sequences="
+                f"{integrated_algorithm_metric_repair_sequences} "
+                "integrated_simulation_metric_repair_sequences="
+                f"{integrated_simulation_metric_repair_sequences} "
                 "attached_coding_repair_ready="
                 f"{attached_coding_repair_ready}"
             ),
             (
                 "no generated algorithm and simulation failure diagnostics were "
-                "followed by passing LLM-authored repairs"
+                "followed by passing LLM-authored repairs with statistical "
+                "metric-gate feedback loops"
             ),
         ),
         _ladder_level(
@@ -12186,6 +12213,39 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "generated_algorithm_metric_repair_loop_observed",
+            integrated_algorithm_metric_repair_sequences > 0,
+            (
+                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{payload.get('n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences')} "
+                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{payload.get('n_generated_code_sandbox_metric_failed_then_passed_repair_sequences')} "
+                "integrated_algorithm_repair_sequences="
+                f"{integrated_algorithm_repair_sequences} "
+                "integrated_algorithm_metric_repair_sequences="
+                f"{integrated_algorithm_metric_repair_sequences}"
+            ),
+            (
+                "generated algorithm repair only demonstrated generic sandbox "
+                "recovery; no same-question statistical metric-gate "
+                "fail-then-pass repair loop was observed in the integrated "
+                "runtime"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Run an integrated generated algorithm metric-gate repair "
+                    "sequence: the first generated Python draft should fail a "
+                    "statistical metric gate with diagnostics, then a revised "
+                    "LLM-authored draft should pass that gate."
+                ),
+                success_metric=(
+                    "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "generated_simulation_code_executed",
             int(
                 payload.get(
@@ -12330,6 +12390,39 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_metric_repair_loop_observed",
+            integrated_simulation_metric_repair_sequences > 0,
+            (
+                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{payload.get('n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences')} "
+                "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
+                f"{payload.get('n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences')} "
+                "integrated_simulation_repair_sequences="
+                f"{integrated_simulation_repair_sequences} "
+                "integrated_simulation_metric_repair_sequences="
+                f"{integrated_simulation_metric_repair_sequences}"
+            ),
+            (
+                "generated simulation repair only demonstrated generic sandbox "
+                "recovery; no same-question empirical/statistical metric-gate "
+                "fail-then-pass repair loop was observed in the integrated "
+                "runtime"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Run an integrated generated simulation metric-gate repair "
+                    "sequence: the first generated stress-test draft should fail "
+                    "an empirical/statistical metric gate with diagnostics, then "
+                    "a revised LLM-authored draft should pass that gate."
+                ),
+                success_metric=(
+                    "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
