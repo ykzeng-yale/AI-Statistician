@@ -29410,7 +29410,9 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
     )
 
     audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
-    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
 
     assert audit["n_integrated_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_lean_lsp_mcp_live_calls"] == 0
@@ -62255,6 +62257,81 @@ def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_le
     assert rows[
         "source_theorem_proof_body_local_lean_gate_requested"
     ]["passed"] is True
+
+
+def test_runtime_audit_aggregates_adapter_feedback_exact_repair_local_lean_checks(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked": 2,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_compiled": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked": 3,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_compiled": 2,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked"
+        ]
+        == 3
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_compiled"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_compiled"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+        ]
+        == 6
+    )
+    assert local_lean_row["passed"] is True
+    assert "local_lean_checked=6" in local_lean_row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:

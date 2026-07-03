@@ -337,6 +337,8 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked",
 )
 SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
@@ -26537,6 +26539,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_executor_manifest.get(
+            "n_local_lean_checked",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_compiled"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_executor_manifest.get(
+            "n_local_lean_compiled",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_executor_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified"
     ] = int(
         source_theorem_exact_proof_body_repair_from_adapter_executor_manifest.get(
@@ -26617,6 +26639,26 @@ def run_research_agent_runtime(
     ] = int(
         source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
             "n_execution_result_rows",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+            "n_local_lean_checked",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_compiled"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+            "n_local_lean_compiled",
             0,
         )
         if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest

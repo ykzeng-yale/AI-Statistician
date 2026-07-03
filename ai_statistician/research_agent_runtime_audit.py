@@ -5017,6 +5017,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
@@ -6318,6 +6332,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": int(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_compiled",
                 0,
             )
             or 0
