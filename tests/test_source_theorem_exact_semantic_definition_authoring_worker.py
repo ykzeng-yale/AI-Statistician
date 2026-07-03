@@ -447,6 +447,112 @@ def test_authoring_worker_prompt_contract_reports_project_verified_import_invent
     ] == inventory
 
 
+def test_authoring_worker_prompt_contract_reports_unknown_identifier_source_lookup(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    project = tmp_path / "LeanProject"
+    compiled_root = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+    )
+    for module in [
+        "Mathlib.Data.Real.Basic",
+        "Mathlib.Algebra.Order.Floor.Defs",
+    ]:
+        path = compiled_root / Path(*module.split(".")).with_suffix(".olean")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"")
+    source_path = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / "Mathlib"
+        / "Algebra"
+        / "Order"
+        / "Floor"
+        / "Defs.lean"
+    )
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        "namespace Int\n\n"
+        "/-- `Int.ceil a` is the smallest integer above `a`. -/\n"
+        "def ceil : α → ℤ := FloorRing.ceil\n\n"
+        "end Int\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate_defs_only.lean"
+    candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n\n"
+        "def reviewedCovered : Nat := (Int.ceil (0 : ℝ)).toNat\n",
+        encoding="utf-8",
+    )
+    row = json.loads(tasks_path.read_text(encoding="utf-8"))
+    row["candidate_lean_project_hint"] = str(project)
+    row["definition_only_candidate_artifact_path"] = str(candidate)
+    row["candidate_artifact_path"] = str(candidate)
+    row["local_lean_diagnostics"] = [
+        f"{candidate}:3:28: error(lean.unknownIdentifier): Unknown constant `Int.ceil`"
+    ]
+    tasks_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"]).read_text().splitlines()
+    ]
+    contract = prompt_packets[0]["lean_authoring_environment_contract"]
+    lookup = contract["project_identifier_lookup"]
+    assert lookup["project_identifier_lookup_status"] == "available"
+    row = lookup["unknown_identifier_rows"][0]
+    assert row["unknown_identifier"] == "Int.ceil"
+    assert row["source_lookup_status"] == "hits_found"
+    assert row["verified_declaration_modules"] == [
+        "Mathlib.Algebra.Order.Floor.Defs"
+    ]
+    assert row["declaration_hits"][0]["candidate_kind"] == (
+        "lean_declaration_name_match"
+    )
+    assert row["declaration_hits"][0]["declaration_name"] == "Int.ceil"
+    assert row["declaration_hits"][0]["module"] == (
+        "Mathlib.Algebra.Order.Floor.Defs"
+    )
+    assert row["declaration_hits"][0]["module_compiled"] is True
+    assert any(
+        "add one verified_declaration_module" in option
+        for option in row["repair_options"]
+    )
+    assert any(
+        "do not replace this identifier with a sibling API" in option
+        for option in row["repair_options"]
+    )
+    assert any(
+        "project_identifier_lookup" in item
+        for item in contract["repair_policy"]
+    )
+    assert any(
+        "Do not swap to a sibling API" in item
+        for item in contract["repair_policy"]
+    )
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    assert prompt_payload["lean_authoring_environment_contract"][
+        "project_identifier_lookup"
+    ] == lookup
+
+
 def test_authoring_worker_preserves_review_decision_without_proof_body_readiness(
     tmp_path: Path,
 ) -> None:

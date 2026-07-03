@@ -71,6 +71,15 @@ BOUNDARY = (
     "source theorem proof-body execution."
 )
 LEAN_PROJECT_IMPORT_INVENTORY_LIMIT = 16
+LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT = 6
+LEAN_DECLARATION_RE = re.compile(
+    r"^\s*(?:@[^\n]*\s*)*"
+    r"(?:(?:private|protected|nonrec|noncomputable|unsafe)\s+)*"
+    r"(theorem|lemma|def|abbrev|structure|class|inductive|instance)\s+"
+    r"([A-Za-z_][A-Za-z0-9_'.]*)"
+)
+LEAN_NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_'.]*)\b")
+LEAN_END_RE = re.compile(r"^\s*end(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\b")
 SYSTEM_PROMPT = (
     "You are the AI Statistician Formalizer/ProofEngineer authoring worker. "
     "Your task is to propose exact Lean semantic definitions from the given "
@@ -1110,6 +1119,319 @@ def _lean_project_import_inventory_contract(
     }
 
 
+def _lean_project_identifier_lookup_contract(
+    task: Mapping[str, Any],
+    *,
+    lean_feedback: Mapping[str, Any],
+    import_inventory: Mapping[str, Any],
+) -> dict[str, Any]:
+    project_raw = str(import_inventory.get("project_path", "") or "").strip()
+    project = Path(project_raw).expanduser() if project_raw else Path()
+    unknown_identifiers = _string_list(
+        lean_feedback.get("unknown_identifiers_from_last_check", [])
+    )
+    if not unknown_identifiers:
+        return {
+            "project_identifier_lookup_status": "no_unknown_identifiers",
+            "project_path": project_raw,
+            "unknown_identifier_rows": [],
+            "lookup_scope": "not_run_without_unknown_identifiers",
+            "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+        }
+    if not project_raw:
+        status = "no_project_hint"
+        rows = [
+            _empty_unknown_identifier_lookup_row(identifier)
+            for identifier in unknown_identifiers
+        ]
+    elif not project.exists():
+        status = "project_missing"
+        rows = [
+            _empty_unknown_identifier_lookup_row(identifier)
+            for identifier in unknown_identifiers
+        ]
+    else:
+        status = "available"
+        rows = [
+            _unknown_identifier_source_lookup_row(project, identifier)
+            for identifier in unknown_identifiers
+        ]
+    return {
+        "project_identifier_lookup_status": status,
+        "project_path": project_raw,
+        "unknown_identifier_rows": rows,
+        "lookup_scope": (
+            "bounded lexical Lean source lookup over the configured project and "
+            "Mathlib package; hits are retrieval/context only, not proof evidence"
+        ),
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _empty_unknown_identifier_lookup_row(identifier: str) -> dict[str, Any]:
+    return {
+        "unknown_identifier": identifier,
+        "declaration_hits": [],
+        "reference_hits": [],
+        "verified_declaration_modules": [],
+        "repair_options": _unknown_identifier_repair_options(verified_modules=[]),
+        "source_lookup_status": "not_run",
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _unknown_identifier_source_lookup_row(project: Path, identifier: str) -> dict[str, Any]:
+    declaration_hits: list[dict[str, Any]] = []
+    reference_hits: list[dict[str, Any]] = []
+    full_identifier = str(identifier or "").strip()
+    short_identifier = full_identifier.rsplit(".", 1)[-1]
+    if not full_identifier or not short_identifier:
+        return _empty_unknown_identifier_lookup_row(full_identifier)
+    for source_root, module_root in _lean_source_lookup_roots(project):
+        for path in _iter_lean_source_paths(source_root, project=project):
+            if len(declaration_hits) >= LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT and len(
+                reference_hits
+            ) >= LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT:
+                break
+            if not _lean_source_lookup_path_allowed(
+                path,
+                source_root=source_root,
+                project=project,
+            ):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if full_identifier not in text and short_identifier not in text:
+                continue
+            module = _lean_module_from_path(
+                module_root,
+                path,
+                suffix=".lean",
+            )
+            _scan_identifier_source_text(
+                text,
+                path=path,
+                module=module,
+                identifier=full_identifier,
+                short_identifier=short_identifier,
+                project=project,
+                declaration_hits=declaration_hits,
+                reference_hits=reference_hits,
+            )
+    verified_modules = [
+        str(hit.get("module", ""))
+        for hit in declaration_hits
+        if hit.get("module_compiled") and str(hit.get("module", "")).strip()
+    ]
+    return {
+        "unknown_identifier": full_identifier,
+        "declaration_hits": declaration_hits[:LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT],
+        "reference_hits": reference_hits[:LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT],
+        "verified_declaration_modules": list(dict.fromkeys(verified_modules))[
+            :LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT
+        ],
+        "repair_options": _unknown_identifier_repair_options(
+            verified_modules=verified_modules,
+        ),
+        "source_lookup_status": "hits_found"
+        if declaration_hits or reference_hits
+        else "no_source_hits_found",
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _unknown_identifier_repair_options(*, verified_modules: Sequence[str]) -> list[str]:
+    options = [
+        (
+            "remove the dependency or make the operation an explicit parameter "
+            "when source theorem semantics do not require this identifier"
+        ),
+        (
+            "return blocked_or_insufficient_context if the exact source theorem "
+            "binders/import context are still missing"
+        ),
+        (
+            "do not replace this identifier with a sibling API unless that new "
+            "identifier has its own source lookup hit or local Lean verification"
+        ),
+    ]
+    if verified_modules:
+        options.insert(
+            0,
+            (
+                "if keeping the identifier, add one verified_declaration_module "
+                "to required_imports and rerun local Lean before semantic review"
+            ),
+        )
+    return options
+
+
+def _lean_source_lookup_roots(project: Path) -> list[tuple[Path, Path]]:
+    roots: list[tuple[Path, Path]] = []
+    if project.exists():
+        roots.append((project, project))
+    mathlib = project / ".lake" / "packages" / "mathlib"
+    mathlib_sources = mathlib / "Mathlib"
+    if mathlib_sources.exists():
+        roots.append((mathlib_sources, mathlib))
+    return roots
+
+
+def _iter_lean_source_paths(source_root: Path, *, project: Path) -> list[Path]:
+    paths: list[Path] = []
+    stack = [source_root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_dir():
+                if source_root == project and entry.name in {".git", ".lake", ".venv"}:
+                    continue
+                stack.append(entry)
+            elif entry.suffix == ".lean":
+                paths.append(entry)
+    return sorted(paths)
+
+
+def _lean_source_lookup_path_allowed(
+    path: Path,
+    *,
+    source_root: Path,
+    project: Path,
+) -> bool:
+    if source_root != project:
+        return True
+    try:
+        relative = path.relative_to(project)
+    except ValueError:
+        return False
+    return ".lake" not in relative.parts
+
+
+def _scan_identifier_source_text(
+    text: str,
+    *,
+    path: Path,
+    module: str,
+    identifier: str,
+    short_identifier: str,
+    project: Path,
+    declaration_hits: list[dict[str, Any]],
+    reference_hits: list[dict[str, Any]],
+) -> None:
+    namespace_stack: list[str] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        namespace_match = LEAN_NAMESPACE_RE.match(line)
+        if namespace_match:
+            namespace_stack.append(namespace_match.group(1))
+            continue
+        end_match = LEAN_END_RE.match(line)
+        if end_match and namespace_stack:
+            namespace_stack.pop()
+            continue
+        decl_match = LEAN_DECLARATION_RE.match(line)
+        if decl_match:
+            name = decl_match.group(2)
+            full_names = _lean_declaration_full_names(name, namespace_stack)
+            if identifier in full_names or name == identifier:
+                if len(declaration_hits) < LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT:
+                    declaration_hits.append(
+                        _lean_identifier_hit(
+                            path=path,
+                            line_no=line_no,
+                            line=line,
+                            module=module,
+                            project=project,
+                            candidate_kind="lean_declaration_name_match",
+                            declaration_kind=decl_match.group(1),
+                            declaration_name=identifier
+                            if identifier in full_names
+                            else name,
+                            matched_term=identifier,
+                        )
+                    )
+                continue
+        if identifier in line or (
+            not declaration_hits and short_identifier in line
+        ):
+            if len(reference_hits) < LEAN_PROJECT_IDENTIFIER_LOOKUP_LIMIT:
+                reference_hits.append(
+                    _lean_identifier_hit(
+                        path=path,
+                        line_no=line_no,
+                        line=line,
+                        module=module,
+                        project=project,
+                        candidate_kind="lean_identifier_reference",
+                        declaration_kind="",
+                        declaration_name="",
+                        matched_term=identifier
+                        if identifier in line
+                        else short_identifier,
+                    )
+                )
+
+
+def _lean_declaration_full_names(name: str, namespace_stack: Sequence[str]) -> set[str]:
+    raw = str(name or "").strip()
+    names = {raw} if raw else set()
+    if raw and "." not in raw and namespace_stack:
+        names.add(".".join([*namespace_stack, raw]))
+    if raw and "." in raw:
+        names.add(raw)
+    return names
+
+
+def _lean_identifier_hit(
+    *,
+    path: Path,
+    line_no: int,
+    line: str,
+    module: str,
+    project: Path,
+    candidate_kind: str,
+    declaration_kind: str,
+    declaration_name: str,
+    matched_term: str,
+) -> dict[str, Any]:
+    return {
+        "path": str(path),
+        "line": int(line_no),
+        "module": module,
+        "module_compiled": _lean_module_compiled_exists(project, module),
+        "candidate_kind": candidate_kind,
+        "declaration_kind": declaration_kind,
+        "declaration_name": declaration_name,
+        "matched_term": matched_term,
+        "snippet": str(line or "").strip()[:320],
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _lean_module_compiled_exists(project: Path, module: str) -> bool:
+    if not str(project) or not project.exists() or not module:
+        return False
+    module_path = Path(*module.split(".")).with_suffix(".olean")
+    candidates = [
+        project / ".lake" / "build" / "lib" / "lean" / module_path,
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / module_path,
+    ]
+    return any(path.exists() for path in candidates)
+
+
 def _first_existing_path(values: Sequence[Any]) -> Path | None:
     fallback: Path | None = None
     for value in values:
@@ -1320,6 +1642,11 @@ def _lean_authoring_environment_contract(
         task,
         lean_feedback=lean_feedback,
     )
+    identifier_lookup = _lean_project_identifier_lookup_contract(
+        task,
+        lean_feedback=lean_feedback,
+        import_inventory=import_inventory,
+    )
     repair_policy = [
         (
             "Treat local Lean diagnostics as hard feedback about the configured "
@@ -1354,6 +1681,24 @@ def _lean_authoring_environment_contract(
                 "nearby_verified_import_modules_by_unavailable_import as API "
                 "evidence; use them only as lookup targets for source/RAG/local "
                 "Lean checks."
+            )
+        )
+    if identifier_lookup["unknown_identifier_rows"]:
+        repair_policy.append(
+            (
+                "For unknown identifiers, consult project_identifier_lookup "
+                "before adding imports or replacing APIs. Verified declaration "
+                "modules are retrieval targets only; the materialized definition "
+                "must still pass local Lean/AXLE before review."
+            )
+        )
+        repair_policy.append(
+            (
+                "If project_identifier_lookup gives verified_declaration_modules "
+                "for an unknown identifier, either import one of those modules and "
+                "rerun local Lean for the same identifier, or remove/parameterize "
+                "the dependency. Do not swap to a sibling API that lacks its own "
+                "lookup hit or local Lean check."
             )
         )
     required_anchor_names = [
@@ -1419,6 +1764,7 @@ def _lean_authoring_environment_contract(
         "local_lean_feedback": lean_feedback,
         "project_verified_import_inventory": import_inventory,
         "verified_local_project_import_inventory": import_inventory,
+        "project_identifier_lookup": identifier_lookup,
         "repair_policy": repair_policy,
     }
 

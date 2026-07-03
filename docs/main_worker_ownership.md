@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-06-29
+Updated: 2026-07-03
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -950,6 +950,18 @@ real unknown identifier `Int.ceil`; the next dry-run prompt records
 This is the desired direction: compiler and project-inventory facts drive the
 repair loop, while source theorem proof remains gated until local Lean/AXLE
 verifies an exact reviewed definition.
+
+The next patch closes the adjacent identifier-discovery gap. Unknown Lean
+identifiers now trigger a bounded `project_identifier_lookup` over the configured
+Lake project and its Mathlib source package. The prompt records declaration
+hits, reference hits, and `verified_declaration_modules` only when the declaring
+module has a compiled `.olean` in the local project. This is retrieval context,
+not proof evidence: the repair agent must either import a verified declaration
+module and rerun local Lean, remove or parameterize the dependency, or fail
+closed as insufficient context. A live `C_n` repair showed why this matters:
+after `Int.ceil` was grounded to `Mathlib.Algebra.Order.Floor.Defs`, the model
+guessed sibling API `Int.floor`; local Lean rejected it, and the follow-up prompt
+now applies the same lookup/no-sibling-swap rule to `Int.floor`.
 
 ## Delegation To Other Codex Workers
 
