@@ -62402,6 +62402,79 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
     assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
 
 
+def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedback(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked": 2,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_compiled": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached": 4,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": 5,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked": 3,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_compiled": 2,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached": 6,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": 7,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked"
+        ]
+        == 2
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked"
+        ]
+        == 3
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+        ]
+        == 5
+    )
+    assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 22
+    assert local_lean_row["passed"] is True
+    assert "local_lean_checked=5" in local_lean_row["evidence"]
+    assert proof_body_row["passed"] is True
+    assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

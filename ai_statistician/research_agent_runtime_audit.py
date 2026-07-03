@@ -6742,6 +6742,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
@@ -6749,6 +6763,36 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested": bool(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested",
@@ -6768,6 +6812,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
@@ -6775,6 +6833,36 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_first_proof_body_goal_excerpt": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_first_proof_body_goal_excerpt",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
         "source_theorem_formal_environment_proof_body_executor_local_lean_requested": bool(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_local_lean_requested",

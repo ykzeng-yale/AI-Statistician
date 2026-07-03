@@ -336,6 +336,8 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked",
@@ -354,6 +356,10 @@ SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers",
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached",
@@ -362,6 +368,8 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers",
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows",
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_excerpt_rows",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_excerpt_rows",
@@ -380,6 +388,8 @@ SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
 )
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_first_proof_body_goal_excerpt",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_first_proof_body_goal_excerpt",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt",
     "source_theorem_exact_semantic_definition_proof_body_recheck_executor_first_proof_body_goal_excerpt",
     "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_first_proof_body_goal_excerpt",
@@ -30083,6 +30093,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+            "n_local_lean_checked",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_compiled"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+            "n_local_lean_compiled",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified"
     ] = int(
         source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
@@ -30092,6 +30122,50 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
         else 0
     )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+            "n_proof_body_goal_reached",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+            "n_proof_body_goal_reached_with_semantic_blockers",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+            "n_proof_body_goal_excerpt_rows",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_first_proof_body_goal_excerpt"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_formal_environment_source_semantic_proof_body_executor_manifest.get(
+                "first_proof_body_goal_excerpt",
+                [],
+            )
+            if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+            else []
+        )
+        if str(value).strip()
+    ][:8]
     manifest[
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_learning_rows"
     ] = len(
@@ -30200,6 +30274,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked"
+    ] = int(
+        source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+            "n_local_lean_checked",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_compiled"
+    ] = int(
+        source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+            "n_local_lean_compiled",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified"
     ] = int(
         source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
@@ -30209,6 +30303,50 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
         else 0
     )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached"
+    ] = int(
+        source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+            "n_proof_body_goal_reached",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers"
+    ] = int(
+        source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+            "n_proof_body_goal_reached_with_semantic_blockers",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows"
+    ] = int(
+        source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+            "n_proof_body_goal_excerpt_rows",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_first_proof_body_goal_excerpt"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_formal_environment_post_executor_proof_body_executor_manifest.get(
+                "first_proof_body_goal_excerpt",
+                [],
+            )
+            if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+            else []
+        )
+        if str(value).strip()
+    ][:8]
     manifest[
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_learning_rows"
     ] = len(
