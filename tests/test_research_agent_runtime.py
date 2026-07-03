@@ -59464,7 +59464,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         **_target_bound_full_frontier_payload(),
         "n_lean_lsp_mcp_live_calls": 1,
         "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": 1,
         "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets": 1,
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": 1,
         "source_theorem_formal_environment_proof_body_executor_ran": True,
         "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
@@ -61176,7 +61178,9 @@ def test_runtime_capability_scorecard_names_resume_architect_context_boundary() 
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
         "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": 1,
         "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets": 1,
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": 1,
         "source_theorem_proof_body_executor_ran": True,
         "source_theorem_proof_body_executor_n_result_rows": 1,
@@ -61826,6 +61830,117 @@ def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_tele
 
     assert rows[requirement_id]["passed"] is False
     assert "explicit handoff telemetry" in rows[requirement_id]["blocker"]
+
+
+def test_runtime_capability_scorecard_flags_empty_source_theorem_promotion_bridge_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": 0,
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_promotion_proofengineer_bridge_ran"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "formal_environment_work_orders=0" in row["evidence"]
+    assert "source_theorem_kernel_verified=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_source_theorem_promotion_bridge_work_order_rows() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": 1,
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["source_theorem_promotion_proofengineer_bridge_ran"][
+        "passed"
+    ] is True
+
+
+def test_runtime_capability_scorecard_flags_empty_source_theorem_formal_environment_bridge_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets": 0,
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders": 0,
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_formal_environment_bridge_ran"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "repair_packets=0" in row["evidence"]
+    assert "proof_body_work_orders=0" in row["evidence"]
+    assert "proof_body_queue_rows=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_source_theorem_formal_environment_bridge_repair_packets() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proofengineer_bridge_ran": True,
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets": 1,
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders": 0,
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["source_theorem_formal_environment_bridge_ran"][
+        "passed"
+    ] is True
 
 
 def test_runtime_capability_scorecard_flags_empty_source_theorem_proof_body_executor_results() -> None:

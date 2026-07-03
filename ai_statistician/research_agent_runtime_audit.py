@@ -4685,6 +4685,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": int(
+            manifest.get(
+                "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
@@ -4692,9 +4699,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_promotion_source_semantic_proofengineer_bridge_n_formal_environment_work_orders": int(
+            manifest.get(
+                "source_theorem_promotion_source_semantic_proofengineer_bridge_n_formal_environment_work_orders",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_formal_environment_work_orders": int(
+            manifest.get(
+                "source_theorem_promotion_post_executor_proofengineer_bridge_n_formal_environment_work_orders",
                 0,
             )
             or 0
@@ -4771,6 +4792,27 @@ def audit_research_agent_runtime(
         "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": (
             source_theorem_formal_environment_bridge_skipped_reason
         ),
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested": bool(
             manifest.get(
                 "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested",
@@ -4789,6 +4831,13 @@ def audit_research_agent_runtime(
                 "",
             )
             or ""
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_repair_packets": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_repair_packets",
+                0,
+            )
+            or 0
         ),
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders": int(
             manifest.get(
@@ -4822,6 +4871,13 @@ def audit_research_agent_runtime(
                 "",
             )
             or ""
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_repair_packets": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_repair_packets",
+                0,
+            )
+            or 0
         ),
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders": int(
             manifest.get(
@@ -8525,12 +8581,13 @@ def _runtime_capability_gap_default_target_behavior(
         ),
         "source_theorem_promotion_proofengineer_bridge_ran": (
             "Run the source-theorem promotion ProofEngineer bridge in the same "
-            "runtime when source theorem promotion work orders exist."
+            "runtime and produce formal-environment work orders or source-theorem "
+            "kernel evidence when source theorem promotion work orders exist."
         ),
         "source_theorem_formal_environment_bridge_ran": (
             "Run the source-theorem formal-environment ProofEngineer bridge so "
             "formal environment work orders are materialized into prover-facing "
-            "artifacts."
+            "repair packets or proof-body execution queues."
         ),
         "source_theorem_signature_probe_reached_proof_body": (
             "Resolve exact source theorem target/signature/proof-body context until "
@@ -12281,6 +12338,51 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_lean_repair_handoff_required = (
         exact_semantic_lean_repair_tasks > 0
     )
+    source_theorem_promotion_bridge_kernel_verified = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_source_theorem_kernel_verified",
+            "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
+        )
+    )
+    source_theorem_promotion_bridge_formal_environment_work_orders = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders",
+            "source_theorem_promotion_source_semantic_proofengineer_bridge_n_formal_environment_work_orders",
+            "source_theorem_promotion_post_executor_proofengineer_bridge_n_formal_environment_work_orders",
+        )
+    )
+    source_theorem_formal_environment_bridge_repair_packets = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets",
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_repair_packets",
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_repair_packets",
+        )
+    )
+    source_theorem_formal_environment_bridge_proof_body_work_orders = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders",
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders",
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders",
+        )
+    )
+    source_theorem_formal_environment_bridge_proof_body_queue_rows = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows",
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
+        )
+    )
+    source_theorem_formal_environment_bridge_output_rows = (
+        source_theorem_formal_environment_bridge_repair_packets
+        + source_theorem_formal_environment_bridge_proof_body_work_orders
+        + source_theorem_formal_environment_bridge_proof_body_queue_rows
+    )
     formal_environment_proof_body_executor_result_rows = int(
         payload.get(
             "source_theorem_formal_environment_proof_body_executor_n_result_rows",
@@ -14429,28 +14531,51 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
-            payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
+            payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True
+            and (
+                source_theorem_promotion_bridge_formal_environment_work_orders > 0
+                or source_theorem_promotion_bridge_kernel_verified > 0
+            ),
             (
                 "ran="
                 f"{payload.get('source_theorem_promotion_proofengineer_bridge_ran')} "
+                "formal_environment_work_orders="
+                f"{source_theorem_promotion_bridge_formal_environment_work_orders} "
+                "source_theorem_kernel_verified="
+                f"{source_theorem_promotion_bridge_kernel_verified} "
                 "skipped="
                 f"{payload.get('source_theorem_promotion_proofengineer_bridge_skipped_reason')}"
             ),
-            "source-theorem promotion ProofEngineer bridge did not run inside the runtime",
+            (
+                "source-theorem promotion ProofEngineer bridge did not run inside "
+                "the runtime with formal-environment work-order rows or "
+                "source-theorem kernel evidence"
+            ),
         ),
         _scorecard_row(
             "source_theorem_formal_environment_bridge_ran",
             (
                 payload.get("source_theorem_formal_environment_proofengineer_bridge_ran")
                 is True
+                and source_theorem_formal_environment_bridge_output_rows > 0
             ),
             (
                 "ran="
                 f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_ran')} "
+                "repair_packets="
+                f"{source_theorem_formal_environment_bridge_repair_packets} "
+                "proof_body_work_orders="
+                f"{source_theorem_formal_environment_bridge_proof_body_work_orders} "
+                "proof_body_queue_rows="
+                f"{source_theorem_formal_environment_bridge_proof_body_queue_rows} "
                 "skipped="
                 f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_skipped_reason')}"
             ),
-            "source-theorem formal-environment ProofEngineer bridge did not run inside the runtime",
+            (
+                "source-theorem formal-environment ProofEngineer bridge did not "
+                "run inside the runtime with concrete repair packet or proof-body "
+                "queue telemetry"
+            ),
         ),
         _scorecard_row(
             "source_theorem_signature_probe_reached_proof_body",
