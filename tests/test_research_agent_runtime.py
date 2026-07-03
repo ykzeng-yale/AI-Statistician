@@ -3895,6 +3895,15 @@ def _bound_formalizer_proof_state_feedback_payload() -> dict[str, object]:
     }
 
 
+def _live_generated_code_execution_payload() -> dict[str, object]:
+    return {
+        "n_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 1,
+        "n_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 1,
+    }
+
+
 def _live_generated_code_metric_repair_payload() -> dict[str, object]:
     return {
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
@@ -56882,6 +56891,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
@@ -56945,10 +56955,7 @@ def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
-        "n_generated_code_sandbox_executed": 1,
-        "n_live_generated_code_sandbox_executed": 1,
-        "n_generated_simulation_sandbox_executed": 1,
-        "n_live_generated_simulation_sandbox_executed": 1,
+        **_live_generated_code_execution_payload(),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -56988,7 +56995,7 @@ def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
     assert rows[4]["passed"] is True
 
 
-def test_runtime_capability_ladder_requires_bound_prover_tool_trace() -> None:
+def test_runtime_capability_ladder_requires_live_generated_code_execution() -> None:
     payload = {
         "all_ok": True,
         "n_results": 1,
@@ -56996,9 +57003,39 @@ def test_runtime_capability_ladder_requires_bound_prover_tool_trace() -> None:
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
         "n_generated_code_sandbox_executed": 1,
-        "n_live_generated_code_sandbox_executed": 1,
+        "n_live_generated_code_sandbox_executed": 0,
         "n_generated_simulation_sandbox_executed": 1,
-        "n_live_generated_simulation_sandbox_executed": 1,
+        "n_live_generated_simulation_sandbox_executed": 0,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[2]["passed"] is True
+    assert rows[3]["passed"] is False
+    assert rows[4]["passed"] is True
+    assert "live_integrated_algorithm_code_executed=0" in rows[3]["evidence"]
+    assert "live_integrated_simulation_code_executed=0" in rows[3]["evidence"]
+    assert "live_integrated_algorithm_repair_sequences=1" in rows[3]["evidence"]
+    assert "repair counters" in rows[3]["blocker"]
+    assert ladder["max_contiguous_level"] == 2
+    assert ladder["max_evidence_level"] == 4
+    assert ladder["noncontiguous_evidence_observed"] is True
+
+
+def test_runtime_capability_ladder_requires_bound_prover_tool_trace() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -57049,6 +57086,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
@@ -57333,6 +57371,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_algorithm_sandbox_executed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
@@ -57371,6 +57410,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -57430,6 +57470,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -57489,6 +57530,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,
@@ -57548,6 +57590,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_distinct_question_ids": 1,
         "n_live_generator_agents_enabled": 6,
         **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
         "n_results_with_problem_analysis": 1,
         "n_results_with_stat_knowledge_bank_plan": 1,
         "n_results_with_literature_fair_comparison_plan": 1,

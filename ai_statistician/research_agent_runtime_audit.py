@@ -10296,14 +10296,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         and integrated_formalizer_repair_sequences > 0
     )
     generated_code_execution_ready = (
-        (
-            integrated_algorithm_code_executed > 0
-            or integrated_algorithm_repair_sequences > 0
-        )
-        and (
-            integrated_simulation_code_executed > 0
-            or integrated_simulation_repair_sequences > 0
-        )
+        integrated_algorithm_code_executed > 0
+        and integrated_simulation_code_executed > 0
     )
     generated_code_repair_ready = (
         integrated_algorithm_repair_sequences > 0
@@ -10428,8 +10422,9 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "no live generated AlgorithmEngineer and SimulationEngineer "
-                "code execution was observed; registered templates or static "
-                "fixtures do not demonstrate coding-agent execution"
+                "code execution was observed; repair counters, registered "
+                "templates, or static fixtures do not demonstrate coding-agent "
+                "execution"
             ),
         ),
         _ladder_level(
