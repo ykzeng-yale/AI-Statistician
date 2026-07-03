@@ -189,17 +189,6 @@ def _payload_cross_task_full_theorem_family_count(
     return 0
 
 
-def _payload_specific_or_total_count(
-    payload: Mapping[str, Any],
-    *,
-    specific_key: str,
-    total_key: str,
-) -> int:
-    if specific_key in payload:
-        return int(payload.get(specific_key, 0) or 0)
-    return int(payload.get(total_key, 0) or 0)
-
-
 def _payload_integrated_lean_lsp_mcp_live_calls(payload: Mapping[str, Any]) -> int:
     explicit_integrated = payload.get("n_integrated_lean_lsp_mcp_live_calls")
     if explicit_integrated not in (None, ""):
@@ -10161,12 +10150,12 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    integrated_algorithm_metric_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
-        ),
-        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+    integrated_algorithm_metric_repair_sequences = int(
+        payload.get(
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
     integrated_algorithm_code_executed = int(
         payload.get("n_live_generated_code_sandbox_executed", 0) or 0
@@ -10178,14 +10167,12 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    integrated_simulation_metric_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
-        ),
-        total_key=(
-            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ),
+    integrated_simulation_metric_repair_sequences = int(
+        payload.get(
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
@@ -10758,19 +10745,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    integrated_algorithm_metric_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
-        ),
-        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+    integrated_algorithm_metric_repair_sequences = int(
+        payload.get(
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
-    integrated_algorithm_unsafe_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences"
-        ),
-        total_key="n_live_generated_code_sandbox_failed_then_passed_repair_sequences",
+    integrated_algorithm_unsafe_repair_sequences = int(
+        payload.get(
+            "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
     integrated_simulation_repair_sequences = int(
         payload.get(
@@ -10779,23 +10766,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    integrated_simulation_metric_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
-        ),
-        total_key=(
-            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ),
+    integrated_simulation_metric_repair_sequences = int(
+        payload.get(
+            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
-    integrated_simulation_unsafe_repair_sequences = _payload_specific_or_total_count(
-        payload,
-        specific_key=(
-            "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences"
-        ),
-        total_key=(
-            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ),
+    integrated_simulation_unsafe_repair_sequences = int(
+        payload.get(
+            "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
     )
     attached_repair_eval_algorithm_sequences = int(
         payload.get(

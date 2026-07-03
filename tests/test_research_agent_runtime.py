@@ -3895,6 +3895,15 @@ def _bound_formalizer_proof_state_feedback_payload() -> dict[str, object]:
     }
 
 
+def _live_generated_code_metric_repair_payload() -> dict[str, object]:
+    return {
+        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
+    }
+
+
 def _scorecard_architect_executed_payload() -> dict[str, object]:
     return {
         "architect_coordinator_enabled": True,
@@ -56878,6 +56887,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -56916,7 +56926,7 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
     assert "no full source/frontier theorem" in rows[8]["blocker"]
 
 
-def test_runtime_capability_ladder_requires_metric_repair_when_reported() -> None:
+def test_runtime_capability_ladder_requires_explicit_metric_repair() -> None:
     payload = {
         "all_ok": True,
         "n_results": 1,
@@ -56931,10 +56941,6 @@ def test_runtime_capability_ladder_requires_metric_repair_when_reported() -> Non
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
-        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
-        "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
-        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
-        "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
@@ -56981,6 +56987,7 @@ def test_runtime_capability_ladder_requires_live_exact_semantic_authoring_when_n
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57264,6 +57271,7 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57312,6 +57320,7 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57370,6 +57379,7 @@ def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evi
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57428,6 +57438,7 @@ def test_runtime_capability_ladder_accepts_candidate_synthesis_recheck_source_ke
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -57486,6 +57497,7 @@ def test_runtime_capability_ladder_accepts_promotion_bridge_source_kernel_eviden
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
         **_bound_formalizer_proof_state_feedback_payload(),
         "n_llm_formalizer_proof_engineer_proposals": 1,
@@ -58606,6 +58618,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
         "n_unsafe_generated_simulation_code_rejected": 0,
         "n_live_unsafe_generated_simulation_code_rejected": 0,
         "n_formalizer_lean_candidate_local_lean_checked": 1,
