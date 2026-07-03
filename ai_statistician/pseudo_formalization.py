@@ -32,6 +32,34 @@ PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID = (
 PSEUDO_FORMAL_VERIFICATION_METHOD_NAME = (
     "pseudo_formalization_plus_block_verification"
 )
+PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH = 4
+PSEUDO_FORMAL_DEFAULT_BLOCK_DEPTH = 1
+PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE = "earlier_block_statement_only"
+PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS = "lean_bridge_conservative"
+PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE = "parallel_pessimistic_aggregation"
+PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES = (
+    "at most four proof-tree layers",
+    "no trivial restatement-only decomposition",
+    "dependencies are statement-level citations, not hidden proof-body access",
+    "same-level dependency_ids must reference earlier blocks",
+    "assumptions modified from an enclosing context must be restated",
+)
+VALID_DEPENDENCY_SCOPES = (
+    "earlier_block_statement_only",
+    "direct_child_or_earlier_statement_only",
+)
+VALID_FAITHFULNESS_REPAIR_STATUSES = (
+    "not_required",
+    "needs_repair",
+    "repaired",
+    "unavailable",
+)
+VALID_CALIBRATION_STRICTNESS = (
+    "lean_bridge_conservative",
+    "publication_strict",
+    "debug_lenient",
+    "not_run",
+)
 PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE = "route_pseudo_formal_block_residuals"
 PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES = (
     {
@@ -168,6 +196,30 @@ def pseudo_formal_verification_method_contract() -> dict[str, Any]:
             "verify each pseudo-formal block independently against its explicit "
             "premises, inherited scope, declared dependencies, conclusion, and proof"
         ),
+        "block_structure_contract": {
+            "max_proof_tree_depth": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+            "dependency_scopes": list(VALID_DEPENDENCY_SCOPES),
+            "rules": list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
+            "default_dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        },
+        "faithfulness_repair_contract": {
+            "required_when_status": ["unfaithful", "needs_review"],
+            "required_fields": [
+                "status",
+                "attempts",
+                "flagged_discrepancies",
+            ],
+            "allowed_statuses": list(VALID_FAITHFULNESS_REPAIR_STATUSES),
+        },
+        "bv_calibration_contract": {
+            "strictness_values": list(VALID_CALIBRATION_STRICTNESS),
+            "default_strictness": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+            "acceptance_boundary": (
+                "PF/BV acceptance is routing confidence only; theorem proof "
+                "promotion still requires target-prover kernel replay"
+            ),
+        },
         "calibration_rule": (
             "aggregate block verifier reports under an explicit strictness "
             "threshold; distinguish source-proof errors from rewrite artifacts"
@@ -214,13 +266,35 @@ def pseudo_formalizer_output_contract() -> dict[str, Any]:
                     "excerpt": "bounded source excerpt or pointer",
                 }
             ],
+            "block_depth": (
+                "1..4 PF tree depth; keep decomposition shallow and nontrivial"
+            ),
+            "dependency_scope": list(VALID_DEPENDENCY_SCOPES),
             "semantic_primitive_requirements": ["missing primitive or definition ids"],
             "lean_feasibility": list(VALID_LEAN_FEASIBILITY),
             "faithfulness_status": list(VALID_FAITHFULNESS_STATUSES),
+            "faithfulness_repair": {
+                "status": list(VALID_FAITHFULNESS_REPAIR_STATUSES),
+                "attempts": "number of rewrite/repair attempts",
+                "flagged_discrepancies": [
+                    "strengthening, weakening, omitted content, added content, notation drift, or scope error"
+                ],
+            },
             "block_verification": {
                 "verdict": list(VALID_BLOCK_VERDICTS),
                 "reason": "short verifier rationale",
+                "strictness_threshold": list(VALID_CALIBRATION_STRICTNESS),
+                "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+                "rollout_count": "independent BV rollouts used for this report",
             },
+        },
+        "packet_calibration_contract": {
+            "strictness_threshold": list(VALID_CALIBRATION_STRICTNESS),
+            "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+            "pessimistic_acceptance": (
+                "proof-level pseudo-formal acceptance requires every rollout/block "
+                "accepted, but remains non-proof evidence"
+            ),
         },
         "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
         "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
@@ -249,19 +323,30 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
         "required_block_fields": [
             "block_id",
             "block_type",
+            "block_depth",
             "premises",
             "conclusion",
             "proof_text",
             "dependency_ids",
+            "dependency_scope",
             "source_anchors",
             "lean_feasibility",
             "faithfulness_status",
+            "faithfulness_repair",
             "block_verification",
         ],
         "dependency_rule": "dependency_ids must reference earlier block ids",
+        "dependency_scope_rule": (
+            "dependencies are statement-level citations under PF/BV scope rules; "
+            "hidden proof-body access must be hoisted into its own block"
+        ),
+        "block_structure_rules": list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
+        "max_proof_tree_depth": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
         "source_anchor_rule": "every nontrivial block needs a source anchor",
         "lean_feasibility_values": list(VALID_LEAN_FEASIBILITY),
         "block_verdict_values": list(VALID_BLOCK_VERDICTS),
+        "calibration_strictness_values": list(VALID_CALIBRATION_STRICTNESS),
+        "default_bv_calibration": _default_bv_calibration(),
         "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
         "source_theorem_kernel_verified": False,
@@ -292,6 +377,10 @@ def normalize_pseudo_formal_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     raw["kernel_verified"] = False
     raw["source_theorem_kernel_verified"] = False
     raw["promotion_gate"] = PSEUDO_FORMALIZATION_PROMOTION_GATE
+    raw["block_structure_contract"] = _default_block_structure_contract(
+        raw.get("block_structure_contract")
+    )
+    raw["bv_calibration"] = _normalize_bv_calibration(raw.get("bv_calibration"))
     raw["blocks"] = [
         _normalize_block(block, index)
         for index, block in enumerate(_as_mapping_rows(raw.get("blocks")))
@@ -359,6 +448,25 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(f"blocks[{index}] missing conclusion")
         if "proof_text" not in block:
             errors.append(f"blocks[{index}] missing proof_text")
+        block_depth = _int_or_none(block.get("block_depth"))
+        if block_depth is None:
+            errors.append(f"blocks[{index}] missing block_depth")
+        elif (
+            block_depth < 1
+            or block_depth > PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH
+        ):
+            errors.append(
+                f"blocks[{index}] block_depth must be between 1 and "
+                f"{PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH}"
+            )
+        dependency_scope = str(
+            block.get("dependency_scope", PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE)
+            or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+        )
+        if dependency_scope not in VALID_DEPENDENCY_SCOPES:
+            errors.append(
+                f"blocks[{index}] unsupported dependency_scope: {dependency_scope}"
+            )
         if not _as_mapping_rows(block.get("source_anchors")):
             errors.append(f"blocks[{index}] missing source_anchors")
         if bool(block.get("kernel_verified", False)):
@@ -368,6 +476,28 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 f"blocks[{index}] unsupported faithfulness_status: {faithfulness}"
             )
+        faithfulness_repair = block.get("faithfulness_repair", {})
+        if not isinstance(faithfulness_repair, Mapping):
+            errors.append(f"blocks[{index}] faithfulness_repair must be an object")
+        else:
+            repair_status = str(
+                faithfulness_repair.get("status", "not_required")
+                or "not_required"
+            )
+            if repair_status not in VALID_FAITHFULNESS_REPAIR_STATUSES:
+                errors.append(
+                    f"blocks[{index}] unsupported faithfulness_repair.status: "
+                    f"{repair_status}"
+                )
+            if (
+                faithfulness in {"unfaithful", "needs_review"}
+                and repair_status == "not_required"
+            ):
+                errors.append(
+                    f"blocks[{index}] faithfulness_repair.status must record "
+                    "needs_repair, repaired, or unavailable when faithfulness "
+                    f"status is {faithfulness}"
+                )
         feasibility = str(block.get("lean_feasibility", "unknown") or "unknown")
         if feasibility not in VALID_LEAN_FEASIBILITY:
             errors.append(f"blocks[{index}] unsupported lean_feasibility: {feasibility}")
@@ -448,6 +578,8 @@ def pseudo_formal_packet_json_schema() -> dict[str, Any]:
                 "type": "string",
                 "const": PSEUDO_FORMALIZATION_PROMOTION_GATE,
             },
+            "block_structure_contract": {"type": "object"},
+            "bv_calibration": {"type": "object"},
             "blocks": {
                 "type": "array",
                 "minItems": 1,
@@ -464,21 +596,33 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
         "required": [
             "block_id",
             "block_type",
+            "block_depth",
             "conclusion",
             "proof_text",
             "dependency_ids",
+            "dependency_scope",
             "source_anchors",
             "lean_feasibility",
             "faithfulness_status",
+            "faithfulness_repair",
             "block_verification",
         ],
         "properties": {
             "block_id": {"type": "string", "minLength": 1},
             "block_type": {"type": "string", "enum": list(VALID_BLOCK_TYPES)},
+            "block_depth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+            },
             "premises": {"type": "array"},
             "conclusion": {"type": "string", "minLength": 1},
             "proof_text": {"type": "string"},
             "dependency_ids": {"type": "array", "items": {"type": "string"}},
+            "dependency_scope": {
+                "type": "string",
+                "enum": list(VALID_DEPENDENCY_SCOPES),
+            },
             "source_anchors": {"type": "array", "minItems": 1},
             "semantic_primitive_requirements": {"type": "array"},
             "lean_feasibility": {
@@ -489,6 +633,18 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
                 "type": "string",
                 "enum": list(VALID_FAITHFULNESS_STATUSES),
             },
+            "faithfulness_repair": {
+                "type": "object",
+                "required": ["status", "attempts", "flagged_discrepancies"],
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": list(VALID_FAITHFULNESS_REPAIR_STATUSES),
+                    },
+                    "attempts": {"type": "integer", "minimum": 0},
+                    "flagged_discrepancies": {"type": "array"},
+                },
+            },
             "block_verification": {
                 "type": "object",
                 "required": ["verdict"],
@@ -498,6 +654,12 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
                         "enum": list(VALID_BLOCK_VERDICTS),
                     },
                     "reason": {"type": "string"},
+                    "strictness_threshold": {
+                        "type": "string",
+                        "enum": list(VALID_CALIBRATION_STRICTNESS),
+                    },
+                    "aggregation_rule": {"type": "string"},
+                    "rollout_count": {"type": "integer", "minimum": 0},
                 },
             },
             "kernel_verified": {"type": "boolean", "const": False},
@@ -517,6 +679,8 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "source_block_id",
             "row_kind",
             "target_lane",
+            "block_depth",
+            "dependency_scope",
             "pseudo_formal_method_contract_id",
             "pseudo_formal_pipeline_stage",
             "proof_evidence_status",
@@ -531,6 +695,15 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "target_lane": {
                 "type": "string",
                 "enum": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            },
+            "block_depth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+            },
+            "dependency_scope": {
+                "type": "string",
+                "enum": list(VALID_DEPENDENCY_SCOPES),
             },
             "pseudo_formal_method_contract_id": {
                 "type": "string",
@@ -567,6 +740,12 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
     ).strip()
     normalized["proof_text"] = str(normalized.get("proof_text", "") or "")
     normalized["dependency_ids"] = _string_list(normalized.get("dependency_ids"))
+    normalized["block_depth"] = _normalize_block_depth(
+        normalized.get("block_depth")
+    )
+    normalized["dependency_scope"] = _normalize_dependency_scope(
+        normalized.get("dependency_scope")
+    )
     normalized["source_anchors"] = _normalize_source_anchors(
         normalized.get("source_anchors")
     )
@@ -579,12 +758,27 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
     normalized["faithfulness_status"] = str(
         normalized.get("faithfulness_status", "unchecked") or "unchecked"
     ).strip()
+    normalized["faithfulness_repair"] = _normalize_faithfulness_repair(
+        normalized.get("faithfulness_repair"),
+        faithfulness_status=normalized["faithfulness_status"],
+    )
     verification = normalized.get("block_verification", {})
     if not isinstance(verification, Mapping):
         verification = {"verdict": str(verification or "unknown")}
     normalized["block_verification"] = {
         "verdict": str(verification.get("verdict", "not_run") or "not_run").strip(),
         "reason": str(verification.get("reason", "") or "").strip(),
+        "strictness_threshold": _normalize_calibration_strictness(
+            verification.get("strictness_threshold")
+        ),
+        "aggregation_rule": str(
+            verification.get(
+                "aggregation_rule",
+                PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+            )
+            or PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE
+        ),
+        "rollout_count": max(0, _int_or_none(verification.get("rollout_count")) or 0),
     }
     normalized["kernel_verified"] = False
     return normalized
@@ -702,7 +896,33 @@ def _work_order_row(
         "source_block_id": str(block.get("block_id", "") or ""),
         "source_block_type": str(block.get("block_type", "") or ""),
         "source_block_conclusion": str(block.get("conclusion", "") or ""),
+        "block_depth": int(
+            _int_or_none(block.get("block_depth"))
+            or PSEUDO_FORMAL_DEFAULT_BLOCK_DEPTH
+        ),
+        "dependency_scope": str(
+            block.get("dependency_scope", PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE)
+            or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+        ),
+        "dependency_ids": _string_list(block.get("dependency_ids")),
         "source_anchors": list(_as_mapping_rows(block.get("source_anchors"))),
+        "faithfulness_status": str(
+            block.get("faithfulness_status", "unchecked") or "unchecked"
+        ),
+        "faithfulness_repair_status": str(
+            (
+                block.get("faithfulness_repair", {})
+                if isinstance(block.get("faithfulness_repair", {}), Mapping)
+                else {}
+            ).get("status", "not_required")
+            or "not_required"
+        ),
+        "block_verification": dict(
+            block.get("block_verification", {})
+            if isinstance(block.get("block_verification", {}), Mapping)
+            else {}
+        ),
+        "bv_calibration": _normalize_bv_calibration(packet.get("bv_calibration")),
         "row_kind": row_kind,
         "target_lane": target_lane,
         "pseudo_formal_method_contract_id": str(
@@ -734,6 +954,106 @@ def _work_order_row(
         base.update(dict(extra))
     base["row_id"] = "pseudo_formal_work_order:" + stable_hash(base)[:16]
     return base
+
+
+def _default_block_structure_contract(
+    value: Any | None = None,
+) -> dict[str, Any]:
+    raw = dict(value) if isinstance(value, Mapping) else {}
+    return {
+        "max_proof_tree_depth": int(
+            _int_or_none(raw.get("max_proof_tree_depth"))
+            or PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH
+        ),
+        "dependency_scope_rule": str(
+            raw.get(
+                "dependency_scope_rule",
+                PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            )
+            or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+        ),
+        "rules": _string_list(raw.get("rules")) or list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
+    }
+
+
+def _default_bv_calibration() -> dict[str, Any]:
+    return {
+        "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+        "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+        "pessimistic_acceptance": True,
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    }
+
+
+def _normalize_bv_calibration(value: Any) -> dict[str, Any]:
+    raw = dict(value) if isinstance(value, Mapping) else {}
+    normalized = _default_bv_calibration()
+    normalized.update(
+        {
+            "strictness_threshold": _normalize_calibration_strictness(
+                raw.get("strictness_threshold")
+            ),
+            "aggregation_rule": str(
+                raw.get("aggregation_rule", PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE)
+                or PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE
+            ),
+            "pessimistic_acceptance": bool(
+                raw.get("pessimistic_acceptance", True)
+            ),
+            "rollout_count": max(0, _int_or_none(raw.get("rollout_count")) or 0),
+        }
+    )
+    return normalized
+
+
+def _normalize_block_depth(value: Any) -> int:
+    parsed = _int_or_none(value)
+    if parsed is None:
+        return PSEUDO_FORMAL_DEFAULT_BLOCK_DEPTH
+    return max(1, min(PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH, parsed))
+
+
+def _normalize_dependency_scope(value: Any) -> str:
+    text = str(value or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE).strip()
+    if text in VALID_DEPENDENCY_SCOPES:
+        return text
+    return PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+
+
+def _normalize_calibration_strictness(value: Any) -> str:
+    text = str(value or PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS).strip()
+    if text in VALID_CALIBRATION_STRICTNESS:
+        return text
+    return PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+
+
+def _normalize_faithfulness_repair(
+    value: Any,
+    *,
+    faithfulness_status: str,
+) -> dict[str, Any]:
+    raw = dict(value) if isinstance(value, Mapping) else {}
+    status = str(raw.get("status", "") or "").strip()
+    if not status:
+        status = (
+            "needs_repair"
+            if faithfulness_status in {"unfaithful", "needs_review"}
+            else "not_required"
+        )
+    if status not in VALID_FAITHFULNESS_REPAIR_STATUSES:
+        status = "needs_repair"
+    return {
+        "status": status,
+        "attempts": max(0, _int_or_none(raw.get("attempts")) or 0),
+        "flagged_discrepancies": _string_list(raw.get("flagged_discrepancies")),
+    }
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _boundary_corrections(packet: Mapping[str, Any]) -> list[str]:

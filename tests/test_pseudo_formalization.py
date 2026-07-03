@@ -6,6 +6,9 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+    PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+    PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMALIZATION_SCHEMA_ID,
@@ -107,6 +110,28 @@ def test_pseudo_formal_packet_normalizes_and_routes_non_kernel_work_orders() -> 
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
         in normalized["pseudo_formal_pipeline_stages"]
     )
+    assert normalized["block_structure_contract"]["max_proof_tree_depth"] == (
+        PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH
+    )
+    assert normalized["bv_calibration"]["strictness_threshold"] == (
+        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+    )
+    assert normalized["bv_calibration"]["aggregation_rule"] == (
+        "parallel_pessimistic_aggregation"
+    )
+    assert normalized["blocks"][0]["block_depth"] == 1
+    assert normalized["blocks"][0]["dependency_scope"] == (
+        PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    )
+    assert normalized["blocks"][0]["faithfulness_repair"]["status"] == (
+        "not_required"
+    )
+    assert normalized["blocks"][0]["block_verification"][
+        "strictness_threshold"
+    ] == PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+    assert normalized["blocks"][1]["faithfulness_repair"]["status"] == (
+        "needs_repair"
+    )
 
     rows = pseudo_formal_block_work_order_rows(normalized)
     row_kinds = {row["row_kind"] for row in rows}
@@ -129,6 +154,15 @@ def test_pseudo_formal_packet_normalizes_and_routes_non_kernel_work_orders() -> 
     assert {row["pseudo_formal_pipeline_stage"] for row in rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert {row["block_depth"] for row in rows} == {1}
+    assert {row["dependency_scope"] for row in rows} == {
+        PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    }
+    assert all(
+        row["bv_calibration"]["strictness_threshold"]
+        == PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+        for row in rows
+    )
 
 
 def test_pseudo_formal_packet_rejects_kernel_claims_and_bad_dag() -> None:
@@ -226,6 +260,13 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     assert contract["proof_evidence_status"] == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     assert contract["promotion_gate"] == PSEUDO_FORMALIZATION_PROMOTION_GATE
     assert "source_anchors" in contract["block_contract"]
+    assert contract["block_contract"]["dependency_scope"] == [
+        "earlier_block_statement_only",
+        "direct_child_or_earlier_statement_only",
+    ]
+    assert contract["packet_calibration_contract"]["aggregation_rule"] == (
+        "parallel_pessimistic_aggregation"
+    )
     assert contract["work_order_routing_contract"]["learning_task"] == (
         PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
     )
@@ -240,6 +281,9 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     )
     assert schema["properties"]["kernel_verified"]["const"] is False
     assert schema["properties"]["source_theorem_kernel_verified"]["const"] is False
+    assert schema["properties"]["blocks"]["items"]["properties"]["block_depth"][
+        "maximum"
+    ] == PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH
     assert (
         schema["properties"]["pseudo_formal_method_contract_id"]["const"]
         == PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
@@ -252,6 +296,10 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     assert set(work_order_schema["properties"]["target_lane"]["enum"]) == set(
         PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES
     )
+    assert work_order_schema["properties"]["dependency_scope"]["enum"] == [
+        "earlier_block_statement_only",
+        "direct_child_or_earlier_statement_only",
+    ]
     assert work_order_schema["properties"]["pseudo_formal_pipeline_stage"]["const"] == (
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     )

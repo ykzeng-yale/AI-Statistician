@@ -4237,6 +4237,9 @@ def _formalizer_mode_specific_instructions(
             "and pseudo_formal_block_routing_memory before proposing new broad proof "
             "work. These rows decompose blocked proof text into lane-specific tasks; "
             "they are not Lean kernel evidence and do not prove the source theorem. "
+            "Preserve block_depth, statement-level dependency_scope, faithfulness "
+            "repair status, and BV calibration strictness when regenerating or "
+            "rerouting PF/BV packets. "
             "For target_lane=formal_targets, emit a bounded concrete Lean candidate "
             "for the named block and require local Lean/AXLE replay. For "
             "target_lane=lean_rag, emit retrieval_queries or formal-source grounding "
@@ -6577,6 +6580,13 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_block_id",
                 "source_block_type",
                 "source_block_conclusion",
+                "block_depth",
+                "dependency_scope",
+                "dependency_ids",
+                "faithfulness_status",
+                "faithfulness_repair_status",
+                "block_verification",
+                "bv_calibration",
                 "source_anchors",
                 "row_kind",
                 "target_lane",

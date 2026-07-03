@@ -105,6 +105,8 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+    PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
@@ -4219,6 +4221,23 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "pseudo_formal_work_order_id": "pseudo_formal_work_order:rank",
         "source_theorem_id": "split_conformal_finite_sample_coverage",
         "source_block_id": "b_rank_uniform",
+        "block_depth": 2,
+        "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        "dependency_ids": ["b_exchangeability"],
+        "faithfulness_status": "faithful",
+        "faithfulness_repair_status": "not_required",
+        "block_verification": {
+            "verdict": "accepted",
+            "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": "parallel_pessimistic_aggregation",
+            "rollout_count": 1,
+        },
+        "bv_calibration": {
+            "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": "parallel_pessimistic_aggregation",
+            "pessimistic_acceptance": True,
+            "rollout_count": 1,
+        },
         "source_anchors": [
             {"kind": "theory_trace", "id": "equation:rank_uniformity"}
         ],
@@ -4260,6 +4279,23 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             "work_order_id": "pseudo_formal_work_order:rank",
             "source_block_id": "b_rank_uniform",
             "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "block_depth": 2,
+            "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            "dependency_ids": ["b_exchangeability"],
+            "faithfulness_status": "faithful",
+            "faithfulness_repair_status": "not_required",
+            "block_verification": {
+                "verdict": "accepted",
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "rollout_count": 1,
+            },
+            "bv_calibration": {
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "pessimistic_acceptance": True,
+                "rollout_count": 1,
+            },
             "source_anchors": [
                 {"kind": "theory_trace", "id": "equation:rank_uniformity"}
             ],
@@ -4358,6 +4394,9 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     )
     assert broken_summary[
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+    ] == 1
+    assert broken_summary[
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality"
     ] == 1
     broken_scorecard_rows = {
         row["requirement_id"]: row
@@ -21949,6 +21988,23 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             "source_block_id": "b_rank_uniform",
             "source_block_type": "lemma",
             "source_block_conclusion": "rank is uniform by exchangeability",
+            "block_depth": 2,
+            "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            "dependency_ids": ["b_exchangeability"],
+            "faithfulness_status": "faithful",
+            "faithfulness_repair_status": "not_required",
+            "block_verification": {
+                "verdict": "accepted",
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "rollout_count": 1,
+            },
+            "bv_calibration": {
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "pessimistic_acceptance": True,
+                "rollout_count": 1,
+            },
             "source_anchors": [
                 {
                     "kind": "theory_trace",
@@ -21979,6 +22035,27 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
                 "source_block_id": "b_rank_uniform",
                 "source_block_type": "lemma",
                 "source_block_conclusion": "rank is uniform by exchangeability",
+                "block_depth": 2,
+                "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+                "dependency_ids": ["b_exchangeability"],
+                "faithfulness_status": "faithful",
+                "faithfulness_repair_status": "not_required",
+                "block_verification": {
+                    "verdict": "accepted",
+                    "strictness_threshold": (
+                        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                    ),
+                    "aggregation_rule": "parallel_pessimistic_aggregation",
+                    "rollout_count": 1,
+                },
+                "bv_calibration": {
+                    "strictness_threshold": (
+                        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                    ),
+                    "aggregation_rule": "parallel_pessimistic_aggregation",
+                    "pessimistic_acceptance": True,
+                    "rollout_count": 1,
+                },
                 "source_anchors": [
                     {
                         "kind": "theory_trace",
@@ -22074,6 +22151,11 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     )
     assert pf_memory[0]["source_block_id"] == "b_rank_uniform"
     assert pf_memory[0]["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+    assert pf_memory[0]["block_depth"] == 2
+    assert pf_memory[0]["dependency_scope"] == PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    assert pf_memory[0]["bv_calibration"]["strictness_threshold"] == (
+        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+    )
     assert pf_memory[0]["pseudo_formal_method_contract_id"] == (
         PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
     )
@@ -22099,6 +22181,8 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert "pseudo_formal_proof_packets" in prompt
     assert "urn:ai-statistician:contracts:pseudo-formal-pf-bv:1" in prompt
     assert "parallel_pessimistic_aggregation" in prompt
+    assert "block_depth" in prompt
+    assert "dependency_scope" in prompt
     assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
     assert "b_rank_uniform" in prompt
     assert "equation:rank_uniformity" in prompt

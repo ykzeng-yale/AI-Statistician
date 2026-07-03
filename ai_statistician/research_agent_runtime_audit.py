@@ -17,14 +17,18 @@ from .model_backend import (
     is_live_generator_backend,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+    VALID_CALIBRATION_STRICTNESS,
+    VALID_DEPENDENCY_SCOPES,
 )
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
@@ -11103,6 +11107,7 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
     missing_queue_status = 0
     missing_method_lineage = 0
     missing_or_wrong_nonproof_boundary = 0
+    missing_or_invalid_bv_quality = 0
     issues: list[dict[str, Any]] = []
 
     for channel, rows in row_sources:
@@ -11167,6 +11172,16 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
                 )
             ):
                 missing_or_wrong_nonproof_boundary += 1
+            if any(
+                field in missing_fields
+                for field in (
+                    "block_depth",
+                    "dependency_scope",
+                    "bv_calibration",
+                    "faithfulness_repair_status",
+                )
+            ):
+                missing_or_invalid_bv_quality += 1
             if missing_fields:
                 issues.append(
                     {
@@ -11197,6 +11212,7 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         and missing_queue_status == 0
         and missing_method_lineage == 0
         and missing_or_wrong_nonproof_boundary == 0
+        and missing_or_invalid_bv_quality == 0
     )
     return {
         "artifact_kind": "RuntimePseudoFormalBlockRoutingContractAudit",
@@ -11237,6 +11253,9 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": (
             missing_or_wrong_nonproof_boundary
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality": (
+            missing_or_invalid_bv_quality
+        ),
         "runtime_pseudo_formal_block_routing_channels": dict(
             sorted(channel_counts.items())
         ),
@@ -11255,8 +11274,9 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             "Pseudo-formal/block-verification routing rows are decomposition "
             "and repair-planning memory only. They must preserve lane, source "
             "block, source anchors, work-order identity, queue status, and the "
-            "PF+BV method lineage plus pseudo-formal non-proof boundary before "
-            "AgentRuntime reuses them as Formalizer/RAG/source-to-bridge work."
+            "PF+BV method lineage plus pseudo-formal non-proof boundary and "
+            "block-depth/dependency-scope/calibration metadata before AgentRuntime "
+            "reuses them as Formalizer/RAG/source-to-bridge work."
         ),
     }
 
@@ -11320,6 +11340,43 @@ def _runtime_pseudo_formal_block_routing_missing_fields(
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     ):
         missing.append("pseudo_formal_pipeline_stage")
+    input_summary = _runtime_row_input_summary(row)
+    block_depth_value = _runtime_route_row_field(row, "block_depth") or str(
+        input_summary.get("block_depth", "") or ""
+    )
+    try:
+        block_depth = int(block_depth_value)
+    except ValueError:
+        block_depth = 0
+    if block_depth < 1 or block_depth > PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH:
+        missing.append("block_depth")
+    dependency_scope = _runtime_route_row_field(row, "dependency_scope") or str(
+        input_summary.get("dependency_scope", "") or ""
+    )
+    if not dependency_scope:
+        dependency_scope = PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    if dependency_scope not in VALID_DEPENDENCY_SCOPES:
+        missing.append("dependency_scope")
+    bv_calibration = row.get("bv_calibration", {})
+    if not isinstance(bv_calibration, Mapping) or not bv_calibration:
+        bv_calibration = input_summary.get("bv_calibration", {})
+    if not isinstance(bv_calibration, Mapping) or str(
+        bv_calibration.get("strictness_threshold", "") or ""
+    ) not in VALID_CALIBRATION_STRICTNESS:
+        missing.append("bv_calibration")
+    faithfulness_status = _runtime_route_row_field(
+        row,
+        "faithfulness_status",
+    ) or str(input_summary.get("faithfulness_status", "") or "")
+    faithfulness_repair_status = _runtime_route_row_field(
+        row,
+        "faithfulness_repair_status",
+    ) or str(input_summary.get("faithfulness_repair_status", "") or "")
+    if faithfulness_status in {"unfaithful", "needs_review"} and (
+        faithfulness_repair_status
+        not in {"needs_repair", "repaired", "unavailable"}
+    ):
+        missing.append("faithfulness_repair_status")
     if _runtime_route_row_field(row, "proof_evidence_status") != (
         PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     ):

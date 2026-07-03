@@ -144,6 +144,9 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+    PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+    PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
@@ -43856,6 +43859,21 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
             if isinstance(input_summary.get("source_anchors", []), list)
             else []
         )
+        block_verification = (
+            row.get("block_verification", {})
+            if isinstance(row.get("block_verification", {}), Mapping)
+            else input_summary.get("block_verification", {})
+            if isinstance(input_summary.get("block_verification", {}), Mapping)
+            else {}
+        )
+        bv_calibration = (
+            row.get("bv_calibration", {})
+            if isinstance(row.get("bv_calibration", {}), Mapping)
+            and row.get("bv_calibration", {})
+            else input_summary.get("bv_calibration", {})
+            if isinstance(input_summary.get("bv_calibration", {}), Mapping)
+            else {}
+        )
         feedback_rows.append(
             {
                 "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
@@ -43917,6 +43935,43 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                     or input_summary.get("source_block_conclusion", "")
                     or ""
                 )[:500],
+                "block_depth": _pseudo_formal_safe_block_depth(
+                    row.get("block_depth", "")
+                    or input_summary.get("block_depth", "")
+                ),
+                "dependency_scope": str(
+                    row.get("dependency_scope", "")
+                    or input_summary.get("dependency_scope", "")
+                    or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+                ),
+                "dependency_ids": list(
+                    row.get("dependency_ids", [])
+                    if isinstance(row.get("dependency_ids", []), list)
+                    else input_summary.get("dependency_ids", [])
+                    if isinstance(input_summary.get("dependency_ids", []), list)
+                    else []
+                ),
+                "faithfulness_status": str(
+                    row.get("faithfulness_status", "")
+                    or input_summary.get("faithfulness_status", "")
+                    or ""
+                ),
+                "faithfulness_repair_status": str(
+                    row.get("faithfulness_repair_status", "")
+                    or input_summary.get("faithfulness_repair_status", "")
+                    or ""
+                ),
+                "block_verification": dict(block_verification),
+                "bv_calibration": dict(
+                    bv_calibration
+                    or {
+                        "strictness_threshold": (
+                            PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                        ),
+                        "aggregation_rule": "parallel_pessimistic_aggregation",
+                        "pessimistic_acceptance": True,
+                    }
+                ),
                 "source_anchors": [
                     dict(anchor)
                     for anchor in source_anchors
@@ -46885,6 +46940,39 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "source_block_type": str(row.get("source_block_type", "") or ""),
                 "source_block_conclusion": str(
                     row.get("source_block_conclusion", "") or ""
+                ),
+                "block_depth": _pseudo_formal_safe_block_depth(
+                    row.get("block_depth")
+                ),
+                "dependency_scope": str(
+                    row.get(
+                        "dependency_scope",
+                        PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+                    )
+                    or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+                ),
+                "dependency_ids": list(row.get("dependency_ids", []) or []),
+                "faithfulness_status": str(
+                    row.get("faithfulness_status", "") or ""
+                ),
+                "faithfulness_repair_status": str(
+                    row.get("faithfulness_repair_status", "") or ""
+                ),
+                "block_verification": dict(
+                    row.get("block_verification", {})
+                    if isinstance(row.get("block_verification", {}), Mapping)
+                    else {}
+                ),
+                "bv_calibration": dict(
+                    row.get("bv_calibration", {})
+                    if isinstance(row.get("bv_calibration", {}), Mapping)
+                    else {
+                        "strictness_threshold": (
+                            PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                        ),
+                        "aggregation_rule": "parallel_pessimistic_aggregation",
+                        "pessimistic_acceptance": True,
+                    }
                 ),
                 "source_anchors": [
                     dict(anchor)
@@ -55171,6 +55259,29 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "source_block_conclusion": str(
                     work_order.get("source_block_conclusion", "") or ""
                 ),
+                "block_depth": _pseudo_formal_safe_block_depth(
+                    work_order.get("block_depth")
+                ),
+                "dependency_scope": str(
+                    work_order.get("dependency_scope", "") or ""
+                ),
+                "dependency_ids": list(work_order.get("dependency_ids", []) or []),
+                "faithfulness_status": str(
+                    work_order.get("faithfulness_status", "") or ""
+                ),
+                "faithfulness_repair_status": str(
+                    work_order.get("faithfulness_repair_status", "") or ""
+                ),
+                "block_verification": dict(
+                    work_order.get("block_verification", {})
+                    if isinstance(work_order.get("block_verification", {}), Mapping)
+                    else {}
+                ),
+                "bv_calibration": dict(
+                    work_order.get("bv_calibration", {})
+                    if isinstance(work_order.get("bv_calibration", {}), Mapping)
+                    else {}
+                ),
                 "source_anchors": list(
                     work_order.get("source_anchors", []) or []
                 ),
@@ -55279,6 +55390,31 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "source_block_conclusion": str(
                         agenda.get("source_block_conclusion", "") or ""
                     ),
+                    "block_depth": _pseudo_formal_safe_block_depth(
+                        agenda.get("block_depth")
+                    ),
+                    "dependency_scope": str(
+                        agenda.get("dependency_scope", "") or ""
+                    ),
+                    "dependency_ids": list(
+                        agenda.get("dependency_ids", []) or []
+                    ),
+                    "faithfulness_status": str(
+                        agenda.get("faithfulness_status", "") or ""
+                    ),
+                    "faithfulness_repair_status": str(
+                        agenda.get("faithfulness_repair_status", "") or ""
+                    ),
+                    "block_verification": dict(
+                        agenda.get("block_verification", {})
+                        if isinstance(agenda.get("block_verification", {}), Mapping)
+                        else {}
+                    ),
+                    "bv_calibration": dict(
+                        agenda.get("bv_calibration", {})
+                        if isinstance(agenda.get("bv_calibration", {}), Mapping)
+                        else {}
+                    ),
                     "semantic_primitive_id": str(
                         agenda.get("semantic_primitive_id", "") or ""
                     ),
@@ -55316,6 +55452,37 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         ),
                         "source_block_conclusion": str(
                             agenda.get("source_block_conclusion", "") or ""
+                        ),
+                        "block_depth": _pseudo_formal_safe_block_depth(
+                            agenda.get("block_depth")
+                        ),
+                        "dependency_scope": str(
+                            agenda.get("dependency_scope", "") or ""
+                        ),
+                        "dependency_ids": list(
+                            agenda.get("dependency_ids", []) or []
+                        ),
+                        "faithfulness_status": str(
+                            agenda.get("faithfulness_status", "") or ""
+                        ),
+                        "faithfulness_repair_status": str(
+                            agenda.get("faithfulness_repair_status", "") or ""
+                        ),
+                        "block_verification": dict(
+                            agenda.get("block_verification", {})
+                            if isinstance(
+                                agenda.get("block_verification", {}),
+                                Mapping,
+                            )
+                            else {}
+                        ),
+                        "bv_calibration": dict(
+                            agenda.get("bv_calibration", {})
+                            if isinstance(
+                                agenda.get("bv_calibration", {}),
+                                Mapping,
+                            )
+                            else {}
                         ),
                         "source_anchors": list(
                             agenda.get("source_anchors", []) or []
@@ -55367,6 +55534,14 @@ def _pseudo_formal_next_action_target_ids(
         str(row.get("row_id", "") or row.get("work_order_id", "") or ""),
     ]
     return list(dict.fromkeys(value for value in values if value.strip()))
+
+
+def _pseudo_formal_safe_block_depth(value: Any) -> int:
+    try:
+        depth = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH, depth))
 
 
 def _pseudo_formal_next_action_owner(target_lane: str) -> str:
