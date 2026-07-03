@@ -621,6 +621,29 @@ def _runtime_attached_component_gate_source(
     return source
 
 
+def _runtime_attached_component_field(
+    payload: Mapping[str, Any],
+    nested_key: str,
+    field: str,
+    default: Any = None,
+) -> Any:
+    flat_key = f"{nested_key}_{field}"
+    if flat_key in payload:
+        return payload[flat_key]
+    nested = payload.get(nested_key, {})
+    if isinstance(nested, Mapping) and field in nested:
+        return nested.get(field, default)
+    return default
+
+
+def _runtime_attached_component_int(
+    payload: Mapping[str, Any],
+    nested_key: str,
+    field: str,
+) -> int:
+    return int(_runtime_attached_component_field(payload, nested_key, field, 0) or 0)
+
+
 def _runtime_attached_formalizer_prior_feedback_int(
     payload: Mapping[str, Any],
     field: str,
@@ -1947,11 +1970,48 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     attached_coding_live_gate = bool(
         attached_coding_summary["capability_evidence_ok"]
     )
-    attached_algorithm_repair_sequences = _runtime_manifest_int(
+    attached_algorithm_repair_sequences = _runtime_attached_component_int(
+        payload,
+        "internal_coding_agent_generated_code_repair_eval",
+        "algorithm_repair_sequences",
+    )
+    attached_simulation_repair_sequences = _runtime_attached_component_int(
+        payload,
+        "internal_coding_agent_generated_code_repair_eval",
+        "simulation_repair_sequences",
+    )
+    attached_algorithm_live_repair_sequences = _runtime_attached_component_int(
+        payload,
+        "internal_coding_agent_generated_code_repair_eval",
+        "algorithm_live_repair_sequences",
+    )
+    attached_simulation_live_repair_sequences = _runtime_attached_component_int(
+        payload,
+        "internal_coding_agent_generated_code_repair_eval",
+        "simulation_live_repair_sequences",
+    )
+    attached_coding_autonomous_live_repair_observed = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_coding_agent_generated_code_repair_eval",
+            "autonomous_live_failed_then_passed_repair_observed",
+            False,
+        )
+    )
+    attached_coding_capability_evidence_scope = str(
+        _runtime_attached_component_field(
+            payload,
+            "internal_coding_agent_generated_code_repair_eval",
+            "capability_evidence_scope",
+            "",
+        )
+        or ""
+    )
+    attached_coding_legacy_algorithm_repair_sequences = _runtime_manifest_int(
         payload,
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
     )
-    attached_simulation_repair_sequences = _runtime_manifest_int(
+    attached_coding_legacy_simulation_repair_sequences = _runtime_manifest_int(
         payload,
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
     )
@@ -2001,10 +2061,18 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         "internal_formalizer_lean_candidate_repair_eval_repair_sequences",
     )
     attached_coding_algorithm_calibration = (
-        attached_coding_live_gate and attached_algorithm_repair_sequences > 0
+        attached_coding_live_gate
+        and attached_algorithm_live_repair_sequences > 0
+        and attached_coding_autonomous_live_repair_observed
+        and attached_coding_capability_evidence_scope
+        == "live_attempt_failed_then_passed"
     )
     attached_coding_simulation_calibration = (
-        attached_coding_live_gate and attached_simulation_repair_sequences > 0
+        attached_coding_live_gate
+        and attached_simulation_live_repair_sequences > 0
+        and attached_coding_autonomous_live_repair_observed
+        and attached_coding_capability_evidence_scope
+        == "live_attempt_failed_then_passed"
     )
     attached_coding_repair_calibration = (
         attached_coding_algorithm_calibration
@@ -2426,8 +2494,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "scope": "component_calibration",
                 "passed": attached_coding_repair_calibration,
                 "count": (
-                    attached_algorithm_repair_sequences
-                    + attached_simulation_repair_sequences
+                    attached_algorithm_live_repair_sequences
+                    + attached_simulation_live_repair_sequences
                 ),
                 "evidence": (
                     "attached_live_coding_repair_gate="
@@ -2438,16 +2506,28 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                     f"{attached_coding_summary['backend_provider_name']}; "
                     "attached_algorithm_repair_sequences="
                     f"{attached_algorithm_repair_sequences}; "
+                    "attached_algorithm_live_repair_sequences="
+                    f"{attached_algorithm_live_repair_sequences}; "
                     "attached_simulation_repair_sequences="
-                    f"{attached_simulation_repair_sequences}"
+                    f"{attached_simulation_repair_sequences}; "
+                    "attached_simulation_live_repair_sequences="
+                    f"{attached_simulation_live_repair_sequences}; "
+                    "attached_autonomous_live_failed_then_passed="
+                    f"{attached_coding_autonomous_live_repair_observed}; "
+                    "attached_capability_evidence_scope="
+                    f"{attached_coding_capability_evidence_scope}; "
+                    "attached_legacy_flat_algorithm_repair_sequences="
+                    f"{attached_coding_legacy_algorithm_repair_sequences}; "
+                    "attached_legacy_flat_simulation_repair_sequences="
+                    f"{attached_coding_legacy_simulation_repair_sequences}"
                 ),
                 "blocker": (
                     ""
                     if attached_coding_repair_calibration
                     else (
                         "attached live coding-agent component calibration did "
-                        "not show both algorithm and simulation fail-then-pass "
-                        "generated-code repair"
+                        "not show both algorithm and simulation live "
+                        "fail-then-pass generated-code repair"
                     )
                 ),
             },

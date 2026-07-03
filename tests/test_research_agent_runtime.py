@@ -59328,6 +59328,27 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows["generated_simulation_code_executed_locally"]["passed"] is False
     assert rows[
         "coding_agent_generated_code_repair_component_calibration"
+    ]["passed"] is False
+    assert "attached_algorithm_live_repair_sequences=0" in rows[
+        "coding_agent_generated_code_repair_component_calibration"
+    ]["evidence"]
+
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+    ] = True
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+    ] = "live_attempt_failed_then_passed"
+    table = _runtime_coding_agent_capability_table(payload)
+    rows = {row["capability_id"]: row for row in table["rows"]}
+    assert rows[
+        "coding_agent_generated_code_repair_component_calibration"
     ]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
@@ -59729,6 +59750,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences": 1,
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences": 1,
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed": True,
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope": "live_attempt_failed_then_passed",
         "internal_formalizer_lean_candidate_repair_eval_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
@@ -60038,6 +60063,18 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload[
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
     ] = 0
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+    ] = 0
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+    ] = 0
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+    ] = False
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+    ] = ""
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
@@ -60097,6 +60134,27 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "attached component gates" in rows[
         "generated_simulation_repair_loop_observed"
     ]["blocker"]
+    assert rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["passed"] is False
+    assert "attached_algorithm_live_repair_sequences=0" in rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["evidence"]
+
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+    ] = True
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+    ] = "live_attempt_failed_then_passed"
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert rows[
         "coding_agent_generated_code_repair_component_gate"
     ]["passed"] is True
@@ -61571,6 +61629,58 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
     )
+
+
+def test_runtime_capability_scorecard_requires_live_attached_coding_repair_sequences() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "internal_coding_agent_generated_code_repair_eval_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": "anthropic",
+        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": [
+            "anthropic"
+        ],
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
+        "internal_coding_agent_generated_code_repair_eval_live_generator": True,
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
+        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
+        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["passed"] is False
+    assert "attached_algorithm_live_repair_sequences=0" in rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["evidence"]
+    assert scorecard["component_calibration"][
+        "attached_coding_repair_ready"
+    ] is False
+
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+    ] = 1
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+    ] = True
+    payload[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+    ] = "live_attempt_failed_then_passed"
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "coding_agent_generated_code_repair_component_gate"
+    ]["passed"] is True
+    assert scorecard["component_calibration"][
+        "attached_coding_repair_ready"
+    ] is True
 
 
 def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
@@ -66982,6 +67092,30 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest[
         "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
     ] is False
+    assert (
+        manifest[
+            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+        ]
+        == "live_attempt_failed_then_passed"
+    )
     assert manifest[
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
     ] is True

@@ -10767,8 +10767,20 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
         "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
     ] = int(attached["algorithm_repair_sequences"])
     manifest[
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
+    ] = int(attached["algorithm_live_repair_sequences"])
+    manifest[
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
     ] = int(attached["simulation_repair_sequences"])
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
+    ] = int(attached["simulation_live_repair_sequences"])
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
+    ] = bool(attached["autonomous_live_failed_then_passed_repair_observed"])
+    manifest[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
+    ] = str(attached["capability_evidence_scope"])
     manifest.setdefault("artifacts", {})[
         "internal_coding_agent_generated_code_repair_eval_manifest_json"
     ] = str(attached["manifest_path"])

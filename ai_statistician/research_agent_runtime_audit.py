@@ -4560,9 +4560,33 @@ def audit_research_agent_runtime(
             attached_coding_agent_repair_eval.get("algorithm_repair_sequences", 0)
             or 0
         ),
+        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences": int(
+            attached_coding_agent_repair_eval.get(
+                "algorithm_live_repair_sequences",
+                0,
+            )
+            or 0
+        ),
         "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": int(
             attached_coding_agent_repair_eval.get("simulation_repair_sequences", 0)
             or 0
+        ),
+        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences": int(
+            attached_coding_agent_repair_eval.get(
+                "simulation_live_repair_sequences",
+                0,
+            )
+            or 0
+        ),
+        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed": bool(
+            attached_coding_agent_repair_eval.get(
+                "autonomous_live_failed_then_passed_repair_observed",
+                False,
+            )
+        ),
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope": str(
+            attached_coding_agent_repair_eval.get("capability_evidence_scope", "")
+            or ""
         ),
         "internal_formalizer_lean_candidate_repair_eval_attached": bool(
             attached_formalizer_repair_eval
@@ -11110,24 +11134,40 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             "internal_coding_agent_generated_code_repair_eval",
         )
     )
+    attached_coding_algorithm_live_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_coding_simulation_live_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_coding_autonomous_live_repair_observed = bool(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
+            False,
+        )
+    )
+    attached_coding_capability_evidence_scope = str(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope",
+            "",
+        )
+        or ""
+    )
     attached_coding_repair_ready = (
         bool(attached_coding_summary["capability_evidence_ok"])
-        and int(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
-                0,
-            )
-            or 0
-        )
-        > 0
-        and int(
-            payload.get(
-                "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
-                0,
-            )
-            or 0
-        )
-        > 0
+        and attached_coding_algorithm_live_sequences > 0
+        and attached_coding_simulation_live_sequences > 0
+        and attached_coding_autonomous_live_repair_observed
+        and attached_coding_capability_evidence_scope
+        == "live_attempt_failed_then_passed"
     )
     integrated_formalizer_repair_sequences = int(
         payload.get(
@@ -11765,12 +11805,39 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_repair_eval_algorithm_live_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences",
+            0,
+        )
+        or 0
+    )
     attached_repair_eval_simulation_sequences = int(
         payload.get(
             "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
             0,
         )
         or 0
+    )
+    attached_repair_eval_simulation_live_sequences = int(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    attached_coding_autonomous_live_repair_observed = bool(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
+            False,
+        )
+    )
+    attached_coding_capability_evidence_scope = str(
+        payload.get(
+            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope",
+            "",
+        )
+        or ""
     )
     attached_coding_summary = _runtime_component_gate_summary(
         _runtime_attached_component_gate_source(
@@ -11780,8 +11847,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     attached_live_component_repair_gate_passed = (
         bool(attached_coding_summary["capability_evidence_ok"])
-        and attached_repair_eval_algorithm_sequences > 0
-        and attached_repair_eval_simulation_sequences > 0
+        and attached_repair_eval_algorithm_live_sequences > 0
+        and attached_repair_eval_simulation_live_sequences > 0
+        and attached_coding_autonomous_live_repair_observed
+        and attached_coding_capability_evidence_scope
+        == "live_attempt_failed_then_passed"
     )
     integrated_formalizer_candidate_checked = int(
         payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
@@ -14285,13 +14355,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{attached_coding_summary['backend_provider_name']} "
                 "attached_algorithm_repair_sequences="
                 f"{attached_repair_eval_algorithm_sequences} "
+                "attached_algorithm_live_repair_sequences="
+                f"{attached_repair_eval_algorithm_live_sequences} "
                 "attached_simulation_repair_sequences="
                 f"{attached_repair_eval_simulation_sequences}"
+                " attached_simulation_live_repair_sequences="
+                f"{attached_repair_eval_simulation_live_sequences} "
+                "attached_autonomous_live_failed_then_passed="
+                f"{attached_coding_autonomous_live_repair_observed} "
+                "attached_capability_evidence_scope="
+                f"{attached_coding_capability_evidence_scope}"
             ),
             (
                 "attached live combined coding-agent repair calibration did not "
                 "show both AlgorithmEngineer and SimulationEngineer fail-then-pass "
-                "generated-code repair evidence"
+                "live generated-code repair evidence"
             ),
             scope="component_calibration",
         ),
