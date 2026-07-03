@@ -11332,6 +11332,66 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_gap_planner_live_required_telemetry_keys = (
+        "n_runtime_formalization_gap_planner_live_route_planner_requested",
+        "n_runtime_formalization_gap_planner_live_route_planner_followups_required",
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations",
+        "n_runtime_formalization_gap_planner_live_route_planner_request_packets",
+        "n_runtime_formalization_gap_planner_live_route_planner_response_present",
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures",
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response",
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete",
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response",
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals",
+    )
+    runtime_gap_planner_live_route_revision_telemetry_key_options = (
+        ("n_runtime_target_prover_replay_route_revision_learning_rows",),
+        ("n_runtime_target_prover_replay_route_revision_agenda_rows",),
+        ("n_runtime_target_prover_replay_route_revision_generated_routing_rows",),
+        ("n_runtime_target_prover_replay_route_revision_proposal_ids",),
+        (
+            "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids",
+        ),
+        ("n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id",),
+        (
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_rows",
+            "n_runtime_target_prover_replay_route_revision_overlay_rows_seen",
+        ),
+        (
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_overlay_routes_with_revision",
+            "n_runtime_target_prover_replay_route_revision_overlay_routes_with_revision_seen",
+        ),
+        ("n_runtime_target_prover_replay_route_revision_overlay_manifests",),
+    )
+    runtime_gap_planner_live_missing_telemetry_keys: tuple[str, ...] = ()
+    if runtime_formal_gap_planner_handoff_count > 0:
+        runtime_gap_planner_live_missing_telemetry_keys = tuple(
+            key
+            for key in runtime_gap_planner_live_required_telemetry_keys
+            if key not in payload or payload.get(key) is None
+        )
+        if runtime_gap_planner_live_target_replay_route_revision_proposals > 0:
+            runtime_gap_planner_live_missing_telemetry_keys += tuple(
+                key_options[0]
+                for key_options in (
+                    runtime_gap_planner_live_route_revision_telemetry_key_options
+                )
+                if not any(
+                    key in payload and payload.get(key) is not None
+                    for key in key_options
+                )
+            )
+    runtime_gap_planner_live_explicit_telemetry_complete = (
+        len(runtime_gap_planner_live_missing_telemetry_keys) == 0
+    )
     runtime_gap_planner_live_target_replay_route_revision_feedback_complete = (
         runtime_gap_planner_live_target_replay_route_revision_proposals <= 0
         or (
@@ -11354,23 +11414,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     )
     runtime_gap_planner_live_contract_response_path_complete = (
-        runtime_gap_planner_live_response_contract_ok
+        runtime_gap_planner_live_response_present
+        >= runtime_gap_planner_live_request_packets
+        and runtime_gap_planner_live_response_contract_ok
         >= runtime_gap_planner_live_request_packets
         and runtime_gap_planner_live_responses_recorded > 0
     )
     runtime_gap_planner_live_route_revision_feedback_path_complete = (
         runtime_gap_planner_live_response_present > 0
         and runtime_gap_planner_live_target_replay_route_revision_proposals > 0
-        and (
-            runtime_gap_planner_live_route_revision_feedback_recorded > 0
-            or runtime_gap_planner_live_target_replay_route_revision_proposals > 0
-        )
+        and runtime_gap_planner_live_route_revision_feedback_recorded > 0
         and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
     )
     runtime_gap_planner_live_followthrough_complete = (
         runtime_formal_gap_planner_handoff_count <= 0
         or (
-            runtime_gap_planner_live_invocations > 0
+            runtime_gap_planner_live_explicit_telemetry_complete
+            and runtime_gap_planner_live_invocations > 0
             and runtime_gap_planner_live_request_packets > 0
             and runtime_gap_planner_live_provider_failures <= 0
             and runtime_gap_planner_live_awaiting_response <= 0
@@ -11383,6 +11443,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_gap_planner_live_target_replay_proof_responses > 0
             and runtime_gap_planner_live_target_replay_contract_ok
             >= runtime_gap_planner_live_target_replay_proof_items
+            and runtime_gap_planner_live_target_replay_awaiting <= 0
             and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
             and (
                 runtime_gap_planner_live_contract_response_path_complete
@@ -11957,6 +12018,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "handoffs="
                 f"{runtime_formal_gap_planner_handoff_count} "
+                "telemetry_present="
+                f"{int(runtime_gap_planner_live_explicit_telemetry_complete)} "
+                "missing_telemetry="
+                f"{runtime_gap_planner_live_missing_telemetry_keys} "
                 "requested="
                 f"{runtime_gap_planner_live_requests} "
                 "followups_required="

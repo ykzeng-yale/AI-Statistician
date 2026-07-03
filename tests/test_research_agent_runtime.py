@@ -5707,10 +5707,20 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
             "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_invocations": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_response_present": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_local_proof_state_responses": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_contract_ok": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": 0,
         }
     )
 
@@ -5739,6 +5749,7 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
             "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_invocations": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_response_present": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
         }
@@ -5773,6 +5784,38 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
         "formal_gap_planner_live_route_planner_followthrough"
     ]["passed"] is True
 
+    missing_telemetry_payload = dict(payload)
+    missing_telemetry_payload.pop(
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response"
+    )
+    scorecard = _runtime_capability_scorecard(missing_telemetry_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is False
+    assert "telemetry_present=0" in rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["evidence"]
+    assert (
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response"
+        in rows["formal_gap_planner_live_route_planner_followthrough"]["evidence"]
+    )
+
+    awaiting_refinement_payload = dict(payload)
+    awaiting_refinement_payload[
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(awaiting_refinement_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["passed"] is False
+    assert "target_replay_awaiting=1" in rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["evidence"]
+
     payload.update(
         {
             "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": 2,
@@ -5800,6 +5843,7 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
             "n_runtime_target_prover_replay_route_revision_generated_routing_rows": 2,
             "n_runtime_target_prover_replay_route_revision_proposal_ids": 2,
             "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": 2,
+            "n_runtime_target_prover_replay_route_revision_rows_missing_proposal_id": 0,
             "runtime_target_prover_replay_route_revision_proposal_ids": [
                 "proposal:a",
                 "proposal:b",
@@ -5983,11 +6027,13 @@ def test_runtime_audit_recomputes_target_prover_replay_route_revision_feedback(
         "n_runtime_formalization_gap_planner_live_route_planner_followups_required": 0,
         "n_runtime_formalization_gap_planner_live_route_planner_invocations": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_request_packets": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_response_present": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 0,
         "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": 0,
         "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 0,
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_attempts": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": 1,
         "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_proof_state_feedback_items": 2,
