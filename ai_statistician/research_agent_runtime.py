@@ -139,6 +139,7 @@ from .proof_state_feedback import (
 from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
@@ -150,6 +151,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
     pseudo_formal_block_work_order_rows,
 )
 from .research_architect import (
@@ -43857,6 +43859,16 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
         feedback_rows.append(
             {
                 "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+                "pseudo_formal_method_contract_id": str(
+                    row.get("pseudo_formal_method_contract_id", "")
+                    or input_summary.get("pseudo_formal_method_contract_id", "")
+                    or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_pipeline_stage": str(
+                    row.get("pseudo_formal_pipeline_stage", "")
+                    or input_summary.get("pseudo_formal_pipeline_stage", "")
+                    or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                ),
                 "question_id": str(
                     row.get("question_id", "")
                     or input_summary.get("question_id", "")
@@ -46111,6 +46123,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
     pseudo_formal_block_routing_contract = (
         {
             "contract_kind": "pseudo_formal_block_routing",
+            "method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+            "pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
             "target_lanes": list(pseudo_formal_block_routing_target_lanes),
             "target_ids": list(pseudo_formal_block_routing_target_ids),
             "work_order_ids": list(pseudo_formal_block_routing_work_order_ids),
@@ -46847,6 +46861,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "pseudo_formal_block_routing_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),
+                "pseudo_formal_method_contract_id": str(
+                    row.get("pseudo_formal_method_contract_id", "")
+                    or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_pipeline_stage": str(
+                    row.get("pseudo_formal_pipeline_stage", "")
+                    or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                ),
                 "source_pseudo_formal_work_order_id": str(
                     row.get("source_pseudo_formal_work_order_id", "") or ""
                 ),
@@ -55155,6 +55177,18 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "pseudo_formal_row_kind": str(
                     work_order.get("row_kind", "") or ""
                 ),
+                "pseudo_formal_method_contract_id": str(
+                    work_order.get("pseudo_formal_method_contract_id", "")
+                    or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_pipeline_stage": str(
+                    work_order.get("pseudo_formal_pipeline_stage", "")
+                    or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                ),
+                "pseudo_formal_upstream_pipeline_stages": list(
+                    work_order.get("pseudo_formal_upstream_pipeline_stages", [])
+                    or []
+                ),
                 "target_lane": target_lane,
                 "reason": str(work_order.get("reason", "") or ""),
                 "runtime_queue_status": str(
@@ -55207,6 +55241,14 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "question_id": str(agenda.get("question_id", "") or ""),
                     "question_title": str(agenda.get("question_title", "") or ""),
                     "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+                    "pseudo_formal_method_contract_id": str(
+                        agenda.get("pseudo_formal_method_contract_id", "")
+                        or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                    ),
+                    "pseudo_formal_pipeline_stage": str(
+                        agenda.get("pseudo_formal_pipeline_stage", "")
+                        or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                    ),
                     "target_theorem_name": target_theorem_name,
                     "target_ids": target_ids,
                     "next_owner_subsystem": str(
@@ -55248,6 +55290,14 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     ),
                     "input_summary": {
                         "trigger": str(agenda.get("trigger", "") or ""),
+                        "pseudo_formal_method_contract_id": str(
+                            agenda.get("pseudo_formal_method_contract_id", "")
+                            or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                        ),
+                        "pseudo_formal_pipeline_stage": str(
+                            agenda.get("pseudo_formal_pipeline_stage", "")
+                            or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                        ),
                         "agenda_id": str(agenda.get("id", "") or ""),
                         "work_order_id": work_order_id,
                         "row_kind": str(

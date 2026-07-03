@@ -99,12 +99,14 @@ from ai_statistician.formalizer_repair_policy import (
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
@@ -4204,6 +4206,10 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
         "action": "materialize block b_rank as a concrete Lean candidate",
         "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
         "target_ids": [
             "split_conformal_finite_sample_coverage",
             "b_rank_uniform",
@@ -4233,6 +4239,10 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "schema_version": 1,
         "artifact_kind": "RuntimeLearningRow",
         "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
         "next_owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
         "target_behavior": "consume compact PF/BV block work order",
         "acceptance_gate": "local Lean/AXLE checks the concrete block candidate",
@@ -4242,6 +4252,10 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "proof_evidence_boundary": runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
         "input_summary": {
             "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
             "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
             "work_order_id": "pseudo_formal_work_order:rank",
             "source_block_id": "b_rank_uniform",
@@ -4272,6 +4286,12 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     assert summary["n_runtime_pseudo_formal_block_routing_agenda_rows"] == 1
     assert summary["n_runtime_pseudo_formal_block_routing_learning_rows"] == 1
     assert summary["n_runtime_pseudo_formal_block_routing_pending_memory_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+        ]
+        == 0
+    )
     assert summary["runtime_pseudo_formal_block_routing_contract_issues"] == []
     assert summary["runtime_pseudo_formal_block_routing_target_lanes"] == {
         PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: 3
@@ -4330,6 +4350,12 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     assert broken_summary[
         "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors"
     ] == 1
+    assert (
+        broken_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+        ]
+        == 1
+    )
     assert broken_summary[
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
     ] == 1
@@ -21344,6 +21370,12 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["proof_evidence_status"] for row in rows} == {
         "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
     }
+    assert {row["pseudo_formal_method_contract_id"] for row in rows} == {
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    }
+    assert {row["pseudo_formal_pipeline_stage"] for row in rows} == {
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    }
     assert all("not theorem proof evidence" in row["proof_evidence_boundary"] for row in rows)
 
     result = {
@@ -21384,6 +21416,12 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
         "not theorem proof evidence" in row["proof_evidence_boundary"]
         for row in exported_rows
     )
+    assert {row["pseudo_formal_method_contract_id"] for row in exported_rows} == {
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    }
+    assert {row["pseudo_formal_pipeline_stage"] for row in exported_rows} == {
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    }
 
     agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
     learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
@@ -21403,6 +21441,12 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     )
     assert {row["proof_evidence_status"] for row in agenda_rows} == {
         "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
+    assert {row["pseudo_formal_method_contract_id"] for row in agenda_rows} == {
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    }
+    assert {row["pseudo_formal_pipeline_stage"] for row in agenda_rows} == {
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
     assert any(
         row["owner_subsystem"] == "Formalizer/ProofEngineer/LeanProver"
@@ -21430,6 +21474,12 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     )
     assert {row["proof_evidence_status"] for row in learning_rows} == {
         "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
+    assert {row["pseudo_formal_method_contract_id"] for row in learning_rows} == {
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    }
+    assert {row["pseudo_formal_pipeline_stage"] for row in learning_rows} == {
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
 
 
@@ -21877,6 +21927,10 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             "artifact_kind": "RuntimeLearningRow",
             "question_id": question.id,
             "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
             "target_theorem_name": "split_conformal_finite_sample_coverage",
             "target_ids": [
                 "split_conformal_finite_sample_coverage",
@@ -21912,6 +21966,10 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             ),
             "input_summary": {
                 "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+                "pseudo_formal_method_contract_id": (
+                    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
                 "agenda_id": "pseudo_formal:formal_targets:rank_uniform",
                 "work_order_id": "pseudo_formal_work_order:rank_uniform",
                 "row_kind": "pseudo_formal_lean_candidate_seed",
@@ -21970,6 +22028,13 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert len(memory["rows"]) == 1
     retained = memory["rows"][0]
     assert retained["learning_task"] == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    assert (
+        retained["pseudo_formal_method_contract_id"]
+        == PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert retained["pseudo_formal_pipeline_stage"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    )
     assert runtime_module._runtime_learning_memory_should_pin_context_row(retained)
     assert (
         runtime_module._runtime_learning_memory_context_pin_priority(retained)
@@ -21997,12 +22062,24 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert summary["pseudo_formal_block_routing_contract"][
         "proof_evidence_status"
     ] == "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    assert summary["pseudo_formal_block_routing_contract"]["method_contract_id"] == (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert summary["pseudo_formal_block_routing_contract"]["pipeline_stage"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    )
     pf_memory = summary["pseudo_formal_block_routing_memory"]
     assert pf_memory[0]["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:rank_uniform"
     )
     assert pf_memory[0]["source_block_id"] == "b_rank_uniform"
     assert pf_memory[0]["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
+    assert pf_memory[0]["pseudo_formal_method_contract_id"] == (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert pf_memory[0]["pseudo_formal_pipeline_stage"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    )
     assert pf_memory[0]["source_anchors"][0]["id"] == "equation:rank_uniformity"
 
     prompt = build_formalizer_prompt(
@@ -22020,6 +22097,8 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert "pseudo_formal_block_routing_memory" in prompt
     assert "pseudo_formalization_contract" in prompt
     assert "pseudo_formal_proof_packets" in prompt
+    assert "urn:ai-statistician:contracts:pseudo-formal-pf-bv:1" in prompt
+    assert "parallel_pessimistic_aggregation" in prompt
     assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
     assert "b_rank_uniform" in prompt
     assert "equation:rank_uniformity" in prompt

@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMALIZATION_SCHEMA_ID,
+    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_packet_json_schema,
+    pseudo_formal_verification_method_contract,
     pseudo_formal_work_order_row_json_schema,
     pseudo_formalizer_output_contract,
     validate_pseudo_formal_packet,
@@ -96,6 +99,14 @@ def test_pseudo_formal_packet_normalizes_and_routes_non_kernel_work_orders() -> 
     assert normalized["source_theorem_kernel_verified"] is False
     assert normalized["promotion_gate"] == PSEUDO_FORMALIZATION_PROMOTION_GATE
     assert validate_pseudo_formal_packet(normalized) == []
+    assert (
+        normalized["pseudo_formal_method_contract_id"]
+        == PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+        in normalized["pseudo_formal_pipeline_stages"]
+    )
 
     rows = pseudo_formal_block_work_order_rows(normalized)
     row_kinds = {row["row_kind"] for row in rows}
@@ -111,6 +122,12 @@ def test_pseudo_formal_packet_normalizes_and_routes_non_kernel_work_orders() -> 
     }
     assert {row["promotion_gate"] for row in rows} == {
         PSEUDO_FORMALIZATION_PROMOTION_GATE
+    }
+    assert {row["pseudo_formal_method_contract_id"] for row in rows} == {
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    }
+    assert {row["pseudo_formal_pipeline_stage"] for row in rows} == {
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
 
 
@@ -150,6 +167,7 @@ def test_pseudo_formal_packet_rejects_kernel_claims_and_bad_dag() -> None:
     errors = validate_pseudo_formal_packet(raw)
 
     assert "proof_evidence_status must be pseudo-formal non-proof" in errors
+    assert "pseudo_formal_method_contract_id must match PF+BV contract" in errors
     assert "kernel_verified must be false for pseudo-formal packets" in errors
     assert (
         "source_theorem_kernel_verified must be false for pseudo-formal packets"
@@ -186,9 +204,25 @@ def test_pseudo_formal_packet_rejects_kernel_claims_and_bad_dag() -> None:
 
 def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> None:
     contract = pseudo_formalizer_output_contract()
+    method_contract = pseudo_formal_verification_method_contract()
     schema = pseudo_formal_packet_json_schema()
 
     assert contract["schema_id"] == PSEUDO_FORMALIZATION_SCHEMA_ID
+    assert contract["verification_method_contract"]["contract_id"] == (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert method_contract["source_basis"]["arxiv_id"] == "2605.20531"
+    assert {
+        stage["stage_id"] for stage in method_contract["pipeline_stages"]
+    } >= {
+        "translate_to_pseudo_formal",
+        "faithfulness_check_and_repair",
+        "independent_block_verification",
+        "calibrate_block_reports",
+        "parallel_pessimistic_aggregation",
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+    }
+    assert "pessimistic" in method_contract["parallel_aggregation_rule"]
     assert contract["proof_evidence_status"] == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     assert contract["promotion_gate"] == PSEUDO_FORMALIZATION_PROMOTION_GATE
     assert "source_anchors" in contract["block_contract"]
@@ -207,12 +241,19 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     assert schema["properties"]["kernel_verified"]["const"] is False
     assert schema["properties"]["source_theorem_kernel_verified"]["const"] is False
     assert (
+        schema["properties"]["pseudo_formal_method_contract_id"]["const"]
+        == PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert (
         schema["properties"]["proof_evidence_status"]["const"]
         == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     )
     work_order_schema = pseudo_formal_work_order_row_json_schema()
     assert set(work_order_schema["properties"]["target_lane"]["enum"]) == set(
         PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES
+    )
+    assert work_order_schema["properties"]["pseudo_formal_pipeline_stage"]["const"] == (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     )
 
 

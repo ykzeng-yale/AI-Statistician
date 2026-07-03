@@ -18,11 +18,13 @@ from .model_backend import (
 )
 from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
@@ -4002,6 +4004,11 @@ def audit_research_agent_runtime(
         "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": int(
             runtime_pseudo_formal_block_routing_contract_summary[
                 "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
             ]
         ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": int(
@@ -11094,6 +11101,7 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
     missing_target_identity = 0
     missing_routing = 0
     missing_queue_status = 0
+    missing_method_lineage = 0
     missing_or_wrong_nonproof_boundary = 0
     issues: list[dict[str, Any]] = []
 
@@ -11144,6 +11152,14 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             if any(
                 field in missing_fields
                 for field in (
+                    "pseudo_formal_method_contract_id",
+                    "pseudo_formal_pipeline_stage",
+                )
+            ):
+                missing_method_lineage += 1
+            if any(
+                field in missing_fields
+                for field in (
                     "proof_evidence_status_not_pseudo_formal_boundary",
                     "proof_evidence_boundary_not_pseudo_formal_boundary",
                     "kernel_verified_must_be_false",
@@ -11179,6 +11195,7 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         and missing_target_identity == 0
         and missing_routing == 0
         and missing_queue_status == 0
+        and missing_method_lineage == 0
         and missing_or_wrong_nonproof_boundary == 0
     )
     return {
@@ -11214,6 +11231,9 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": (
             missing_queue_status
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": (
+            missing_method_lineage
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": (
             missing_or_wrong_nonproof_boundary
         ),
@@ -11235,8 +11255,8 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             "Pseudo-formal/block-verification routing rows are decomposition "
             "and repair-planning memory only. They must preserve lane, source "
             "block, source anchors, work-order identity, queue status, and the "
-            "pseudo-formal non-proof boundary before AgentRuntime reuses them "
-            "as Formalizer/RAG/source-to-bridge work."
+            "PF+BV method lineage plus pseudo-formal non-proof boundary before "
+            "AgentRuntime reuses them as Formalizer/RAG/source-to-bridge work."
         ),
     }
 
@@ -11292,6 +11312,14 @@ def _runtime_pseudo_formal_block_routing_missing_fields(
         missing.append("acceptance_gate")
     if not _runtime_route_row_field(row, "runtime_queue_status"):
         missing.append("runtime_queue_status")
+    if _runtime_route_row_field(row, "pseudo_formal_method_contract_id") != (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    ):
+        missing.append("pseudo_formal_method_contract_id")
+    if _runtime_route_row_field(row, "pseudo_formal_pipeline_stage") != (
+        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+    ):
+        missing.append("pseudo_formal_pipeline_stage")
     if _runtime_route_row_field(row, "proof_evidence_status") != (
         PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     ):
@@ -15601,6 +15629,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_routing')} "
                 "missing_queue="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_queue_status')} "
+                "missing_method_lineage="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage')} "
                 "bad_boundary="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary')} "
                 "lanes="
@@ -15624,14 +15654,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "memory row carries target_lane, source block id, source "
                     "anchors, source_pseudo_formal_work_order_id or equivalent "
                     "work_order_id, target identity, runtime_queue_status, "
-                    "owner/action/acceptance gate, and the pseudo-formal "
+                    "owner/action/acceptance gate, PF+BV method contract id, "
+                    "PF+BV pipeline stage, and the pseudo-formal "
                     "not-proof-evidence boundary."
                 ),
                 success_metric=(
                     "runtime_pseudo_formal_block_routing_contract_complete=true "
                     "with empty issues and zero missing/invalid lane, work order, "
                     "source block, source anchor, target identity, routing, "
-                    "queue status, or non-proof boundary rows"
+                    "queue status, method-lineage, or non-proof boundary rows"
                 ),
             ),
         ),
@@ -17565,6 +17596,7 @@ def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
         "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity",
         "n_runtime_pseudo_formal_block_routing_rows_missing_routing",
         "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
     )
     telemetry_keys = (

@@ -26,6 +26,64 @@ PSEUDO_FORMALIZATION_PROOF_BOUNDARY = (
     "proof evidence. Source theorem proof requires target-prover kernel replay."
 )
 PSEUDO_FORMALIZATION_PROMOTION_GATE = "requires_target_prover_kernel_replay"
+PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID = (
+    "urn:ai-statistician:contracts:pseudo-formal-pf-bv:1"
+)
+PSEUDO_FORMAL_VERIFICATION_METHOD_NAME = (
+    "pseudo_formalization_plus_block_verification"
+)
+PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE = "route_pseudo_formal_block_residuals"
+PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES = (
+    {
+        "stage_id": "translate_to_pseudo_formal",
+        "owner": "Formalizer/ProofEngineer",
+        "acceptance_gate": (
+            "source proof is decomposed into bounded blocks with explicit "
+            "premises, conclusions, dependency ids, scope context, and source anchors"
+        ),
+    },
+    {
+        "stage_id": "faithfulness_check_and_repair",
+        "owner": "Formalizer/Referee",
+        "acceptance_gate": (
+            "each block is checked against the source artifact for strengthened, "
+            "weakened, omitted, added, notation-drift, or scope-drift content"
+        ),
+    },
+    {
+        "stage_id": "independent_block_verification",
+        "owner": "BlockVerifier",
+        "acceptance_gate": (
+            "each block is verified using only its premises, inherited scope, "
+            "declared dependencies, conclusion, and local proof text"
+        ),
+    },
+    {
+        "stage_id": "calibrate_block_reports",
+        "owner": "CalibrationReferee",
+        "acceptance_gate": (
+            "block-level objections are aggregated under an explicit strictness "
+            "threshold and separated from rewrite artifacts"
+        ),
+    },
+    {
+        "stage_id": "parallel_pessimistic_aggregation",
+        "owner": "AgentRuntime",
+        "acceptance_gate": (
+            "independent rollouts are combined pessimistically: a proof-level "
+            "acceptance requires every rollout to accept, while error-finding "
+            "uses unioned and deduplicated flagged locations"
+        ),
+    },
+    {
+        "stage_id": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "owner": "AgentRuntime",
+        "acceptance_gate": (
+            "residual blocks become lane-specific work orders for Lean/RAG/"
+            "source-to-bridge/semantic-definition/formal-gap follow-up"
+        ),
+    },
+)
 PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK = "pseudo_formal_block_routing_feedback"
 PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER = "PSEUDO_FORMAL_WORK_ORDER_READY"
 PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME = "pseudo_formal_work_orders_from_formalizer"
@@ -96,11 +154,47 @@ VALID_LEAN_FEASIBILITY = (
 )
 
 
+def pseudo_formal_verification_method_contract() -> dict[str, Any]:
+    return {
+        "contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+        "method_name": PSEUDO_FORMAL_VERIFICATION_METHOD_NAME,
+        "source_basis": {
+            "paper_title": "Pseudo-Formalization for Automatic Proof Verification",
+            "arxiv_id": "2605.20531",
+            "method_short_name": "PF+BV",
+        },
+        "pipeline_stages": deepcopy(PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES),
+        "block_verification_scope": (
+            "verify each pseudo-formal block independently against its explicit "
+            "premises, inherited scope, declared dependencies, conclusion, and proof"
+        ),
+        "calibration_rule": (
+            "aggregate block verifier reports under an explicit strictness "
+            "threshold; distinguish source-proof errors from rewrite artifacts"
+        ),
+        "parallel_aggregation_rule": (
+            "use independent stochastic rollouts with pessimistic proof acceptance "
+            "and union/deduplication of flagged error locations for error finding"
+        ),
+        "row_lineage_required": [
+            "pseudo_formal_method_contract_id",
+            "pseudo_formal_pipeline_stage",
+            "source_pseudo_formal_work_order_id",
+            "source_block_id",
+            "source_anchors",
+        ],
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
+        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    }
+
+
 def pseudo_formalizer_output_contract() -> dict[str, Any]:
     return {
         "schema_id": PSEUDO_FORMALIZATION_SCHEMA_ID,
         "schema_version": PSEUDO_FORMALIZATION_SCHEMA_VERSION,
         "component_name": PSEUDO_FORMALIZATION_COMPONENT,
+        "verification_method_contract": pseudo_formal_verification_method_contract(),
         "packet_fields": {
             "theorem_id": "source theorem or theorem-card id",
             "source_artifact_id": "paper/proof/theory packet/source theorem artifact id",
@@ -148,6 +242,9 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
     return {
         "output_key": "pseudo_formal_proof_packets",
         "schema_id": PSEUDO_FORMALIZATION_SCHEMA_ID,
+        "method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+        "method_name": PSEUDO_FORMAL_VERIFICATION_METHOD_NAME,
+        "verification_method_contract": pseudo_formal_verification_method_contract(),
         "required_packet_fields": ["theorem_id", "source_artifact_id", "blocks"],
         "required_block_fields": [
             "block_id",
@@ -182,6 +279,14 @@ def normalize_pseudo_formal_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     raw["schema_version"] = PSEUDO_FORMALIZATION_SCHEMA_VERSION
     raw["schema_id"] = PSEUDO_FORMALIZATION_SCHEMA_ID
     raw["component_name"] = PSEUDO_FORMALIZATION_COMPONENT
+    raw["pseudo_formal_method_contract_id"] = (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    raw["pseudo_formal_method_name"] = PSEUDO_FORMAL_VERIFICATION_METHOD_NAME
+    raw["pseudo_formal_pipeline_stages"] = [
+        str(stage["stage_id"])
+        for stage in PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES
+    ]
     raw["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     raw["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
     raw["kernel_verified"] = False
@@ -213,6 +318,10 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
         PSEUDO_FORMALIZATION_SCHEMA_ID,
     }:
         errors.append("schema_id must be pseudo-formal proof packet schema id")
+    if str(packet.get("pseudo_formal_method_contract_id", "") or "") != (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    ):
+        errors.append("pseudo_formal_method_contract_id must match PF+BV contract")
     if str(packet.get("proof_evidence_status", "") or "") != (
         PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
     ):
@@ -294,6 +403,8 @@ def pseudo_formal_packet_json_schema() -> dict[str, Any]:
             "schema_version",
             "packet_id",
             "blocks",
+            "pseudo_formal_method_contract_id",
+            "pseudo_formal_pipeline_stages",
             "proof_evidence_status",
             "kernel_verified",
             "source_theorem_kernel_verified",
@@ -309,6 +420,19 @@ def pseudo_formal_packet_json_schema() -> dict[str, Any]:
             "component_name": {
                 "type": "string",
                 "const": PSEUDO_FORMALIZATION_COMPONENT,
+            },
+            "pseudo_formal_method_contract_id": {
+                "type": "string",
+                "const": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+            },
+            "pseudo_formal_method_name": {
+                "type": "string",
+                "const": PSEUDO_FORMAL_VERIFICATION_METHOD_NAME,
+            },
+            "pseudo_formal_pipeline_stages": {
+                "type": "array",
+                "items": {"type": "string"},
+                "contains": {"const": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE},
             },
             "proof_evidence_status": {
                 "type": "string",
@@ -393,6 +517,8 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "source_block_id",
             "row_kind",
             "target_lane",
+            "pseudo_formal_method_contract_id",
+            "pseudo_formal_pipeline_stage",
             "proof_evidence_status",
             "kernel_verified",
             "promotion_gate",
@@ -405,6 +531,14 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "target_lane": {
                 "type": "string",
                 "enum": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            },
+            "pseudo_formal_method_contract_id": {
+                "type": "string",
+                "const": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+            },
+            "pseudo_formal_pipeline_stage": {
+                "type": "string",
+                "const": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
             },
             "proof_evidence_status": {
                 "type": "string",
@@ -571,6 +705,24 @@ def _work_order_row(
         "source_anchors": list(_as_mapping_rows(block.get("source_anchors"))),
         "row_kind": row_kind,
         "target_lane": target_lane,
+        "pseudo_formal_method_contract_id": str(
+            packet.get(
+                "pseudo_formal_method_contract_id",
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+            )
+            or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_method_name": str(
+            packet.get(
+                "pseudo_formal_method_name",
+                PSEUDO_FORMAL_VERIFICATION_METHOD_NAME,
+            )
+            or PSEUDO_FORMAL_VERIFICATION_METHOD_NAME
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "pseudo_formal_upstream_pipeline_stages": _string_list(
+            packet.get("pseudo_formal_pipeline_stages")
+        ),
         "reason": reason,
         "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
         "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
