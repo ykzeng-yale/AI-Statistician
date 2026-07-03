@@ -58844,6 +58844,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "runtime_research_path_control_propagated": True,
         "effective_formal_verification_policy": "required",
         "effective_recommended_research_path": "proof_first",
+        "runtime_research_path_execution_summary_source": (
+            "result_artifacts_recomputed"
+        ),
+        "runtime_research_path_manifest_stale": False,
         "runtime_research_path_execution_summary": {
             "path_control_propagated": True,
             "n_current_artifacts": 2,
@@ -58958,6 +58962,26 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+
+    manifest_fallback_payload = dict(payload)
+    manifest_fallback_payload[
+        "runtime_research_path_execution_summary_source"
+    ] = "manifest_fallback"
+    scorecard = _runtime_capability_scorecard(manifest_fallback_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["architect_research_path_control_propagated"]["passed"] is False
+    assert "summary_source=manifest_fallback" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
+
+    stale_manifest_payload = dict(payload)
+    stale_manifest_payload["runtime_research_path_manifest_stale"] = True
+    scorecard = _runtime_capability_scorecard(stale_manifest_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["architect_research_path_control_propagated"]["passed"] is False
+    assert "manifest_stale=True" in rows[
+        "architect_research_path_control_propagated"
+    ]["evidence"]
 
     static_component_payload = dict(payload)
     static_component_payload[

@@ -11709,6 +11709,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "propagated into every downstream runtime artifact."
                 ),
                 success_metric=(
+                    "runtime_research_path_execution_summary_source="
+                    "result_artifacts_recomputed, "
+                    "runtime_research_path_manifest_stale=false, "
                     "runtime_research_path_control_propagated=true with zero "
                     "current artifacts missing runtime_architect_control, zero "
                     "trace produced_artifact_ids missing from the blackboard, "
@@ -14157,6 +14160,10 @@ def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
     if not isinstance(summary, Mapping):
         return "missing"
     return (
+        "summary_source="
+        f"{payload.get('runtime_research_path_execution_summary_source')} "
+        "manifest_stale="
+        f"{payload.get('runtime_research_path_manifest_stale')} "
         "current="
         f"{summary.get('n_current_artifacts')} "
         "controlled="
@@ -14180,6 +14187,13 @@ def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
 
 def _runtime_research_path_control_scorecard_passed(payload: Mapping[str, Any]) -> bool:
     if payload.get("runtime_research_path_control_propagated") is not True:
+        return False
+    if (
+        payload.get("runtime_research_path_execution_summary_source")
+        != "result_artifacts_recomputed"
+    ):
+        return False
+    if payload.get("runtime_research_path_manifest_stale") is not False:
         return False
     summary = payload.get("runtime_research_path_execution_summary", {})
     if not isinstance(summary, Mapping):
