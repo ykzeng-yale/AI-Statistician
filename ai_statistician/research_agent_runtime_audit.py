@@ -11719,6 +11719,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    source_to_bridge_formalizer_work_orders = int(
+        payload.get(
+            "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_formalizer_bridge_required_value = payload.get(
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+    )
+    source_to_bridge_formalizer_bridge_required_present = (
+        source_to_bridge_formalizer_bridge_required_value is True
+        or source_to_bridge_formalizer_bridge_required_value is False
+    )
+    source_to_bridge_formalizer_bridge_required = (
+        source_to_bridge_formalizer_bridge_required_value is True
+    )
+    source_to_bridge_formalizer_bridge_ran = (
+        payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
+        is True
+    )
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -13969,21 +13990,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped",
-            (
-                payload.get(
-                    "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
-                )
-                is not True
-            )
+            source_to_bridge_formalizer_work_orders <= 0
             or (
-                payload.get(
-                    "source_to_bridge_premise_derivation_from_formalizer_bridge_ran"
-                )
-                is True
+                source_to_bridge_formalizer_bridge_required
+                and source_to_bridge_formalizer_bridge_ran
             ),
             (
                 "work_orders="
                 f"{payload.get('n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer')} "
+                "required_telemetry_present="
+                f"{int(source_to_bridge_formalizer_bridge_required_present)} "
                 "required="
                 f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_required')} "
                 "ran="

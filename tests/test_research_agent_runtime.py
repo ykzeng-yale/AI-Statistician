@@ -62346,6 +62346,52 @@ def test_runtime_capability_scorecard_flags_dropped_typechecked_review_recheck_e
 
 
 def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_derivation_handoff() -> None:
+    missing_required_payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": 1,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": False,
+    }
+    missing_required_scorecard = _runtime_capability_scorecard(
+        missing_required_payload
+    )
+    missing_required_rows = {
+        row["requirement_id"]: row
+        for row in missing_required_scorecard["rows"]
+    }
+
+    assert missing_required_rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]["passed"] is False
+    assert "required_telemetry_present=0" in missing_required_rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]["evidence"]
+
+    not_required_payload = dict(missing_required_payload)
+    not_required_payload[
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+    ] = False
+    not_required_scorecard = _runtime_capability_scorecard(not_required_payload)
+    not_required_rows = {
+        row["requirement_id"]: row for row in not_required_scorecard["rows"]
+    }
+
+    assert not_required_rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]["passed"] is False
+    assert "required=False" in not_required_rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]["evidence"]
+
     payload = {
         "runtime_evaluation_mode": "debug",
         "n_results": 1,
