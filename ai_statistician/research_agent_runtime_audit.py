@@ -7841,9 +7841,7 @@ def _runtime_architect_orchestration_executed(payload: Mapping[str, Any]) -> boo
 def _runtime_architect_context_propagated(payload: Mapping[str, Any]) -> bool:
     return bool(
         payload.get("runtime_research_path_control_propagated") is True
-        or payload.get("architect_coordinator_enabled") is True
         or payload.get("runtime_resumed_from_pending_task") is True
-        or str(payload.get("runtime_stage", "") or "").startswith("architect_")
         or str(payload.get("runtime_resume_policy", "") or "").startswith("direct_pending_task")
         or str(payload.get("architect_recommended_research_path", "") or "").strip()
         or str(

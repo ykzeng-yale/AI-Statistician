@@ -919,11 +919,18 @@ def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, An
         "n_runtime_architect_coordinator_traces",
     )
     architect_executed = n_architect_traces > 0
+    architect_registered = (
+        payload.get("runtime_architect_coordinator_registered") is True
+    )
     architect_context_propagated = (
         payload.get("runtime_research_path_control_propagated") is True
-        or payload.get("architect_coordinator_enabled") is True
-        or payload.get("runtime_architect_coordinator_registered") is True
-        or str(payload.get("runtime_stage", "") or "").startswith("architect_")
+        or payload.get("runtime_resumed_from_pending_task") is True
+        or str(payload.get("runtime_resume_policy", "") or "").startswith("direct_pending_task")
+        or str(payload.get("architect_recommended_research_path", "") or "").strip()
+        or str(
+            payload.get("architect_recommended_formal_verification_policy", "") or ""
+        ).strip()
+        or str(payload.get("architect_coordinator_proposal_id", "") or "").strip()
     )
     if architect_executed:
         return {
@@ -931,6 +938,19 @@ def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, An
             "count": max(1, n_architect_traces),
             "blocker": "",
             "boundary": "Architect control is orchestration evidence, not theorem proof.",
+        }
+    if architect_registered:
+        return {
+            "status": "REGISTERED_NOT_EXECUTED",
+            "count": 0,
+            "blocker": (
+                "ArchitectCoordinator was registered, but no "
+                "ArchitectCoordinator trace executed in this runtime budget."
+            ),
+            "boundary": (
+                "Registered Architect configuration is not live "
+                "ArchitectCoordinator orchestration evidence and not theorem proof."
+            ),
         }
     if architect_context_propagated:
         return {
