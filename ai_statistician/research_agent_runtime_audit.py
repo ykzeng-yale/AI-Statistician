@@ -6177,12 +6177,26 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows": int(
             manifest.get(
                 "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows",
                 0,
             )
             or 0
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_proof_evidence_status": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_proof_evidence_status",
+                "",
+            )
+            or ""
         ),
         "source_to_bridge_premise_derivation_from_formalizer_bridge_n_local_lean_skipped_not_evidence_eligible": int(
             manifest.get(
@@ -12242,6 +12256,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
         is True
     )
+    source_to_bridge_formalizer_bridge_rows = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_formalizer_bridge_kernel_verified = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_formalizer_bridge_learning_rows = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_formalizer_bridge_output_rows = (
+        source_to_bridge_formalizer_bridge_rows
+        + source_to_bridge_formalizer_bridge_kernel_verified
+        + source_to_bridge_formalizer_bridge_learning_rows
+    )
     source_to_bridge_adapter_premise_queue_rows = int(
         payload.get(
             "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
@@ -12273,6 +12313,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    source_to_bridge_premise_bridge_kernel_verified = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_premise_bridge_learning_rows = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_premise_bridge_output_rows = (
+        source_to_bridge_premise_bridge_rows
+        + source_to_bridge_premise_bridge_kernel_verified
+        + source_to_bridge_premise_bridge_learning_rows
     )
     source_to_bridge_premise_handoff_required = (
         source_to_bridge_premise_bridge_required
@@ -12659,6 +12718,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    adapter_instantiation_premise_bridge_kernel_verified = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    adapter_instantiation_premise_bridge_learning_rows = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_learning_rows",
+            0,
+        )
+        or 0
+    )
+    adapter_instantiation_premise_bridge_output_rows = (
+        adapter_instantiation_premise_bridge_rows
+        + adapter_instantiation_premise_bridge_kernel_verified
+        + adapter_instantiation_premise_bridge_learning_rows
     )
     adapter_instantiation_premise_handoff_required = (
         adapter_instantiation_premise_bridge_required
@@ -14839,6 +14917,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 adapter_instantiation_premise_bridge_required_present
                 and adapter_instantiation_premise_bridge_required
                 and adapter_instantiation_premise_bridge_ran
+                and adapter_instantiation_premise_bridge_output_rows > 0
             ),
             (
                 "adapter_instantiation_requested="
@@ -14860,18 +14939,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_skipped_reason')} "
                 "check_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_rows')} "
+                f"{adapter_instantiation_premise_bridge_rows} "
                 "kernel_verified="
-                f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_kernel_verified')} "
+                f"{adapter_instantiation_premise_bridge_kernel_verified} "
                 "learning_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_learning_rows')} "
+                f"{adapter_instantiation_premise_bridge_learning_rows} "
+                "output_rows="
+                f"{adapter_instantiation_premise_bridge_output_rows} "
                 "proof_status="
                 f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_proof_evidence_status')}"
             ),
             (
                 "source-to-bridge adapter instantiation emitted premise-"
                 "derivation work, but the same-run premise-derivation "
-                "ProofEngineer bridge did not explicitly consume that handoff"
+                "ProofEngineer bridge did not explicitly consume that handoff "
+                "with premise check, kernel, or learning rows"
             ),
         ),
         _scorecard_row(
@@ -14881,6 +14963,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 source_to_bridge_premise_bridge_required_present
                 and source_to_bridge_premise_bridge_required
                 and source_to_bridge_premise_bridge_ran
+                and source_to_bridge_premise_bridge_output_rows > 0
             ),
             (
                 "adapter_bridge_ran="
@@ -14904,18 +14987,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason')} "
                 "check_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_rows')} "
+                f"{source_to_bridge_premise_bridge_rows} "
                 "kernel_verified="
-                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified')} "
+                f"{source_to_bridge_premise_bridge_kernel_verified} "
                 "learning_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows')} "
+                f"{source_to_bridge_premise_bridge_learning_rows} "
+                "output_rows="
+                f"{source_to_bridge_premise_bridge_output_rows} "
                 "dominant_failure="
                 f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_dominant_failure_classification')}"
             ),
             (
                 "source-theorem adapter bridge emitted source-to-bridge "
                 "premise-derivation work, but the same-run premise-derivation "
-                "ProofEngineer bridge did not explicitly consume that handoff"
+                "ProofEngineer bridge did not explicitly consume that handoff "
+                "with premise check, kernel, or learning rows"
             ),
         ),
         _scorecard_row(
@@ -15325,8 +15411,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped",
             source_to_bridge_formalizer_work_orders <= 0
             or (
-                source_to_bridge_formalizer_bridge_required
+                source_to_bridge_formalizer_bridge_required_present
+                and source_to_bridge_formalizer_bridge_required
                 and source_to_bridge_formalizer_bridge_ran
+                and source_to_bridge_formalizer_bridge_output_rows > 0
             ),
             (
                 "work_orders="
@@ -15340,9 +15428,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "skipped="
                 f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_skipped_reason')} "
                 "check_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows')} "
+                f"{source_to_bridge_formalizer_bridge_rows} "
+                "kernel_verified="
+                f"{source_to_bridge_formalizer_bridge_kernel_verified} "
                 "learning_rows="
-                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows')} "
+                f"{source_to_bridge_formalizer_bridge_learning_rows} "
+                "output_rows="
+                f"{source_to_bridge_formalizer_bridge_output_rows} "
+                "proof_status="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_proof_evidence_status')} "
                 "skipped_not_evidence_eligible="
                 f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_n_local_lean_skipped_not_evidence_eligible')} "
                 "dominant_failure="
@@ -15350,7 +15444,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "Formalizer emitted source-to-bridge premise derivation work "
-                "orders but the same-run ProofEngineer premise bridge did not run"
+                "orders but the same-run ProofEngineer premise bridge did not "
+                "run with premise check, kernel, or learning rows"
             ),
         ),
         _scorecard_row(

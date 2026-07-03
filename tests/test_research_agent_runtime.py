@@ -62722,6 +62722,40 @@ def test_runtime_capability_scorecard_flags_dropped_source_to_bridge_premise_der
     assert "ran=False" in row["evidence"]
 
 
+def test_runtime_capability_scorecard_flags_empty_source_to_bridge_premise_derivation_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_ran": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows": 0,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified": 0,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_to_bridge_premise_derivation_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "output_rows=0" in row["evidence"]
+
+
 def test_runtime_capability_scorecard_accepts_source_to_bridge_premise_derivation_handoff() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -62826,6 +62860,41 @@ def test_runtime_capability_scorecard_flags_dropped_adapter_instantiation_premis
     assert "adapter instantiation emitted premise-derivation work" in row["blocker"]
     assert "requested=True" in row["evidence"]
     assert "ran=False" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_flags_empty_adapter_instantiation_premise_derivation_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_instantiation_bridge_requested": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_ran": True,
+        "source_theorem_proof_body_adapter_instantiation_bridge_n_rows": 1,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required": True,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested": True,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_ran": True,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_rows": 0,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_kernel_verified": 0,
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_learning_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "adapter_instantiation_premise_derivation_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "output_rows=0" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_accepts_adapter_instantiation_premise_derivation_handoff() -> None:
@@ -63738,6 +63807,38 @@ def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_derivatio
             "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
         ]["blocker"]
     )
+
+
+def test_runtime_capability_scorecard_flags_empty_formalizer_premise_derivation_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": 2,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows": 0,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified": 0,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "output_rows=0" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_feedback_adapter_handoff() -> None:
