@@ -62896,6 +62896,54 @@ def test_runtime_capability_scorecard_flags_dropped_post_executor_semantic_promo
     assert "formal-environment bridge" in row["blocker"]
 
 
+@pytest.mark.parametrize(
+    ("requirement_id", "bridge_prefix", "source_label"),
+    [
+        (
+            "source_semantic_promotion_formal_environment_bridge_handoff_not_dropped",
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge",
+            "source-semantic promotion",
+        ),
+        (
+            "post_executor_semantic_promotion_formal_environment_bridge_handoff_not_dropped",
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge",
+            "post-executor semantic promotion",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_flags_empty_semantic_promotion_bridge_outputs(
+    requirement_id: str,
+    bridge_prefix: str,
+    source_label: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        f"{bridge_prefix}_requested": True,
+        f"{bridge_prefix}_ran": True,
+        f"{bridge_prefix}_n_proof_body_work_orders": 0,
+        f"{bridge_prefix}_n_proof_body_execution_queue_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[requirement_id]
+
+    assert row["passed"] is False
+    assert source_label in row["evidence"]
+    assert "bridge_ran=True" in row["evidence"]
+    assert "bridge_output_rows=0" in row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_dropped_post_executor_semantic_promotion_executor_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -63105,6 +63153,67 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
     assert rows[
         "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_exact_semantic_authoring_worker_without_prompt_output() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "prompt_packets=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_flags_post_runtime_exact_semantic_authoring_without_lineage() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_attached": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": False,
+        "post_runtime_exact_semantic_definition_authoring_worker_ran": True,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "post_runtime_attached=True" in row["evidence"]
+    assert "post_runtime_lineage_ok=False" in row["evidence"]
+    assert "prompt_packets=1" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_accepts_lineage_checked_post_runtime_exact_semantic_authoring() -> None:

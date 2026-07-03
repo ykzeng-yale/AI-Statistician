@@ -12747,8 +12747,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         bridge_required = (
             bridge_requested or bridge_work_orders > 0 or bridge_queue_rows > 0
         )
+        bridge_output_rows = bridge_work_orders + bridge_queue_rows
         bridge_complete = (
-            bridge_requested_present and bridge_requested and bridge_ran
+            bridge_requested_present
+            and bridge_requested
+            and bridge_ran
+            and bridge_output_rows > 0
         )
         executor_requested_value = payload.get(f"{executor_prefix}_requested")
         executor_requested_present = (
@@ -12777,6 +12781,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     f"{bridge_work_orders} "
                     "proof_body_execution_queue_rows="
                     f"{bridge_queue_rows} "
+                    "bridge_output_rows="
+                    f"{bridge_output_rows} "
                     "skipped="
                     f"{payload.get(f'{bridge_prefix}_skipped_reason')}"
                 ),
@@ -12784,7 +12790,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     f"{source_label} source-theorem promotion emitted or "
                     "requested formal-environment work, but the same-run "
                     "formal-environment bridge did not explicitly consume that "
-                    "promotion handoff"
+                    "promotion handoff with output rows"
                 ),
             ),
             _scorecard_row(
@@ -15023,7 +15029,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "exact_semantic_definition_authoring_worker_handoff_not_dropped",
             (not exact_semantic_definition_authoring_worker_required)
-            or exact_semantic_definition_authoring_worker_ran,
+            or (
+                exact_semantic_definition_authoring_worker_ran
+                and exact_semantic_definition_authoring["n_prompt_packets"] > 0
+                and (
+                    not exact_semantic_definition_authoring["post_runtime_attached"]
+                    or exact_semantic_definition_authoring["post_runtime_lineage_ok"]
+                )
+            ),
             (
                 "authoring_tasks="
                 f"{exact_semantic_definition_authoring['n_tasks']} "
@@ -15041,6 +15054,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['ran']} "
                 "prompt_packets="
                 f"{exact_semantic_definition_authoring['n_prompt_packets']} "
+                "candidate_packets="
+                f"{exact_semantic_definition_authoring['n_candidate_packets']} "
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="
@@ -15050,7 +15065,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "exact semantic-definition Lean repair emitted authoring tasks "
-                "but the LLM authoring worker did not run"
+                "but the LLM authoring worker did not run with prompt-packet "
+                "output and valid post-runtime lineage"
             ),
         ),
         _scorecard_row(
