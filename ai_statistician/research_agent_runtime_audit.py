@@ -8619,6 +8619,21 @@ def _payload_source_theorem_target_bound_kernel_count(
     return int(summary["n_source_theorem_target_bound_kernel_verified"])
 
 
+def _payload_current_kernel_evidence_count(payload: Mapping[str, Any]) -> int:
+    return (
+        int(payload.get("n_real_kernel_verified_subclaims", 0) or 0)
+        + int(
+            payload.get(
+                "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims",
+                0,
+            )
+            or 0
+        )
+        + _payload_full_frontier_target_bound_kernel_count(payload)
+        + _payload_source_theorem_target_bound_kernel_count(payload)
+    )
+
+
 def _payload_source_theorem_proof_body_goal_reached_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -8932,8 +8947,9 @@ def _runtime_capability_gap_default_target_behavior(
             "formalizer/proof-engineering work, not only offline artifacts."
         ),
         "real_kernel_subclaim_verified": (
-            "Produce at least one real AXLE/local Lean kernel-verified subclaim "
-            "with verifier provenance before claiming proof progress."
+            "Produce at least one real AXLE/local Lean kernel-verified subclaim, "
+            "semantic primitive, or target-bound source/frontier theorem "
+            "verification before claiming proof progress."
         ),
         "full_frontier_theorem_kernel_proved": (
             "Close the current source/frontier theorem target with real "
@@ -10955,6 +10971,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     full_frontier_target_bound_kernel_count = (
         _payload_full_frontier_target_bound_kernel_count(payload)
     )
+    current_kernel_evidence_count = _payload_current_kernel_evidence_count(payload)
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
         _payload_cross_task_full_theorem_family_count(payload)
@@ -11211,16 +11228,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         > 0
     )
-    current_helper_kernel_evidence_ready = (
-        int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
-        or int(
-            payload.get("n_real_kernel_verified_source_theorem_semantic_primitive_subclaims", 0)
-            or 0
-        )
-        > 0
-        or full_frontier_target_bound_kernel_count > 0
-        or source_theorem_target_bound_kernel_count > 0
-    )
+    current_helper_kernel_evidence_ready = current_kernel_evidence_count > 0
     helper_kernel_evidence_ready = current_helper_kernel_evidence_ready
     source_theorem_kernel_ready = (
         (
@@ -11603,6 +11611,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     full_frontier_target_bound_kernel_count = (
         _payload_full_frontier_target_bound_kernel_count(payload)
     )
+    current_kernel_evidence_count = _payload_current_kernel_evidence_count(payload)
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
     cross_task_full_theorem_family_count = (
         _payload_cross_task_full_theorem_family_count(payload)
@@ -16057,9 +16066,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "real_kernel_subclaim_verified",
-            int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0,
-            f"n_real_kernel_verified_subclaims={payload.get('n_real_kernel_verified_subclaims')}",
-            "no real AXLE/local Lean kernel-verified subclaim was recorded",
+            current_kernel_evidence_count > 0,
+            (
+                "n_real_kernel_verified_subclaims="
+                f"{payload.get('n_real_kernel_verified_subclaims')} "
+                "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims="
+                f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')} "
+                "target_bound_full_frontier_kernel="
+                f"{full_frontier_target_bound_kernel_count} "
+                "target_bound_source_kernel="
+                f"{source_theorem_target_bound_kernel_count} "
+                "current_kernel_evidence="
+                f"{current_kernel_evidence_count}"
+            ),
+            (
+                "no real AXLE/local Lean kernel evidence was recorded for a "
+                "subclaim, semantic primitive, or current source/frontier target"
+            ),
         ),
         _scorecard_row(
             "no_formal_gaps_remaining",

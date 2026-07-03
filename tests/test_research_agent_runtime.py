@@ -58590,6 +58590,27 @@ def test_runtime_capability_scorecard_caps_full_frontier_count_by_matching_targe
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_accepts_target_bound_source_kernel_as_real_kernel_evidence() -> None:
+    payload = {
+        "target_theorem_name": "split_conformal_coverage",
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
+        "n_real_kernel_verified_subclaims": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    real_kernel_row = rows["real_kernel_subclaim_verified"]
+
+    assert real_kernel_row["passed"] is True
+    assert "n_real_kernel_verified_subclaims=0" in real_kernel_row["evidence"]
+    assert "target_bound_source_kernel=1" in real_kernel_row["evidence"]
+    assert "current_kernel_evidence=1" in real_kernel_row["evidence"]
+    assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+
+
 def test_runtime_capability_scorecard_requires_source_kernel_target_binding() -> None:
     payload = {
         "target_theorem_name": "split_conformal_coverage",
@@ -58605,6 +58626,10 @@ def test_runtime_capability_scorecard_requires_source_kernel_target_binding() ->
     ladder_rows = {row["level"]: row for row in ladder["levels"]}
 
     assert rows["full_frontier_theorem_kernel_proved"]["passed"] is False
+    assert rows["real_kernel_subclaim_verified"]["passed"] is False
+    assert "target_bound_source_kernel=0" in rows[
+        "real_kernel_subclaim_verified"
+    ]["evidence"]
     assert "target_bound_source_kernel=0" in rows[
         "full_frontier_theorem_kernel_proved"
     ]["evidence"]
