@@ -6982,6 +6982,7 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_formal_environment_proof_body_executor_counts_aggregate": True,
         "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": _runtime_manifest_int_sum(
             manifest,
             SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
@@ -8652,6 +8653,27 @@ def _payload_source_theorem_proof_body_goal_reached_count(
 def _payload_source_theorem_proof_body_result_row_count(
     payload: Mapping[str, Any],
 ) -> int:
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is True
+    ):
+        exact_semantic_recheck_result_keys = tuple(
+            key
+            for key in SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS
+            if key not in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS
+        )
+        return int(
+            payload.get(
+                "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+                0,
+            )
+            or 0
+        ) + _runtime_manifest_int_sum(
+            payload,
+            exact_semantic_recheck_result_keys,
+        )
     return _runtime_manifest_int_sum(
         payload,
         SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
@@ -17077,7 +17099,19 @@ def _runtime_resume_scorecard_routing(
 
 
 def _runtime_evidence_truth_table(payload: Mapping[str, Any]) -> dict[str, Any]:
-    return _runtime_evidence_truth_table_from_manifest(payload)
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is not True
+    ):
+        return _runtime_evidence_truth_table_from_manifest(payload)
+    normalized_payload = dict(payload)
+    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS[1:]:
+        normalized_payload[key] = 0
+    for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS[1:]:
+        normalized_payload[key] = 0
+    return _runtime_evidence_truth_table_from_manifest(normalized_payload)
 
 
 def _trace_has_runtime_learning_memory_input(traces: list[Any]) -> bool:

@@ -62585,11 +62585,21 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
         ]
         == 5
     )
+    assert (
+        audit["source_theorem_formal_environment_proof_body_executor_n_result_rows"]
+        == 2
+    )
+    assert audit["source_theorem_proof_body_result_row_count"] == 2
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 22
     assert local_lean_row["passed"] is True
     assert "local_lean_checked=5" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+    proof_body_attempt = {
+        row["evidence_id"]: row
+        for row in audit["evidence_truth_table"]["rows"]
+    }["exact_source_proof_body_attempt"]
+    assert proof_body_attempt["count"] == 2
 
 
 def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
