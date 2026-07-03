@@ -62259,6 +62259,32 @@ def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_le
     ]["passed"] is True
 
 
+def test_runtime_capability_scorecard_accepts_observed_proof_body_local_lean_without_primary_request() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": False,
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 3,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+
+    assert row["passed"] is True
+    assert "local_lean_requested=False" in row["evidence"]
+    assert "local_lean_checked=3" in row["evidence"]
+
+
 def test_runtime_audit_aggregates_adapter_feedback_exact_repair_local_lean_checks(
     tmp_path: Path,
 ) -> None:

@@ -16029,20 +16029,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_proof_body_local_lean_gate_requested",
-            (
+            int(
                 payload.get(
-                    "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+                    "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+                    0,
                 )
-                is True
-                and int(
-                    payload.get(
-                        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
-                        0,
-                    )
-                    or 0
-                )
-                > 0
-            ),
+                or 0
+            )
+            > 0,
             (
                 "local_lean_requested="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')} "
