@@ -1012,6 +1012,25 @@
         "cross_task_full_theorem_generalization_demonstrated"
       ],
       "proof_boundary": "attached component calibration evidence is not integrated runtime repair evidence and not theorem proof evidence"
+    },
+    "generated_algorithm_repair_provenance_recovered_audit": {
+      "runtime_dir": "runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations",
+      "audit_manifest": "runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_algorithm_repair_provenance_probe/research_agent_runtime_audit_manifest.json",
+      "scorecard_failed_rows_before": 7,
+      "scorecard_failed_rows_after": 6,
+      "generated_algorithm_repair_loop_observed": true,
+      "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+      "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+      "provenance_recovery_boundary": "summary/counting only; raw historical artifacts are not rewritten, provider-only rows still do not count as live, and backend identity is inferred only from matching live topology plus proposal provenance",
+      "remaining_failed_rows": [
+        "source_theorem_signature_probe_reached_proof_body",
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped",
+        "exact_semantic_definition_authoring_worker_live_attempted",
+        "no_formal_gaps_remaining",
+        "full_frontier_theorem_kernel_proved",
+        "cross_task_full_theorem_generalization_demonstrated"
+      ],
+      "proof_boundary": "integrated generated-code repair evidence is implementation evidence, not theorem proof evidence"
     }
   },
   "latest_runtime_eval_alignment": {
@@ -1882,6 +1901,10 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_cli_env_loading.py tests/test_generated_metric_repair_policy.py tests/test_research_agent_runtime.py -q -k \"existing_component_manifest or static_component_repair_gate_provider or coding_agent_generated_code_repair_eval_static_fixture or runtime_attaches_existing_live_component_repair_manifests or runtime_audit_counts_attached_live_formalizer_lsp_component\" # 5 passed, 611 deselected",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli formalizer-lean-candidate-repair-eval --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md --provider anthropic --max-repair-attempts 1 --max-tokens 2000 --temperature 0.0 --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --lean-lsp-mcp-proof-state-feedback --out runs/main_worker_formalizer_repair_eval_env_loader_probe # passed: capability_evidence_ok=True, repair_sequences=1, local_lean_compiled=1, lean_lsp_mcp_tool_calls=3",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli coding-agent-generated-code-repair-eval --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md --provider anthropic --max-repair-attempts 4 --max-tokens 2600 --temperature 0.0 --runs 12 --out runs/main_worker_coding_agent_repair_eval_typed_metric_probe # passed: algorithm_ok=True simulation_ok=True repair_sequences=1/1",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --runtime-dir runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations --out runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_live_component_calibration_probe # expected exit 1 because integrated/frontier gaps remain; scorecard failed rows 10 -> 7"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --runtime-dir runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations --out runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_live_component_calibration_probe # expected exit 1 because integrated/frontier gaps remain; scorecard failed rows 10 -> 7",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after generated sandbox live provenance recovery patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q -k \"live_generated_counts_from_rows or topology_provenance or model_mismatch or llm_proposal_and_sandbox_live_checks_require_backend_identity\" # 4 passed, 610 deselected after generated sandbox live provenance recovery patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --runtime-dir runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations --out runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_algorithm_repair_provenance_probe # expected exit 1 because source-theorem/frontier gaps remain; generated_algorithm_repair_loop_observed passed with n_live_generated_code_sandbox_failed_then_passed_repair_sequences=1 and scorecard failed rows 7 -> 6",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q # 614 passed in 387.83s after generated sandbox live provenance recovery patch"
   ]
 }

@@ -58176,6 +58176,142 @@ def test_runtime_evidence_summary_recomputes_live_generated_counts_from_rows() -
     assert summary["simulation"]["n_live_generated_simulation_sandbox_executed"] == 1
 
 
+def _algorithm_repair_provenance_artifacts(
+    *,
+    topology_backend: str = "anthropic",
+    topology_model: str = "claude-haiku-4-5-20251001",
+) -> dict[str, object]:
+    proposal_id = "algorithm_engineer_proposal:topology-recovered-repair"
+    proposal_model = "claude-haiku-4-5-20251001"
+    return {
+        "runtime_llm_topology:live": {
+            "artifact_kind": "RuntimeLLMTopologyManifest",
+            "llm_agents": [
+                {
+                    "subsystem": "AlgorithmEngineer",
+                    "enabled": True,
+                    "provider_name": "anthropic",
+                    "backend_provider_name": topology_backend,
+                    "model": topology_model,
+                    "model_tier": "haiku",
+                }
+            ],
+        },
+        proposal_id: {
+            "artifact_kind": "AlgorithmEngineerProposalPacket",
+            "packet_id": proposal_id,
+            "source_agent": "LLMAlgorithmEngineerAgent",
+            "provider": "anthropic",
+            "model": proposal_model,
+            "model_tier": "haiku",
+        },
+        "algorithm_sandbox_manifest:failed": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "created_at": "2026-06-25T00:00:00Z",
+            "manifest_id": "algorithm_sandbox_manifest:failed",
+            "question_id": "topology-provenance-repair",
+            "llm_algorithm_engineer_proposal_id": proposal_id,
+            "n_generated_code_executed": 1,
+            "n_metric_gate_failed": 1,
+            "prototypes": [
+                {
+                    "executor": "generated_python_sandbox",
+                    "prototype_status": "FAILED_METRIC_GATE",
+                    "smoke_passed": False,
+                    "metric_gate_errors": ["coverage metric below target"],
+                }
+            ],
+        },
+        "algorithm_sandbox_manifest:passed": {
+            "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+            "created_at": "2026-06-25T00:01:00Z",
+            "manifest_id": "algorithm_sandbox_manifest:passed",
+            "question_id": "topology-provenance-repair",
+            "llm_algorithm_engineer_proposal_id": proposal_id,
+            "n_generated_code_executed": 1,
+            "n_passed": 1,
+            "prototypes": [
+                {
+                    "executor": "generated_python_sandbox",
+                    "prototype_status": "EXECUTED",
+                    "smoke_passed": True,
+                }
+            ],
+        },
+    }
+
+
+def test_runtime_evidence_summary_recovers_live_generated_algorithm_repair_from_topology_provenance() -> None:
+    artifacts = _algorithm_repair_provenance_artifacts()
+
+    repair_counts = _generated_sandbox_repair_sequence_counts(artifacts)
+    summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert (
+        repair_counts[
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        repair_counts[
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        summary["algorithm"][
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        summary["algorithm"][
+            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 2
+    assert summary["algorithm"]["n_live_generated_code_sandbox_metric_gate_failed"] == 1
+    assert (
+        "source_llm_proposal_backend_provider"
+        not in artifacts["algorithm_sandbox_manifest:failed"]["prototypes"][0]
+    )
+
+
+def test_runtime_evidence_summary_does_not_recover_live_generated_repair_for_model_mismatch() -> None:
+    artifacts = _algorithm_repair_provenance_artifacts(
+        topology_model="claude-sonnet-4-6"
+    )
+
+    repair_counts = _generated_sandbox_repair_sequence_counts(artifacts)
+    summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert (
+        repair_counts[
+            "n_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        repair_counts[
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert (
+        summary["algorithm"][
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 0
+    )
+    assert summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 0
+
+
 def test_runtime_capability_scorecard_requires_architect_path_propagation() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",

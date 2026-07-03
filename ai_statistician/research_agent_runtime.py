@@ -32719,6 +32719,224 @@ def _generated_sandbox_row_live_generated(row: Mapping[str, Any]) -> bool:
     )
 
 
+def _runtime_artifacts_with_generated_sandbox_live_provenance(
+    artifacts: Mapping[str, Any],
+) -> dict[str, Any]:
+    proposal_packets = _runtime_llm_proposal_packets_by_id(artifacts)
+    live_topology_by_subsystem = _runtime_live_generator_topology_by_subsystem(
+        artifacts
+    )
+    enriched: dict[str, Any] = {}
+    for artifact_id, artifact in artifacts.items():
+        if not isinstance(artifact, Mapping):
+            enriched[artifact_id] = artifact
+            continue
+        kind = str(artifact.get("artifact_kind", "") or "")
+        if kind == "RuntimeAlgorithmSandboxManifest":
+            enriched[artifact_id] = _generated_sandbox_manifest_with_live_provenance(
+                artifact,
+                proposal_packets=proposal_packets,
+                live_topology_by_subsystem=live_topology_by_subsystem,
+                subsystem="AlgorithmEngineer",
+                proposal_id_keys=("llm_algorithm_engineer_proposal_id",),
+                prototype_key="prototypes",
+                generated_executor="generated_python_sandbox",
+                missing_statuses={"GENERATED_CODE_REQUIRED_BUT_MISSING"},
+            )
+        elif kind == "RuntimeSimulationManifest":
+            enriched[artifact_id] = _generated_sandbox_manifest_with_live_provenance(
+                artifact,
+                proposal_packets=proposal_packets,
+                live_topology_by_subsystem=live_topology_by_subsystem,
+                subsystem="SimulationEngineer",
+                proposal_id_keys=("llm_simulation_engineer_proposal_id",),
+                prototype_key="generated_simulation_sandbox_prototypes",
+                generated_executor="generated_simulation_sandbox",
+                missing_statuses={"GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"},
+            )
+        else:
+            enriched[artifact_id] = artifact
+    return enriched
+
+
+def _runtime_llm_proposal_packets_by_id(
+    artifacts: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    proposal_kinds = {
+        "ArchitectCoordinatorProposalPacket",
+        "SimulationEngineerProposalPacket",
+        "AlgorithmEngineerProposalPacket",
+        "FormalizerProofEngineerProposalPacket",
+        "CriticEvaluatorProposalPacket",
+    }
+    proposal_source_agents = {
+        "LLMArchitectCoordinatorAgent",
+        "LLMSimulationEngineerAgent",
+        "LLMAlgorithmEngineerAgent",
+        "LLMFormalizerProofEngineerAgent",
+        "LLMCriticEvaluatorAgent",
+    }
+    packets: dict[str, Mapping[str, Any]] = {}
+    for artifact_id, artifact in artifacts.items():
+        if not isinstance(artifact, Mapping):
+            continue
+        kind = str(artifact.get("artifact_kind", "") or "")
+        source_agent = str(artifact.get("source_agent", "") or "")
+        if kind not in proposal_kinds and source_agent not in proposal_source_agents:
+            continue
+        packet_id = str(artifact.get("packet_id", "") or artifact_id or "").strip()
+        if not packet_id:
+            continue
+        if not (
+            source_agent or artifact.get("provider") or artifact.get("provider_name")
+        ):
+            continue
+        packets[packet_id] = artifact
+    return packets
+
+
+def _runtime_live_generator_topology_by_subsystem(
+    artifacts: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    rows: dict[str, Mapping[str, Any]] = {}
+    for artifact in artifacts.values():
+        if not isinstance(artifact, Mapping):
+            continue
+        if str(artifact.get("artifact_kind", "") or "") != (
+            "RuntimeLLMTopologyManifest"
+        ):
+            continue
+        agents = artifact.get("llm_agents", [])
+        if not isinstance(agents, list):
+            continue
+        for row in agents:
+            if not isinstance(row, Mapping):
+                continue
+            subsystem = str(row.get("subsystem", "") or "").strip()
+            if subsystem and _runtime_llm_topology_row_is_live_generator(row):
+                rows[subsystem] = row
+    return rows
+
+
+def _generated_sandbox_manifest_with_live_provenance(
+    manifest: Mapping[str, Any],
+    *,
+    proposal_packets: Mapping[str, Mapping[str, Any]],
+    live_topology_by_subsystem: Mapping[str, Mapping[str, Any]],
+    subsystem: str,
+    proposal_id_keys: tuple[str, ...],
+    prototype_key: str,
+    generated_executor: str,
+    missing_statuses: set[str],
+) -> Mapping[str, Any]:
+    rows = manifest.get(prototype_key, [])
+    if not isinstance(rows, list) or not rows:
+        return manifest
+    proposal_id = ""
+    for key in proposal_id_keys:
+        proposal_id = str(manifest.get(key, "") or "").strip()
+        if proposal_id:
+            break
+    proposal_packet = proposal_packets.get(proposal_id, {})
+    topology_row = live_topology_by_subsystem.get(subsystem, {})
+    if not proposal_packet and not topology_row:
+        return manifest
+    enriched_rows: list[Any] = []
+    changed = False
+    for row in rows:
+        if not isinstance(row, Mapping):
+            enriched_rows.append(row)
+            continue
+        if not _generated_sandbox_row_needs_provenance(
+            row,
+            generated_executor=generated_executor,
+            missing_statuses=missing_statuses,
+        ):
+            enriched_rows.append(row)
+            continue
+        enriched_row = _generated_sandbox_row_with_live_provenance(
+            row,
+            proposal_packet=proposal_packet,
+            topology_row=topology_row,
+        )
+        changed = changed or enriched_row is not row
+        enriched_rows.append(enriched_row)
+    if not changed:
+        return manifest
+    enriched_manifest = dict(manifest)
+    enriched_manifest[prototype_key] = enriched_rows
+    return enriched_manifest
+
+
+def _generated_sandbox_row_needs_provenance(
+    row: Mapping[str, Any],
+    *,
+    generated_executor: str,
+    missing_statuses: set[str],
+) -> bool:
+    return (
+        str(row.get("executor", "") or "") == generated_executor
+        or str(row.get("prototype_status", "") or "") in missing_statuses
+    )
+
+
+def _generated_sandbox_row_with_live_provenance(
+    row: Mapping[str, Any],
+    *,
+    proposal_packet: Mapping[str, Any],
+    topology_row: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    if _generated_sandbox_row_live_generated(row):
+        return row
+    row_backend = normalize_generator_provider_name(
+        row.get("source_llm_proposal_backend_provider", "")
+    )
+    if row_backend:
+        return row
+    provider = normalize_generator_provider_name(
+        row.get("source_llm_proposal_provider", "")
+    ) or _runtime_llm_proposal_packet_provider(proposal_packet)
+    backend_provider = _runtime_llm_proposal_packet_backend_provider(proposal_packet)
+    topology_provider = normalize_generator_provider_name(
+        topology_row.get("provider_name", "")
+    )
+    topology_backend = normalize_generator_provider_name(
+        topology_row.get("backend_provider_name", "")
+    )
+    if (
+        provider
+        and not backend_provider
+        and topology_provider == provider
+        and is_live_generator_backend(topology_provider, topology_backend)
+    ):
+        proposal_model = str(proposal_packet.get("model", "") or "").strip()
+        topology_model = str(topology_row.get("model", "") or "").strip()
+        if not proposal_model or not topology_model or proposal_model == topology_model:
+            backend_provider = topology_backend
+    if not is_live_generator_backend(provider, backend_provider):
+        return row
+    enriched = dict(row)
+    enriched.setdefault(
+        "source_llm_proposal_id", str(proposal_packet.get("packet_id", "") or "")
+    )
+    enriched.setdefault(
+        "source_llm_proposal_agent", str(proposal_packet.get("source_agent", "") or "")
+    )
+    enriched["source_llm_proposal_provider"] = provider
+    enriched["source_llm_proposal_backend_provider"] = backend_provider
+    enriched.setdefault(
+        "source_llm_proposal_model", str(proposal_packet.get("model", "") or "")
+    )
+    enriched.setdefault(
+        "source_llm_proposal_model_tier",
+        str(proposal_packet.get("model_tier", "") or ""),
+    )
+    enriched["source_llm_proposal_live_generator"] = True
+    if not _runtime_llm_proposal_packet_backend_provider(proposal_packet):
+        enriched["source_llm_proposal_backend_inferred_from_topology"] = True
+    return enriched
+
+
 def _generated_sandbox_live_counts_from_rows(
     rows: Any,
     *,
@@ -62044,6 +62262,7 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
 def _generated_sandbox_repair_sequence_counts(
     artifacts: Mapping[str, Any],
 ) -> dict[str, int]:
+    artifacts = _runtime_artifacts_with_generated_sandbox_live_provenance(artifacts)
     algorithm_manifests: list[Mapping[str, Any]] = []
     simulation_manifests: list[Mapping[str, Any]] = []
     for artifact in artifacts.values():
@@ -62873,6 +63092,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        artifacts = _runtime_artifacts_with_generated_sandbox_live_provenance(
+            artifacts
+        )
         materialization_manifest_ids = {
             str(artifact.get("manifest_id", "") or "")
             for artifact in artifacts.values()
