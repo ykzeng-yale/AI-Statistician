@@ -2335,6 +2335,140 @@ def _formalizer_integrated_count_claims(
     return claims
 
 
+def _formalizer_candidate_kernel_scope_audit_summary(
+    *,
+    result_paths: list[Path],
+    errors: list[str],
+) -> dict[str, Any]:
+    n_materialization_artifacts = 0
+    n_compiled_materialization_artifacts = 0
+    n_compiled_materialization_artifacts_with_scope = 0
+    n_candidate_rows = 0
+    n_candidate_kernel_verified_rows = 0
+    n_candidate_kernel_verified_rows_with_scope = 0
+    n_candidate_kernel_verified_rows_missing_scope = 0
+    missing_scope_rows: list[dict[str, Any]] = []
+    expected_scope = "candidate_artifact_only"
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact_id, artifact in artifacts.items():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind")
+                == "RuntimeFormalizerLeanCandidateMaterialization"
+            ):
+                continue
+            n_materialization_artifacts += 1
+            artifact_compiled = bool(
+                artifact.get("candidate_kernel_verified", False)
+                or artifact.get("kernel_verified", False)
+                or int(artifact.get("n_local_lean_compiled", 0) or 0) > 0
+            )
+            artifact_scope_ok = (
+                bool(artifact.get("candidate_kernel_verified", False))
+                and artifact.get("kernel_verified_scope") == expected_scope
+                and not bool(artifact.get("source_theorem_kernel_verified", False))
+            )
+            if artifact_compiled:
+                n_compiled_materialization_artifacts += 1
+                if artifact_scope_ok:
+                    n_compiled_materialization_artifacts_with_scope += 1
+            rows = artifact.get("candidate_rows", [])
+            if not isinstance(rows, list):
+                rows = []
+            for index, row in enumerate(rows):
+                if not isinstance(row, Mapping):
+                    continue
+                n_candidate_rows += 1
+                row_compiled = bool(
+                    row.get("candidate_kernel_verified", False)
+                    or row.get("kernel_verified", False)
+                    or row.get("local_lean_compiled", False)
+                )
+                if not row_compiled:
+                    continue
+                n_candidate_kernel_verified_rows += 1
+                row_scope_ok = (
+                    bool(row.get("candidate_kernel_verified", False))
+                    and row.get("kernel_verified_scope") == expected_scope
+                    and not bool(row.get("source_theorem_kernel_verified", False))
+                )
+                if row_scope_ok:
+                    n_candidate_kernel_verified_rows_with_scope += 1
+                    continue
+                n_candidate_kernel_verified_rows_missing_scope += 1
+                if len(missing_scope_rows) < 8:
+                    missing_scope_rows.append(
+                        {
+                            "result_path": str(path),
+                            "artifact_id": str(artifact_id),
+                            "candidate_index": index,
+                            "candidate_id": str(row.get("candidate_id", "") or ""),
+                            "candidate_kernel_verified": bool(
+                                row.get("candidate_kernel_verified", False)
+                            ),
+                            "kernel_verified": bool(
+                                row.get("kernel_verified", False)
+                            ),
+                            "local_lean_compiled": bool(
+                                row.get("local_lean_compiled", False)
+                            ),
+                            "kernel_verified_scope": str(
+                                row.get("kernel_verified_scope", "") or ""
+                            ),
+                            "source_theorem_kernel_verified": bool(
+                                row.get("source_theorem_kernel_verified", False)
+                            ),
+                        }
+                    )
+    n_compiled_materialization_artifacts_missing_scope = (
+        n_compiled_materialization_artifacts
+        - n_compiled_materialization_artifacts_with_scope
+    )
+    return {
+        "artifact_kind": "FormalizerCandidateKernelScopeAuditSummary",
+        "n_materialization_artifacts": n_materialization_artifacts,
+        "n_candidate_rows": n_candidate_rows,
+        "n_compiled_materialization_artifacts": (
+            n_compiled_materialization_artifacts
+        ),
+        "n_compiled_materialization_artifacts_with_candidate_scope": (
+            n_compiled_materialization_artifacts_with_scope
+        ),
+        "n_compiled_materialization_artifacts_missing_candidate_scope": (
+            n_compiled_materialization_artifacts_missing_scope
+        ),
+        "n_candidate_kernel_verified_rows": n_candidate_kernel_verified_rows,
+        "n_candidate_kernel_verified_rows_with_candidate_scope": (
+            n_candidate_kernel_verified_rows_with_scope
+        ),
+        "n_candidate_kernel_verified_rows_missing_candidate_scope": (
+            n_candidate_kernel_verified_rows_missing_scope
+        ),
+        "candidate_kernel_scope_complete": (
+            n_candidate_kernel_verified_rows_missing_scope == 0
+            and n_compiled_materialization_artifacts_missing_scope == 0
+        ),
+        "missing_scope_rows": missing_scope_rows,
+        "boundary": (
+            "Formalizer candidate kernel verification is local Lean evidence for "
+            "the candidate artifact only. Audit rows must expose "
+            "kernel_verified_scope=candidate_artifact_only before candidate "
+            "kernel booleans can be safely consumed by downstream evaluators."
+        ),
+    }
+
+
 @dataclass(frozen=True)
 class RuntimeAuditRow:
     question_id: str
@@ -2824,6 +2958,12 @@ def audit_research_agent_runtime(
         manifest=manifest,
         runtime_proof_summary=runtime_proof_summary,
         derived_proof_summary=derived_runtime_proof_summary,
+    )
+    formalizer_candidate_kernel_scope_summary = (
+        _formalizer_candidate_kernel_scope_audit_summary(
+            result_paths=result_paths,
+            errors=errors,
+        )
     )
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
@@ -4761,6 +4901,19 @@ def audit_research_agent_runtime(
         ),
         "formalizer_lean_candidate_integrated_count_claims": (
             formalizer_integrated_count_claims
+        ),
+        "formalizer_candidate_kernel_scope_audit_summary": (
+            formalizer_candidate_kernel_scope_summary
+        ),
+        "n_formalizer_candidate_kernel_verified_rows_missing_candidate_scope": (
+            formalizer_candidate_kernel_scope_summary[
+                "n_candidate_kernel_verified_rows_missing_candidate_scope"
+            ]
+        ),
+        "formalizer_candidate_kernel_scope_complete": bool(
+            formalizer_candidate_kernel_scope_summary[
+                "candidate_kernel_scope_complete"
+            ]
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
             formalizer_repair_sequences

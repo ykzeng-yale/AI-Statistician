@@ -29675,6 +29675,119 @@ def test_runtime_audit_does_not_trust_self_reported_formalizer_repair_sequences(
     ]["evidence"]
 
 
+def test_runtime_audit_flags_formalizer_candidate_kernel_scope_missing(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "artifacts": {
+                        "formalizer_lean_candidate_materialization:stale": {
+                            "artifact_kind": (
+                                "RuntimeFormalizerLeanCandidateMaterialization"
+                            ),
+                            "manifest_id": (
+                                "formalizer_lean_candidate_materialization:stale"
+                            ),
+                            "n_local_lean_compiled": 1,
+                            "kernel_verified": True,
+                            "source_theorem_kernel_verified": False,
+                            "candidate_rows": [
+                                {
+                                    "candidate_id": "stale_candidate",
+                                    "local_lean_compiled": True,
+                                    "kernel_verified": True,
+                                }
+                            ],
+                        }
+                    }
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_evaluation_mode": "capability_eval",
+                "n_questions": 1,
+                "question_ids": ["conformal_prediction_coverage"],
+                "artifacts": {"per_question_results": [str(result_path)]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scope_summary = audit["formalizer_candidate_kernel_scope_audit_summary"]
+
+    assert scope_summary["n_materialization_artifacts"] == 1
+    assert scope_summary["n_candidate_kernel_verified_rows"] == 1
+    assert (
+        scope_summary[
+            "n_candidate_kernel_verified_rows_missing_candidate_scope"
+        ]
+        == 1
+    )
+    assert audit[
+        "n_formalizer_candidate_kernel_verified_rows_missing_candidate_scope"
+    ] == 1
+    assert audit["formalizer_candidate_kernel_scope_complete"] is False
+    assert scope_summary["missing_scope_rows"][0]["candidate_id"] == "stale_candidate"
+
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "artifacts": {
+                        "formalizer_lean_candidate_materialization:scoped": {
+                            "artifact_kind": (
+                                "RuntimeFormalizerLeanCandidateMaterialization"
+                            ),
+                            "manifest_id": (
+                                "formalizer_lean_candidate_materialization:scoped"
+                            ),
+                            "n_local_lean_compiled": 1,
+                            "kernel_verified": True,
+                            "candidate_kernel_verified": True,
+                            "kernel_verified_scope": "candidate_artifact_only",
+                            "source_theorem_kernel_verified": False,
+                            "candidate_rows": [
+                                {
+                                    "candidate_id": "scoped_candidate",
+                                    "local_lean_compiled": True,
+                                    "kernel_verified": True,
+                                    "candidate_kernel_verified": True,
+                                    "kernel_verified_scope": (
+                                        "candidate_artifact_only"
+                                    ),
+                                }
+                            ],
+                        }
+                    }
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit_scoped")
+
+    assert audit[
+        "n_formalizer_candidate_kernel_verified_rows_missing_candidate_scope"
+    ] == 0
+    assert audit["formalizer_candidate_kernel_scope_complete"] is True
+
+
 def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
     tmp_path: Path,
 ) -> None:
