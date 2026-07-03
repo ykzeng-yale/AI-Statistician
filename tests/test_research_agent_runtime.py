@@ -59467,6 +59467,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "source_theorem_formal_environment_proofengineer_bridge_ran": True,
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": 1,
         "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
         "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
     }
 
@@ -61827,6 +61828,61 @@ def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_tele
     assert "explicit handoff telemetry" in rows[requirement_id]["blocker"]
 
 
+def test_runtime_capability_scorecard_flags_empty_source_theorem_proof_body_executor_results() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_proof_body_executor_ran"]
+
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "n_rows=0" in row["evidence"]
+    assert "result-row telemetry" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["post_adapter_exact_source_theorem_proof_body_retry_queued"]
+
+    assert row["passed"] is False
+    assert "queue_ran=True" in row["evidence"]
+    assert "queue_rows=0" in row["evidence"]
+    assert "concrete row telemetry" in row["blocker"]
+
+
 @pytest.mark.parametrize("requested_value", [None, False])
 def test_runtime_capability_scorecard_flags_post_adapter_exact_executor_request_telemetry_gap(
     requested_value: bool | None,
@@ -61869,6 +61925,40 @@ def test_runtime_capability_scorecard_flags_post_adapter_exact_executor_request_
             "post_adapter_exact_source_theorem_proof_body_executor_ran"
         ]["blocker"]
     )
+
+
+def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_executor_results() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested": True,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["post_adapter_exact_source_theorem_proof_body_executor_ran"]
+
+    assert rows[
+        "post_adapter_exact_source_theorem_proof_body_retry_queued"
+    ]["passed"] is True
+    assert row["passed"] is False
+    assert "ran=True" in row["evidence"]
+    assert "n_rows=0" in row["evidence"]
+    assert "result-row telemetry" in row["blocker"]
 
 
 @pytest.mark.parametrize(

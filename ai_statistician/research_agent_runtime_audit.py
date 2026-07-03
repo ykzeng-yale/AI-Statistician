@@ -8539,7 +8539,7 @@ def _runtime_capability_gap_default_target_behavior(
         ),
         "source_theorem_proof_body_executor_ran": (
             "Run the exact source-theorem proof-body executor for queued proof-body "
-            "work orders."
+            "work orders and produce concrete result-row telemetry."
         ),
         "source_theorem_proof_body_local_lean_gate_requested": (
             "Require the exact source-theorem proof-body executor to request the "
@@ -12281,6 +12281,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_lean_repair_handoff_required = (
         exact_semantic_lean_repair_tasks > 0
     )
+    formal_environment_proof_body_executor_result_rows = int(
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+            0,
+        )
+        or 0
+    )
     post_adapter_exact_repair_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_proof_body_adapter_feedback",
@@ -12293,6 +12300,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran"
         )
         is True
+    )
+    post_adapter_exact_queue_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows",
+            0,
+        )
+        or 0
     )
     post_adapter_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
@@ -12311,7 +12325,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         is True
     )
     post_adapter_exact_executor_required = (
-        post_adapter_exact_repair_work_orders > 0 and post_adapter_exact_queue_ran
+        post_adapter_exact_repair_work_orders > 0
+        and post_adapter_exact_queue_ran
+        and post_adapter_exact_queue_rows > 0
+    )
+    post_adapter_exact_executor_result_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+            0,
+        )
+        or 0
     )
     post_adapter_semantic_work_orders = int(
         payload.get(
@@ -14449,14 +14472,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "source_theorem_proof_body_executor_ran",
             payload.get("source_theorem_formal_environment_proof_body_executor_ran")
-            is True,
+            is True
+            and formal_environment_proof_body_executor_result_rows > 0,
             (
                 "ran="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_ran')} "
                 "n_rows="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')}"
             ),
-            "exact source-theorem proof-body executor did not run inside the runtime",
+            (
+                "exact source-theorem proof-body executor did not run inside the "
+                "runtime with concrete result-row telemetry"
+            ),
         ),
         *promotion_formal_environment_handoff_rows,
         _scorecard_row(
@@ -14474,6 +14501,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_ran"
                 )
                 is True
+                and post_adapter_exact_queue_rows > 0
             ),
             (
                 "work_orders="
@@ -14483,7 +14511,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "queue_rows="
                 f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_n_rows')}"
             ),
-            "verified proof-body adapter feedback did not trigger a same-run exact source theorem retry queue",
+            (
+                "verified proof-body adapter feedback did not trigger a same-run "
+                "exact source theorem retry queue with concrete row telemetry"
+            ),
         ),
         _scorecard_row(
             "post_adapter_exact_source_theorem_proof_body_executor_ran",
@@ -14491,6 +14522,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 post_adapter_exact_executor_requested
                 and post_adapter_exact_executor_ran
+                and post_adapter_exact_executor_result_rows > 0
             ),
             (
                 "required="
@@ -14512,8 +14544,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "same-run post-adapter exact source theorem proof-body executor "
-                "was required/requested but did not run with explicit handoff "
-                "telemetry"
+                "was required/requested but did not record explicit handoff "
+                "telemetry or produce concrete result-row telemetry"
             ),
         ),
         _scorecard_row(
