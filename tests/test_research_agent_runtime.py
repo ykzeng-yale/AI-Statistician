@@ -61917,6 +61917,104 @@ def test_runtime_capability_scorecard_flags_post_adapter_semantic_reroute_withou
     )
 
 
+@pytest.mark.parametrize(
+    ("producer_key", "queue_name"),
+    [
+        (
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+            "source_theorem_semantic_primitives_from_proof_body_executor",
+        ),
+        (
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_post_executor_formal_environment_proof_body_executor",
+            "source_theorem_semantic_primitives_from_post_executor_formal_environment_proof_body_executor",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "generated_queue_names",
+    [
+        None,
+        {},
+        {"unrelated_queue": 1},
+    ],
+)
+def test_runtime_capability_scorecard_flags_semantic_reroute_without_next_action_handoff(
+    generated_queue_names: dict[str, int] | None,
+    producer_key: str,
+    queue_name: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        producer_key: 1,
+    }
+    if generated_queue_names is not None:
+        payload[
+            "runtime_next_action_agenda_generated_queue_names"
+        ] = generated_queue_names
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "source_theorem_semantic_primitive_reroutes_have_next_action_handoffs"
+    ]
+
+    assert row["passed"] is False
+    assert "generated next-action agenda handoffs" in row["blocker"]
+    assert "generated_queue_names" in row["evidence"]
+    assert queue_name not in str(generated_queue_names)
+
+
+@pytest.mark.parametrize(
+    ("producer_key", "queue_name"),
+    [
+        (
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+            "source_theorem_semantic_primitives_from_proof_body_executor",
+        ),
+        (
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_post_executor_formal_environment_proof_body_executor",
+            "source_theorem_semantic_primitives_from_post_executor_formal_environment_proof_body_executor",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_accepts_semantic_reroute_next_action_handoff(
+    producer_key: str,
+    queue_name: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        producer_key: 1,
+        "runtime_next_action_agenda_generated_queue_names": {queue_name: 1},
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "source_theorem_semantic_primitive_reroutes_have_next_action_handoffs"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worker() -> None:
     payload = {
         "runtime_evaluation_mode": "capability_eval",

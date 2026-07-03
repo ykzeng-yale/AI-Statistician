@@ -4892,6 +4892,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor": int(
+            manifest.get(
+                "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_post_executor_formal_environment_proof_body_executor": int(
+            manifest.get(
+                "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_post_executor_formal_environment_proof_body_executor",
+                0,
+            )
+            or 0
+        ),
         "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback": int(
             manifest.get(
                 "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback",
@@ -11880,6 +11894,41 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_semantic_work_orders = int(
+        payload.get(
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+            0,
+        )
+        or 0
+    )
+    primary_semantic_next_action_rows = int(
+        runtime_next_action_generated_queue_names.get(
+            "source_theorem_semantic_primitives_from_proof_body_executor",
+            0,
+        )
+        or 0
+    )
+    post_executor_semantic_work_orders = int(
+        payload.get(
+            "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_post_executor_formal_environment_proof_body_executor",
+            0,
+        )
+        or 0
+    )
+    post_executor_semantic_next_action_rows = int(
+        runtime_next_action_generated_queue_names.get(
+            "source_theorem_semantic_primitives_from_post_executor_formal_environment_proof_body_executor",
+            0,
+        )
+        or 0
+    )
+    source_theorem_semantic_reroute_handoffs_complete = (
+        (primary_semantic_work_orders <= 0 or primary_semantic_next_action_rows > 0)
+        and (
+            post_executor_semantic_work_orders <= 0
+            or post_executor_semantic_next_action_rows > 0
+        )
+    )
     post_adapter_semantic_reroute_handoff_present = (
         post_adapter_semantic_work_orders > 0
         and post_adapter_semantic_next_action_rows > 0
@@ -13816,6 +13865,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "post-adapter proof-body failure neither proved the source theorem "
                 "nor rerouted to semantic primitive work with a generated "
                 "next-action handoff"
+            ),
+        ),
+        _scorecard_row(
+            "source_theorem_semantic_primitive_reroutes_have_next_action_handoffs",
+            source_theorem_semantic_reroute_handoffs_complete,
+            (
+                "primary_semantic_work_orders="
+                f"{primary_semantic_work_orders} "
+                "primary_semantic_next_action_rows="
+                f"{primary_semantic_next_action_rows} "
+                "post_executor_semantic_work_orders="
+                f"{post_executor_semantic_work_orders} "
+                "post_executor_semantic_next_action_rows="
+                f"{post_executor_semantic_next_action_rows} "
+                "generated_queue_names="
+                f"{payload.get('runtime_next_action_agenda_generated_queue_names')}"
+            ),
+            (
+                "source-theorem semantic primitive reroute work orders were "
+                "emitted but not paired with generated next-action agenda "
+                "handoffs"
             ),
         ),
         _scorecard_row(
