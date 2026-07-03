@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge import (
     placeholder_symbols_from_semantic_alignment_feedback,
+    placeholder_symbols_for_registered_support_ids,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
 
@@ -119,6 +120,18 @@ def test_semantic_placeholder_text_signals_are_policy_driven() -> None:
         failure_classification="formal_environment_placeholder_primitives",
         include_executor_feedback_signals=True,
     ) == ("ExternalSymbol",)
+
+
+def test_registered_support_reverse_placeholder_lookup_is_policy_driven() -> None:
+    assert placeholder_symbols_for_registered_support_ids(
+        [
+            "split_conformal_good_rank_set_inclusion_bridge",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "prob_measure_univ",
+            "unknown_support",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ]
+    ) == ("orderStat", "Exchangeable", "MeasureProbability")
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(

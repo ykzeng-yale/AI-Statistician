@@ -165,6 +165,7 @@ from .theory_derivation_trace import (
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     placeholder_symbols_from_semantic_alignment_feedback as _policy_placeholder_symbols_from_semantic_alignment_feedback,
+    placeholder_symbols_for_registered_support_ids as _policy_placeholder_symbols_for_registered_support_ids,
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
     registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
@@ -60501,17 +60502,8 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
 def _placeholder_symbols_for_registered_support_ids(
     support_ids: list[str],
 ) -> tuple[str, ...]:
-    symbol_by_support_id = {
-        "prob_measure_univ": "MeasureProbability",
-        "split_conformal_bad_rank_budget_from_uniform_rank_bound": "Exchangeable",
-        "split_conformal_good_rank_set_inclusion_bridge": "orderStat",
-    }
-    return tuple(
-        dict.fromkeys(
-            symbol_by_support_id[row]
-            for row in support_ids
-            if row in symbol_by_support_id
-        )
+    return _policy_placeholder_symbols_for_registered_support_ids(
+        support_ids,
     )
 
 

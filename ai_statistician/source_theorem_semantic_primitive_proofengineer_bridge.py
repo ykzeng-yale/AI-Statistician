@@ -165,6 +165,27 @@ def registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
     return policy["placeholder_symbol_to_registered_support"].get(symbol.strip(), ())
 
 
+def placeholder_symbols_for_registered_support_ids(
+    support_ids: Sequence[str],
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    symbol_by_support_id: dict[str, str] = {}
+    for symbol, registered_support_ids in policy[
+        "placeholder_symbol_to_registered_support"
+    ].items():
+        for support_id in registered_support_ids:
+            symbol_by_support_id.setdefault(support_id, symbol)
+    return tuple(
+        dict.fromkeys(
+            symbol_by_support_id[support_id]
+            for support_id in (
+                str(value).strip() for value in support_ids if str(value).strip()
+            )
+            if support_id in symbol_by_support_id
+        )
+    )
+
+
 def registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
 ) -> tuple[str, ...]:
