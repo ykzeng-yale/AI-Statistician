@@ -62217,6 +62217,112 @@ def test_runtime_capability_scorecard_flags_unmatched_post_executor_priority_ada
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_flags_missing_source_to_bridge_premise_derivation_required_telemetry() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_ran": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_to_bridge_premise_derivation_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "required_telemetry_present=0" in row["evidence"]
+    assert "premise_queue_rows=1" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_flags_dropped_source_to_bridge_premise_derivation_handoff() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_ran": False,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason": (
+            "bridge_disabled"
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows": 0,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_to_bridge_premise_derivation_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "adapter bridge emitted source-to-bridge premise-derivation work" in row[
+        "blocker"
+    ]
+    assert "requested=True" in row["evidence"]
+    assert "ran=False" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_source_to_bridge_premise_derivation_handoff() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_ran": True,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason": "",
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows": 1,
+        "source_to_bridge_premise_derivation_proofengineer_bridge_proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["source_to_bridge_premise_derivation_handoff_not_dropped"][
+        "passed"
+    ] is True
+
+
 def test_runtime_capability_scorecard_flags_missing_adapter_instantiation_premise_derivation_required_telemetry() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

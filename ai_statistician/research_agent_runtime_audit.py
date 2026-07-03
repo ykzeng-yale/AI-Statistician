@@ -6282,6 +6282,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason": str(
             manifest.get(
                 "source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason",
@@ -6295,6 +6309,87 @@ def audit_research_agent_runtime(
                 )
                 else "adapter_bridge_not_run"
             )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
+                False,
+            )
+            or int(
+                manifest.get(
+                    "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
+                    0,
+                )
+                or 0
+            )
+            or int(
+                manifest.get(
+                    "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
+                False,
+            )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_ran": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_ran",
+                False,
+            )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_n_local_lean_skipped_not_evidence_eligible": int(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_n_local_lean_skipped_not_evidence_eligible",
+                0,
+            )
+            or 0
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_proof_evidence_status": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_proof_evidence_status",
+                "",
+            )
+            or ""
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_dominant_failure_classification": str(
+            manifest.get(
+                "source_to_bridge_premise_derivation_proofengineer_bridge_dominant_failure_classification",
+                "",
+            )
+            or ""
         ),
         "source_theorem_proof_body_adapter_instantiation_bridge_requested": bool(
             manifest.get(
@@ -12048,6 +12143,44 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
         is True
     )
+    source_to_bridge_adapter_premise_queue_rows = int(
+        payload.get(
+            "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_premise_bridge_required_value = payload.get(
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required"
+    )
+    source_to_bridge_premise_bridge_required_present = (
+        source_to_bridge_premise_bridge_required_value is True
+        or source_to_bridge_premise_bridge_required_value is False
+    )
+    source_to_bridge_premise_bridge_required = (
+        source_to_bridge_premise_bridge_required_value is True
+    )
+    source_to_bridge_premise_bridge_requested = (
+        payload.get("source_to_bridge_premise_derivation_proofengineer_bridge_requested")
+        is True
+    )
+    source_to_bridge_premise_bridge_ran = (
+        payload.get("source_to_bridge_premise_derivation_proofengineer_bridge_ran")
+        is True
+    )
+    source_to_bridge_premise_bridge_rows = int(
+        payload.get(
+            "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows",
+            0,
+        )
+        or 0
+    )
+    source_to_bridge_premise_handoff_required = (
+        source_to_bridge_premise_bridge_required
+        or source_to_bridge_premise_bridge_requested
+        or source_to_bridge_adapter_premise_queue_rows > 0
+        or source_to_bridge_premise_bridge_rows > 0
+    )
     exact_semantic_source_lookup_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_semantic_definition_work_orders",
@@ -14470,6 +14603,50 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "source-to-bridge adapter instantiation emitted premise-"
                 "derivation work, but the same-run premise-derivation "
+                "ProofEngineer bridge did not explicitly consume that handoff"
+            ),
+        ),
+        _scorecard_row(
+            "source_to_bridge_premise_derivation_handoff_not_dropped",
+            (not source_to_bridge_premise_handoff_required)
+            or (
+                source_to_bridge_premise_bridge_required_present
+                and source_to_bridge_premise_bridge_required
+                and source_to_bridge_premise_bridge_ran
+            ),
+            (
+                "adapter_bridge_ran="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_ran')} "
+                "adapter_bridge_rows="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_n_rows')} "
+                "premise_work_items="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items')} "
+                "premise_queue_rows="
+                f"{source_to_bridge_adapter_premise_queue_rows} "
+                "handoff_required="
+                f"{source_to_bridge_premise_handoff_required} "
+                "required_telemetry_present="
+                f"{int(source_to_bridge_premise_bridge_required_present)} "
+                "required="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_required')} "
+                "requested="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_requested')} "
+                "ran="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_skipped_reason')} "
+                "check_rows="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_rows')} "
+                "kernel_verified="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_kernel_verified')} "
+                "learning_rows="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_n_learning_rows')} "
+                "dominant_failure="
+                f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_dominant_failure_classification')}"
+            ),
+            (
+                "source-theorem adapter bridge emitted source-to-bridge "
+                "premise-derivation work, but the same-run premise-derivation "
                 "ProofEngineer bridge did not explicitly consume that handoff"
             ),
         ),
