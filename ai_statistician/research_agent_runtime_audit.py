@@ -6170,12 +6170,33 @@ def audit_research_agent_runtime(
             )
             or ""
         ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified": int(
             manifest.get(
                 "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified",
                 0,
             )
             or 0
+        ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_learning_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_learning_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_proof_evidence_status": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_proof_evidence_status",
+                "",
+            )
+            or ""
         ),
         "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback": int(
             manifest.get(
@@ -6189,6 +6210,13 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran",
                 False,
             )
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows",
+                0,
+            )
+            or 0
         ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": bool(
             manifest.get(
@@ -12468,11 +12496,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    adapter_premise_adapter_retry_rows = int(
+        payload.get(
+            "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_rows",
+            0,
+        )
+        or 0
+    )
     adapter_premise_exact_queue_ran = (
         payload.get(
             "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran"
         )
         is True
+    )
+    adapter_premise_exact_queue_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows",
+            0,
+        )
+        or 0
     )
     adapter_premise_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
@@ -12493,6 +12535,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     adapter_premise_exact_executor_required = (
         adapter_premise_exact_repair_work_orders > 0
         and adapter_premise_exact_queue_ran
+        and adapter_premise_exact_queue_rows > 0
+    )
+    adapter_premise_exact_executor_result_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+            0,
+        )
+        or 0
     )
 
     def _promotion_formal_environment_handoff_rows(
@@ -15099,19 +15149,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran"
                 )
                 is True
+                and adapter_premise_adapter_retry_rows > 0
             ),
             (
                 "adapter_work_orders_from_adapter_premise_feedback="
                 f"{payload.get('n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback')} "
                 "retry_bridge_ran="
                 f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran')} "
+                "retry_bridge_rows="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_rows')} "
+                "retry_bridge_learning_rows="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_learning_rows')} "
+                "retry_bridge_proof_status="
+                f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_proof_evidence_status')} "
                 "skipped="
                 f"{payload.get('source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_skipped_reason')}"
             ),
             (
                 "Adapter-generated premise-derivation feedback produced "
                 "source-theorem adapter work orders, but the runtime does not "
-                "yet run the bounded same-run adapter retry"
+                "yet complete the bounded same-run adapter retry with concrete "
+                "row telemetry"
             ),
         ),
         _scorecard_row(
@@ -15137,6 +15195,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran"
                 )
                 is True
+                and adapter_premise_exact_queue_rows > 0
             ),
             (
                 "adapter_retry_kernel_verified="
@@ -15144,12 +15203,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "exact_repair_work_orders="
                 f"{payload.get('n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback')} "
                 "exact_queue_ran="
-                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')}"
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')} "
+                "exact_queue_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows')}"
             ),
             (
                 "Adapter-premise feedback produced a kernel-verified source-to-bridge "
                 "adapter, but the runtime did not queue the exact source-theorem "
-                "proof-body retry"
+                "proof-body retry with concrete row telemetry"
             ),
         ),
         _scorecard_row(
@@ -15158,6 +15219,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 adapter_premise_exact_executor_requested
                 and adapter_premise_exact_executor_ran
+                and adapter_premise_exact_executor_result_rows > 0
             ),
             (
                 "exact_executor_required="
@@ -15172,13 +15234,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback')} "
                 "exact_queue_ran="
                 f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')} "
+                "exact_queue_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows')} "
                 "exact_executor_results="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows')}"
             ),
             (
                 "Adapter-premise verified-adapter exact source-theorem proof-body "
-                "executor was required/requested but did not run with explicit "
-                "handoff telemetry"
+                "executor was required/requested but did not record explicit "
+                "handoff telemetry or produce concrete result-row telemetry"
             ),
         ),
         _scorecard_row(
