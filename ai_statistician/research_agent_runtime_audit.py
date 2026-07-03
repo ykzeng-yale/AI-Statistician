@@ -10305,14 +10305,20 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         and integrated_algorithm_metric_repair_sequences > 0
         and integrated_simulation_metric_repair_sequences > 0
     )
+    exact_semantic_authoring_materialized_local_check_ready = (
+        exact_semantic_authoring_required
+        and exact_semantic_authoring_candidate_verifier_ready
+        and int(exact_semantic_authoring["n_materialized_local_lean_checked"]) > 0
+    )
+    formalizer_local_lean_check_observed = (
+        integrated_formalizer_candidate_checked > 0
+        or exact_semantic_authoring_materialized_local_check_ready
+    )
     formalizer_local_check_ready = (
         integrated_llm_formalizer_proposals > 0
         and exact_semantic_authoring_live_ready
         and exact_semantic_authoring_candidate_verifier_ready
-        and (
-            integrated_formalizer_candidate_checked > 0
-            or integrated_formalizer_repair_sequences > 0
-        )
+        and formalizer_local_lean_check_observed
     )
     proofengineer_feedback_repair_ready = (
         integrated_formalizer_agentic_repair_ready
@@ -10462,6 +10468,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{integrated_formalizer_candidate_checked} "
                 "integrated_formalizer_repair_sequences="
                 f"{integrated_formalizer_repair_sequences} "
+                "formalizer_local_lean_check_observed="
+                f"{formalizer_local_lean_check_observed} "
+                "exact_semantic_authoring_materialized_local_check_ready="
+                f"{exact_semantic_authoring_materialized_local_check_ready} "
                 "exact_semantic_authoring_required="
                 f"{exact_semantic_authoring_required} "
                 "exact_semantic_authoring_primary_required="
@@ -10496,7 +10506,8 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "materialized and checked by local Lean, or exact semantic-"
                 "definition authoring required by the repair loop was not "
                 "attempted with a live Claude/OpenAI backend and routed "
-                "through materialized local Lean/AXLE verification"
+                "through materialized local Lean/AXLE verification; repair "
+                "sequence counters do not substitute for local Lean evidence"
             ),
         ),
         _ladder_level(
