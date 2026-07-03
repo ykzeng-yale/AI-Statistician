@@ -62076,6 +62076,40 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
 
 
 def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> None:
+    missing_required_payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets": 1,
+    }
+    missing_required_scorecard = _runtime_capability_scorecard(
+        missing_required_payload
+    )
+    missing_required_rows = {
+        row["requirement_id"]: row
+        for row in missing_required_scorecard["rows"]
+    }
+
+    assert missing_required_rows[
+        "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["passed"] is False
+    assert "required_telemetry_present=primary:0,materialized:0" in (
+        missing_required_rows[
+            "exact_semantic_definition_late_typechecked_review_not_hidden"
+        ]["evidence"]
+    )
+    assert "late_review_packets=1" in missing_required_rows[
+        "exact_semantic_definition_late_typechecked_review_not_hidden"
+    ]["evidence"]
+
     payload = {
         "runtime_evaluation_mode": "debug",
         "n_results": 1,
