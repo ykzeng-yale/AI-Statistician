@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shlex
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11003,21 +11004,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_handoff_artifact_missing_feedback_rows = int(
         payload.get("n_runtime_handoff_artifact_missing_feedback_rows", 0) or 0
     )
-    raw_next_action_agenda_contract_complete = payload.get(
-        "runtime_next_action_agenda_contract_complete"
-    )
     runtime_next_action_agenda_contract_complete = (
-        True
-        if raw_next_action_agenda_contract_complete is None
-        else raw_next_action_agenda_contract_complete is True
-    )
-    raw_learning_rows_contract_complete = payload.get(
-        "runtime_learning_rows_contract_complete"
+        _runtime_next_action_agenda_contract_scorecard_passed(payload)
     )
     runtime_learning_rows_contract_complete = (
-        True
-        if raw_learning_rows_contract_complete is None
-        else raw_learning_rows_contract_complete is True
+        _runtime_learning_rows_contract_scorecard_passed(payload)
     )
     legacy_progress_observable = (
         int(payload.get("n_runtime_progress_events", 0) or 0)
@@ -12895,6 +12886,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "runtime_next_action_agenda_contract_complete=true with "
+                    "n_runtime_next_action_agenda_rows_contract_checked equal "
+                    "to n_runtime_next_action_items, empty issues, and "
                     "zero missing schema, wrong artifact kind, missing id, owner, "
                     "action, acceptance gate, boundary, duplicate id, or "
                     "route-critical target rows"
@@ -12939,6 +12932,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "runtime_learning_rows_contract_complete=true with zero "
+                    "checked/runtime row mismatch, empty issues, zero "
                     "missing learning_task, routing, boundary, or exact "
                     "duplicate rows"
                 ),
@@ -14182,6 +14176,85 @@ def _research_path_summary_detail(payload: Mapping[str, Any]) -> str:
         f"{summary.get('current_artifacts_missing_architect_control_ids')} "
         "subsystems="
         f"{summary.get('controlled_subsystems')}"
+    )
+
+
+def _scorecard_telemetry_keys_present(
+    payload: Mapping[str, Any],
+    keys: Sequence[str],
+) -> bool:
+    return all(key in payload and payload.get(key) is not None for key in keys)
+
+
+def _scorecard_issue_list_empty(payload: Mapping[str, Any], key: str) -> bool:
+    value = payload.get(key)
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return False
+    return len(value) == 0
+
+
+def _runtime_next_action_agenda_contract_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_next_action_items",
+        "n_runtime_next_action_agenda_rows_contract_checked",
+        "n_runtime_next_action_agenda_rows_missing_schema_version",
+        "n_runtime_next_action_agenda_rows_wrong_artifact_kind",
+        "n_runtime_next_action_agenda_rows_missing_id",
+        "n_runtime_next_action_agenda_rows_missing_owner",
+        "n_runtime_next_action_agenda_rows_missing_action",
+        "n_runtime_next_action_agenda_rows_missing_acceptance_gate",
+        "n_runtime_next_action_agenda_rows_missing_evidence_boundary",
+        "n_runtime_next_action_agenda_rows_duplicate_ids",
+        "n_runtime_next_action_agenda_route_critical_rows_missing_target",
+    )
+    if payload.get("runtime_next_action_agenda_contract_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_next_action_agenda_contract_issues",
+    ):
+        return False
+    if _safe_int(payload.get("n_runtime_next_action_items")) != _safe_int(
+        payload.get("n_runtime_next_action_agenda_rows_contract_checked")
+    ):
+        return False
+    return all(
+        _safe_int(payload.get(key)) == 0
+        for key in count_keys[2:]
+    )
+
+
+def _runtime_learning_rows_contract_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_learning_rows",
+        "n_runtime_learning_rows_contract_checked",
+        "n_runtime_learning_rows_missing_learning_task",
+        "n_runtime_learning_rows_missing_routing_contract",
+        "n_runtime_learning_rows_missing_evidence_boundary",
+        "n_runtime_learning_rows_exact_duplicate_rows",
+    )
+    if payload.get("runtime_learning_rows_contract_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_learning_rows_contract_issues",
+    ):
+        return False
+    if _safe_int(payload.get("n_runtime_learning_rows")) != _safe_int(
+        payload.get("n_runtime_learning_rows_contract_checked")
+    ):
+        return False
+    return all(
+        _safe_int(payload.get(key)) == 0
+        for key in count_keys[2:]
     )
 
 

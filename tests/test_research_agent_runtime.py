@@ -4222,6 +4222,42 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         is True
     )
 
+    agenda_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_next_action_agenda_contract_complete": True}
+        )["rows"]
+    }
+    assert (
+        agenda_boolean_only_rows[
+            "runtime_next_action_agenda_contract_complete"
+        ]["passed"]
+        is False
+    )
+    assert "checked=None" in agenda_boolean_only_rows[
+        "runtime_next_action_agenda_contract_complete"
+    ]["evidence"]
+
+    stale_agenda_count_payload = dict(clean_agenda_payload)
+    stale_agenda_count_payload[
+        "n_runtime_next_action_agenda_rows_contract_checked"
+    ] = 1
+    stale_agenda_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_agenda_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_agenda_count_rows[
+            "runtime_next_action_agenda_contract_complete"
+        ]["passed"]
+        is False
+    )
+    assert "agenda_rows=2 checked=1" in stale_agenda_count_rows[
+        "runtime_next_action_agenda_contract_complete"
+    ]["evidence"]
+
     agenda_payload = dict(clean_agenda_payload)
     agenda_payload.update(
         {
@@ -4274,6 +4310,40 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         clean_learning_rows["runtime_learning_rows_contract_complete"]["passed"]
         is True
     )
+
+    learning_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_learning_rows_contract_complete": True}
+        )["rows"]
+    }
+    assert (
+        learning_boolean_only_rows[
+            "runtime_learning_rows_contract_complete"
+        ]["passed"]
+        is False
+    )
+    assert "checked=None" in learning_boolean_only_rows[
+        "runtime_learning_rows_contract_complete"
+    ]["evidence"]
+
+    stale_learning_count_payload = dict(clean_learning_payload)
+    stale_learning_count_payload["n_runtime_learning_rows_contract_checked"] = 1
+    stale_learning_count_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_learning_count_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_learning_count_rows[
+            "runtime_learning_rows_contract_complete"
+        ]["passed"]
+        is False
+    )
+    assert "learning_rows=2 checked=1" in stale_learning_count_rows[
+        "runtime_learning_rows_contract_complete"
+    ]["evidence"]
 
     learning_payload = dict(clean_learning_payload)
     learning_payload.update(
