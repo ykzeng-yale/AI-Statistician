@@ -11444,6 +11444,7 @@ def test_capability_scorecard_requires_architect_initial_routing_audit() -> None
         "runtime_evaluation_mode": "capability_eval",
         "n_results": 1,
         "n_live_generator_agents_enabled": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
         "architect_coordinator_enabled": True,
         "runtime_architect_coordinator_executed": True,
         "n_runtime_architect_coordinator_traces": 1,
@@ -57010,19 +57011,22 @@ def test_runtime_capability_ladder_requires_live_llm_artifact_not_only_enabled_a
 
     assert rows[0]["passed"] is True
     assert rows[1]["passed"] is False
-    assert rows[2]["passed"] is True
+    assert rows[2]["passed"] is False
     assert "live_generator_artifact_or_attempt_count=0" in rows[1]["evidence"]
+    assert "live_generator_artifact_or_attempt_count=0" in rows[2]["evidence"]
     assert "enabled-agent topology alone" in rows[1]["blocker"]
     assert ladder["max_contiguous_level"] == 0
-    assert ladder["max_evidence_level"] == 2
-    assert ladder["noncontiguous_evidence_observed"] is True
+    assert ladder["max_evidence_level"] == 0
+    assert ladder["noncontiguous_evidence_observed"] is False
 
     payload["n_live_llm_formalizer_proof_engineer_proposals"] = 1
     ladder = _runtime_capability_ladder(payload)
     rows = {row["level"]: row for row in ladder["levels"]}
 
     assert rows[1]["passed"] is True
+    assert rows[2]["passed"] is True
     assert "live_generator_artifact_or_attempt_count=1" in rows[1]["evidence"]
+    assert "live_generator_artifact_or_attempt_count=1" in rows[2]["evidence"]
     assert ladder["max_contiguous_level"] == 2
 
 

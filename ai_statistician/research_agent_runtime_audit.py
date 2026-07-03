@@ -10420,17 +10420,22 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             2,
             "live_architect_controlled_runtime_completed",
             payload.get("all_ok") is True
-            and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0
+            and live_llm_generator_packets_ready
             and architect_orchestration_executed
             and architect_initial_routing_audited,
             (
                 f"{architect_orchestration_evidence} "
                 "n_live_generator_agents_enabled="
-                f"{payload.get('n_live_generator_agents_enabled')}"
+                f"{payload.get('n_live_generator_agents_enabled')} "
+                "live_generator_artifact_or_attempt_count="
+                f"{live_generator_artifact_or_attempt_count}"
             ),
             architect_orchestration_blocker
             or architect_initial_routing_blocker
-            or "live run did not complete under ArchitectCoordinator control",
+            or (
+                "live ArchitectCoordinator run did not produce a live "
+                "Anthropic/OpenAI-backed artifact or attempt"
+            ),
         ),
         _ladder_level(
             3,
