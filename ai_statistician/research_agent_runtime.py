@@ -334,6 +334,10 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
     "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
 )
+SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+    "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+)
 SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",

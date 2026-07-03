@@ -31,6 +31,7 @@ from .research_agent_runtime import (
     RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS,
     RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
@@ -6709,6 +6710,10 @@ def audit_research_agent_runtime(
                 "source_theorem_formal_environment_proof_body_executor_local_lean_requested",
                 False,
             )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": _runtime_manifest_int_sum(
+            manifest,
+            SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
         ),
         "source_theorem_formal_environment_proof_body_executor_n_result_rows": _runtime_manifest_int_sum(
             manifest,
@@ -15759,12 +15764,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
                 )
                 is True
+                and int(
+                    payload.get(
+                        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
             ),
             (
                 "local_lean_requested="
-                f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')}"
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')} "
+                "local_lean_checked="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')}"
             ),
-            "exact source-theorem proof-body executor did not request local Lean",
+            (
+                "exact source-theorem proof-body executor did not record an "
+                "observed local Lean check"
+            ),
         ),
         _scorecard_row(
             "live_lean_lsp_mcp_called",
