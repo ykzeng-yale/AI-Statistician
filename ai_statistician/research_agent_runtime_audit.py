@@ -7835,10 +7835,7 @@ def _runtime_architect_trace_count(payload: Mapping[str, Any]) -> int:
 
 
 def _runtime_architect_orchestration_executed(payload: Mapping[str, Any]) -> bool:
-    return bool(
-        payload.get("runtime_architect_coordinator_executed") is True
-        or _runtime_architect_trace_count(payload) > 0
-    )
+    return _runtime_architect_trace_count(payload) > 0
 
 
 def _runtime_architect_context_propagated(payload: Mapping[str, Any]) -> bool:

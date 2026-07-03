@@ -60490,6 +60490,29 @@ def test_runtime_architect_control_requires_executed_trace_not_enabled_hint() ->
     ]["blocker"]
 
     payload["runtime_architect_coordinator_executed"] = True
+    truth_rows = {
+        row["evidence_id"]: row
+        for row in _runtime_evidence_truth_table_from_manifest(payload)["rows"]
+    }
+    scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+
+    assert truth_rows["architect_control"]["status"] == "PROPAGATED_FROM_RESUME"
+    assert truth_rows["architect_control"]["count"] == 0
+    assert scorecard_rows["architect_orchestrated"]["passed"] is False
+    assert "runtime_architect_coordinator_executed=True" in scorecard_rows[
+        "architect_orchestrated"
+    ]["evidence"]
+    assert "n_runtime_architect_coordinator_traces=0" in scorecard_rows[
+        "architect_orchestrated"
+    ]["evidence"]
+    assert "no ArchitectCoordinator trace executed" in scorecard_rows[
+        "architect_orchestrated"
+    ]["blocker"]
+
+    payload["runtime_architect_coordinator_executed"] = True
     payload["n_runtime_architect_coordinator_traces"] = 1
     truth_rows = {
         row["evidence_id"]: row
