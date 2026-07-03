@@ -13259,6 +13259,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_handoff_transition_summary_payload.get('n_handoff_ledger_rows')} "
                 "summary_alignment="
                 f"{runtime_handoff_transition_summary_payload.get('handoff_trace_alignment_ok')} "
+                "summary_acceptance_gates="
+                f"{runtime_handoff_transition_summary_payload.get('n_transitions_with_acceptance_gate')} "
+                "summary_expected_artifacts="
+                f"{runtime_handoff_transition_summary_payload.get('n_transitions_with_expected_artifacts')} "
+                "summary_all_acceptance_gates="
+                f"{runtime_handoff_transition_summary_payload.get('all_transitions_have_acceptance_gate')} "
+                "summary_all_expected_artifacts="
+                f"{runtime_handoff_transition_summary_payload.get('all_transitions_have_expected_artifacts')} "
                 "pairs="
                 f"{payload.get('runtime_handoff_transition_pairs')} "
                 "route_sources="
@@ -13272,7 +13280,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "AgentRuntime handoff transitions were not exported and audited "
                 "as a first-class control-flow summary; evaluator and follow-up "
                 "agents cannot distinguish explicit next_task communication "
-                "from hidden fixed-pipeline routing"
+                "with acceptance gates and expected artifacts from hidden "
+                "fixed-pipeline routing"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -13281,12 +13290,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "Rerun with the current runtime so "
                     "research_agent_runtime_manifest.json contains "
                     "runtime_handoff_transition_summary, with transition rows "
-                    "matching trace next_task payloads and blackboard.handoff_ledger."
+                    "matching trace next_task payloads and blackboard.handoff_ledger, "
+                    "and every transition carrying a next_task acceptance_gate "
+                    "and expected_artifacts contract."
                 ),
                 success_metric=(
                     "runtime_handoff_transition_manifest_present=true, "
-                    "runtime_handoff_transition_manifest_stale=false, and "
-                    "runtime_handoff_trace_alignment_ok=true"
+                    "runtime_handoff_transition_manifest_stale=false, "
+                    "runtime_handoff_trace_alignment_ok=true, "
+                    "all_transitions_have_acceptance_gate=true, and "
+                    "all_transitions_have_expected_artifacts=true"
                 ),
             ),
         ),
@@ -14686,6 +14699,10 @@ def _runtime_handoff_transition_summary_scorecard_passed(
         "n_trace_handoff_ids_missing_from_ledger",
         "n_ledger_handoff_ids_missing_from_traces",
         "handoff_trace_alignment_ok",
+        "n_transitions_with_acceptance_gate",
+        "n_transitions_with_expected_artifacts",
+        "all_transitions_have_acceptance_gate",
+        "all_transitions_have_expected_artifacts",
         "trace_handoff_ids_missing_from_ledger",
         "ledger_handoff_ids_missing_from_traces",
     )
@@ -14702,6 +14719,16 @@ def _runtime_handoff_transition_summary_scorecard_passed(
     )
     n_ledger_handoff_ids = _safe_int(
         runtime_handoff_transition_summary_payload.get("n_handoff_ledger_rows")
+    )
+    n_transitions_with_acceptance_gate = _safe_int(
+        runtime_handoff_transition_summary_payload.get(
+            "n_transitions_with_acceptance_gate"
+        )
+    )
+    n_transitions_with_expected_artifacts = _safe_int(
+        runtime_handoff_transition_summary_payload.get(
+            "n_transitions_with_expected_artifacts"
+        )
     )
     return bool(
         runtime_handoff_transition_summary_payload.get("handoff_trace_alignment_ok")
@@ -14725,6 +14752,16 @@ def _runtime_handoff_transition_summary_scorecard_passed(
             )
         )
         == 0
+        and n_transitions_with_acceptance_gate == n_transition_rows
+        and n_transitions_with_expected_artifacts == n_transition_rows
+        and runtime_handoff_transition_summary_payload.get(
+            "all_transitions_have_acceptance_gate"
+        )
+        is True
+        and runtime_handoff_transition_summary_payload.get(
+            "all_transitions_have_expected_artifacts"
+        )
+        is True
         and not runtime_handoff_transition_summary_payload.get(
             "trace_handoff_ids_missing_from_ledger"
         )

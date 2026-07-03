@@ -4676,6 +4676,10 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "n_trace_handoff_ids_missing_from_ledger": 0,
             "n_ledger_handoff_ids_missing_from_traces": 0,
             "handoff_trace_alignment_ok": True,
+            "n_transitions_with_acceptance_gate": 2,
+            "n_transitions_with_expected_artifacts": 2,
+            "all_transitions_have_acceptance_gate": True,
+            "all_transitions_have_expected_artifacts": True,
             "n_transitions_aligned_with_architect_execution_plan": 0,
             "n_transitions_with_only_default_route_source": 2,
             "n_architect_context_transitions_with_only_default_route_source": 0,
@@ -4721,6 +4725,10 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
             "n_trace_handoff_ids_missing_from_ledger": 0,
             "n_ledger_handoff_ids_missing_from_traces": 0,
             "handoff_trace_alignment_ok": True,
+            "n_transitions_with_acceptance_gate": 0,
+            "n_transitions_with_expected_artifacts": 0,
+            "all_transitions_have_acceptance_gate": True,
+            "all_transitions_have_expected_artifacts": True,
             "trace_handoff_ids_missing_from_ledger": [],
             "ledger_handoff_ids_missing_from_traces": [],
         },
@@ -4759,6 +4767,60 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     assert "summary_rows=None" in boolean_zero_transition_rows[
         "runtime_handoff_transition_summary_audited"
     ]["evidence"]
+
+    missing_acceptance_gate_payload = dict(clean_payload)
+    missing_acceptance_gate_payload["runtime_handoff_transition_summary"] = {
+        **clean_payload["runtime_handoff_transition_summary"],
+        "n_transitions_with_acceptance_gate": 1,
+        "all_transitions_have_acceptance_gate": False,
+    }
+    missing_acceptance_gate_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            missing_acceptance_gate_payload
+        )["rows"]
+    }
+    assert (
+        missing_acceptance_gate_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is False
+    )
+    assert "summary_acceptance_gates=1" in missing_acceptance_gate_rows[
+        "runtime_handoff_transition_summary_audited"
+    ]["evidence"]
+    assert "summary_all_acceptance_gates=False" in (
+        missing_acceptance_gate_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["evidence"]
+    )
+
+    missing_expected_artifacts_payload = dict(clean_payload)
+    missing_expected_artifacts_payload["runtime_handoff_transition_summary"] = {
+        **clean_payload["runtime_handoff_transition_summary"],
+        "n_transitions_with_expected_artifacts": 1,
+        "all_transitions_have_expected_artifacts": False,
+    }
+    missing_expected_artifacts_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            missing_expected_artifacts_payload
+        )["rows"]
+    }
+    assert (
+        missing_expected_artifacts_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["passed"]
+        is False
+    )
+    assert "summary_expected_artifacts=1" in missing_expected_artifacts_rows[
+        "runtime_handoff_transition_summary_audited"
+    ]["evidence"]
+    assert "summary_all_expected_artifacts=False" in (
+        missing_expected_artifacts_rows[
+            "runtime_handoff_transition_summary_audited"
+        ]["evidence"]
+    )
 
     handoff_boolean_only_rows = {
         row["requirement_id"]: row
