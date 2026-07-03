@@ -63976,6 +63976,66 @@ def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_feedback_
     )
 
 
+def test_runtime_capability_scorecard_flags_empty_formalizer_premise_feedback_adapter_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 0,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_adapter_kernel_verified": 0,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_learning_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["formalizer_premise_feedback_adapter_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "adapter_bridge_ran=True" in row["evidence"]
+    assert "adapter_bridge_output_rows=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_formalizer_premise_feedback_adapter_outputs() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_proof_body_adapter_work_orders_from_formalizer_premise_derivation_feedback": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_ran": True,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_adapter_kernel_verified": 0,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_learning_rows": 1,
+        "source_theorem_proof_body_adapter_proofengineer_bridge_proof_evidence_status": (
+            "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "formalizer_premise_feedback_adapter_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_adapter_premise_feedback_adapter_retry_gap() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

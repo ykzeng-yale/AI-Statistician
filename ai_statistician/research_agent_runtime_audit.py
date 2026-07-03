@@ -6394,6 +6394,27 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_adapter_kernel_verified": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_n_adapter_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_n_learning_rows": int(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_n_learning_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_proof_body_adapter_proofengineer_bridge_proof_evidence_status": str(
+            manifest.get(
+                "source_theorem_proof_body_adapter_proofengineer_bridge_proof_evidence_status",
+                "",
+            )
+            or ""
+        ),
         "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items": int(
             manifest.get(
                 "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_work_items",
@@ -12819,6 +12840,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         post_adapter_semantic_work_orders > 0
         and post_adapter_semantic_next_action_rows > 0
     )
+    proof_body_adapter_bridge_rows = int(
+        payload.get(
+            "source_theorem_proof_body_adapter_proofengineer_bridge_n_rows",
+            0,
+        )
+        or 0
+    )
+    proof_body_adapter_bridge_kernel_verified = int(
+        payload.get(
+            "source_theorem_proof_body_adapter_proofengineer_bridge_n_adapter_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    proof_body_adapter_bridge_learning_rows = int(
+        payload.get(
+            "source_theorem_proof_body_adapter_proofengineer_bridge_n_learning_rows",
+            0,
+        )
+        or 0
+    )
+    proof_body_adapter_bridge_output_rows = (
+        proof_body_adapter_bridge_rows
+        + proof_body_adapter_bridge_kernel_verified
+        + proof_body_adapter_bridge_learning_rows
+    )
     adapter_premise_exact_repair_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback",
@@ -15568,6 +15615,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_proof_body_adapter_proofengineer_bridge_ran"
                 )
                 is True
+                and proof_body_adapter_bridge_output_rows > 0
             ),
             (
                 "adapter_work_orders_from_formalizer_premise_feedback="
@@ -15575,14 +15623,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "adapter_bridge_ran="
                 f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_ran')} "
                 "adapter_bridge_rows="
-                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_n_rows')} "
+                f"{proof_body_adapter_bridge_rows} "
+                "adapter_bridge_kernel_verified="
+                f"{proof_body_adapter_bridge_kernel_verified} "
+                "adapter_bridge_learning_rows="
+                f"{proof_body_adapter_bridge_learning_rows} "
+                "adapter_bridge_output_rows="
+                f"{proof_body_adapter_bridge_output_rows} "
+                "adapter_bridge_proof_status="
+                f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_proof_evidence_status')} "
                 "skipped="
                 f"{payload.get('source_theorem_proof_body_adapter_proofengineer_bridge_skipped_reason')}"
             ),
             (
                 "Formalizer premise-derivation feedback generated source-theorem "
                 "adapter work orders, but the same-run adapter ProofEngineer "
-                "bridge did not run"
+                "bridge did not run with adapter result, kernel, or learning rows"
             ),
         ),
         _scorecard_row(
