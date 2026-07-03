@@ -11010,16 +11010,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_learning_rows_contract_complete = (
         _runtime_learning_rows_contract_scorecard_passed(payload)
     )
-    legacy_progress_observable = (
-        int(payload.get("n_runtime_progress_events", 0) or 0)
-        >= 2 * int(payload.get("n_runtime_traces", 0) or 0)
-        and int(payload.get("n_runtime_traces", 0) or 0) > 0
-    )
-    raw_progress_export_complete = payload.get("runtime_progress_export_complete")
     runtime_progress_export_complete = (
-        legacy_progress_observable
-        if raw_progress_export_complete is None
-        else raw_progress_export_complete is True
+        _runtime_progress_export_scorecard_passed(payload)
     )
     runtime_task_handoff_trace_rows = int(
         payload.get("n_runtime_task_handoff_trace_rows", 0) or 0
@@ -12817,6 +12809,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 f"progress_events={payload.get('n_runtime_progress_events')} "
                 f"runtime_traces={payload.get('n_runtime_traces')} "
+                "trace_start_rows="
+                f"{payload.get('n_runtime_trace_progress_start_rows')} "
+                "trace_finish_rows="
+                f"{payload.get('n_runtime_trace_progress_finish_rows')} "
                 "start_rows="
                 f"{payload.get('n_runtime_progress_start_rows')} "
                 "finish_rows="
@@ -12835,6 +12831,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "runtime progress JSONL did not record trace-matched start/"
                 "finish events for every subsystem iteration"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Regenerate runtime_progress.jsonl so every runtime trace "
+                    "has explicit start and finish telemetry rows with matching "
+                    "question, iteration, task, subsystem, handoff, artifact, "
+                    "and evidence ids."
+                ),
+                success_metric=(
+                    "runtime_progress_export_complete=true with "
+                    "n_runtime_trace_progress_start_rows and "
+                    "n_runtime_trace_progress_finish_rows equal to "
+                    "n_runtime_traces, start_rows/finish_rows matching those "
+                    "trace counts, zero missing/unknown/mismatched rows, and "
+                    "an empty runtime_progress_export_issues list"
+                ),
             ),
         ),
         _scorecard_row(
@@ -14191,6 +14205,52 @@ def _scorecard_issue_list_empty(payload: Mapping[str, Any], key: str) -> bool:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         return False
     return len(value) == 0
+
+
+def _runtime_progress_export_scorecard_passed(payload: Mapping[str, Any]) -> bool:
+    count_keys = (
+        "n_runtime_progress_events",
+        "n_runtime_traces",
+        "n_runtime_trace_progress_start_rows",
+        "n_runtime_trace_progress_finish_rows",
+        "n_runtime_progress_start_rows",
+        "n_runtime_progress_finish_rows",
+        "n_runtime_progress_missing_start_rows",
+        "n_runtime_progress_missing_finish_rows",
+        "n_runtime_progress_unknown_start_finish_rows",
+        "n_runtime_progress_mismatched_start_finish_rows",
+    )
+    if payload.get("runtime_progress_export_complete") is not True:
+        return False
+    if not _scorecard_telemetry_keys_present(payload, count_keys):
+        return False
+    if not _scorecard_issue_list_empty(payload, "runtime_progress_export_issues"):
+        return False
+    n_traces = _safe_int(payload.get("n_runtime_traces"))
+    if n_traces <= 0:
+        return False
+    trace_start = _safe_int(payload.get("n_runtime_trace_progress_start_rows"))
+    trace_finish = _safe_int(payload.get("n_runtime_trace_progress_finish_rows"))
+    start_rows = _safe_int(payload.get("n_runtime_progress_start_rows"))
+    finish_rows = _safe_int(payload.get("n_runtime_progress_finish_rows"))
+    progress_events = _safe_int(payload.get("n_runtime_progress_events"))
+    if not (
+        trace_start == n_traces
+        and trace_finish == n_traces
+        and start_rows == n_traces
+        and finish_rows == n_traces
+        and progress_events >= start_rows + finish_rows
+    ):
+        return False
+    return all(
+        _safe_int(payload.get(key)) == 0
+        for key in (
+            "n_runtime_progress_missing_start_rows",
+            "n_runtime_progress_missing_finish_rows",
+            "n_runtime_progress_unknown_start_finish_rows",
+            "n_runtime_progress_mismatched_start_finish_rows",
+        )
+    )
 
 
 def _runtime_next_action_agenda_contract_scorecard_passed(

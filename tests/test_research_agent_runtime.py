@@ -4155,6 +4155,8 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
     clean_progress_payload = {
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
+        "n_runtime_trace_progress_start_rows": 2,
+        "n_runtime_trace_progress_finish_rows": 2,
         "n_runtime_progress_start_rows": 2,
         "n_runtime_progress_finish_rows": 2,
         "n_runtime_progress_missing_start_rows": 0,
@@ -4169,6 +4171,50 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         for row in _runtime_capability_scorecard(clean_progress_payload)["rows"]
     }
     assert clean_progress_rows["runtime_progress_observable"]["passed"] is True
+
+    count_only_progress_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {
+                "n_runtime_progress_events": 4,
+                "n_runtime_traces": 2,
+            }
+        )["rows"]
+    }
+    assert count_only_progress_rows["runtime_progress_observable"]["passed"] is False
+    assert "trace_start_rows=None" in count_only_progress_rows[
+        "runtime_progress_observable"
+    ]["evidence"]
+
+    progress_boolean_only_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            {"runtime_progress_export_complete": True}
+        )["rows"]
+    }
+    assert (
+        progress_boolean_only_rows["runtime_progress_observable"]["passed"]
+        is False
+    )
+    assert "runtime_traces=None" in progress_boolean_only_rows[
+        "runtime_progress_observable"
+    ]["evidence"]
+
+    stale_progress_trace_payload = dict(clean_progress_payload)
+    stale_progress_trace_payload["n_runtime_trace_progress_start_rows"] = 1
+    stale_progress_trace_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(stale_progress_trace_payload)[
+            "rows"
+        ]
+    }
+    assert (
+        stale_progress_trace_rows["runtime_progress_observable"]["passed"]
+        is False
+    )
+    assert "trace_start_rows=1" in stale_progress_trace_rows[
+        "runtime_progress_observable"
+    ]["evidence"]
 
     progress_payload = dict(clean_progress_payload)
     progress_payload.update(
