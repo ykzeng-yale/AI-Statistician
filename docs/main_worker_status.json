@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-02",
+  "updated_at": "2026-07-03",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -154,7 +154,11 @@
     "formalizer_metadata_authoring_memory_result": "Resume-time runtime learning memory now preserves source-to-bridge metadata blocker status, helper ids, source Formalizer packet id, and recommended target mode through CLI compaction. The Formalizer proof-bank summary converts the live Critic row into recommended_formalizer_target_mode=source_to_bridge_metadata_authoring_required and recommended_source_theorem_integration_action=author_source_to_bridge_metadata, with an explicit source_to_bridge_metadata_authoring_contract. This is a metadata-authoring handoff only; it is not theorem proof evidence.",
     "formalizer_metadata_authoring_live_memory_probe": "runs/main_worker_live_runtime_resume_critic_metadata_agenda_probe/runtime_learning_rows.jsonl -> mode source_to_bridge_metadata_authoring_required, action author_source_to_bridge_metadata, target split_conformal_finite_sample_coverage, helpers split_conformal_coverage_prop_helper_v3 and split_conformal_core_prop_coverage_bridge_helper, source packet formalizer_proposal:edf12b031dd5e5061dcf0f83",
     "runtime_design_drift_audit": "docs/runtime_design_drift_audit_20260625.md records the design correction: keep evidence-boundary guards in the core runtime, but move conformal/source-to-bridge task-family tactics into typed artifacts, policy packs, or ProofEngineer adapters instead of accumulating more one-off runtime branches.",
-    "generated_metric_repair_policy_patch": "AlgorithmEngineer, SimulationEngineer, and generated-code component repair eval feedback now share ai_statistician/generated_metric_repair_policy.py. The prompt contract still requires valid requested coverage/probability metrics, but rejects vacuous all-covering fixes and requires utility diagnostics instead of coverage-specific interval-widening shortcuts.",
+    "generated_metric_repair_policy_patch": {
+      "status": "implemented",
+      "summary": "Shared generated metric-gate repair prompt now forbids lowering target_coverage, requires conservative finite-sample margin for near-miss coverage repairs, and requires numeric/bool metric return values instead of stringified metrics.",
+      "evidence": "AlgorithmEngineer live component eval failed before typed-return patch, then passed with repair_sequences=1 after patch."
+    },
     "source_to_bridge_metadata_artifact_module": "ai_statistician/source_to_bridge_metadata.py now owns SourceToBridgePremiseDerivationCandidateRequest schema normalization, request completeness checks, explicit Formalizer request extraction, next_action request-shell salvage, and compacted-memory scalar/list normalization. research_agent_runtime.py delegates to this module through thin compatibility wrappers. This is orchestration memory only, not proof evidence.",
     "source_to_bridge_metadata_live_request_probe_runtime_manifest": "runs/main_worker_live_runtime_resume_metadata_request_artifact_probe_keyed/research_agent_runtime_manifest.json",
     "source_to_bridge_metadata_live_request_probe_scorecard": "41/49",
@@ -962,7 +966,53 @@
     "latest_62pt_algorithm_repair_policy_live_generated_algorithm_metric_gate_failures": 2,
     "latest_62pt_algorithm_repair_policy_live_generated_simulation_code_executed": 0,
     "latest_62pt_algorithm_repair_policy_live_result": "Live Anthropic AlgorithmEngineer repair sequence now crosses the integrated generated-code repair gate in the 62-point runtime lineage: unsafe mean/stdev drafts were rejected, metric-gate failures carried code excerpts plus metrics such as ci_coverage=0.0 and bias/RMSE, and a later generated aipw_crossfit draft executed with ci_coverage=1.0 and no metric/safety errors. The runtime records n_generated_code_sandbox_failed_then_passed_repair_sequences=1 and routes forward to FormalizationEvaluator. This is implementation evidence only, not theorem proof evidence; generated simulation integrated execution remains 0 in this lineage.",
-    "latest_62pt_algorithm_repair_policy_tests": ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 491 passed in 205.74s after generated-code safe-subset/metric-feedback repair patch"
+    "latest_62pt_algorithm_repair_policy_tests": ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 491 passed in 205.74s after generated-code safe-subset/metric-feedback repair patch",
+    "env_file_markdown_key_loader_patch": {
+      "status": "implemented",
+      "summary": "CLI _load_dotenv now accepts export KEY=value, Markdown label:value entries such as Anthropic API Key, and raw sk-ant/sk-* provider secrets without printing or overriding existing environment values.",
+      "tests": "tests/test_cli_env_loading.py: 2 passed"
+    },
+    "formalizer_live_component_calibration_probe": {
+      "manifest": "runs/main_worker_formalizer_repair_eval_env_loader_probe/formalizer_lean_candidate_repair_eval_manifest.json",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "capability_evidence_ok": true,
+      "repair_sequences": 1,
+      "local_lean_checked": 1,
+      "local_lean_compiled": 1,
+      "lean_lsp_mcp_tool_calls": 3,
+      "proof_boundary": "component calibration only; not source theorem proof evidence"
+    },
+    "coding_agent_live_component_calibration_probe": {
+      "manifest": "runs/main_worker_coding_agent_repair_eval_typed_metric_probe/coding_agent_generated_code_repair_eval_manifest.json",
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "capability_evidence_ok": true,
+      "algorithm_repair_sequences": 1,
+      "simulation_repair_sequences": 1,
+      "proof_boundary": "component calibration only; not theorem proof or integrated runtime success evidence"
+    },
+    "live_component_calibrations_attached_runtime_audit": {
+      "runtime_dir": "runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations",
+      "audit_manifest": "runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_live_component_calibration_probe/research_agent_runtime_audit_manifest.json",
+      "scorecard_failed_rows_before": 10,
+      "scorecard_failed_rows_after": 7,
+      "newly_satisfied_component_rows": [
+        "coding_agent_generated_code_repair_component_gate",
+        "formalizer_lean_candidate_repair_component_gate",
+        "formalizer_live_prover_tool_component_calibration"
+      ],
+      "remaining_failed_rows": [
+        "generated_algorithm_repair_loop_observed",
+        "source_theorem_signature_probe_reached_proof_body",
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped",
+        "exact_semantic_definition_authoring_worker_live_attempted",
+        "no_formal_gaps_remaining",
+        "full_frontier_theorem_kernel_proved",
+        "cross_task_full_theorem_generalization_demonstrated"
+      ],
+      "proof_boundary": "attached component calibration evidence is not integrated runtime repair evidence and not theorem proof evidence"
+    }
   },
   "latest_runtime_eval_alignment": {
     "date": "2026-07-02",
@@ -1530,7 +1580,9 @@
     "real kernel-verified helper/subclaim rows are present, but no source theorem or full frontier theorem proof is present",
     "Latest live frontier is critic:conformal_prediction_coverage:ebe89551 from runs/main_worker_formalizer_after_exact_semantic_work_order_status_live; exact semantic candidate review is still required for good_rank_event/coverage_event/covered and C_n still needs Lean import/environment repair before any source-theorem proof-body search can resume.",
     "Latest live frontier is FormalizationEvaluator task formalize-critic-repair:conformal_prediction_coverage:175ad017 from runs/main_worker_critic_after_agenda_candidate_review_live; the agenda/pending feedback now preserve exact semantic candidate-review status and proof-body gate, but semantic review of good_rank_event/coverage_event/covered and C_n import/environment repair remain open before source-theorem proof-body search can resume.",
-    "Latest live formalization-gap route-planner prompt-budget staged followup now reaches 3/3 staged stage contract-ok responses and suppresses only the obsolete monolithic prompt-budget blocker during assembly, but the assembled causal_ate_aipw route remains full-contract rejected for substantive route-planning errors rather than JSON/envelope failures. Runtime learning/agenda export now routes that staged assembly rejection back to FormalizationGapPlanner/ArchitectCoordinator with compact assembly-error previews."
+    "Latest live formalization-gap route-planner prompt-budget staged followup now reaches 3/3 staged stage contract-ok responses and suppresses only the obsolete monolithic prompt-budget blocker during assembly, but the assembled causal_ate_aipw route remains full-contract rejected for substantive route-planning errors rather than JSON/envelope failures. Runtime learning/agenda export now routes that staged assembly rejection back to FormalizationGapPlanner/ArchitectCoordinator with compact assembly-error previews.",
+    "Integrated AlgorithmEngineer still needs an in-runtime fail-then-pass generated algorithm repair loop; component calibration now passes but does not satisfy integrated runtime evidence.",
+    "Exact semantic-definition authoring worker still must run live inside the runtime lineage; current live component calibrations do not close source-theorem proof-body or frontier theorem gaps."
   ],
   "next_main_worker_actions": [
     "run the next FormalizationGapPlanner/ArchitectCoordinator revision loop from the new staged-assembly contract-feedback row; keep the staged followup path but accept only a full response-contract-valid route before target-prover replay candidates",
@@ -1825,6 +1877,11 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q -k \"theory_trace_alignment_matches or runtime_evidence_summary_recomputes_stale_alignment_contract or runtime_evidence_summary_recomputes_raw_alignment_without_contract or runtime_theory_summary_merge_prefers_recomputed_unresolved_alignment\" # 5 passed, 605 deselected after downstream theory-trace alignment anchor patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q -k \"theory_trace_alignment or downstream_theory_trace_alignment or runtime_evidence_summary or runtime_audit_recomputes_theory_trace_counts\" # 11 passed, 599 deselected after downstream theory-trace alignment anchor patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --runtime-dir runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe --out runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe/runtime_capability_audit_theory_alignment_patch_probe # expected exit 1 because other gaps remain; downstream_theory_trace_alignment_observed now passed with structured_aligned_subsystems=AlgorithmEngineer/FormalizerProofEngineer/SimulationEngineer, unsupported=0, and scorecard failed rows reduced from 11 to 10",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q # 610 passed in 352.86s after downstream theory-trace alignment anchor patch"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_research_agent_runtime.py -q # 610 passed in 352.86s after downstream theory-trace alignment anchor patch",
+    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/generated_metric_repair_policy.py tests/test_cli_env_loading.py tests/test_generated_metric_repair_policy.py tests/test_research_agent_runtime.py # passed after env loader, metric repair policy, and existing-manifest attachment patches",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/pytest tests/test_cli_env_loading.py tests/test_generated_metric_repair_policy.py tests/test_research_agent_runtime.py -q -k \"existing_component_manifest or static_component_repair_gate_provider or coding_agent_generated_code_repair_eval_static_fixture or runtime_attaches_existing_live_component_repair_manifests or runtime_audit_counts_attached_live_formalizer_lsp_component\" # 5 passed, 611 deselected",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli formalizer-lean-candidate-repair-eval --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md --provider anthropic --max-repair-attempts 1 --max-tokens 2000 --temperature 0.0 --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --lean-lsp-mcp-proof-state-feedback --out runs/main_worker_formalizer_repair_eval_env_loader_probe # passed: capability_evidence_ok=True, repair_sequences=1, local_lean_compiled=1, lean_lsp_mcp_tool_calls=3",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli coding-agent-generated-code-repair-eval --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md --provider anthropic --max-repair-attempts 4 --max-tokens 2600 --temperature 0.0 --runs 12 --out runs/main_worker_coding_agent_repair_eval_typed_metric_probe # passed: algorithm_ok=True simulation_ok=True repair_sequences=1/1",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician .venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --runtime-dir runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations --out runs/main_worker_live_gap_planner_route_after_proofengineer_yield_probe_with_live_component_calibrations/runtime_capability_audit_live_component_calibration_probe # expected exit 1 because integrated/frontier gaps remain; scorecard failed rows 10 -> 7"
   ]
 }

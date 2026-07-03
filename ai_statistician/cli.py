@@ -478,10 +478,58 @@ def _load_dotenv(path: Path) -> None:
         return
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
+        if not stripped or stripped.startswith("#"):
             continue
-        key, value = stripped.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+        if stripped.startswith("```"):
+            continue
+        if stripped.lower().startswith("export "):
+            stripped = stripped[len("export ") :].strip()
+        if "=" in stripped:
+            key, value = stripped.split("=", 1)
+        elif ":" in stripped:
+            key, value = stripped.split(":", 1)
+            key = _dotenv_key_from_markdown_label(key)
+        else:
+            key = _dotenv_key_from_secret_value(stripped)
+            value = stripped
+        key = key.strip()
+        value = value.strip().strip("'\"`")
+        if key and value:
+            os.environ.setdefault(key, value)
+
+
+def _dotenv_key_from_markdown_label(label: str) -> str:
+    normalized = "".join(
+        ch for ch in str(label or "").strip().lower() if ch.isalnum()
+    )
+    if normalized in {
+        "anthropicapikey",
+        "anthropicapi",
+        "claudeapikey",
+        "claudeapi",
+    }:
+        return "ANTHROPIC_API_KEY"
+    if normalized in {"openaiapikey", "openaiapi"}:
+        return "OPENAI_API_KEY"
+    if normalized in {"aristotleapikey", "aristotleapi"}:
+        return "ARISTOTLE_API_KEY"
+    if normalized in {
+        "axleapikey",
+        "axleapi",
+        "axiommathaxleapikey",
+        "axiommathaxleapi",
+    }:
+        return "AXLE_API_KEY"
+    return str(label or "").strip()
+
+
+def _dotenv_key_from_secret_value(value: str) -> str:
+    stripped = str(value or "").strip()
+    if stripped.startswith("sk-ant-"):
+        return "ANTHROPIC_API_KEY"
+    if stripped.startswith("sk-"):
+        return "OPENAI_API_KEY"
+    return ""
 
 
 def _attach_runtime_learning_memory(
@@ -10543,6 +10591,41 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_existing_component_eval_manifest(
+    path: Path,
+    *,
+    expected_artifact_kind: str,
+) -> dict[str, Any]:
+    """Load a prior component calibration manifest for runtime attachment."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"component eval manifest is not a JSON object: {path}")
+    artifact_kind = str(payload.get("artifact_kind", "") or "")
+    if artifact_kind != expected_artifact_kind:
+        raise ValueError(
+            "component eval manifest has artifact_kind="
+            f"{artifact_kind!r}; expected {expected_artifact_kind!r}: {path}"
+        )
+    artifacts = (
+        dict(payload.get("artifacts", {}))
+        if isinstance(payload.get("artifacts", {}), dict)
+        else {}
+    )
+    artifacts.setdefault("manifest_json", str(path))
+    payload["artifacts"] = artifacts
+    payload.setdefault(
+        "attachment_boundary",
+        (
+            "This manifest was produced by a standalone component calibration "
+            "run and is attached to the runtime manifest as calibration evidence "
+            "only. It is not theorem proof evidence and not integrated runtime "
+            "research success."
+        ),
+    )
+    return payload
+
+
 def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
     args: argparse.Namespace,
     manifest: dict[str, Any],
@@ -10558,43 +10641,52 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
         getattr(args, "coding_agent_repair_eval_out", "")
         or Path(args.out) / "internal_coding_agent_generated_code_repair_eval"
     )
-    eval_manifest = run_coding_agent_generated_code_repair_eval(
-        question_file=Path(args.question_file),
-        question_id=(
-            str(getattr(args, "coding_agent_repair_eval_question_id", "") or "")
-            or "conformal_prediction_coverage"
-        ),
-        out_dir=out_dir,
-        provider_name=provider_name,
-        model=str(getattr(args, "coding_agent_repair_eval_model", "") or ""),
-        algorithm_static_response_file=(
-            Path(getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", ""))
-            if getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", "")
-            else None
-        ),
-        simulation_static_response_file=(
-            Path(getattr(args, "coding_agent_repair_eval_simulation_static_response_file", ""))
-            if getattr(args, "coding_agent_repair_eval_simulation_static_response_file", "")
-            else None
-        ),
-        llm_timeout_seconds=float(
-            getattr(
-                args,
-                "coding_agent_repair_eval_llm_timeout_seconds",
-                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-            )
-        ),
-        max_tokens=int(getattr(args, "coding_agent_repair_eval_max_tokens", 4000)),
-        temperature=float(getattr(args, "coding_agent_repair_eval_temperature", 0.1)),
-        n_runs=int(getattr(args, "coding_agent_repair_eval_runs", args.runs)),
-        seed=int(getattr(args, "coding_agent_repair_eval_seed", args.seed)),
-        target_coverage=float(
-            getattr(args, "coding_agent_repair_eval_target_coverage", 0.9)
-        ),
-        max_repair_attempts=int(
-            getattr(args, "coding_agent_repair_eval_max_repair_attempts", 4)
-        ),
-    )
+    existing_manifest_path = str(
+        getattr(args, "coding_agent_repair_eval_existing_manifest", "") or ""
+    ).strip()
+    if existing_manifest_path:
+        eval_manifest = _load_existing_component_eval_manifest(
+            Path(existing_manifest_path),
+            expected_artifact_kind="CodingAgentGeneratedCodeRepairEvalManifest",
+        )
+    else:
+        eval_manifest = run_coding_agent_generated_code_repair_eval(
+            question_file=Path(args.question_file),
+            question_id=(
+                str(getattr(args, "coding_agent_repair_eval_question_id", "") or "")
+                or "conformal_prediction_coverage"
+            ),
+            out_dir=out_dir,
+            provider_name=provider_name,
+            model=str(getattr(args, "coding_agent_repair_eval_model", "") or ""),
+            algorithm_static_response_file=(
+                Path(getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", ""))
+                if getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", "")
+                else None
+            ),
+            simulation_static_response_file=(
+                Path(getattr(args, "coding_agent_repair_eval_simulation_static_response_file", ""))
+                if getattr(args, "coding_agent_repair_eval_simulation_static_response_file", "")
+                else None
+            ),
+            llm_timeout_seconds=float(
+                getattr(
+                    args,
+                    "coding_agent_repair_eval_llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+            ),
+            max_tokens=int(getattr(args, "coding_agent_repair_eval_max_tokens", 4000)),
+            temperature=float(getattr(args, "coding_agent_repair_eval_temperature", 0.1)),
+            n_runs=int(getattr(args, "coding_agent_repair_eval_runs", args.runs)),
+            seed=int(getattr(args, "coding_agent_repair_eval_seed", args.seed)),
+            target_coverage=float(
+                getattr(args, "coding_agent_repair_eval_target_coverage", 0.9)
+            ),
+            max_repair_attempts=int(
+                getattr(args, "coding_agent_repair_eval_max_repair_attempts", 4)
+            ),
+        )
     gate_summary = _runtime_component_gate_summary(eval_manifest)
     attached = {
         "artifact_kind": "RuntimeAttachedCodingAgentGeneratedCodeRepairEval",
@@ -10704,42 +10796,51 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         getattr(args, "formalizer_repair_eval_out", "")
         or Path(args.out) / "internal_formalizer_lean_candidate_repair_eval"
     )
-    eval_manifest = run_formalizer_lean_candidate_repair_eval(
-        question_file=Path(args.question_file),
-        question_id=(
-            str(getattr(args, "formalizer_repair_eval_question_id", "") or "")
-            or "conformal_prediction_coverage"
-        ),
-        out_dir=out_dir,
-        provider_name=provider_name,
-        model=str(getattr(args, "formalizer_repair_eval_model", "") or ""),
-        static_response_file=(
-            Path(getattr(args, "formalizer_repair_eval_static_response_file", ""))
-            if getattr(args, "formalizer_repair_eval_static_response_file", "")
-            else None
-        ),
-        llm_timeout_seconds=float(
-            getattr(
-                args,
-                "formalizer_repair_eval_llm_timeout_seconds",
-                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-            )
-        ),
-        max_tokens=int(getattr(args, "formalizer_repair_eval_max_tokens", 4000)),
-        temperature=float(getattr(args, "formalizer_repair_eval_temperature", 0.1)),
-        lean_project=(
-            Path(getattr(args, "formalizer_repair_eval_lean_project", ""))
-            if getattr(args, "formalizer_repair_eval_lean_project", "")
-            else None
-        ),
-        lean_timeout=int(getattr(args, "formalizer_repair_eval_lean_timeout", 15)),
-        lean_lsp_mcp_proof_state_feedback=bool(
-            getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
-        ),
-        max_repair_attempts=int(
-            getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
-        ),
-    )
+    existing_manifest_path = str(
+        getattr(args, "formalizer_repair_eval_existing_manifest", "") or ""
+    ).strip()
+    if existing_manifest_path:
+        eval_manifest = _load_existing_component_eval_manifest(
+            Path(existing_manifest_path),
+            expected_artifact_kind="FormalizerLeanCandidateRepairEvalManifest",
+        )
+    else:
+        eval_manifest = run_formalizer_lean_candidate_repair_eval(
+            question_file=Path(args.question_file),
+            question_id=(
+                str(getattr(args, "formalizer_repair_eval_question_id", "") or "")
+                or "conformal_prediction_coverage"
+            ),
+            out_dir=out_dir,
+            provider_name=provider_name,
+            model=str(getattr(args, "formalizer_repair_eval_model", "") or ""),
+            static_response_file=(
+                Path(getattr(args, "formalizer_repair_eval_static_response_file", ""))
+                if getattr(args, "formalizer_repair_eval_static_response_file", "")
+                else None
+            ),
+            llm_timeout_seconds=float(
+                getattr(
+                    args,
+                    "formalizer_repair_eval_llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+            ),
+            max_tokens=int(getattr(args, "formalizer_repair_eval_max_tokens", 4000)),
+            temperature=float(getattr(args, "formalizer_repair_eval_temperature", 0.1)),
+            lean_project=(
+                Path(getattr(args, "formalizer_repair_eval_lean_project", ""))
+                if getattr(args, "formalizer_repair_eval_lean_project", "")
+                else None
+            ),
+            lean_timeout=int(getattr(args, "formalizer_repair_eval_lean_timeout", 15)),
+            lean_lsp_mcp_proof_state_feedback=bool(
+                getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+            ),
+            max_repair_attempts=int(
+                getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
+            ),
+        )
     gate_summary = _runtime_component_gate_summary(eval_manifest)
     prior_feedback_counts = dict(
         eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
@@ -11315,11 +11416,13 @@ def _research_agent_runtime_capability_config_errors(
         (
             "run_coding_agent_generated_code_repair_eval",
             "coding_agent_repair_eval_provider",
+            "coding_agent_repair_eval_existing_manifest",
             "coding-agent generated-code repair eval",
         ),
         (
             "run_formalizer_lean_candidate_repair_eval",
             "formalizer_repair_eval_provider",
+            "formalizer_repair_eval_existing_manifest",
             "Formalizer Lean-candidate repair eval",
         ),
     )
@@ -11327,9 +11430,12 @@ def _research_agent_runtime_capability_config_errors(
     for (
         enabled_field,
         provider_field,
+        existing_manifest_field,
         component_name,
     ) in component_eval_provider_fields:
         if not bool(getattr(args, enabled_field, False)):
+            continue
+        if str(getattr(args, existing_manifest_field, "") or "").strip():
             continue
         provider_choice = str(getattr(args, provider_field, "same") or "same")
         resolved_provider = (
@@ -18473,6 +18579,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--coding-agent-repair-eval-existing-manifest",
+        default="",
+        help=(
+            "attach an existing CodingAgentGeneratedCodeRepairEvalManifest instead "
+            "of rerunning the coding-agent repair eval. The attachment remains "
+            "component calibration evidence only."
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--run-formalizer-lean-candidate-repair-eval",
         action="store_true",
         help=(
@@ -18546,6 +18661,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional output directory for the attached Formalizer repair eval; "
             "defaults to <runtime-out>/internal_formalizer_lean_candidate_repair_eval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-existing-manifest",
+        default="",
+        help=(
+            "attach an existing FormalizerLeanCandidateRepairEvalManifest instead "
+            "of rerunning the Formalizer repair eval. The attachment remains "
+            "component calibration evidence only."
         ),
     )
     research_agent_runtime.add_argument("--out", default="runs/research_agent_runtime")

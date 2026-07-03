@@ -62552,6 +62552,7 @@ def test_capability_eval_rejects_static_component_repair_gate_provider() -> None
     _apply_research_agent_runtime_capability_eval_preset(args)
     args.run_coding_agent_generated_code_repair_eval = True
     args.coding_agent_repair_eval_provider = "static"
+    args.coding_agent_repair_eval_existing_manifest = ""
 
     errors = _research_agent_runtime_capability_config_errors(args)
 
@@ -62559,6 +62560,163 @@ def test_capability_eval_rejects_static_component_repair_gate_provider() -> None
         "coding-agent generated-code repair eval" in error
         and "resolves to static" in error
         for error in errors
+    )
+
+
+def test_capability_eval_existing_component_manifest_skips_rerun_provider_error() -> None:
+    args = _capability_eval_preset_args("minimal-live")
+    _apply_research_agent_runtime_capability_eval_preset(args)
+    args.run_coding_agent_generated_code_repair_eval = True
+    args.coding_agent_repair_eval_provider = "static"
+    args.coding_agent_repair_eval_existing_manifest = "runs/live/coding_manifest.json"
+
+    errors = _research_agent_runtime_capability_config_errors(args)
+
+    assert not any(
+        "coding-agent generated-code repair eval" in error
+        and "resolves to static" in error
+        for error in errors
+    )
+
+
+def test_runtime_attaches_existing_live_component_repair_manifests(
+    tmp_path: Path,
+) -> None:
+    runtime_out = tmp_path / "runtime"
+    runtime_out.mkdir()
+    coding_manifest_path = tmp_path / "coding_agent_generated_code_repair_eval_manifest.json"
+    formalizer_manifest_path = tmp_path / "formalizer_lean_candidate_repair_eval_manifest.json"
+    coding_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "CodingAgentGeneratedCodeRepairEvalManifest",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
+                "component_backend_provider_names": ["anthropic"],
+                "model": "claude-haiku-4-5-20251001",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "fixture_plumbing_ok": False,
+                "capability_evidence_ok": True,
+                "algorithm_capability_evidence_ok": True,
+                "simulation_capability_evidence_ok": True,
+                "algorithm_repair_sequences": 1,
+                "algorithm_live_repair_sequences": 1,
+                "simulation_repair_sequences": 1,
+                "simulation_live_repair_sequences": 1,
+                "prior_failure_feedback_injected": True,
+                "autonomous_live_failed_then_passed_repair_observed": True,
+                "capability_evidence_scope": "live_attempt_failed_then_passed",
+                "proof_evidence_status": (
+                    "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    formalizer_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerLeanCandidateRepairEvalManifest",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
+                "model": "claude-sonnet-4-6",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "capability_evidence_ok": True,
+                "candidate_kernel_verified": True,
+                "proofengineer_repair_task_observed": True,
+                "prior_feedback_proof_state_provider": (
+                    "lean_lsp_mcp_proof_state_feedback"
+                ),
+                "prior_feedback_proof_state_rows": 1,
+                "prior_feedback_proof_state_counts": {
+                    "local_lean_tool_calls": 1,
+                    "lean_lsp_mcp_tool_calls": 3,
+                    "executed_tool_calls": 4,
+                },
+                "source_theorem_kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+                "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                "n_formalizer_lean_candidate_local_lean_checked": 1,
+                "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = argparse.Namespace(
+        out=str(runtime_out),
+        question_file="examples/research_questions.json",
+        provider="anthropic",
+        runs=12,
+        seed=20260623,
+        coding_agent_repair_eval_provider="static",
+        coding_agent_repair_eval_existing_manifest=str(coding_manifest_path),
+        coding_agent_repair_eval_out="",
+        formalizer_repair_eval_provider="static",
+        formalizer_repair_eval_existing_manifest=str(formalizer_manifest_path),
+        formalizer_repair_eval_out="",
+    )
+    manifest: dict[str, object] = {
+        "artifacts": {
+            "runtime_learning_rows_jsonl": str(runtime_out / "runtime_learning_rows.jsonl")
+        }
+    }
+
+    manifest = cli_module._attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
+        args,
+        manifest,
+    )
+    manifest = cli_module._attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+        args,
+        manifest,
+    )
+
+    assert manifest[
+        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
+    ] is True
+    assert manifest[
+        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
+    ] is False
+    assert manifest[
+        "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
+    ] is True
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls"
+        ]
+        == 3
+    )
+    assert manifest["artifacts"][
+        "internal_coding_agent_generated_code_repair_eval_manifest_json"
+    ] == str(coding_manifest_path)
+    assert manifest["artifacts"][
+        "internal_formalizer_lean_candidate_repair_eval_manifest_json"
+    ] == str(formalizer_manifest_path)
+    learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task") == "coding_agent_generated_code_component_gate_feedback"
+        and row.get("capability_evidence_ok") is True
+        and row.get("static_or_fixture_only") is False
+        for row in learning_rows
+    )
+    assert any(
+        row.get("learning_task") == "formalizer_lean_candidate_component_gate_feedback"
+        and row.get("prior_feedback_lean_lsp_mcp_tool_calls") == 3
+        and row.get("proof_evidence_status")
+        == "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+        for row in learning_rows
     )
 
 
