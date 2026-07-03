@@ -23,6 +23,11 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
     ToolCallRecord,
 )
+from .algorithm_template_registry import (
+    CROSSFIT_AIPW_TEMPLATE_ID,
+    SPLIT_CONFORMAL_INTERVAL_TEMPLATE_ID,
+    registered_algorithm_template_hint_from_context,
+)
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
@@ -7519,7 +7524,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         proposal_packet=proposal_packet,
                     )
                 )
-            elif estimator_id == "crossfit_aipw" or template_hint == "crossfit_aipw":
+            elif template_hint == CROSSFIT_AIPW_TEMPLATE_ID:
                 prototype, tool_call = _run_crossfit_aipw_prototype(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
@@ -7531,7 +7536,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 prototype["llm_algorithm_engineer_target"] = proposal_target
                 prototype_rows.append(prototype)
                 tool_calls.append(tool_call)
-            elif template_hint == "split_conformal_interval":
+            elif template_hint == SPLIT_CONFORMAL_INTERVAL_TEMPLATE_ID:
                 prototype, tool_call = _run_split_conformal_interval_prototype(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
@@ -38487,13 +38492,9 @@ def _registered_algorithm_template_hint(
     question: OpenResearchQuestion,
 ) -> str:
     explicit = str(proposal_target.get("registered_template_hint", "") or "").strip()
-    if explicit == "none":
-        return ""
-    if explicit in {"crossfit_aipw", "split_conformal_interval"}:
-        return explicit
-    haystack = " ".join(
-        str(part)
-        for part in (
+    return registered_algorithm_template_hint_from_context(
+        explicit_template_hint=explicit,
+        text_parts=(
             explicit,
             spec.get("id", ""),
             spec.get("name", ""),
@@ -38503,17 +38504,8 @@ def _registered_algorithm_template_hint(
             question.title,
             question.description,
             " ".join(question.tags),
-        )
-    ).lower()
-    if "crossfit" in haystack or "aipw" in haystack:
-        return "crossfit_aipw"
-    if "conformal" in haystack and (
-        "interval" in haystack
-        or "prediction" in haystack
-        or "coverage" in haystack
-    ):
-        return "split_conformal_interval"
-    return ""
+        ),
+    )
 
 
 def _formalization_manifest_source_to_bridge_metadata_blocker(

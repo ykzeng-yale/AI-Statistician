@@ -27,12 +27,17 @@ from ai_statistician.cli import (
     main,
 )
 from ai_statistician.algorithm_engineer_llm import (
+    ALGORITHM_ENGINEER_OUTPUT_CONTRACT,
     AlgorithmEngineerConfig,
     LLMAlgorithmEngineerAgent,
     _normalize_algorithm_packet,
     _validate_capability_eval_generated_algorithm_packet,
     build_algorithm_engineer_prompt,
     validate_algorithm_engineer_packet,
+)
+from ai_statistician.algorithm_template_registry import (
+    registered_algorithm_template_hint_contract,
+    registered_algorithm_template_prompt_rows,
 )
 from ai_statistician.algorithm_engineer_generated_code_repair_eval import (
     _prior_metric_gate_failure_manifest as _algorithm_prior_metric_gate_failure_manifest,
@@ -13001,6 +13006,49 @@ def test_algorithm_engineer_capability_eval_prompt_requires_generated_code() -> 
     assert "will not be executed for this capability gate" in prompt
     assert "required for capability-eval coding-agent evidence" in prompt
     assert "leave sandbox_code_drafts empty whenever a template matches" not in prompt
+
+
+def test_algorithm_engineer_template_registry_drives_prompt_and_validation() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "problem_card": {"estimand": "coverage"},
+            "estimator_specs": [{"id": "E1", "name": "split conformal"}],
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+            "implementation_gaps": [{"estimator_id": "E1", "status": "gap"}],
+        },
+        implementation_gaps=[{"estimator_id": "E1", "status": "gap"}],
+        environment_feedback={},
+    )
+
+    for row in registered_algorithm_template_prompt_rows():
+        assert row["template_id"] in prompt
+        assert row["capability"] in prompt
+    assert registered_algorithm_template_hint_contract() in json.dumps(
+        ALGORITHM_ENGINEER_OUTPUT_CONTRACT
+    )
+    assert validate_algorithm_engineer_packet(
+        {
+            "execution_evidence_status": (
+                "LLM_ALGORITHM_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+            ),
+            "sandbox_executed": False,
+            "production_registered": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            "implementation_targets": [
+                {
+                    "estimator_id": "E1",
+                    "registered_template_hint": "split_conformal_interval",
+                }
+            ],
+            "next_actions": [{"owner_agent": "AgentRuntime"}],
+        }
+    ) == []
 
 
 def test_algorithm_engineer_prompt_uses_runtime_requested_capability_contract() -> None:

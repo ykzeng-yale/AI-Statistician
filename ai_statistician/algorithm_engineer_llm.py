@@ -11,6 +11,11 @@ from .generated_metric_repair_policy import (
     generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
 )
+from .algorithm_template_registry import (
+    registered_algorithm_template_hint_contract,
+    registered_algorithm_template_ids,
+    registered_algorithm_template_prompt_rows,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -160,18 +165,7 @@ def build_algorithm_engineer_prompt(
         "runtime_environment_feedback": _compact_algorithm_environment_feedback(
             environment_feedback or {}
         ),
-        "registered_runtime_templates": [
-            {
-                "template_id": "crossfit_aipw",
-                "capability": "AIPW binary-treatment ATE sandbox with stress metrics",
-                "execution_owner": "AgentRuntime",
-            },
-            {
-                "template_id": "split_conformal_interval",
-                "capability": "trusted split-conformal regression interval sandbox",
-                "execution_owner": "AgentRuntime",
-            }
-        ],
+        "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
             "status": "optional fallback when no registered template matches",
             "language": "python",
@@ -729,7 +723,7 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "estimator_id": "string",
             "adapter_strategy": "short string",
-            "registered_template_hint": "crossfit_aipw|split_conformal_interval|none",
+            "registered_template_hint": registered_algorithm_template_hint_contract(),
             "data_contract": ["one short string"],
             "validation_metrics": ["one short string"],
             "risk_controls": ["one short string"],
@@ -784,7 +778,7 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not str(row.get("estimator_id", "")).strip():
             errors.append("implementation target missing estimator_id")
         template = str(row.get("registered_template_hint", "none") or "none")
-        if template not in {"crossfit_aipw", "split_conformal_interval", "none"}:
+        if template not in {*registered_algorithm_template_ids(), "none"}:
             errors.append(f"unsupported registered_template_hint: {template}")
     for row in packet.get("sandbox_code_drafts", []) or []:
         if not isinstance(row, Mapping):
