@@ -144,6 +144,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_generated_simulation_feedback_from_learning_memory,
     _formalizer_proof_bank_runtime_memory_summary,
     _formalizer_lean_candidate_materialization_learning_rows,
+    _formalizer_pseudo_formal_work_order_rows,
     _formalizer_source_to_bridge_metadata_authoring_request_rows,
     _formalizer_source_to_bridge_premise_derivation_work_orders,
     _formalizer_source_theorem_semantic_primitive_work_orders,
@@ -152,6 +153,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_live_route_planner_summary,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
+    _runtime_pseudo_formal_work_order_rows_from_formalizer,
     _runtime_source_to_bridge_premise_derivation_work_order_rows_from_formalizer,
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows,
     _runtime_source_theorem_semantic_primitive_work_order_rows_from_post_executor_formal_environment_learning_rows,
@@ -21067,6 +21069,115 @@ def test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate(
             theorem_goals=[],
         )
         == []
+    )
+
+
+def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() -> None:
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:pseudo_formal",
+        "pseudo_formal_proof_packets": [
+            {
+                "theorem_id": "split_conformal_coverage",
+                "source_artifact_id": "theory_packet:split_conformal",
+                "blocks": [
+                    {
+                        "block_id": "b1",
+                        "block_type": "lemma",
+                        "conclusion": "rank is uniform",
+                        "proof_text": "Exchangeability implies rank uniformity.",
+                        "source_anchors": [
+                            {
+                                "kind": "theory_trace",
+                                "id": "equation:rank_uniformity",
+                            }
+                        ],
+                        "semantic_primitive_requirements": ["rank_uniformity"],
+                        "lean_feasibility": "lean_now",
+                        "faithfulness_status": "faithful",
+                        "block_verification": {"verdict": "accepted"},
+                    },
+                    {
+                        "block_id": "b2",
+                        "block_type": "claim",
+                        "dependency_ids": ["b1"],
+                        "conclusion": "coverage is at least 1-alpha",
+                        "proof_text": "Use the conformal quantile threshold.",
+                        "source_anchors": [
+                            {
+                                "kind": "proof_body",
+                                "id": "proof:coverage",
+                            }
+                        ],
+                        "semantic_primitive_requirements": ["coverage_event"],
+                        "lean_feasibility": "needs_semantic_definition",
+                        "faithfulness_status": "needs_review",
+                        "block_verification": {
+                            "verdict": "failed",
+                            "reason": "coverage event has no exact definition",
+                        },
+                    },
+                ],
+            }
+        ],
+    }
+
+    rows = _formalizer_pseudo_formal_work_order_rows(
+        proposal_packet=proposal_packet
+    )
+
+    row_kinds = {row["row_kind"] for row in rows}
+    assert "pseudo_formal_lean_candidate_seed" in row_kinds
+    assert "pseudo_formal_exact_semantic_definition_request" in row_kinds
+    assert "pseudo_formal_block_verification_failure" in row_kinds
+    assert "pseudo_formal_faithfulness_review" in row_kinds
+    assert "pseudo_formal_semantic_primitive_request" in row_kinds
+    assert {row["source_formalizer_proposal_id"] for row in rows} == {
+        "formalizer_proposal:pseudo_formal"
+    }
+    assert {row["kernel_verified"] for row in rows} == {False}
+    assert {row["source_theorem_kernel_verified"] for row in rows} == {False}
+    assert {row["proof_evidence_status"] for row in rows} == {
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
+    assert all("not theorem proof evidence" in row["proof_evidence_boundary"] for row in rows)
+
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization_manifest:pseudo",
+                    "question": {
+                        "id": "conformal_prediction_coverage",
+                        "title": "Split conformal coverage",
+                    },
+                    "llm_formalizer_proof_engineer_proposal_id": (
+                        "formalizer_proposal:pseudo_formal"
+                    ),
+                },
+                "formalizer_proposal:pseudo_formal": proposal_packet,
+            }
+        }
+    }
+
+    exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [result]
+    )
+
+    assert len(exported_rows) == len(rows)
+    assert {row["question_id"] for row in exported_rows} == {
+        "conformal_prediction_coverage"
+    }
+    assert {row["source_formalization_manifest_id"] for row in exported_rows} == {
+        "formalization_manifest:pseudo"
+    }
+    assert all(
+        row["runtime_queue_status"].startswith("PENDING_")
+        for row in exported_rows
+    )
+    assert all(
+        "not theorem proof evidence" in row["proof_evidence_boundary"]
+        for row in exported_rows
     )
 
 

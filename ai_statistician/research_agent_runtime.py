@@ -136,6 +136,11 @@ from .proof_state_feedback import (
     ProofStateFeedbackProvider,
     proof_state_feedback_row_to_json,
 )
+from .pseudo_formalization import (
+    PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    pseudo_formal_block_work_order_rows,
+)
 from .research_architect import (
     AnthropicArchitectLLMProvider,
     KERNEL_PROOF_BOUNDARY,
@@ -8434,6 +8439,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 else {}
             )
             produced_artifacts[proposal_id] = proposal_packet
+            pseudo_formal_work_order_rows = _formalizer_pseudo_formal_work_order_rows(
+                proposal_packet=proposal_packet
+            )
             lean_candidate_materialization = (
                 _materialize_formalizer_lean_candidate_artifacts(
                     root=self.lean_candidate_root,
@@ -8662,6 +8670,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         "n_off_catalog_proof_bank_obligation_requests": len(
                             llm_off_catalog_proof_obligation_ids
                         ),
+                        "n_pseudo_formal_proof_packets": len(
+                            proposal_packet.get("pseudo_formal_proof_packets", [])
+                            or []
+                        ),
+                        "n_pseudo_formal_work_order_rows": len(
+                            pseudo_formal_work_order_rows
+                        ),
                         "proof_evidence_status": str(
                             proposal_packet.get(
                                 "proof_evidence_status",
@@ -8710,6 +8725,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         llm_suppressed_kernel_verified_proof_obligation_ids
                     ),
                     "n_off_catalog_proof_bank_obligation_requests": len(llm_off_catalog_proof_obligation_ids),
+                    "n_pseudo_formal_proof_packets": len(
+                        proposal_packet.get("pseudo_formal_proof_packets", [])
+                        or []
+                    ),
+                    "n_pseudo_formal_work_order_rows": len(
+                        pseudo_formal_work_order_rows
+                    ),
                     "kernel_verified": False,
                     "full_frontier_theorem_proved": False,
                     "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
@@ -9012,6 +9034,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 theorem_goals=theorem_goals,
             )
         )
+        pseudo_formal_work_order_rows = (
+            pseudo_formal_work_order_rows if proposal_packet is not None else []
+        )
         deterministic_formalizer_work_order_seed_used = (
             proposal_source == "deterministic_theorem_closure_work_order_seed"
         )
@@ -9143,6 +9168,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 if isinstance(proposal_packet, Mapping)
                 else []
             ),
+            "llm_formalizer_pseudo_formal_proof_packets": (
+                list(proposal_packet.get("pseudo_formal_proof_packets", []) or [])
+                if isinstance(proposal_packet, Mapping)
+                else []
+            ),
             "llm_formalizer_dropped_diagnostic_helper_only_next_actions": (
                 list(
                     proposal_packet.get(
@@ -9186,6 +9216,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "premise-derivation candidate, but they are not Lean proof evidence "
                 "and do not certify any theorem or diagnostic helper."
             ),
+            "pseudo_formal_work_order_rows": pseudo_formal_work_order_rows,
+            "pseudo_formal_work_order_boundary": (
+                "Pseudo-formal work-order rows decompose and route source proof "
+                "blocks. They are not theorem proof evidence, do not satisfy "
+                "Lean-candidate gates, and require local Lean/AXLE target-prover "
+                "kernel replay before any proof promotion."
+            ),
             "learning_rows": source_to_bridge_metadata_authoring_requests,
             "formal_subclaims": [_formal_subclaim_to_json(row) for row in subclaims],
             "proof_obligation_control": proof_obligation_control,
@@ -9211,6 +9248,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "theorem_reduction_closure_work_orders": len(
                     theorem_reduction_closure_work_orders
                 ),
+                "pseudo_formal_work_order_rows": len(pseudo_formal_work_order_rows),
             },
             "verifiers": verifier_names,
             "full_frontier_theorem_proved": False,
@@ -19653,6 +19691,9 @@ def run_research_agent_runtime(
             ),
         )
     )
+    pseudo_formal_formalizer_work_order_rows = (
+        _runtime_pseudo_formal_work_order_rows_from_formalizer(results)
+    )
     source_theorem_formal_environment_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows(results)
     )
@@ -19739,6 +19780,9 @@ def run_research_agent_runtime(
     source_to_bridge_premise_derivation_formalizer_work_orders_path = (
         out_dir
         / "runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer.jsonl"
+    )
+    pseudo_formal_formalizer_work_orders_path = (
+        out_dir / "runtime_pseudo_formal_work_orders_from_formalizer.jsonl"
     )
     source_theorem_formal_environment_work_orders_path = (
         out_dir / "runtime_source_theorem_formal_environment_work_orders.jsonl"
@@ -19838,6 +19882,10 @@ def run_research_agent_runtime(
     _write_jsonl(
         source_to_bridge_premise_derivation_formalizer_work_orders_path,
         source_to_bridge_premise_derivation_formalizer_work_order_rows,
+    )
+    _write_jsonl(
+        pseudo_formal_formalizer_work_orders_path,
+        pseudo_formal_formalizer_work_order_rows,
     )
     _write_jsonl(
         source_theorem_formal_environment_work_orders_path,
@@ -24442,6 +24490,9 @@ def run_research_agent_runtime(
         "runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer_jsonl"
     ] = str(source_to_bridge_premise_derivation_formalizer_work_orders_path)
     manifest["artifacts"][
+        "runtime_pseudo_formal_work_orders_from_formalizer_jsonl"
+    ] = str(pseudo_formal_formalizer_work_orders_path)
+    manifest["artifacts"][
         "runtime_source_theorem_formal_environment_work_orders_jsonl"
     ] = str(source_theorem_formal_environment_work_orders_path)
     manifest["artifacts"]["runtime_source_theorem_promotion_work_orders_jsonl"] = str(
@@ -26600,6 +26651,9 @@ def run_research_agent_runtime(
     manifest[
         "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer"
     ] = len(source_to_bridge_premise_derivation_formalizer_work_order_rows)
+    manifest[
+        "n_runtime_pseudo_formal_work_orders_from_formalizer"
+    ] = len(pseudo_formal_formalizer_work_order_rows)
     manifest["source_theorem_proof_body_adapter_required"] = bool(
         source_theorem_proof_body_adapter_work_order_rows
     )
@@ -48087,6 +48141,54 @@ def _deterministic_theorem_closure_lean_statement_sketch(
     )
 
 
+def _formalizer_pseudo_formal_work_order_rows(
+    *,
+    proposal_packet: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    proposal_id = str(proposal_packet.get("packet_id", "") or "")
+    for packet_index, packet in enumerate(
+        proposal_packet.get("pseudo_formal_proof_packets", []) or [],
+        start=1,
+    ):
+        if not isinstance(packet, Mapping):
+            continue
+        for row in pseudo_formal_block_work_order_rows(packet):
+            runtime_row = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "PseudoFormalizerWorkOrder",
+                **dict(row),
+                "source_formalizer_proposal_id": proposal_id,
+                "source_pseudo_formal_packet_index": packet_index,
+                "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+                "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                "kernel_verified": False,
+                "source_theorem_kernel_verified": False,
+                "runtime_queue_status": _pseudo_formal_runtime_queue_status(row),
+                "runtime_queue_boundary": (
+                    "This queue row was exported from a pseudo-formal proof block. "
+                    "It is routing and decomposition feedback only, not theorem "
+                    "proof evidence; target-prover kernel replay is required before "
+                    "any proof promotion."
+                ),
+            }
+            rows.append(runtime_row)
+    return rows
+
+
+def _pseudo_formal_runtime_queue_status(row: Mapping[str, Any]) -> str:
+    target_lane = str(row.get("target_lane", "") or "")
+    if target_lane == "formal_targets":
+        return "PENDING_FORMALIZER_LEAN_CANDIDATE_FROM_PSEUDO_FORMAL_BLOCK"
+    if target_lane == "lean_rag":
+        return "PENDING_FORMAL_LIBRARY_GROUNDING_FROM_PSEUDO_FORMAL_BLOCK"
+    if target_lane == "source_to_bridge":
+        return "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
+    if target_lane == "source_theorem_exact_semantic_definition":
+        return "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
+    return "PENDING_FORMAL_GAP_REVIEW_FROM_PSEUDO_FORMAL_BLOCK"
+
+
 def _formalizer_theorem_reduction_closure_work_orders(
     *,
     proposal_packet: Mapping[str, Any],
@@ -54497,6 +54599,102 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                 )
                 if work_order_id:
                     by_work_order_id[work_order_id] = len(rows)
+                rows.append(row)
+    return rows
+
+
+def _runtime_pseudo_formal_work_order_rows_from_formalizer(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    by_row_id: dict[str, int] = {}
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            question = (
+                artifact.get("question", {})
+                if isinstance(artifact.get("question"), Mapping)
+                else {}
+            )
+            work_order_items = list(
+                artifact.get("pseudo_formal_work_order_rows", []) or []
+            )
+            if not work_order_items:
+                proposal_id = str(
+                    artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
+                    or ""
+                )
+                proposal_packet = artifacts.get(proposal_id, {})
+                if isinstance(proposal_packet, Mapping):
+                    work_order_items = _formalizer_pseudo_formal_work_order_rows(
+                        proposal_packet=proposal_packet
+                    )
+            for item in work_order_items:
+                if not isinstance(item, Mapping):
+                    continue
+                row = dict(item)
+                row["source_formalization_manifest_id"] = str(
+                    artifact.get("manifest_id", "") or ""
+                )
+                row["question_id"] = str(
+                    row.get("question_id", "") or question.get("id", "") or ""
+                )
+                row["question_title"] = str(
+                    row.get("question_title", "")
+                    or question.get("title", "")
+                    or ""
+                )
+                row["runtime_queue_status"] = str(
+                    row.get("runtime_queue_status", "")
+                    or _pseudo_formal_runtime_queue_status(row)
+                )
+                row["runtime_queue_boundary"] = str(
+                    row.get("runtime_queue_boundary", "")
+                    or (
+                        "This queue row was exported from a pseudo-formal proof "
+                        "block. It is not theorem proof evidence; target-prover "
+                        "kernel replay is required before proof promotion."
+                    )
+                )
+                row["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+                row["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+                row["kernel_verified"] = False
+                row["source_theorem_kernel_verified"] = False
+                row_id = str(row.get("row_id", "") or "").strip()
+                source_manifest_id = str(
+                    row.get("source_formalization_manifest_id", "") or ""
+                )
+                if row_id in by_row_id:
+                    existing = rows[by_row_id[row_id]]
+                    source_ids = [
+                        str(value)
+                        for value in existing.get(
+                            "source_formalization_manifest_ids",
+                            [],
+                        )
+                        or []
+                        if str(value).strip()
+                    ]
+                    if source_manifest_id and source_manifest_id not in source_ids:
+                        source_ids.append(source_manifest_id)
+                    existing["source_formalization_manifest_ids"] = source_ids
+                    existing["n_source_formalization_manifests"] = len(source_ids)
+                    continue
+                row["source_formalization_manifest_ids"] = (
+                    [source_manifest_id] if source_manifest_id else []
+                )
+                row["n_source_formalization_manifests"] = len(
+                    row["source_formalization_manifest_ids"]
+                )
+                if row_id:
+                    by_row_id[row_id] = len(rows)
                 rows.append(row)
     return rows
 
