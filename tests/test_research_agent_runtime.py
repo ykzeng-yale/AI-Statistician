@@ -59087,6 +59087,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is False
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is False
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert table["formalizer_lean_repair_loop_observed"] is False
     assert "n_formalizer_lean_candidate_local_lean_compiled=0" in rows[
         "formalizer_lean_candidate_repair_loop_observed"
     ]["evidence"]
@@ -59263,12 +59264,14 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
         "generated_simulation_metric_repair_loop_observed"
     ]["passed"] is False
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert table["formalizer_lean_repair_loop_observed"] is False
     assert table["coding_agent_capability_ready"] is False
 
     payload["n_formalizer_lean_candidate_local_lean_compiled"] = 1
     table = _runtime_coding_agent_capability_table(payload)
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
+    assert table["formalizer_lean_repair_loop_observed"] is True
     assert table["coding_agent_capability_ready"] is False
 
     payload["n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"] = 1
@@ -59582,6 +59585,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is False
+    assert table["formalizer_lean_repair_loop_observed"] is False
     assert "n_formalizer_lean_candidate_local_lean_compiled=0" in rows[
         "formalizer_lean_candidate_repair_loop_observed"
     ]["evidence"]
@@ -59593,6 +59597,7 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows["formalizer_lean_candidate_repair_loop_observed"]["passed"] is True
+    assert table["formalizer_lean_repair_loop_observed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is True

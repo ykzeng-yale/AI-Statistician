@@ -2710,7 +2710,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         "simulation_metric_repair_loop_observed": (
             simulation_metric_repair_sequences > 0
         ),
-        "formalizer_lean_repair_loop_observed": formalizer_repair_sequences > 0,
+        "formalizer_lean_repair_loop_observed": (
+            integrated_formalizer_repair_loop_ready
+        ),
         "boundary": (
             "This table is capability evidence for the generated-code and "
             "formalization environment loops. It does not make simulations proof "
