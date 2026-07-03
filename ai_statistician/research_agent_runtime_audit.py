@@ -2291,15 +2291,48 @@ def _rows_with_manifest_task_family_backfill(
     return backfilled, n_backfilled
 
 
-def _manifest_or_proof_summary_count(
-    manifest: Mapping[str, Any],
+FORMALIZER_INTEGRATED_PROOF_COUNT_KEYS = (
+    "n_llm_formalizer_proof_engineer_proposals",
+    "n_live_llm_formalizer_proof_engineer_proposals",
+    "n_formalizer_lean_candidate_local_lean_checked",
+    "n_formalizer_lean_candidate_local_lean_compiled",
+    "n_formalizer_lean_candidate_live_proof_state_requests",
+    "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests",
+    "n_formalizer_lean_candidate_proof_state_feedback_rows",
+    "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
+    "n_formalizer_lean_candidate_local_lean_tool_calls",
+    "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
+    "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+    "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
+)
+
+
+def _proof_summary_count(
     proof_summary: Mapping[str, Any],
     key: str,
 ) -> int:
-    return max(
-        int(manifest.get(key, 0) or 0),
-        int(proof_summary.get(key, 0) or 0),
-    )
+    return int(proof_summary.get(key, 0) or 0)
+
+
+def _formalizer_integrated_count_claims(
+    *,
+    manifest: Mapping[str, Any],
+    runtime_proof_summary: Mapping[str, Any],
+    derived_proof_summary: Mapping[str, Any],
+) -> dict[str, dict[str, int | bool]]:
+    claims: dict[str, dict[str, int | bool]] = {}
+    for key in FORMALIZER_INTEGRATED_PROOF_COUNT_KEYS:
+        derived_count = _proof_summary_count(derived_proof_summary, key)
+        manifest_claimed = int(manifest.get(key, 0) or 0)
+        runtime_summary_claimed = _proof_summary_count(runtime_proof_summary, key)
+        claims[key] = {
+            "derived_from_results": derived_count,
+            "manifest_claimed": manifest_claimed,
+            "runtime_summary_claimed": runtime_summary_claimed,
+            "stale_claim": max(manifest_claimed, runtime_summary_claimed)
+            > derived_count,
+        }
+    return claims
 
 
 @dataclass(frozen=True)
@@ -2783,6 +2816,14 @@ def audit_research_agent_runtime(
     runtime_theory_summary = _merge_runtime_theory_summaries(
         runtime_theory_summary,
         _runtime_theory_summary_from_result_paths(result_paths),
+    )
+    derived_runtime_proof_summary = _runtime_proof_summary_from_result_paths(
+        result_paths
+    )
+    formalizer_integrated_count_claims = _formalizer_integrated_count_claims(
+        manifest=manifest,
+        runtime_proof_summary=runtime_proof_summary,
+        derived_proof_summary=derived_runtime_proof_summary,
     )
     derived_formalizer_repair_sequences = (
         _formalizer_lean_candidate_repair_sequences_from_result_paths(result_paths)
@@ -4635,13 +4676,13 @@ def audit_research_agent_runtime(
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": (
             attached_formalizer_prior_feedback_executed_tool_calls
         ),
-        "n_llm_formalizer_proof_engineer_proposals": int(
-            manifest.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
+        "n_llm_formalizer_proof_engineer_proposals": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_llm_formalizer_proof_engineer_proposals",
         ),
         "n_live_llm_formalizer_proof_engineer_proposals": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_live_llm_formalizer_proof_engineer_proposals",
             )
         ),
@@ -4650,74 +4691,67 @@ def audit_research_agent_runtime(
             or 0
         ),
         "n_formalizer_lean_candidate_local_lean_checked": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_local_lean_checked",
             )
         ),
         "n_formalizer_lean_candidate_local_lean_compiled": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_local_lean_compiled",
             )
         ),
         "n_formalizer_lean_candidate_live_proof_state_requests": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_live_proof_state_requests",
             )
         ),
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests",
             )
         ),
         "n_formalizer_lean_candidate_proof_state_feedback_rows": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_proof_state_feedback_rows",
             )
         ),
         "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows",
             )
         ),
         "n_formalizer_lean_candidate_local_lean_tool_calls": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_local_lean_tool_calls",
             )
         ),
         "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
             )
         ),
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
             )
         ),
         "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": int(
-            _manifest_or_proof_summary_count(
-                manifest,
-                runtime_proof_summary,
+            _proof_summary_count(
+                derived_runtime_proof_summary,
                 "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
             )
+        ),
+        "formalizer_lean_candidate_integrated_count_claims": (
+            formalizer_integrated_count_claims
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
             formalizer_repair_sequences
@@ -17759,6 +17793,26 @@ def _runtime_theory_summary_from_result_paths(
     summary = _runtime_evidence_summary(results)
     theory = summary.get("theory", {}) if isinstance(summary, Mapping) else {}
     return dict(theory) if isinstance(theory, Mapping) else {}
+
+
+def _runtime_proof_summary_from_result_paths(
+    result_paths: list[Path],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            results.append(payload)
+    if not results:
+        return {}
+    summary = _runtime_evidence_summary(results)
+    proof = summary.get("proof", {}) if isinstance(summary, Mapping) else {}
+    return dict(proof) if isinstance(proof, Mapping) else {}
 
 
 def _merge_runtime_theory_summaries(

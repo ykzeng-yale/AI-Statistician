@@ -227,7 +227,6 @@ from ai_statistician.research_agent_runtime_audit import (
     _capability_full_live_rerun_command,
     _capability_resume_command,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
-    _manifest_or_proof_summary_count,
     _runtime_capability_gap_routing_contract_summary,
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
@@ -29510,11 +29509,31 @@ def test_runtime_audit_does_not_trust_self_reported_formalizer_repair_sequences(
                 "n_questions": 1,
                 "question_ids": ["conformal_prediction_coverage"],
                 "artifacts": {"per_question_results": [str(result_path)]},
+                "n_llm_formalizer_proof_engineer_proposals": 1,
                 "n_live_llm_formalizer_proof_engineer_proposals": 1,
                 "n_formalizer_lean_candidate_local_lean_checked": 1,
+                "n_formalizer_lean_candidate_live_proof_state_requests": 1,
+                "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
+                "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+                "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+                "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+                "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
+                "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+                "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 1,
                 "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
                 "runtime_evidence_summary": {
                     "proof": {
+                        "n_llm_formalizer_proof_engineer_proposals": 1,
+                        "n_live_llm_formalizer_proof_engineer_proposals": 1,
+                        "n_formalizer_lean_candidate_local_lean_checked": 1,
+                        "n_formalizer_lean_candidate_live_proof_state_requests": 1,
+                        "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
+                        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+                        "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows": 1,
+                        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
+                        "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls": 1,
+                        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
+                        "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls": 1,
                         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
                     },
                 },
@@ -29530,6 +29549,31 @@ def test_runtime_audit_does_not_trust_self_reported_formalizer_repair_sequences(
 
     assert (
         audit["n_formalizer_lean_candidate_failed_then_passed_repair_sequences"]
+        == 0
+    )
+    assert audit["n_llm_formalizer_proof_engineer_proposals"] == 0
+    assert audit["n_live_llm_formalizer_proof_engineer_proposals"] == 0
+    assert audit["n_formalizer_lean_candidate_local_lean_checked"] == 0
+    assert audit["n_formalizer_lean_candidate_live_proof_state_requests"] == 0
+    assert audit["n_formalizer_lean_candidate_proof_state_feedback_rows"] == 0
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_materialization_bound_proof_state_feedback_rows"
+        ]
+        == 0
+    )
+    assert audit["n_formalizer_lean_candidate_local_lean_tool_calls"] == 0
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls"
+        ]
+        == 0
+    )
+    assert audit["n_formalizer_lean_candidate_lean_lsp_mcp_live_calls"] == 0
+    assert (
+        audit[
+            "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls"
+        ]
         == 0
     )
     assert (
@@ -29551,6 +29595,25 @@ def test_runtime_audit_does_not_trust_self_reported_formalizer_repair_sequences(
         == 1
     )
     assert audit["formalizer_lean_candidate_repair_sequence_claims_stale"] is True
+    claim = audit["formalizer_lean_candidate_integrated_count_claims"][
+        "n_formalizer_lean_candidate_local_lean_checked"
+    ]
+    assert claim["derived_from_results"] == 0
+    assert claim["manifest_claimed"] == 1
+    assert claim["runtime_summary_claimed"] == 1
+    assert claim["stale_claim"] is True
+    assert rows["llm_formalizer_proofengineer_proposal_observed"][
+        "passed"
+    ] is False
+    assert rows["formalizer_lean_candidate_local_check_attempted"][
+        "passed"
+    ] is False
+    assert rows["formalizer_lean_candidate_proof_state_request_routed"][
+        "passed"
+    ] is False
+    assert rows["formalizer_lean_candidate_proof_state_feedback_recorded"][
+        "passed"
+    ] is False
     assert rows[
         "formalizer_lean_candidate_integrated_repair_loop_observed"
     ]["passed"] is False
@@ -58946,25 +59009,6 @@ def test_runtime_capability_scorecard_requires_source_kernel_target_binding() ->
     assert "source_theorem_kernel=1" in ladder_rows[7]["evidence"]
     assert "target_bound_source_theorem_kernel=0" in ladder_rows[7]["evidence"]
     assert ladder_rows[8]["passed"] is False
-
-
-def test_runtime_audit_count_prefers_manifest_or_proof_summary_max() -> None:
-    assert (
-        _manifest_or_proof_summary_count(
-            {"n_formalizer_lean_candidate_local_lean_checked": 2},
-            {"n_formalizer_lean_candidate_local_lean_checked": 1},
-            "n_formalizer_lean_candidate_local_lean_checked",
-        )
-        == 2
-    )
-    assert (
-        _manifest_or_proof_summary_count(
-            {},
-            {"n_formalizer_lean_candidate_proof_state_feedback_rows": 3},
-            "n_formalizer_lean_candidate_proof_state_feedback_rows",
-        )
-        == 3
-    )
 
 
 def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
