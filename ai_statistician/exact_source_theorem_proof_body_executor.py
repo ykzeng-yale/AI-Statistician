@@ -364,9 +364,22 @@ def _execution_result_row(
     explicit_semantic_alignment_blockers = _str_tuple(
         row.get("semantic_alignment_blockers", [])
     )
+    semantic_review_approved = _row_has_reviewed_exact_semantic_definition_approval(row)
     semantic_alignment_blockers = _semantic_alignment_constraints_block_source_kernel(
         semantic_alignment_constraints,
         explicit_blockers=explicit_semantic_alignment_blockers,
+        semantic_review_approved=semantic_review_approved,
+    )
+    target_identity_status = str(row.get("target_identity_status", "") or "")
+    target_identity_errors = _str_tuple(row.get("target_identity_errors", []))
+    source_theorem_target_identity_status = str(
+        row.get("source_theorem_target_identity_status", "") or ""
+    ) or _source_theorem_target_identity_status(
+        source_theorem_target_known=source_theorem_target_known,
+        target_identity_status=target_identity_status,
+        target_identity_errors=target_identity_errors,
+        expected_target_lean_declaration=expected_target_lean_declaration,
+        target_lean_declaration=target_lean_declaration,
     )
     kernel_verified_source_theorem_proof_body_adapter_ids = _str_tuple(
         row.get("kernel_verified_source_theorem_proof_body_adapter_ids", [])
@@ -407,23 +420,21 @@ def _execution_result_row(
     kernel_verified_theorem_reduction_closure_target_ids = _str_tuple(
         row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
     )
-    source_theorem_kernel_evidence_eligible = bool(
-        row.get(
-            "source_theorem_kernel_evidence_eligible",
-            source_theorem_target_known and not semantic_alignment_blockers,
-        )
-    ) and not semantic_alignment_blockers
-    target_identity_status = str(row.get("target_identity_status", "") or "")
-    target_identity_errors = _str_tuple(row.get("target_identity_errors", []))
-    source_theorem_target_identity_status = str(
-        row.get("source_theorem_target_identity_status", "") or ""
-    ) or _source_theorem_target_identity_status(
-        source_theorem_target_known=source_theorem_target_known,
-        target_identity_status=target_identity_status,
-        target_identity_errors=target_identity_errors,
-        expected_target_lean_declaration=expected_target_lean_declaration,
-        target_lean_declaration=target_lean_declaration,
+    reviewed_target_kernel_eligible = (
+        semantic_review_approved
+        and source_theorem_target_known
+        and target_identity_status == "TARGET_DECLARATION_MATCHED"
+        and not target_identity_errors
     )
+    source_theorem_kernel_evidence_eligible = (
+        bool(
+            row.get(
+                "source_theorem_kernel_evidence_eligible",
+                source_theorem_target_known and not semantic_alignment_blockers,
+            )
+        )
+        or reviewed_target_kernel_eligible
+    ) and not semantic_alignment_blockers
     source_candidate_artifact_path = str(
         row.get("source_candidate_artifact_path", "") or ""
     )
@@ -2393,6 +2404,7 @@ def _semantic_alignment_constraints_block_source_kernel(
     constraints: tuple[str, ...],
     *,
     explicit_blockers: tuple[str, ...] = (),
+    semantic_review_approved: bool = False,
 ) -> tuple[str, ...]:
     blocking_markers = (
         "draft",
@@ -2413,6 +2425,8 @@ def _semantic_alignment_constraints_block_source_kernel(
         text = str(blocker).strip()
         if text and not _semantic_alignment_constraint_is_nonblocking_review_context(text):
             blockers.append(text)
+    if semantic_review_approved:
+        return tuple(dict.fromkeys(blockers))
     for constraint in constraints:
         text = str(constraint).strip()
         lowered = text.lower()
@@ -2421,6 +2435,53 @@ def _semantic_alignment_constraints_block_source_kernel(
         if any(marker in lowered for marker in blocking_markers):
             blockers.append(text)
     return tuple(dict.fromkeys(blockers))
+
+
+def _row_has_reviewed_exact_semantic_definition_approval(row: Mapping[str, Any]) -> bool:
+    already_repaired = row.get("already_repaired_environment", {})
+    already_repaired_mapping = (
+        already_repaired if isinstance(already_repaired, Mapping) else {}
+    )
+    modes = {
+        str(value).strip()
+        for value in [
+            *list(row.get("definition_candidate_review_modes", []) or []),
+            *list(
+                already_repaired_mapping.get("definition_candidate_review_modes", [])
+                or []
+            ),
+        ]
+        if str(value).strip()
+    }
+    if "typechecked_candidate_source_semantic_review_approved" in modes:
+        return True
+    if str(row.get("semantic_review_decision", "") or "").strip() == (
+        "approved_definition_candidate"
+    ):
+        return True
+    if str(row.get("semantic_review_status", "") or "").strip() == (
+        "verifier_gate_approved_definition_candidate_not_proof"
+    ):
+        return True
+    reviewed_paths = [
+        str(row.get("reviewed_exact_semantic_definition_artifact_path", "") or ""),
+        *[
+            str(value)
+            for value in row.get("reviewed_exact_semantic_definition_artifact_paths", [])
+            or []
+        ],
+    ]
+    has_reviewed_path = any(value.strip() for value in reviewed_paths)
+    constraints = [
+        str(value).lower()
+        for value in row.get("semantic_alignment_constraints", []) or []
+    ]
+    if has_reviewed_path and any(
+        "reviewed exact semantic-definition candidate approved" in value
+        for value in constraints
+    ):
+        return True
+    return False
 
 
 def _has_exact_declaration(source: str, declaration_name: str) -> bool:
