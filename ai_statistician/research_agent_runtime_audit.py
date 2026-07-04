@@ -6447,6 +6447,82 @@ def audit_research_agent_runtime(
                 "manifest_stale"
             ]
         ),
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+                False,
+            )
+        ),
         "source_theorem_exact_semantic_definition_source_lookup_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_source_lookup_required",

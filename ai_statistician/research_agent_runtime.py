@@ -31673,6 +31673,44 @@ def run_research_agent_runtime(
         for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
     )
     manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+    ] = sum(
+        int(row.get("n_tasks_from_pseudo_formal", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results_from_pseudo_formal"
+    ] = sum(
+        int(row.get("n_results_from_pseudo_formal", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
+    ] = list(
+        dict.fromkeys(
+            str(value)
+            for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
+            for value in row.get("source_pseudo_formal_work_order_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_block_ids"
+    ] = list(
+        dict.fromkeys(
+            str(value)
+            for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
+            for value in row.get("source_pseudo_formal_block_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+    ] = any(
+        bool(row.get("source_theorem_ready_for_exact_proof_body", False))
+        for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_dependency_fetch_required"
     ] = sum(
         int(row.get("n_dependency_fetch_required", 0) or 0)
@@ -33971,6 +34009,54 @@ def run_research_agent_runtime(
             or {}
         ).get("n_results", 0)
         or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest
+            or {}
+        ).get("n_tasks_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest
+            or {}
+        ).get("n_results_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest
+            or {}
+        ).get("source_theorem_ready_for_exact_proof_body", False)
     )
     manifest[
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_dependency_fetch_required"

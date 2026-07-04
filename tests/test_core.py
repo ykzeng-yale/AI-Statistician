@@ -5775,6 +5775,12 @@ class SystemTests(unittest.TestCase):
                     "pseudo_formal_block_verifier_component_gate_manifest.json"
                 ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": 1,
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": 2,
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results": 2,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": True,
             }
         )
@@ -5809,6 +5815,40 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
             ],
             1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks"
+            ],
+            2,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results"
+            ],
+            2,
+        )
+        self.assertFalse(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
+            ]
+        )
+        self.assertFalse(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
+            ]
         )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][

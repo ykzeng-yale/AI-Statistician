@@ -3501,6 +3501,30 @@ async def run_research_system_audit(
                 "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal",
                 0,
             ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+                False,
+            ),
             "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": bool(
                 runtime_pf_semantic_bridge_scorecard_row.get("passed", True)
             ),

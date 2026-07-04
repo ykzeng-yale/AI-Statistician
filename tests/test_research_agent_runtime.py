@@ -48606,6 +48606,13 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "environment_repair_results_jsonl": str(results_path),
             "runtime_learning_rows_jsonl": str(learning_path),
             "n_results": 1,
+            "n_tasks_from_pseudo_formal": 1,
+            "n_results_from_pseudo_formal": 1,
+            "source_pseudo_formal_work_order_ids": [
+                "pseudo_formal_work_order:orderStat"
+            ],
+            "source_pseudo_formal_block_ids": ["blk_order_stat"],
+            "source_theorem_ready_for_exact_proof_body": False,
             "n_dependency_fetch_required": 1,
             "n_ready_to_rerun_lean_repair": 0,
             "status_counts": {
@@ -49496,6 +49503,30 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
+    ] == ["pseudo_formal_work_order:orderStat"]
+    assert manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids"
+    ] == ["blk_order_stat"]
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_dependency_fetch_required"
         ]
         == 1
@@ -49532,6 +49563,31 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "runtime_source_theorem_exact_semantic_definition_lean_environment_repair_results_jsonl"
         ]
     ).exists()
+    audit = audit_research_agent_runtime(tmp_path / "runtime")
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert audit[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
+    ] == ["pseudo_formal_work_order:orderStat"]
+    assert audit[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids"
+    ] == ["blk_order_stat"]
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
     agenda_rows = [
         json.loads(line)
         for line in Path(
@@ -64520,6 +64576,13 @@ def test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback(
             "environment_repair_results_jsonl": str(results_path),
             "runtime_learning_rows_jsonl": str(learning_path),
             "n_results": 1,
+            "n_tasks_from_pseudo_formal": 1,
+            "n_results_from_pseudo_formal": 1,
+            "source_pseudo_formal_work_order_ids": [
+                "pseudo_formal_work_order:covered"
+            ],
+            "source_pseudo_formal_block_ids": ["blk_covered"],
+            "source_theorem_ready_for_exact_proof_body": False,
             "n_dependency_fetch_required": 1,
             "n_ready_to_rerun_lean_repair": 0,
             "proof_evidence_status": (
@@ -64783,6 +64846,30 @@ def test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback(
             "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results"
         ]
         >= 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_results_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
+    ] == ["pseudo_formal_work_order:covered"]
+    assert manifest[
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_pseudo_formal_block_ids"
+    ] == ["blk_covered"]
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
     )
     assert (
         manifest[

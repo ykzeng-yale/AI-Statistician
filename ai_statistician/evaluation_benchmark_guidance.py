@@ -1590,6 +1590,24 @@ def _suite_rows(
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": counts.get(
                     "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
                 ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results"
+                ),
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": counts.get(
+                    "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks"
+                ),
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results": counts.get(
+                    "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
+                ),
+                "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": counts.get(
+                    "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
+                ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": counts.get(
                     "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
                 ),
