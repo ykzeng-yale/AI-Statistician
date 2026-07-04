@@ -388,6 +388,9 @@ from .source_theorem_exact_semantic_definition_authoring_worker import (
 from .source_theorem_exact_semantic_definition_lean_environment_repair_executor import (
     run_source_theorem_exact_semantic_definition_lean_environment_repair_executor,
 )
+from .source_theorem_exact_semantic_definition_verifier_gate_executor import (
+    run_source_theorem_exact_semantic_definition_verifier_gate_executor,
+)
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
@@ -5026,6 +5029,48 @@ def _source_theorem_exact_semantic_definition_lean_environment_repair_executor(
     print(
         "environment results written to "
         f"{Path(str(manifest['environment_repair_results_jsonl'])).resolve()}"
+    )
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"manifest written to {Path(str(manifest['manifest_path'])).resolve()}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    return 0
+
+
+def _source_theorem_exact_semantic_definition_verifier_gate_executor(
+    args: argparse.Namespace,
+) -> int:
+    manifest = run_source_theorem_exact_semantic_definition_verifier_gate_executor(
+        out_dir=Path(args.out),
+        recheck_manifest=Path(args.recheck_manifest)
+        if args.recheck_manifest
+        else None,
+        work_orders_jsonl=Path(args.work_orders_jsonl)
+        if args.work_orders_jsonl
+        else None,
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistician Exact Semantic-Definition Verifier Gate")
+    print("=" * 72)
+    print(
+        f"work_orders={manifest['n_work_orders']} "
+        f"results={manifest['n_results']} "
+        f"local_lean_checked={manifest['n_local_lean_checked']} "
+        f"local_lean_compiled={manifest['n_local_lean_compiled']} "
+        f"approved={manifest['n_verifier_approved']} "
+        f"blocked={manifest['n_verifier_blocked']}"
+    )
+    print(
+        "verifier results written to "
+        f"{Path(str(manifest['verifier_gate_results_jsonl'])).resolve()}"
+    )
+    print(
+        "approved review packets written to "
+        f"{Path(str(manifest['verifier_approved_review_packets_jsonl'])).resolve()}"
     )
     print(
         "runtime learning rows written to "
@@ -14019,6 +14064,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source_theorem_exact_semantic_definition_lean_environment_repair_executor.set_defaults(
         func=_source_theorem_exact_semantic_definition_lean_environment_repair_executor
+    )
+
+    source_theorem_exact_semantic_definition_verifier_gate_executor = sub.add_parser(
+        "source-theorem-exact-semantic-definition-verifier-gate-executor",
+        help=(
+            "execute verifier-gate work orders for LLM-approved, typechecked exact "
+            "semantic-definition candidates before proof-body recheck"
+        ),
+    )
+    exact_definition_verifier_gate_source = (
+        source_theorem_exact_semantic_definition_verifier_gate_executor.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    exact_definition_verifier_gate_source.add_argument(
+        "--recheck-manifest",
+        help=(
+            "exact_source_theorem_proof_body_execution_queue_manifest.json "
+            "listing verifier_gate_work_orders_jsonl"
+        ),
+    )
+    exact_definition_verifier_gate_source.add_argument(
+        "--work-orders-jsonl",
+        help=(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders.jsonl"
+        ),
+    )
+    source_theorem_exact_semantic_definition_verifier_gate_executor.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="rerun local Lean on the definition-only candidate artifact",
+    )
+    source_theorem_exact_semantic_definition_verifier_gate_executor.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project for --local-lean",
+    )
+    source_theorem_exact_semantic_definition_verifier_gate_executor.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for local Lean verifier diagnostics",
+    )
+    source_theorem_exact_semantic_definition_verifier_gate_executor.add_argument(
+        "--out",
+        default=(
+            "runs/"
+            "source_theorem_exact_semantic_definition_verifier_gate_executor"
+        ),
+        help="verifier-gate executor output directory",
+    )
+    source_theorem_exact_semantic_definition_verifier_gate_executor.set_defaults(
+        func=_source_theorem_exact_semantic_definition_verifier_gate_executor
     )
 
     source_theorem_exact_semantic_definition_candidate_synthesis = sub.add_parser(

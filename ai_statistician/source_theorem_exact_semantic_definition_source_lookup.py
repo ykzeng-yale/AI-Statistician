@@ -1542,6 +1542,7 @@ def _typechecked_review_verifier_gate_work_order(
 ) -> dict[str, Any]:
     nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
     nested_mapping = nested if isinstance(nested, Mapping) else {}
+    semantic_context = _typechecked_review_semantic_context(row)
     target = str(row.get("target_theorem_name", "") or "").strip()
     placeholder = str(row.get("placeholder_symbol", "") or "").strip()
     definition_only_candidate_artifact_path = str(
@@ -1607,6 +1608,7 @@ def _typechecked_review_verifier_gate_work_order(
         ),
         "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
         "semantic_review_evidence": semantic_review_evidence,
+        **semantic_context,
         "proof_body_recheck_blockers": blockers,
         "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
         "source_theorem_ready_for_exact_proof_body": False,
@@ -1649,6 +1651,7 @@ def _typechecked_review_verifier_gate_work_order(
         "semantic_review_decision": str(input_summary["semantic_review_decision"]),
         "semantic_review_status": str(input_summary["semantic_review_status"]),
         "semantic_review_evidence": semantic_review_evidence,
+        **semantic_context,
         "semantic_review_required_before_proof_body": True,
         "source_theorem_ready_for_exact_proof_body": False,
         "source_theorem_kernel_verified": bool(
@@ -1686,6 +1689,51 @@ def _typechecked_review_verifier_gate_work_order(
         ),
         "proof_evidence_boundary": BOUNDARY,
     }
+
+
+def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, Any]:
+    nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
+    nested_mapping = nested if isinstance(nested, Mapping) else {}
+    context: dict[str, Any] = {}
+    for key in (
+        "semantic_alignment_constraints",
+        "semantic_alignment_blockers",
+        "source_reference_hints",
+        "candidate_source_references",
+        "source_anchors",
+        "exact_source_theorem_binders",
+        "premise_semantic_anchor_binders",
+        "premise_semantic_anchor_binder_names",
+        "required_anchor_names",
+        "required_semantic_anchor_reference_names",
+    ):
+        values = row.get(key, nested_mapping.get(key, []))
+        if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+            copied = [
+                dict(value) if isinstance(value, Mapping) else str(value)
+                for value in values
+                if str(value).strip()
+            ]
+            if copied:
+                context[key] = copied
+    request = row.get("candidate_definition_request") or nested_mapping.get(
+        "candidate_definition_request"
+    )
+    if isinstance(request, Mapping):
+        context["candidate_definition_request"] = dict(request)
+    contract = row.get("definition_contract") or nested_mapping.get(
+        "definition_contract"
+    )
+    if isinstance(contract, Mapping):
+        context["definition_contract"] = dict(contract)
+        known_gaps = [
+            str(value)
+            for value in contract.get("known_gaps", []) or []
+            if str(value).strip()
+        ]
+        if known_gaps:
+            context["known_gaps"] = known_gaps
+    return context
 
 
 def _is_stale_replaced_semantic_definition_risk(value: str) -> bool:
