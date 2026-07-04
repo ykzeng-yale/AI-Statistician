@@ -30587,6 +30587,14 @@ def run_research_agent_runtime(
         int(row.get("n_verifier_gate_work_orders", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
+    late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context = sum(
+        int(row.get("n_verifier_gate_work_orders_with_source_anchor_context", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
+    late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context = sum(
+        int(row.get("n_verifier_gate_work_orders_missing_source_anchor_context", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
     late_typechecked_review_recheck_queue_n_runtime_learning_rows = sum(
         int(row.get("n_runtime_learning_rows", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
@@ -30674,6 +30682,12 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context"
+    ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context"
+    ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows"
     ] = late_typechecked_review_recheck_queue_n_runtime_learning_rows
@@ -31776,6 +31790,20 @@ def run_research_agent_runtime(
         ).get("n_verifier_gate_work_orders", 0)
         or 0
     )
+    primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders_with_source_anchor_context", 0)
+        or 0
+    )
+    primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders_missing_source_anchor_context", 0)
+        or 0
+    )
     primary_typechecked_review_recheck_queue_n_runtime_learning_rows = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
@@ -31882,6 +31910,12 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context"
+    ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context"
+    ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows"
     ] = primary_typechecked_review_recheck_queue_n_runtime_learning_rows
@@ -32506,6 +32540,20 @@ def run_research_agent_runtime(
         ).get("n_verifier_gate_work_orders", 0)
         or 0
     )
+    materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders_with_source_anchor_context", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_verifier_gate_work_orders_missing_source_anchor_context", 0)
+        or 0
+    )
     materialized_typechecked_review_recheck_queue_n_runtime_learning_rows = int(
         (
             source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
@@ -32604,6 +32652,12 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context"
+    ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_with_source_anchor_context
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context"
+    ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders_missing_source_anchor_context
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows"
     ] = materialized_typechecked_review_recheck_queue_n_runtime_learning_rows

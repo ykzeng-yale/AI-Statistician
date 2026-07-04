@@ -130,6 +130,14 @@ def _write_exact_proof_body_queue_manifest(path: Path, *, candidate: Path) -> No
                             "original source theorem alignment constraint"
                         ],
                         "semantic_alignment_blockers": [],
+                        "proof_body_goal_excerpt": [
+                            "Ω : Type u_1",
+                            "P : MeasureTheory.Measure Ω",
+                            "score : Fin (n + 1) → Ω → ℝ",
+                            "hq : ∀ᵐ (ω : Ω) ∂P, True",
+                            "hC : covered = {ω | score (Fin.last n) ω ≤ q}",
+                            "⊢ True",
+                        ],
                         "live_goal_location_ready": True,
                         "live_proof_state_request": {
                             "request_id": "live_goal:split",
@@ -2481,6 +2489,8 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
     assert manifest["n_blocked_review_packets"] == 1
     assert manifest["n_blocked_review_learning_rows"] == 0
     assert manifest["n_verifier_gate_work_orders"] == 1
+    assert manifest["n_verifier_gate_work_orders_with_source_anchor_context"] == 1
+    assert manifest["n_verifier_gate_work_orders_missing_source_anchor_context"] == 0
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
     assert manifest["proof_body_recheck_blocked"] is True
@@ -2520,6 +2530,25 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
     )
     assert verifier_gate_rows[0]["source_theorem_ready_for_exact_proof_body"] is False
     assert verifier_gate_rows[0]["source_theorem_kernel_evidence_eligible"] is False
+    assert verifier_gate_rows[0]["source_anchors"][0]["kind"] == (
+        "proof_body_goal_context"
+    )
+    assert verifier_gate_rows[0]["source_anchors"][0][
+        "source"
+    ] == "exact_source_theorem_proof_body_execution_queue"
+    assert verifier_gate_rows[0]["source_anchors"][0][
+        "proof_evidence_status"
+    ] == "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    binders_by_name = {
+        row["name"]: row for row in verifier_gate_rows[0]["exact_source_theorem_binders"]
+    }
+    assert binders_by_name["P"]["type"] == "MeasureTheory.Measure Ω"
+    assert binders_by_name["score"]["type"] == "Fin (n + 1) → Ω → ℝ"
+    assert binders_by_name["hq"]["role"] == "source_theorem_hypothesis"
+    assert "hC" in verifier_gate_rows[0]["premise_semantic_anchor_binder_names"]
+    assert verifier_gate_rows[0]["input_summary"]["source_anchors"][0][
+        "kind"
+    ] == "proof_body_goal_context"
     assert verifier_gate_rows[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )

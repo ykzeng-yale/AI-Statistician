@@ -651,7 +651,7 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         / "source_theorem_exact_semantic_definition_typechecked_review_recheck_blocked_packets.jsonl"
     )
     verifier_gate_work_orders = [
-        _typechecked_review_verifier_gate_work_order(row)
+        _typechecked_review_verifier_gate_work_order(row, source_rows=source_rows)
         for row in blocked_packets
         if "llm_semantic_review_approved_requires_verifier_recheck_gate"
         in list(row.get("proof_body_recheck_blockers", []) or [])
@@ -726,6 +726,16 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         "n_blocked_review_learning_rows": len(blocked_review_learning_rows),
         "n_semantic_review_work_orders": len(semantic_review_work_orders),
         "n_verifier_gate_work_orders": len(verifier_gate_work_orders),
+        "n_verifier_gate_work_orders_with_source_anchor_context": sum(
+            1
+            for row in verifier_gate_work_orders
+            if _typechecked_review_has_source_anchor_context(row)
+        ),
+        "n_verifier_gate_work_orders_missing_source_anchor_context": sum(
+            1
+            for row in verifier_gate_work_orders
+            if not _typechecked_review_has_source_anchor_context(row)
+        ),
         "n_runtime_learning_rows": len(runtime_learning_rows),
         "n_source_proof_body_rows": len(source_rows),
         "n_execution_queue_rows": len(rows),
@@ -1539,10 +1549,15 @@ def _typechecked_review_blocked_learning_row(row: Mapping[str, Any]) -> dict[str
 
 def _typechecked_review_verifier_gate_work_order(
     row: Mapping[str, Any],
+    *,
+    source_rows: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
     nested_mapping = nested if isinstance(nested, Mapping) else {}
-    semantic_context = _typechecked_review_semantic_context(row)
+    semantic_context = _merge_typechecked_review_semantic_context(
+        _typechecked_review_semantic_context(row),
+        _typechecked_review_source_proof_body_context(row, source_rows),
+    )
     target = str(row.get("target_theorem_name", "") or "").strip()
     placeholder = str(row.get("placeholder_symbol", "") or "").strip()
     definition_only_candidate_artifact_path = str(
@@ -1689,6 +1704,207 @@ def _typechecked_review_verifier_gate_work_order(
         ),
         "proof_evidence_boundary": BOUNDARY,
     }
+
+
+def _merge_typechecked_review_semantic_context(
+    primary: Mapping[str, Any],
+    supplemental: Mapping[str, Any],
+) -> dict[str, Any]:
+    context = dict(primary)
+    for key, value in supplemental.items():
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            merged = [
+                dict(item) if isinstance(item, Mapping) else str(item)
+                for item in context.get(key, []) or []
+            ]
+            seen = {json.dumps(item, sort_keys=True, default=str) for item in merged}
+            for item in value:
+                copied = dict(item) if isinstance(item, Mapping) else str(item)
+                marker = json.dumps(copied, sort_keys=True, default=str)
+                if marker not in seen:
+                    merged.append(copied)
+                    seen.add(marker)
+            if merged:
+                context[key] = merged
+            continue
+        context.setdefault(key, value)
+    return context
+
+
+def _typechecked_review_source_proof_body_context(
+    row: Mapping[str, Any],
+    source_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    matched_rows = _matching_typechecked_review_source_rows(row, source_rows)
+    if not matched_rows:
+        return {}
+    source_anchors: list[dict[str, Any]] = []
+    exact_source_theorem_binders: list[dict[str, Any]] = []
+    for source_row in matched_rows:
+        goal_excerpt = [
+            str(value)
+            for value in source_row.get("proof_body_goal_excerpt", []) or []
+            if str(value).strip()
+        ]
+        source_anchors.append(
+            {
+                "source": "exact_source_theorem_proof_body_execution_queue",
+                "kind": "proof_body_goal_context",
+                "execution_queue_id": str(
+                    source_row.get("execution_queue_id", "") or ""
+                ),
+                "target_theorem_name": str(
+                    source_row.get("target_theorem_name", "") or ""
+                ),
+                "target_lean_declaration": str(
+                    source_row.get("target_lean_declaration", "") or ""
+                ),
+                "target_lean_file": str(source_row.get("target_lean_file", "") or ""),
+                "target_lean_line": int(source_row.get("target_lean_line", 0) or 0),
+                "source_theorem_target_identity_status": str(
+                    source_row.get("source_theorem_target_identity_status", "") or ""
+                ),
+                "semantic_alignment_constraints": [
+                    str(value)
+                    for value in source_row.get("semantic_alignment_constraints", [])
+                    or []
+                    if str(value).strip()
+                ][:8],
+                "proof_body_goal_excerpt": goal_excerpt[:16],
+                "proof_evidence_status": (
+                    TYPECHECKED_REVIEW_VERIFIER_GATE_PROOF_EVIDENCE_STATUS
+                ),
+            }
+        )
+        exact_source_theorem_binders.extend(
+            _source_goal_binders_from_proof_body_excerpt(goal_excerpt)
+        )
+    context: dict[str, Any] = {
+        "source_anchors": source_anchors,
+        "exact_source_theorem_binders": _dedupe_mapping_rows(
+            exact_source_theorem_binders
+        ),
+        "source_reference_hints": [
+            {
+                "source": "exact_source_theorem_proof_body_execution_queue",
+                "kind": "proof_body_queue_manifest_context",
+                "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+                "n_matching_source_rows": len(matched_rows),
+            }
+        ],
+    }
+    if context["exact_source_theorem_binders"]:
+        context["premise_semantic_anchor_binders"] = list(
+            context["exact_source_theorem_binders"]
+        )
+        context["premise_semantic_anchor_binder_names"] = [
+            str(binder.get("name", "") or "")
+            for binder in context["exact_source_theorem_binders"]
+            if str(binder.get("name", "") or "").strip()
+        ]
+    return context
+
+
+def _matching_typechecked_review_source_rows(
+    row: Mapping[str, Any],
+    source_rows: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    target = str(row.get("target_theorem_name", "") or "").strip()
+    target_ids = set(_target_ids_from_row(row, fallback_target=target))
+    matches: list[Mapping[str, Any]] = []
+    for source_row in source_rows:
+        if not isinstance(source_row, Mapping):
+            continue
+        source_target = str(source_row.get("target_theorem_name", "") or "").strip()
+        source_identifiers = set(
+            _target_ids_from_row(source_row, fallback_target=source_target)
+        )
+        for key in (
+            "target_lean_declaration",
+            "expected_target_lean_declaration",
+        ):
+            value = str(source_row.get(key, "") or "").strip()
+            if value:
+                source_identifiers.add(value)
+        if (
+            (target and target in source_identifiers)
+            or bool(target_ids.intersection(source_identifiers))
+            or (
+                len(source_rows) == 1
+                and not target_ids
+                and not source_identifiers
+            )
+        ):
+            matches.append(source_row)
+    return matches
+
+
+def _source_goal_binders_from_proof_body_excerpt(
+    proof_body_goal_excerpt: Sequence[str],
+) -> list[dict[str, Any]]:
+    binders: list[dict[str, Any]] = []
+    lines = [str(line).strip() for line in proof_body_goal_excerpt]
+    for index, line in enumerate(lines):
+        if not line or line.startswith("/") or " error:" in line or line.startswith("⊢"):
+            continue
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_']*)\s*:\s*(.*)$", line)
+        if match is None:
+            continue
+        name = match.group(1).strip()
+        binder_type = match.group(2).strip()
+        continuation: list[str] = []
+        next_index = index + 1
+        while next_index < len(lines):
+            next_line = lines[next_index]
+            if (
+                not next_line
+                or next_line.startswith("/")
+                or next_line.startswith("⊢")
+                or re.match(r"^[A-Za-z_][A-Za-z0-9_']*\s*:", next_line)
+            ):
+                break
+            continuation.append(next_line)
+            next_index += 1
+        full_type = " ".join([binder_type, *continuation]).strip()
+        if not full_type:
+            continue
+        binders.append(
+            {
+                "name": name,
+                "type": full_type,
+                "role": (
+                    "source_theorem_hypothesis"
+                    if name.startswith("h")
+                    else "source_theorem_parameter"
+                ),
+                "source": "proof_body_goal_excerpt",
+            }
+        )
+    return _dedupe_mapping_rows(binders)
+
+
+def _dedupe_mapping_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        copied = dict(row)
+        marker = json.dumps(copied, sort_keys=True, default=str)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        deduped.append(copied)
+    return deduped
+
+
+def _typechecked_review_has_source_anchor_context(row: Mapping[str, Any]) -> bool:
+    return bool(
+        row.get("source_anchors")
+        or row.get("exact_source_theorem_binders")
+        or row.get("premise_semantic_anchor_binders")
+        or row.get("source_reference_hints")
+    )
 
 
 def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, Any]:
