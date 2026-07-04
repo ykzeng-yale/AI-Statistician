@@ -107,6 +107,15 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "source_verifier_gate_work_order_id",
     "recommended_repair_tasks",
     "proof_body_recheck_blockers",
+    "source_materialization_seed_id",
+    "source_pseudo_formal_work_order_id",
+    "source_pseudo_formal_block_id",
+    "source_pseudo_formal_packet_id",
+    "source_formalizer_proposal_id",
+    "source_formalizer_proposal_without_formalization_manifest",
+    "pseudo_formal_method_contract_id",
+    "pseudo_formal_pipeline_stage",
+    "pseudo_formal_proof_evidence_status",
 )
 
 

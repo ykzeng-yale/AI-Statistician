@@ -15,76 +15,82 @@ from ai_statistician.source_theorem_exact_semantic_definition_source_lookup impo
 )
 
 
-def _write_work_order(path: Path, *, placeholder_symbol: str) -> None:
+def _write_work_order(
+    path: Path,
+    *,
+    placeholder_symbol: str,
+    extra: dict[str, object] | None = None,
+) -> None:
+    row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+        ),
+        "work_order_id": (
+            "source_theorem_exact_semantic_definition_work_order:"
+            + placeholder_symbol
+        ),
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": placeholder_symbol,
+        "replacement_strategy": (
+            "formalize or import a reviewed exact semantic definition"
+        ),
+        "search_targets": [placeholder_symbol],
+        "candidate_registered_obligation_ids": [
+            "split_conformal_good_rank_set_inclusion_bridge"
+        ],
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": [
+            "split_conformal_good_rank_set_inclusion_bridge"
+        ],
+        "kernel_verified_source_theorem_semantic_definition_ids": [],
+        "semantic_closure_status": (
+            "REGISTERED_SUPPORT_VERIFIED_PLACEHOLDER_DEFINITION_OPEN"
+        ),
+        "placeholder_definition_status": (
+            "OPEN_REQUIRES_REVIEWED_FORMAL_DEFINITION"
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_semantic_support_only": True,
+        "source_semantic_alignment_review_required": True,
+        "source_theorem_target_identity_status": (
+            "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
+        ),
+        "source_theorem_target_provenance": {
+            "source_theorem_question_id": "conformal_prediction_coverage",
+            "target_lean_declaration": "split_conformal_coverage",
+        },
+        "semantic_alignment_constraints": [
+            "reviewed order statistic semantics must preserve rank k"
+        ],
+        "semantic_alignment_blockers": [
+            "unreviewed synthesized definition semantic risk: "
+            "draft finite maximum ignores rank k"
+        ],
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "definition_only_candidate_artifact_path": (
+                "runs/candidate_artifacts/defs_only.lean"
+            ),
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+            ),
+        },
+        "definition_only_candidate_artifact_path": (
+            "runs/candidate_artifacts/defs_only.lean"
+        ),
+        "candidate_artifact_path": "runs/candidate_artifacts/full.lean",
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        ),
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    if extra:
+        row.update(extra)
     path.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "artifact_kind": (
-                    "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
-                ),
-                "work_order_id": (
-                    "source_theorem_exact_semantic_definition_work_order:"
-                    + placeholder_symbol
-                ),
-                "question_id": "conformal_prediction_coverage",
-                "target_theorem_name": "split_conformal_coverage",
-                "placeholder_symbol": placeholder_symbol,
-                "replacement_strategy": (
-                    "formalize or import a reviewed exact semantic definition"
-                ),
-                "search_targets": [placeholder_symbol],
-                "candidate_registered_obligation_ids": [
-                    "split_conformal_good_rank_set_inclusion_bridge"
-                ],
-                "kernel_verified_source_theorem_semantic_support_obligation_ids": [
-                    "split_conformal_good_rank_set_inclusion_bridge"
-                ],
-                "kernel_verified_source_theorem_semantic_definition_ids": [],
-                "semantic_closure_status": (
-                    "REGISTERED_SUPPORT_VERIFIED_PLACEHOLDER_DEFINITION_OPEN"
-                ),
-                "placeholder_definition_status": (
-                    "OPEN_REQUIRES_REVIEWED_FORMAL_DEFINITION"
-                ),
-                "source_theorem_ready_for_exact_proof_body": False,
-                "source_theorem_semantic_support_only": True,
-                "source_semantic_alignment_review_required": True,
-                "source_theorem_target_identity_status": (
-                    "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
-                ),
-                "source_theorem_target_provenance": {
-                    "source_theorem_question_id": "conformal_prediction_coverage",
-                    "target_lean_declaration": "split_conformal_coverage",
-                },
-                "semantic_alignment_constraints": [
-                    "reviewed order statistic semantics must preserve rank k"
-                ],
-                "semantic_alignment_blockers": [
-                    "unreviewed synthesized definition semantic risk: "
-                    "draft finite maximum ignores rank k"
-                ],
-                "source_theorem_exact_semantic_definition_typechecked_candidate": {
-                    "definition_only_candidate_artifact_path": (
-                        "runs/candidate_artifacts/defs_only.lean"
-                    ),
-                    "local_definition_lean_compiled": True,
-                    "semantic_definition_typecheck_evidence_status": (
-                        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
-                    ),
-                },
-                "definition_only_candidate_artifact_path": (
-                    "runs/candidate_artifacts/defs_only.lean"
-                ),
-                "candidate_artifact_path": "runs/candidate_artifacts/full.lean",
-                "local_definition_lean_checked": True,
-                "local_definition_lean_compiled": True,
-                "semantic_definition_typecheck_evidence_status": (
-                    "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
-                ),
-                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
-            }
-        )
+        json.dumps(row)
         + "\n",
         encoding="utf-8",
     )
@@ -314,6 +320,97 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
         == "runs/candidate_artifacts/defs_only.lean"
         for repair in repairs
     )
+
+
+def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    (source_root / "Blocks.lean").write_text(
+        "def blk_exchangeable_setup : Prop := True\n",
+        encoding="utf-8",
+    )
+    pseudo_formal_origin = {
+        "source_materialization_seed_id": (
+            "pseudo_formal_work_order:35f0c7e436caf8c7"
+        ),
+        "source_pseudo_formal_work_order_id": (
+            "pseudo_formal_work_order:35f0c7e436caf8c7"
+        ),
+        "source_pseudo_formal_block_id": "blk_exchangeable_setup",
+        "source_pseudo_formal_packet_id": "pseudo_formal_packet:split",
+        "source_formalizer_proposal_id": "formalizer_proposal:split",
+        "source_formalizer_proposal_without_formalization_manifest": True,
+        "pseudo_formal_method_contract_id": (
+            "pseudo_formalization_block_verification_calibration_v1"
+        ),
+        "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_status": (
+            "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    _write_work_order(
+        queue,
+        placeholder_symbol="blk_exchangeable_setup",
+        extra=pseudo_formal_origin,
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    closure_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_work_orders_jsonl"]
+        ).read_text().splitlines()
+    ]
+    review_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_review_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+
+    assert manifest["n_definition_closure_review_packets"] == 1
+    for row in [lookup_rows[0], closure_rows[0], review_packets[0], *learning_rows]:
+        assert row["source_pseudo_formal_work_order_id"] == (
+            "pseudo_formal_work_order:35f0c7e436caf8c7"
+        )
+        assert row["source_pseudo_formal_block_id"] == "blk_exchangeable_setup"
+        assert row["source_pseudo_formal_packet_id"] == "pseudo_formal_packet:split"
+        assert row["source_formalizer_proposal_id"] == "formalizer_proposal:split"
+        assert row["pseudo_formal_method_contract_id"] == (
+            "pseudo_formalization_block_verification_calibration_v1"
+        )
+        assert row["pseudo_formal_pipeline_stage"] == "pseudo_formal_block_routing"
+        assert row["pseudo_formal_proof_evidence_status"] == (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        )
+        assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, dict) and input_summary:
+            assert input_summary["source_pseudo_formal_work_order_id"] == (
+                "pseudo_formal_work_order:35f0c7e436caf8c7"
+            )
+            assert input_summary["source_pseudo_formal_block_id"] == (
+                "blk_exchangeable_setup"
+            )
 
 
 def test_exact_semantic_definition_source_lookup_ignores_generated_cache_dirs(
